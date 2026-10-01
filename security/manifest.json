@@ -12,7 +12,7 @@
       "status": "shipped",
       "purpose": "Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains.",
       "sourceFiles": [
-        "~/.pi/agent/extensions/sandbox/index.ts",
+        "sandbox/index.ts",
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
@@ -26,18 +26,22 @@
       "id": "L2",
       "name": "In-process tool guard",
       "status": "shipped",
-      "purpose": "Catch what sandbox-exec can't: the in-process read/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1.",
+      "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).",
       "sourceFiles": [
-        "~/.pi/agent/extensions/security-guard.ts"
+        "security-guard.ts",
+        "lib/guard-lib.ts"
       ],
       "tests": [
         { "id": "L2-paths",   "command": "node security/tests/path-matcher.mjs", "expected": "PASS=13, FAIL=0" },
         { "id": "L2-urls",    "command": "node security/tests/url-allowlist.mjs", "expected": "PASS=8, FAIL=0" },
-        { "id": "L2-symlink", "command": "node security/tests/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" }
+        { "id": "L2-symlink", "command": "node security/tests/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" },
+        { "id": "L2-grep-filter", "command": "node security/tests/grep-filter.mjs", "expected": "PASS=15, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",
-        "fetch_content redirects are not re-checked against the allowlist"
+        "fetch_content redirects are not re-checked against the allowlist",
+        "find and ls still print names (not contents) of denied files beneath an allowed root (ADR-008, accepted)",
+        "The grep output filter parses pi's grep line format; a format change leaves lines unfiltered until grep-filter.mjs is updated"
       ]
     },
     {
@@ -46,7 +50,7 @@
       "status": "shipped-opt-in",
       "purpose": "Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode). Filesystem deny rules apply unchanged in every context.",
       "sourceFiles": [
-        "~/.pi/agent/extensions/security-guard.ts"
+        "security-guard.ts"
       ],
       "config": {
         "key": "subagent.network",

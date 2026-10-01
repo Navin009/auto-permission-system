@@ -3,7 +3,7 @@
 Two-layer security extension for the [Pi coding agent](https://pi.dev):
 
 - **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, and network egress to unlisted domains.
-- **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`.
+- **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. `grep` output lines from denied files beneath an allowed search root are removed before the model sees them.
 - **Layer 3** — Subagent posture: optionally drop or restrict network access when running headless (`-p`, JSON mode, subagents).
 
 When a tool call is blocked you get an interactive prompt — no need to leave pi and hand-edit config files. Choose *this once*, *always for this project*, or *always for all projects* (file or parent-folder granularity). Decisions are persisted and audited.
@@ -64,7 +64,11 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 
 ### Absolute-deny tier
 
-Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` is always a high-risk block. The prompt requires typing `"i understand"` verbatim and the "always" option is never offered.
+Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. The prompt requires typing `"i understand"` verbatim and the "always" option is never offered.
+
+### A policy file that does not parse
+
+`sandbox.json` is strict JSON: no comments, no trailing commas. If a file does not parse, both layers skip it and use the built-in defaults for it. Layer 2 then shows an error at session start and writes `policy-parse-error` to the audit log. The "always" prompts refuse to write to a file they cannot parse, so a hand-written policy is never replaced.
 
 ## Commands
 
