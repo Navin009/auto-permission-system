@@ -53,7 +53,7 @@ Merged in order (later wins):
 
 ## Absolute-deny tier
 
-Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. The user must type `"i understand"` verbatim. The "always" option is never available for these paths.
+Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. To allow one call the user picks *allow this ONE call* in a menu that defaults to block, then *Yes* in a second menu that also defaults to No. Enter-Enter blocks. In headless mode these calls are always blocked. The "always" option is never available for these paths.
 
 ## Ask-tier prompt options
 

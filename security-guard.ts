@@ -176,7 +176,7 @@ function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
 }
 
 // Hardcoded absolute-deny tier (per PLAN-ask-tier-ux.md OQ#5).
-// Bypassing requires typing "i understand" verbatim; "always" is forbidden.
+// Allowing one call takes two select steps that default to block (ADR-009); "always" is forbidden.
 // pi's own auth.json holds the provider OAuth tokens and API keys pi runs on.
 const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key", `${getAgentDir()}/auth.json`];
 
@@ -304,9 +304,15 @@ type UICtx = {
 async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
 	if (ctx.hasUI === false) return "no"; // subagents, -p, JSON mode
 	if (absoluteDenyPattern) {
-		const banner = `⚠️  HIGH-RISK BLOCK — Layer 2\n\nTool:    ${k.tool}\nSubject: ${k.subject}\nReason:  ${k.reason}\nMatched absolute-deny tier: ${absoluteDenyPattern}\n\nAccess to credential material is almost always exfiltration.\nType "i understand" exactly to allow this ONE call. "always" is not available for this tier.`;
-		const typed = await ctx.ui.input(banner, "i understand", { timeout: 60_000 });
-		return typed === "i understand" ? "yes" : "no";
+		// Two deliberate steps (ADR-009). Both are select menus whose first,
+		// pre-selected option blocks, so Enter-Enter can never approve. pi's
+		// ctx.ui.confirm is not used: it lists "Yes" first and pre-selects it.
+		const banner = `⚠️  HIGH-RISK BLOCK — Layer 2\n\nTool:    ${k.tool}\nSubject: ${k.subject}\nReason:  ${k.reason}\nMatched absolute-deny tier: ${absoluteDenyPattern}\n\nAccess to credential material is almost always exfiltration.\n"always" is not available for this tier.`;
+		const step1 = ["no  — block (default)", "allow this ONE call"];
+		if ((await ctx.ui.select(banner, step1, { timeout: 60_000 })) !== step1[1]) return "no";
+		const step2 = ["No  — keep it blocked (default)", "Yes — allow this ONE call"];
+		const check = `Really allow ${k.tool} on credential material?\n\n${k.subject}`;
+		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
 	}
 	type Decision2 = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 	const isFileKind = k.overrideKind === "allowRead" || k.overrideKind === "allowWrite";

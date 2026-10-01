@@ -64,7 +64,7 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 
 ### Absolute-deny tier
 
-Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. The prompt requires typing `"i understand"` verbatim and the "always" option is never offered.
+Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. Allowing one call takes two menus, each with "block" pre-selected: pick *allow this ONE call*, then confirm with *Yes*. Pressing Enter twice blocks. The "always" option is never offered (ADR-009).
 
 ### A policy file that does not parse
 
