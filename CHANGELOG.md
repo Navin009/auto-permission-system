@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+# [1.2.0](https://github.com/hannesro/pi-secure-it/compare/v1.1.0...v1.2.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **deps:** bump @anthropic-ai/sandbox-runtime to ^0.0.78 ([de536c8](https://github.com/hannesro/pi-secure-it/commit/de536c83962d6203700696ae27543d0b9d5dc512))
+* **guard:** enforce the read policy on grep, find and ls ([3b8d992](https://github.com/hannesro/pi-secure-it/commit/3b8d992ebbcd02d87bbe99f7f190fbe8a019d6cf))
+* **guard:** make the absolute-deny tier deny on its own ([bad9249](https://github.com/hannesro/pi-secure-it/commit/bad9249aa5374bc9dde5989bd189a12c5405e9af)), closes [hi#risk](https://github.com/hi/issues/risk)
+
+
+### Features
+
+* **guard:** two-step select instead of typing "i understand" ([a4b1430](https://github.com/hannesro/pi-secure-it/commit/a4b14304398d5197e7b6d5fa025b9e5726769c0e))
+
 # [1.1.0](https://github.com/hannesro/pi-secure-it/compare/v1.0.0...v1.1.0) (2026-07-19)
 
 
