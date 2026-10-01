@@ -2,15 +2,15 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-04-27T11:25:44.328Z
+Generated: 2026-10-01T19:33:01.627Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `~/.pi/agent/extensions/sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-smoke` |
-| **L2** In-process tool guard | ✅ shipped | `~/.pi/agent/extensions/security-guard.ts` | `L2-paths`, `L2-urls`, `L2-symlink` |
-| **L3** Subagent posture | 🟢 shipped-opt-in | `~/.pi/agent/extensions/security-guard.ts` | `L3-manual` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-smoke` |
+| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter` |
+| **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
 ## UX polish
@@ -29,8 +29,8 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `~/.pi/agent/extensions/sandbox/index.ts` — 380 lines, mtime 2026-04-27
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 39 lines, mtime 2026-04-27
+- ✓ `sandbox/index.ts` — 551 lines, mtime 2026-10-01
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 84 lines, mtime 2026-10-01
 
 **Tests**
 
@@ -42,22 +42,26 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1.
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).
 
 **Source files**
 
-- ✓ `~/.pi/agent/extensions/security-guard.ts` — 334 lines, mtime 2026-04-27
+- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
+- ✓ `lib/guard-lib.ts` — 87 lines, mtime 2026-10-01
 
 **Tests**
 
 - `L2-paths` — `node security/tests/path-matcher.mjs` → expects PASS=13, FAIL=0
 - `L2-urls` — `node security/tests/url-allowlist.mjs` → expects PASS=8, FAIL=0
 - `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
+- `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
 
 **Known gaps / accepted risks**
 
 - Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)
 - fetch_content redirects are not re-checked against the allowlist
+- find and ls still print names (not contents) of denied files beneath an allowed root (ADR-008, accepted)
+- The grep output filter parses pi's grep line format; a format change leaves lines unfiltered until grep-filter.mjs is updated
 
 ### L3 — Subagent posture  🟢 shipped-opt-in
 
@@ -65,7 +69,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `~/.pi/agent/extensions/security-guard.ts` — 334 lines, mtime 2026-04-27
+- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
 
 **Config**
 
@@ -93,7 +97,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 39 lines, mtime 2026-04-27
+- Global: `~/.pi/agent/extensions/sandbox.json` — 84 lines, mtime 2026-10-01
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (disables ALL layers globally)`
 

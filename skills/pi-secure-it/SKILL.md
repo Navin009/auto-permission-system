@@ -16,7 +16,7 @@ Wraps the `bash` tool with `sandbox-exec` (macOS) or `bubblewrap` (Linux). Block
 - Network egress to domains not in `allowedDomains`
 
 **Layer 2 — In-process tool guard**
-Hooks `tool_call` for `read`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. Applies the same policy file as Layer 1. When a call is blocked, shows an interactive prompt with persistence options.
+Hooks `tool_call` for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. Applies the same policy file as Layer 1. For `grep`, `find` and `ls` the search root is checked like a `read` path. A `tool_result` hook also removes `grep` output lines from denied files beneath an allowed root (for example a `.env` deep in the tree); approving the root does not approve those files. When a call is blocked, shows an interactive prompt with persistence options.
 
 **Layer 3 — Subagent posture**
 When `ctx.hasUI === false` (subagents, `-p`, JSON mode), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`.
@@ -53,7 +53,7 @@ Merged in order (later wins):
 
 ## Absolute-deny tier
 
-Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` are always high-risk blocks. The user must type `"i understand"` verbatim. The "always" option is never available for these paths.
+Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. To allow one call the user picks *allow this ONE call* in a menu that defaults to block, then *Yes* in a second menu that also defaults to No. Enter-Enter blocks. In headless mode these calls are always blocked. The "always" option is never available for these paths.
 
 ## Ask-tier prompt options
 
@@ -78,6 +78,10 @@ pi --yolo          # disables ALL layers
 pi --no-sandbox    # alias for --yolo
 ```
 Setting `"enabled": false` in `sandbox.json` disables Layer 2 without disabling Layer 1.
+
+## When a policy file does not parse
+
+`sandbox.json` is strict JSON. One trailing comma makes both layers skip the whole file and fall back to the built-in defaults. Layer 2 reports this at session start ("does not parse, so neither layer applies its rules") and writes `policy-parse-error` to the audit log. If a user reports that their rules have no effect, check this first: `node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' <file>`. The "always" prompts refuse to write to an unparseable file.
 
 ## Audit log
 

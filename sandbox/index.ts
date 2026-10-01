@@ -48,6 +48,7 @@ import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { readPolicyForUpdate } from "../lib/guard-lib";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -366,14 +367,8 @@ export default function (pi: ExtensionAPI) {
 			scope === "cwd"
 				? { dir: join(localCwd, ".pi"), path: join(localCwd, ".pi", "sandbox.json") }
 				: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
-		let existing: Record<string, unknown> & { overrides?: { allowWrite?: string[] } } = {};
-		if (existsSync(path)) {
-			try {
-				existing = JSON.parse(readFileSync(path, "utf-8"));
-			} catch {
-				/* overwrite corrupt */
-			}
-		}
+		// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
+		const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: { allowWrite?: string[] } };
 		const overrides = (existing.overrides ?? {}) as { allowWrite?: string[] };
 		const list = overrides.allowWrite ?? [];
 		if (!list.includes(absPath)) list.push(absPath);

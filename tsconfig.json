@@ -10,6 +10,7 @@
   },
   "include": [
     "security-guard.ts",
-    "sandbox/index.ts"
+    "sandbox/index.ts",
+    "lib/guard-lib.ts"
   ]
 }

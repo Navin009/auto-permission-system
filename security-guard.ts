@@ -2,10 +2,11 @@
  * Pi Security Guard — Layer 2 (in-process tool gate)
  *
  * Hooks `tool_call` for the in-process tools that bash sandbox can't reach
- * (`read`, `write`, `edit`, `fetch_content`, `web_search`,
- * `get_search_content`) and applies the same policy file as the bash
- * sandbox: `~/.pi/agent/extensions/sandbox.json` merged with project-local
- * `<cwd>/.pi/sandbox.json`.
+ * (`read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`,
+ * `web_search`, `get_search_content`) and applies the same policy file as
+ * the bash sandbox: `~/.pi/agent/extensions/sandbox.json` merged with
+ * project-local `<cwd>/.pi/sandbox.json`. Hooks `tool_result` to drop grep
+ * output lines from denied files beneath an allowed search root.
  *
  * Layer 3 (subagent posture) is folded in: when `ctx.hasUI === false` we
  * (a) never prompt, always block on ambiguity, and (b) drop network unless
@@ -16,11 +17,12 @@
  * Auto-discovered by pi from `~/.pi/agent/extensions/*.ts`.
  */
 
-import { existsSync, readFileSync, realpathSync, mkdirSync, appendFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, mkdirSync, appendFileSync, writeFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve, basename, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
 
 // ---------- Policy ----------
 
@@ -174,8 +176,9 @@ function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
 }
 
 // Hardcoded absolute-deny tier (per PLAN-ask-tier-ux.md OQ#5).
-// Bypassing requires typing "i understand" verbatim; "always" is forbidden.
-const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key"];
+// Allowing one call takes two select steps that default to block (ADR-009); "always" is forbidden.
+// pi's own auth.json holds the provider OAuth tokens and API keys pi runs on.
+const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key", `${getAgentDir()}/auth.json`];
 
 function isAbsoluteDeny(absPath: string, cwd: string): string | null {
 	for (const pat of ABSOLUTE_DENY_PATTERNS) {
@@ -189,8 +192,14 @@ function isOverridden(absPath: string, cwd: string, list: string[] | undefined):
 	return list.some((pat) => matchPattern(absPath, pat, cwd));
 }
 
+// The absolute-deny tier denies on its own. Before, it only chose the prompt
+// shown after denyRead/denyWrite had already matched, so `*.pem`, `*.key`,
+// `~/.aws` and auth.json stayed readable under any policy that did not list
+// them. Checked before overrides: "always" is never offered for this tier.
 function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | null {
 	const abs = canonicalize(rawPath, cwd);
+	const absolute = isAbsoluteDeny(abs, cwd);
+	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
 	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
 	for (const pat of policy.filesystem.modelDenyRead ?? []) {
 		if (matchPattern(abs, pat, cwd)) return `modelDenyRead matched "${pat}" → ${abs}`;
@@ -203,6 +212,8 @@ function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | nu
 
 function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | null {
 	const abs = canonicalize(rawPath, cwd);
+	const absolute = isAbsoluteDeny(abs, cwd);
+	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
 	if (isOverridden(abs, cwd, policy.overrides?.allowWrite)) return null;
 	for (const pat of policy.filesystem.denyWrite) {
 		if (matchPattern(abs, pat, cwd)) return `denyWrite matched "${pat}" → ${abs}`;
@@ -264,14 +275,8 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 		scope === "cwd"
 			? { dir: join(cwd, ".pi"), path: join(cwd, ".pi", "sandbox.json") }
 			: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
-	let existing: Record<string, unknown> & { overrides?: Record<OverrideKind, string[]> } = {};
-	if (existsSync(path)) {
-		try {
-			existing = JSON.parse(readFileSync(path, "utf-8"));
-		} catch {
-			/* overwrite a corrupt config — caller should be aware via audit log */
-		}
-	}
+	// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
+	const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: Record<OverrideKind, string[]> };
 	const overrides = (existing.overrides ?? {}) as Record<OverrideKind, string[]>;
 	const list = (overrides[kind] ?? []) as string[];
 	if (!list.includes(value)) list.push(value);
@@ -299,9 +304,15 @@ type UICtx = {
 async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
 	if (ctx.hasUI === false) return "no"; // subagents, -p, JSON mode
 	if (absoluteDenyPattern) {
-		const banner = `⚠️  HIGH-RISK BLOCK — Layer 2\n\nTool:    ${k.tool}\nSubject: ${k.subject}\nReason:  ${k.reason}\nMatched absolute-deny tier: ${absoluteDenyPattern}\n\nAccess to credential material is almost always exfiltration.\nType "i understand" exactly to allow this ONE call. "always" is not available for this tier.`;
-		const typed = await ctx.ui.input(banner, "i understand", { timeout: 60_000 });
-		return typed === "i understand" ? "yes" : "no";
+		// Two deliberate steps (ADR-009). Both are select menus whose first,
+		// pre-selected option blocks, so Enter-Enter can never approve. pi's
+		// ctx.ui.confirm is not used: it lists "Yes" first and pre-selects it.
+		const banner = `⚠️  HIGH-RISK BLOCK — Layer 2\n\nTool:    ${k.tool}\nSubject: ${k.subject}\nReason:  ${k.reason}\nMatched absolute-deny tier: ${absoluteDenyPattern}\n\nAccess to credential material is almost always exfiltration.\n"always" is not available for this tier.`;
+		const step1 = ["no  — block (default)", "allow this ONE call"];
+		if ((await ctx.ui.select(banner, step1, { timeout: 60_000 })) !== step1[1]) return "no";
+		const step2 = ["No  — keep it blocked (default)", "Yes — allow this ONE call"];
+		const check = `Really allow ${k.tool} on credential material?\n\n${k.subject}`;
+		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
 	}
 	type Decision2 = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 	const isFileKind = k.overrideKind === "allowRead" || k.overrideKind === "allowWrite";
@@ -396,6 +407,15 @@ export default function (pi: ExtensionAPI) {
 			ctx.ui.notify("⚠️  security-guard (Layer 2) disabled: --yolo", "warning");
 			return;
 		}
+		// A policy file that does not parse is skipped and the defaults apply.
+		// Say so loudly: otherwise one trailing comma silently disables the whole file.
+		for (const p of [`${getAgentDir()}/extensions/sandbox.json`, `${ctx.cwd}/.pi/sandbox.json`]) {
+			const err = policyFileError(p);
+			if (!err) continue;
+			audit({ layer: 2, event: "policy-parse-error", file: p, error: err, cwd: ctx.cwd });
+			console.error(`security-guard: ${p} does not parse (${err}); its rules are NOT applied`);
+			ctx.ui.notify(`⚠️  security-guard: ${p} does not parse, so neither layer applies its rules (built-in defaults instead).\n${err}`, "error");
+		}
 		const policy = loadPolicy(ctx.cwd);
 		if (!policy.enabled) {
 			active = false;
@@ -416,6 +436,21 @@ export default function (pi: ExtensionAPI) {
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
 				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "read", subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				if (result) return result;
+			}
+		}
+		// Read-only search tools. grep returns file contents and runs ripgrep in
+		// process, so neither the bash sandbox nor the read gate saw it before.
+		// Gate the search root here; tool_result below drops output lines from
+		// denied files beneath the root.
+		const searchRoot = isToolCallEventType("grep", event) || isToolCallEventType("find", event) || isToolCallEventType("ls", event)
+			? (event.input.path ?? ".")
+			: null;
+		if (searchRoot !== null) {
+			const reason = isDeniedRead(searchRoot, ctx.cwd, policy);
+			if (reason) {
+				const abs = canonicalize(searchRoot, ctx.cwd);
+				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
 				if (result) return result;
 			}
 		}
@@ -467,6 +502,38 @@ export default function (pi: ExtensionAPI) {
 			// allowlist). The follow-on fetch_content for individual results is
 			// the catchable surface.
 		}
+	});
+
+	// grep output filter. A root that passed the gate can still contain denied
+	// files (`.env`, `*.pem`, `~/.ssh` under a search of `~`). Approving the
+	// root does not approve the denied files beneath it. Runs before the
+	// result reaches the model.
+	pi.on("tool_result", (event, ctx) => {
+		if (!active || event.toolName !== "grep" || event.isError) return;
+		const input = event.input as { path?: string } | undefined;
+		const policy = loadPolicy(ctx.cwd);
+		const root = canonicalize(input?.path ?? ".", ctx.cwd);
+		let rootIsDir = false;
+		try {
+			rootIsDir = statSync(root).isDirectory();
+		} catch {
+			return;
+		}
+		// A single-file search prints only the basename; its root gate already decided.
+		if (!rootIsDir) return;
+		let removedLines = 0;
+		const removedFiles = new Set<string>();
+		const content = event.content.map((c) => {
+			if (c.type !== "text") return c;
+			const r = filterGrepOutput(c.text, (printed) => isDeniedRead(join(root, printed), ctx.cwd, policy) !== null);
+			removedLines += r.removedLines;
+			for (const f of r.removedFiles) removedFiles.add(f);
+			return { ...c, text: r.text };
+		});
+		if (removedLines === 0) return;
+		audit({ layer: 2, tool: "grep", subject: root, decision: "redacted", removedLines, removedFiles: [...removedFiles], cwd: ctx.cwd });
+		content.push({ type: "text", text: `\n[security-guard: removed ${removedLines} line(s) from ${removedFiles.size} file(s) that match the read-deny policy]` });
+		return { content };
 	});
 
 	pi.registerCommand?.("security", {
