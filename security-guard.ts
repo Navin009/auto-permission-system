@@ -192,8 +192,14 @@ function isOverridden(absPath: string, cwd: string, list: string[] | undefined):
 	return list.some((pat) => matchPattern(absPath, pat, cwd));
 }
 
+// The absolute-deny tier denies on its own. Before, it only chose the prompt
+// shown after denyRead/denyWrite had already matched, so `*.pem`, `*.key`,
+// `~/.aws` and auth.json stayed readable under any policy that did not list
+// them. Checked before overrides: "always" is never offered for this tier.
 function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | null {
 	const abs = canonicalize(rawPath, cwd);
+	const absolute = isAbsoluteDeny(abs, cwd);
+	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
 	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
 	for (const pat of policy.filesystem.modelDenyRead ?? []) {
 		if (matchPattern(abs, pat, cwd)) return `modelDenyRead matched "${pat}" → ${abs}`;
@@ -206,6 +212,8 @@ function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | nu
 
 function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | null {
 	const abs = canonicalize(rawPath, cwd);
+	const absolute = isAbsoluteDeny(abs, cwd);
+	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
 	if (isOverridden(abs, cwd, policy.overrides?.allowWrite)) return null;
 	for (const pat of policy.filesystem.denyWrite) {
 		if (matchPattern(abs, pat, cwd)) return `denyWrite matched "${pat}" → ${abs}`;
