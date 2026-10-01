@@ -28,7 +28,7 @@
     "test": "node security/tests/path-matcher.mjs && node security/tests/url-allowlist.mjs && node security/tests/symlink-escape.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sandbox-runtime": "^0.0.66"
+    "@anthropic-ai/sandbox-runtime": "^0.0.78"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
