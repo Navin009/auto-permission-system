@@ -62,6 +62,41 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 }
 ```
 
+### Project policy files and trust
+
+A folder can have its own `.pi/sandbox.json`. It comes with the folder, for example with a repository that you clone. So pi-secure-it does not trust it automatically (ADR-013).
+
+- **Block rules in the file always apply.** They are added to your rules.
+- **Changes that make your security weaker do not apply** until you trust the file. Examples: turn off pi-secure-it, let bash write to `/`, allow more websites.
+- pi-secure-it shows a warning that lists these changes in plain words.
+- **Did you write the file?** Type `/security trust`. pi-secure-it shows the changes and asks you. If you say "No", it does not warn again until the file changes.
+- Trust is for the file as it is now. If the file changes, pi-secure-it asks again.
+- Most folders have no `.pi/sandbox.json`, so you see nothing. Your own "always for CURRENT project" answers keep the file trusted.
+- `/security untrust` removes the trust. `/security` shows the status.
+
+### Outside the project
+
+Reads outside the working directory can ask before they run (ADR-012):
+
+```jsonc
+"filesystem": {
+  "outsideProject": {
+    "read": "ask",                       // "allow" (default) | "ask" | "deny"
+    "allowRead": ["~/repos", "~/.cargo/registry"]
+  }
+}
+```
+
+Never asked about: the project itself, your `allowWrite` roots, `~/.pi/agent` (skills, settings; `auth.json` stays absolute-denied), pi's own package (docs, examples) and `allowRead`. In an interactive session a read runs without a prompt when **you named its full path** (`/…` or `~/…`) in one of your own messages; only messages you typed count, never tool output or the agent's text. Otherwise you get the ask-tier prompt, including `yes — for this session`. Headless runs block (set `allowRead` for paths a harness needs). Writes outside the project are governed by `allowWrite` as before.
+
+### Ask-tier prompt
+
+`no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010).
+
+### File-name patterns
+
+An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.
+
 ### Absolute-deny tier
 
 Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. Allowing one call takes two menus, each with "block" pre-selected: pick *allow this ONE call*, then confirm with *Yes*. Pressing Enter twice blocks. The "always" option is never offered (ADR-009).

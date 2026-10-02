@@ -55,11 +55,20 @@ Merged in order (later wins):
 
 Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. To allow one call the user picks *allow this ONE call* in a menu that defaults to block, then *Yes* in a second menu that also defaults to No. Enter-Enter blocks. In headless mode these calls are always blocked. The "always" option is never available for these paths.
 
+## Project policy trust
+
+A project `.pi/sandbox.json` applies in full only after the user trusted its exact content with `/security trust` (stored in `~/.pi/agent/extensions/sandbox.trust.json`). Untrusted, only its block rules and stricter settings apply; changes that make security weaker are ignored, and a warning lists them in plain words. A "No" answer stops the warning until the file changes. If a user's project overrides "stopped working", check `/security` ("not trusted") and suggest `/security trust`. Never suggest editing the trust store by hand.
+
+## Reads outside the project
+
+`filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. The project, `allowWrite` roots, `~/.pi/agent` and pi's own package never ask. In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.
+
 ## Ask-tier prompt options
 
-When a normal (non-absolute-deny) call is blocked interactively:
+When a normal (non-absolute-deny) call is blocked:
+- **no — block** — hard deny (default, pre-selected)
 - **yes — this once** — allow just this call
-- **no — block** — hard deny (default)
+- **yes — for this session** — this file, its parent folder, or this domain until the session ends; not saved
 - **always for CURRENT project** — whitelist this file in `<cwd>/.pi/sandbox.json`
 - **always for CURRENT project (folder)** — whitelist the parent directory
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`

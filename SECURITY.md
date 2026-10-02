@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-01T19:33:01.627Z
+Generated: 2026-10-02T07:05:01.746Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-smoke` |
-| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-smoke` |
+| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts`<br>`lib/user-named.ts`<br>`lib/project-trust.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -29,11 +29,12 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 551 lines, mtime 2026-10-01
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 84 lines, mtime 2026-10-01
+- ✓ `sandbox/index.ts` — 589 lines, mtime 2026-10-02
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 89 lines, mtime 2026-10-02
 
 **Tests**
 
+- `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=29, FAIL=0
 - `L1-smoke` — `bash docs/security/run-tests.sh` → expects PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)
 
 **Known gaps / accepted risks**
@@ -46,8 +47,10 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
-- ✓ `lib/guard-lib.ts` — 87 lines, mtime 2026-10-01
+- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
+- ✓ `lib/guard-lib.ts` — 161 lines, mtime 2026-10-02
+- ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-02
+- ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-02
 
 **Tests**
 
@@ -55,6 +58,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-urls` — `node security/tests/url-allowlist.mjs` → expects PASS=8, FAIL=0
 - `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
+- `L2-user-named` — `node security/tests/user-named.mjs` → expects PASS=16, FAIL=0
+- `L1-L2-project-trust` — `node security/tests/project-trust.mjs` → expects PASS=41, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -69,7 +74,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 568 lines, mtime 2026-10-01
+- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
 
 **Config**
 
@@ -97,7 +102,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 84 lines, mtime 2026-10-01
+- Global: `~/.pi/agent/extensions/sandbox.json` — 89 lines, mtime 2026-10-02
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (disables ALL layers globally)`
 

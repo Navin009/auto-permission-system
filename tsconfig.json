@@ -11,6 +11,8 @@
   "include": [
     "security-guard.ts",
     "sandbox/index.ts",
-    "lib/guard-lib.ts"
+    "lib/guard-lib.ts",
+    "lib/user-named.ts",
+    "lib/project-trust.ts"
   ]
 }

@@ -16,6 +16,7 @@
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
+        { "id": "L1-attribution", "command": "node security/tests/l1-attribution.mjs", "expected": "PASS=29, FAIL=0" },
         { "id": "L1-smoke", "command": "bash docs/security/run-tests.sh", "expected": "PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)" }
       ],
       "knownGaps": [
@@ -29,13 +30,17 @@
       "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).",
       "sourceFiles": [
         "security-guard.ts",
-        "lib/guard-lib.ts"
+        "lib/guard-lib.ts",
+        "lib/user-named.ts",
+        "lib/project-trust.ts"
       ],
       "tests": [
         { "id": "L2-paths",   "command": "node security/tests/path-matcher.mjs", "expected": "PASS=13, FAIL=0" },
         { "id": "L2-urls",    "command": "node security/tests/url-allowlist.mjs", "expected": "PASS=8, FAIL=0" },
         { "id": "L2-symlink", "command": "node security/tests/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" },
-        { "id": "L2-grep-filter", "command": "node security/tests/grep-filter.mjs", "expected": "PASS=15, FAIL=0" }
+        { "id": "L2-grep-filter", "command": "node security/tests/grep-filter.mjs", "expected": "PASS=15, FAIL=0" },
+        { "id": "L2-user-named", "command": "node security/tests/user-named.mjs", "expected": "PASS=16, FAIL=0" },
+        { "id": "L1-L2-project-trust", "command": "node security/tests/project-trust.mjs", "expected": "PASS=41, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

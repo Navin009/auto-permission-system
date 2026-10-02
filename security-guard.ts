@@ -23,6 +23,8 @@ import { dirname, isAbsolute, resolve, basename, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
+import { extractUserMessages, userNamedFile } from "./lib/user-named";
+import { applyUntrustedProject, describeLoosening, forgetProjectTrust, isProjectFileDeclined, isProjectFileTrusted, recordProjectDeclined, recordProjectTrust } from "./lib/project-trust";
 
 // ---------- Policy ----------
 
@@ -35,6 +37,12 @@ interface Policy {
 		modelDenyRead?: string[];
 		allowWrite: string[];
 		denyWrite: string[];
+		/**
+		 * Reads outside the project directory (ADR-012). "allow" (default),
+		 * "ask" or "deny". Never asked about: the project, allowWrite roots,
+		 * the pi agent dir, pi's own package, and allowRead.
+		 */
+		outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 	};
 	/**
 	 * Additive project-local overrides written by the "always for this cwd"
@@ -75,16 +83,48 @@ const DEFAULT_POLICY: Policy = {
 	subagent: { network: "allow" },
 };
 
+// ---------- Project trust (ADR-013) ----------
+
+const TRUST_STORE = `${getAgentDir()}/extensions/sandbox.trust.json`;
+/** Set at session_start: the user declined pi's own project-trust prompt. */
+let piDeclinedTrust = false;
+
+const projectPolicyPath = (cwd: string) => `${cwd}/.pi/sandbox.json`;
+
+/** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
+function projectTrusted(cwd: string): boolean {
+	return !piDeclinedTrust && isProjectFileTrusted(projectPolicyPath(cwd), TRUST_STORE);
+}
+
+/** What an untrusted project file tries to make weaker, in plain sentences. Empty when trusted or deny-only. */
+function untrustedProjectChanges(cwd: string): string[] {
+	const p = projectPolicyPath(cwd);
+	if (!existsSync(p) || projectTrusted(cwd)) return [];
+	try {
+		return describeLoosening(JSON.parse(readFileSync(p, "utf-8")));
+	} catch {
+		return [];
+	}
+}
+
+const bullets = (xs: string[]) => xs.map((x) => `  • ${x}`).join("\n");
+
 function loadPolicy(cwd: string): Policy {
 	const paths = [
 		`${getAgentDir()}/extensions/sandbox.json`,
-		`${cwd}/.pi/sandbox.json`,
+		projectPolicyPath(cwd),
 	];
 	let policy: Policy = JSON.parse(JSON.stringify(DEFAULT_POLICY));
 	for (const p of paths) {
 		if (!existsSync(p)) continue;
 		try {
 			const o = JSON.parse(readFileSync(p, "utf-8"));
+			// An untrusted project file may only tighten: deny lists are added,
+			// stricter postures win, anything that could loosen is ignored.
+			if (p === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
+				policy = applyUntrustedProject(policy as unknown as Record<string, unknown>, o).merged as unknown as Policy;
+				continue;
+			}
 			if (o.enabled !== undefined) policy.enabled = o.enabled;
 			if (o.network) policy.network = { ...policy.network, ...o.network };
 			if (o.filesystem) policy.filesystem = { ...policy.filesystem, ...o.filesystem };
@@ -223,6 +263,52 @@ function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | n
 	return null;
 }
 
+// ---------- Outside the project (ADR-012) ----------
+
+let piRootCache: string | null | undefined;
+
+/** pi's own package directory (docs, examples), found from the running binary. */
+function piPackageRoot(): string | null {
+	if (piRootCache !== undefined) return piRootCache;
+	piRootCache = null;
+	try {
+		let d = dirname(realpathSync(process.argv[1] ?? ""));
+		for (let i = 0; i < 6; i++) {
+			const pj = join(d, "package.json");
+			if (existsSync(pj) && JSON.parse(readFileSync(pj, "utf-8")).name === "@earendil-works/pi-coding-agent") {
+				piRootCache = d;
+				break;
+			}
+			d = dirname(d);
+		}
+	} catch {
+		/* not found: no built-in root */
+	}
+	return piRootCache;
+}
+
+function outsideProjectReason(abs: string, cwd: string, policy: Policy): string | null {
+	const mode = policy.filesystem.outsideProject?.read ?? "allow";
+	if (mode === "allow") return null;
+	const root = canonicalize(cwd, cwd);
+	if (abs === root || abs.startsWith(`${root}/`)) return null;
+	const roots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), getAgentDir(), piPackageRoot()]
+		.filter((p): p is string => !!p)
+		.map((p) => (p.startsWith("/") ? canonicalize(p, cwd) : p));
+	if (roots.some((p) => matchPattern(abs, p, cwd))) return null;
+	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
+	return `outside the project (filesystem.outsideProject.read: ${mode}) → ${abs}`;
+}
+
+type SessionCtx = UICtx & { sessionManager?: { getBranch?: () => unknown[] } };
+
+/** The spelling of an outside-project path the user named in their own messages, or null (lib/user-named.ts). */
+function userNamedOutside(ctx: SessionCtx, k: AskKind): string | null {
+	const messages = extractUserMessages(ctx.sessionManager?.getBranch?.() ?? []);
+	if (!messages.length) return null;
+	return userNamedFile(messages, { canonical: k.subject, spelled: k.spelled, cwd: canonicalize(ctx.cwd, ctx.cwd), home: homedir() });
+}
+
 // ---------- Domain matching ----------
 
 function hostnameOf(url: string): string | null {
@@ -275,6 +361,11 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 		scope === "cwd"
 			? { dir: join(cwd, ".pi"), path: join(cwd, ".pi", "sandbox.json") }
 			: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
+	// Never write a grant into a project file whose current content the user has
+	// not trusted: recording the new hash would trust whatever else is in it.
+	if (scope === "cwd" && !projectTrusted(cwd)) {
+		throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);
+	}
 	// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
 	const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: Record<OverrideKind, string[]> };
 	const overrides = (existing.overrides ?? {}) as Record<OverrideKind, string[]>;
@@ -284,13 +375,41 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 	existing.overrides = overrides;
 	mkdirSync(dir, { recursive: true });
 	writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`);
+	if (scope === "cwd") recordProjectTrust(path, TRUST_STORE);
 	return path;
 }
 
 // ---------- Ask-tier prompt ----------
 
-type AskKind = { layer: 2; tool: string; subject: string; reason: string; overrideKind: OverrideKind; overrideValue: string };
-type Decision = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
+type AskKind = {
+	layer: 2;
+	tool: string;
+	subject: string;
+	reason: string;
+	overrideKind: OverrideKind;
+	overrideValue: string;
+	/** A read outside the project (ADR-012); only these may be allowed because the user named the path. */
+	outside?: boolean;
+	/** Absolute path as the call spelled it, before symlink resolution (/tmp vs /private/tmp). */
+	spelled?: string;
+};
+type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
+
+/**
+ * Grants from "yes — for this session" (ADR-010). In memory only, cleared on
+ * session_start, never written to sandbox.json, never consulted for the
+ * absolute-deny tier.
+ */
+const sessionGrants: Array<{ kind: OverrideKind; value: string }> = [];
+
+function sessionGranted(k: AskKind, cwd: string): string | null {
+	for (const g of sessionGrants) {
+		if (g.kind !== k.overrideKind) continue;
+		const hit = g.kind === "allowDomains" ? domainMatches(k.overrideValue, g.value) : matchPattern(k.subject, g.value, cwd);
+		if (hit) return g.value;
+	}
+	return null;
+}
 type UICtx = {
 	cwd: string;
 	hasUI?: boolean;
@@ -314,31 +433,53 @@ async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string |
 		const check = `Really allow ${k.tool} on credential material?\n\n${k.subject}`;
 		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
 	}
-	type Decision2 = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 	const isFileKind = k.overrideKind === "allowRead" || k.overrideKind === "allowWrite";
 	const parentDir = isFileKind ? dirname(k.overrideValue) : null;
 	const title = `Layer 2 block: ${k.tool}\n\nSubject: ${k.subject}\nReason:  ${k.reason}\n\nAllow?`;
-	const options: string[] = [
-		"yes — this once",
-		"no  — block (default)",
-		"always for CURRENT project — whitelist this file (.pi/sandbox.json)",
-	];
+	// "no" first and pre-selected: Enter alone blocks (ADR-010).
+	const options: string[] = ["no  — block (default)", "yes — this once", "yes — for this session (not saved)"];
+	if (isFileKind) options.push(`yes — for this session: parent folder ${parentDir} (not saved)`);
+	options.push("always for CURRENT project — whitelist this file (.pi/sandbox.json)");
 	if (isFileKind) options.push(`always for CURRENT project — whitelist parent folder ${parentDir} (.pi/sandbox.json)`);
 	options.push("always for ALL projects — whitelist this file (~/.pi/agent/extensions/sandbox.json)");
 	if (isFileKind) options.push(`always for ALL projects — whitelist parent folder ${parentDir} (~/.pi/agent/extensions/sandbox.json)`);
 	const chosen = await ctx.ui.select(title, options, { timeout: 60_000 });
-	if (chosen === options[0]) return "yes";
-	if (!chosen || chosen === options[1]) return "no";
-	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? ("always-cwd-folder" as Decision) : "always-cwd";
-	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? ("always-global-folder" as Decision) : "always-global";
+	if (!chosen || chosen === options[0]) return "no";
+	if (chosen === options[1]) return "yes";
+	if (chosen.startsWith("yes — for this session")) return chosen.includes("parent folder") ? "session-folder" : "session";
+	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? "always-cwd-folder" : "always-cwd";
+	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? "always-global-folder" : "always-global";
 	return "no";
 }
 
 async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<{ block: true; reason: string } | null> {
+	if (!absoluteDenyPattern) {
+		const granted = sessionGranted(k, ctx.cwd);
+		if (granted) {
+			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
+			return null;
+		}
+		// Interactive only: headless "user" messages may be written by another model.
+		if (k.outside && ctx.hasUI !== false) {
+			const named = userNamedOutside(ctx as SessionCtx, k);
+			if (named) {
+				audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "user-named", named, cwd: ctx.cwd });
+				ctx.ui.notify(`security-guard: read outside the project allowed once → ${k.subject} (you named "${named}")`, "info");
+				return null;
+			}
+		}
+	}
 	const decision = await askDecision(ctx, k, absoluteDenyPattern);
 	if (decision === "no") {
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", cwd: ctx.cwd });
 		return { block: true, reason: `${k.tool} blocked: ${k.reason}` };
+	}
+	if (decision === "session" || decision === "session-folder") {
+		const value = decision === "session-folder" ? dirname(k.overrideValue) : k.overrideValue;
+		sessionGrants.push({ kind: k.overrideKind, value });
+		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision, grant: value, cwd: ctx.cwd });
+		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${value}`, "info");
+		return null;
 	}
 	if (decision === "always-cwd" || decision === "always-global" || decision === "always-cwd-folder" || decision === "always-global-folder") {
 		if (absoluteDenyPattern) {
@@ -416,6 +557,17 @@ export default function (pi: ExtensionAPI) {
 			console.error(`security-guard: ${p} does not parse (${err}); its rules are NOT applied`);
 			ctx.ui.notify(`⚠️  security-guard: ${p} does not parse, so neither layer applies its rules (built-in defaults instead).\n${err}`, "error");
 		}
+		piDeclinedTrust = (ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false;
+		const changes = untrustedProjectChanges(ctx.cwd);
+		if (changes.length && !isProjectFileDeclined(projectPolicyPath(ctx.cwd), TRUST_STORE)) {
+			audit({ layer: 2, event: "untrusted-project-policy", file: projectPolicyPath(ctx.cwd), changes, cwd: ctx.cwd });
+			ctx.ui.notify(
+				`⚠️  This folder has a .pi/sandbox.json that tries to make your security weaker:\n${bullets(changes)}\n` +
+					"pi-secure-it ignores these changes. Its block rules still apply.\n" +
+					"Did you write this file? Then type /security trust.",
+				"warning",
+			);
+		}
 		const policy = loadPolicy(ctx.cwd);
 		if (!policy.enabled) {
 			active = false;
@@ -423,6 +575,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		active = true;
+		sessionGrants.length = 0;
 		ctx.ui.notify("🔒 security-guard (Layer 2) active", "info");
 	});
 
@@ -431,13 +584,28 @@ export default function (pi: ExtensionAPI) {
 		const policy = loadPolicy(ctx.cwd);
 
 		// --- Path-based gates (with ask-tier prompt) ---
-		if (isToolCallEventType("read", event)) {
-			const reason = isDeniedRead(event.input.path, ctx.cwd, policy);
-			if (reason) {
-				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "read", subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
-				if (result) return result;
+		// One gate for every read: the read policy first, then the project boundary.
+		const gateRead = async (rawPath: string, tool: string) => {
+			const abs = canonicalize(rawPath, ctx.cwd);
+			let reason = isDeniedRead(rawPath, ctx.cwd, policy);
+			let outside = false;
+			if (!reason) {
+				reason = outsideProjectReason(abs, ctx.cwd, policy);
+				outside = reason !== null;
 			}
+			if (!reason) return undefined;
+			if (outside && policy.filesystem.outsideProject?.read === "deny") {
+				audit({ layer: 2, tool, subject: abs, reason, decision: "no", note: "outside-project-deny", cwd: ctx.cwd });
+				return { block: true as const, reason: `${tool} blocked: ${reason}` };
+			}
+			const e = expandHome(rawPath);
+			const spelled = isAbsolute(e) ? e : resolve(ctx.cwd, e);
+			const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs, outside, spelled }, isAbsoluteDeny(abs, ctx.cwd));
+			return result ?? undefined;
+		};
+		if (isToolCallEventType("read", event)) {
+			const result = await gateRead(event.input.path, "read");
+			if (result) return result;
 		}
 		// Read-only search tools. grep returns file contents and runs ripgrep in
 		// process, so neither the bash sandbox nor the read gate saw it before.
@@ -447,12 +615,8 @@ export default function (pi: ExtensionAPI) {
 			? (event.input.path ?? ".")
 			: null;
 		if (searchRoot !== null) {
-			const reason = isDeniedRead(searchRoot, ctx.cwd, policy);
-			if (reason) {
-				const abs = canonicalize(searchRoot, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
-				if (result) return result;
-			}
+			const result = await gateRead(searchRoot, event.toolName);
+			if (result) return result;
 		}
 		if (isToolCallEventType("write", event)) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
@@ -537,8 +701,44 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand?.("security", {
-		description: "Show Layer 2 (security-guard) policy and status",
-		handler: async (_args, ctx) => {
+		description: "Show Layer 2 policy and status. /security trust | untrust: trust this project's .pi/sandbox.json as it is now, or stop trusting it",
+		handler: async (args, ctx) => {
+			const sub = String(args ?? "").trim();
+			const file = projectPolicyPath(ctx.cwd);
+			if (sub === "trust" || sub === "untrust") {
+				if (!existsSync(file)) {
+					ctx.ui.notify("This folder has no .pi/sandbox.json.", "info");
+					return;
+				}
+				if (sub === "untrust") {
+					forgetProjectTrust(file, TRUST_STORE);
+					audit({ layer: 2, event: "project-untrusted", file, cwd: ctx.cwd });
+					ctx.ui.notify("OK. The file is not trusted now. Only its block rules apply.", "info");
+					return;
+				}
+				if (projectTrusted(ctx.cwd)) {
+					ctx.ui.notify("This file is already trusted.", "info");
+					return;
+				}
+				const changes = untrustedProjectChanges(ctx.cwd);
+				if (!changes.length) {
+					ctx.ui.notify("This file only adds block rules. They apply already. You do not have to trust it.", "info");
+					return;
+				}
+				const options = ["No — ignore these changes (default)", "Yes — I wrote this file. Apply it."];
+				const title = `Do you trust this file?\n${file}\n\nIt will:\n${bullets(changes)}\n\nIf the file changes, pi-secure-it asks again.`;
+				const chosen = await ctx.ui.select(title, options, { timeout: 120_000 });
+				if (chosen !== options[1]) {
+					recordProjectDeclined(file, TRUST_STORE);
+					audit({ layer: 2, event: "project-trust-declined", file, changes, cwd: ctx.cwd });
+					ctx.ui.notify("OK. pi-secure-it ignores these changes. It does not ask again until the file changes.", "info");
+					return;
+				}
+				recordProjectTrust(file, TRUST_STORE);
+				audit({ layer: 2, event: "project-trusted", file, applied: changes, cwd: ctx.cwd });
+				ctx.ui.notify("Done. The file applies now. Start a new session so the bash sandbox uses it too.", "info");
+				return;
+			}
 			if (!active) {
 				ctx.ui.notify("security-guard: inactive (yolo or disabled)", "info");
 				return;
@@ -551,6 +751,9 @@ export default function (pi: ExtensionAPI) {
 				`  cwd:               ${ctx.cwd}`,
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
+				`  session grants:    ${sessionGrants.map((g) => `${g.kind}:${g.value}`).join(", ") || "(none)"}`,
+				`  project file:      ${!existsSync(projectPolicyPath(ctx.cwd)) ? "none" : projectTrusted(ctx.cwd) ? "trusted" : untrustedProjectChanges(ctx.cwd).length ? `not trusted, its weaker settings are ignored (/security trust)` : "only block rules, they apply"}`,
+				`  outside project:   read ${policy.filesystem.outsideProject?.read ?? "allow"}${(policy.filesystem.outsideProject?.allowRead ?? []).length ? `, allowRead ${policy.filesystem.outsideProject?.allowRead?.join(", ")}` : ""}`,
 				"",
 				"Filesystem:",
 				`  denyRead:    ${policy.filesystem.denyRead.join(", ") || "(none)"}`,
