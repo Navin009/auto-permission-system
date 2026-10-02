@@ -62,6 +62,14 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 }
 ```
 
+### Project policy files and trust
+
+A `<cwd>/.pi/sandbox.json` comes with the repository you cloned, so pi-secure-it does not apply it blindly (ADR-013). Until you trust it, it can only **tighten**: its `denyRead`, `modelDenyRead`, `denyWrite` and `network.deniedDomains` are added to yours, and stricter `subagent.network` / `outsideProject.read` values apply. `enabled: false`, `allowWrite`, `allowedDomains`, `overrides`, `ignoreViolations`, `enableWeakerNestedSandbox` and the rest are ignored, and pi tells you which keys at session start.
+
+- `/security trust` shows what trusting would apply and asks first. Trust is pinned to the file's content: any change makes it untrusted again.
+- `/security untrust` forgets it. `/security` shows the state.
+- "always for CURRENT project" answers keep a trusted file trusted; into an untrusted file they are refused (use `/security trust` first, or an "ALL projects" option).
+
 ### Outside the project
 
 Reads outside the working directory can ask before they run (ADR-012):

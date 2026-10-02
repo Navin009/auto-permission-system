@@ -69,7 +69,8 @@
       "*.p12",
       "*.pfx",
       "~/.gnupg",
-      "~/.ssh/**"
+      "~/.ssh/**",
+      "~/.pi/agent/extensions/**"
     ]
   },
 

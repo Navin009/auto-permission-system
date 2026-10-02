@@ -50,6 +50,7 @@ import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, readPolicyForUpdate, toSandboxPatterns } from "../lib/guard-lib";
+import { applyUntrustedProject, isProjectFileTrusted, recordProjectTrust } from "../lib/project-trust";
 
 interface SandboxConfig extends SandboxRuntimeConfig {
 	enabled?: boolean;
@@ -90,6 +91,15 @@ const DEFAULT_CONFIG: SandboxConfig = {
 	},
 };
 
+const TRUST_STORE = join(getAgentDir(), "extensions", "sandbox.trust.json");
+/** Set at session_start: the user declined pi's own project-trust prompt. */
+let piDeclinedTrust = false;
+
+/** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
+function projectTrusted(cwd: string): boolean {
+	return !piDeclinedTrust && isProjectFileTrusted(join(cwd, ".pi", "sandbox.json"), TRUST_STORE);
+}
+
 function loadConfig(cwd: string): SandboxConfig {
 	const projectConfigPath = join(cwd, ".pi", "sandbox.json");
 	const globalConfigPath = join(getAgentDir(), "extensions", "sandbox.json");
@@ -113,7 +123,14 @@ function loadConfig(cwd: string): SandboxConfig {
 		}
 	}
 
-	return foldOverrides(deepMerge(deepMerge(DEFAULT_CONFIG, globalConfig), projectConfig));
+	const base = deepMerge(DEFAULT_CONFIG, globalConfig);
+	// An untrusted project file may only tighten the sandbox: no enabled:false,
+	// no allowWrite / allowedDomains / overrides, no ignoreViolations or
+	// enableWeakerNestedSandbox, and its deny lists are added, not substituted.
+	const merged = existsSync(projectConfigPath) && !projectTrusted(cwd)
+		? (applyUntrustedProject(base as unknown as Record<string, unknown>, projectConfig as Record<string, unknown>).merged as unknown as SandboxConfig)
+		: deepMerge(base, projectConfig);
+	return foldOverrides(merged);
 }
 
 /**
@@ -381,6 +398,11 @@ export default function (pi: ExtensionAPI) {
 			scope === "cwd"
 				? { dir: join(localCwd, ".pi"), path: join(localCwd, ".pi", "sandbox.json") }
 				: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
+		// Never write a grant into an untrusted project file: recording the new hash
+		// would trust whatever else is in it.
+		if (scope === "cwd" && !projectTrusted(localCwd)) {
+			throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);
+		}
 		// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
 		const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: { allowWrite?: string[] } };
 		const overrides = (existing.overrides ?? {}) as { allowWrite?: string[] };
@@ -390,6 +412,7 @@ export default function (pi: ExtensionAPI) {
 		existing.overrides = overrides;
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`);
+		if (scope === "cwd") recordProjectTrust(path, TRUST_STORE);
 		await reloadSandbox();
 		return path;
 	}
@@ -439,6 +462,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		activeCtx = ctx as unknown as typeof activeCtx;
+		piDeclinedTrust = (ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false;
 		const yolo = pi.getFlag("yolo") as boolean;
 		const noSandbox = pi.getFlag("no-sandbox") as boolean; // backwards compat
 

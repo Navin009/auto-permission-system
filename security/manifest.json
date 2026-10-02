@@ -31,14 +31,16 @@
       "sourceFiles": [
         "security-guard.ts",
         "lib/guard-lib.ts",
-        "lib/user-named.ts"
+        "lib/user-named.ts",
+        "lib/project-trust.ts"
       ],
       "tests": [
         { "id": "L2-paths",   "command": "node security/tests/path-matcher.mjs", "expected": "PASS=13, FAIL=0" },
         { "id": "L2-urls",    "command": "node security/tests/url-allowlist.mjs", "expected": "PASS=8, FAIL=0" },
         { "id": "L2-symlink", "command": "node security/tests/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" },
         { "id": "L2-grep-filter", "command": "node security/tests/grep-filter.mjs", "expected": "PASS=15, FAIL=0" },
-        { "id": "L2-user-named", "command": "node security/tests/user-named.mjs", "expected": "PASS=16, FAIL=0" }
+        { "id": "L2-user-named", "command": "node security/tests/user-named.mjs", "expected": "PASS=16, FAIL=0" },
+        { "id": "L1-L2-project-trust", "command": "node security/tests/project-trust.mjs", "expected": "PASS=30, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

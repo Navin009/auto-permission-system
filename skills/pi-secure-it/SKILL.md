@@ -55,6 +55,10 @@ Merged in order (later wins):
 
 Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` are always high-risk blocks. To allow one call the user picks *allow this ONE call* in a menu that defaults to block, then *Yes* in a second menu that also defaults to No. Enter-Enter blocks. In headless mode these calls are always blocked. The "always" option is never available for these paths.
 
+## Project policy trust
+
+A project `.pi/sandbox.json` applies in full only after the user trusted its exact content with `/security trust` (hash in `~/.pi/agent/extensions/sandbox.trust.json`). Untrusted, only its deny lists and stricter postures apply; `enabled`, allow lists, `overrides` and sandbox-weakening flags are ignored, and a warning lists them at session start. If a user's project overrides "stopped working", check `/security` for "NOT trusted" and suggest `/security trust`. Never suggest editing the trust store by hand.
+
 ## Reads outside the project
 
 `filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. The project, `allowWrite` roots, `~/.pi/agent` and pi's own package never ask. In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.

@@ -24,6 +24,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
 import { extractUserMessages, userNamedFile } from "./lib/user-named";
+import { applyUntrustedProject, forgetProjectTrust, isProjectFileTrusted, recordProjectTrust } from "./lib/project-trust";
 
 // ---------- Policy ----------
 
@@ -82,16 +83,46 @@ const DEFAULT_POLICY: Policy = {
 	subagent: { network: "allow" },
 };
 
+// ---------- Project trust (ADR-013) ----------
+
+const TRUST_STORE = `${getAgentDir()}/extensions/sandbox.trust.json`;
+/** Set at session_start: the user declined pi's own project-trust prompt. */
+let piDeclinedTrust = false;
+
+const projectPolicyPath = (cwd: string) => `${cwd}/.pi/sandbox.json`;
+
+/** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
+function projectTrusted(cwd: string): boolean {
+	return !piDeclinedTrust && isProjectFileTrusted(projectPolicyPath(cwd), TRUST_STORE);
+}
+
+/** Keys of an untrusted project file that are ignored because they could loosen the policy. */
+function untrustedProjectIgnored(cwd: string): string[] {
+	const p = projectPolicyPath(cwd);
+	if (!existsSync(p) || projectTrusted(cwd)) return [];
+	try {
+		return applyUntrustedProject({}, JSON.parse(readFileSync(p, "utf-8"))).ignored;
+	} catch {
+		return [];
+	}
+}
+
 function loadPolicy(cwd: string): Policy {
 	const paths = [
 		`${getAgentDir()}/extensions/sandbox.json`,
-		`${cwd}/.pi/sandbox.json`,
+		projectPolicyPath(cwd),
 	];
 	let policy: Policy = JSON.parse(JSON.stringify(DEFAULT_POLICY));
 	for (const p of paths) {
 		if (!existsSync(p)) continue;
 		try {
 			const o = JSON.parse(readFileSync(p, "utf-8"));
+			// An untrusted project file may only tighten: deny lists are added,
+			// stricter postures win, anything that could loosen is ignored.
+			if (p === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
+				policy = applyUntrustedProject(policy as unknown as Record<string, unknown>, o).merged as unknown as Policy;
+				continue;
+			}
 			if (o.enabled !== undefined) policy.enabled = o.enabled;
 			if (o.network) policy.network = { ...policy.network, ...o.network };
 			if (o.filesystem) policy.filesystem = { ...policy.filesystem, ...o.filesystem };
@@ -328,6 +359,11 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 		scope === "cwd"
 			? { dir: join(cwd, ".pi"), path: join(cwd, ".pi", "sandbox.json") }
 			: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
+	// Never write a grant into a project file whose current content the user has
+	// not trusted: recording the new hash would trust whatever else is in it.
+	if (scope === "cwd" && !projectTrusted(cwd)) {
+		throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);
+	}
 	// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
 	const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: Record<OverrideKind, string[]> };
 	const overrides = (existing.overrides ?? {}) as Record<OverrideKind, string[]>;
@@ -337,6 +373,7 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 	existing.overrides = overrides;
 	mkdirSync(dir, { recursive: true });
 	writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`);
+	if (scope === "cwd") recordProjectTrust(path, TRUST_STORE);
 	return path;
 }
 
@@ -518,6 +555,15 @@ export default function (pi: ExtensionAPI) {
 			console.error(`security-guard: ${p} does not parse (${err}); its rules are NOT applied`);
 			ctx.ui.notify(`⚠️  security-guard: ${p} does not parse, so neither layer applies its rules (built-in defaults instead).\n${err}`, "error");
 		}
+		piDeclinedTrust = (ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false;
+		const ignored = untrustedProjectIgnored(ctx.cwd);
+		if (ignored.length) {
+			audit({ layer: 2, event: "untrusted-project-policy", file: projectPolicyPath(ctx.cwd), ignored, cwd: ctx.cwd });
+			ctx.ui.notify(
+				`⚠️  security-guard: ${projectPolicyPath(ctx.cwd)} is not trusted, so only its deny rules apply.\nIgnored: ${ignored.join(", ")}\nRun /security trust to apply it as it is now.`,
+				"warning",
+			);
+		}
 		const policy = loadPolicy(ctx.cwd);
 		if (!policy.enabled) {
 			active = false;
@@ -651,8 +697,35 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand?.("security", {
-		description: "Show Layer 2 (security-guard) policy and status",
-		handler: async (_args, ctx) => {
+		description: "Show Layer 2 policy and status. /security trust | untrust: trust this project's .pi/sandbox.json as it is now, or stop trusting it",
+		handler: async (args, ctx) => {
+			const sub = String(args ?? "").trim();
+			const file = projectPolicyPath(ctx.cwd);
+			if (sub === "trust" || sub === "untrust") {
+				if (!existsSync(file)) {
+					ctx.ui.notify(`security-guard: no ${file} in this project`, "info");
+					return;
+				}
+				if (sub === "untrust") {
+					forgetProjectTrust(file, TRUST_STORE);
+					audit({ layer: 2, event: "project-untrusted", file, cwd: ctx.cwd });
+					ctx.ui.notify(`security-guard: ${file} is no longer trusted; only its deny rules apply`, "info");
+					return;
+				}
+				const ignored = untrustedProjectIgnored(ctx.cwd);
+				if (!ignored.length && projectTrusted(ctx.cwd)) {
+					ctx.ui.notify(`security-guard: ${file} is already trusted`, "info");
+					return;
+				}
+				const options = ["no  — keep it untrusted (default)", "trust this file as it is now"];
+				const title = `Trust ${file}?\n\nTrusting applies these settings, which can loosen your policy:\n  ${ignored.join("\n  ") || "(none, only deny rules)"}\n\nAny later change to the file makes it untrusted again.`;
+				const chosen = await ctx.ui.select(title, options, { timeout: 120_000 });
+				if (chosen !== options[1]) return;
+				recordProjectTrust(file, TRUST_STORE);
+				audit({ layer: 2, event: "project-trusted", file, applied: ignored, cwd: ctx.cwd });
+				ctx.ui.notify(`security-guard: trusted ${file}. Run /reload or start a new session so the bash sandbox picks it up.`, "info");
+				return;
+			}
 			if (!active) {
 				ctx.ui.notify("security-guard: inactive (yolo or disabled)", "info");
 				return;
@@ -666,6 +739,7 @@ export default function (pi: ExtensionAPI) {
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
 				`  session grants:    ${sessionGrants.map((g) => `${g.kind}:${g.value}`).join(", ") || "(none)"}`,
+				`  project policy:    ${existsSync(projectPolicyPath(ctx.cwd)) ? (projectTrusted(ctx.cwd) ? "trusted" : `NOT trusted (ignored: ${untrustedProjectIgnored(ctx.cwd).join(", ") || "nothing"}), /security trust`) : "(none)"}`,
 				`  outside project:   read ${policy.filesystem.outsideProject?.read ?? "allow"}${(policy.filesystem.outsideProject?.allowRead ?? []).length ? `, allowRead ${policy.filesystem.outsideProject?.allowRead?.join(", ")}` : ""}`,
 				"",
 				"Filesystem:",
