@@ -2,7 +2,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyUntrustedProject, forgetProjectTrust, isProjectFileTrusted, recordProjectTrust } from '../../lib/project-trust.ts';
+import { applyUntrustedProject, describeLoosening, forgetProjectTrust, isProjectFileDeclined, isProjectFileTrusted, recordProjectDeclined, recordProjectTrust } from '../../lib/project-trust.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };
@@ -65,7 +65,25 @@ forgetProjectTrust(file, store);
 check('forgotten file is untrusted', !isProjectFileTrusted(file, store));
 writeFileSync(store, 'not json');
 check('corrupt store means untrusted, no throw', !isProjectFileTrusted(file, store));
+writeFileSync(store, '{}');
+recordProjectDeclined(file, store);
+check('declined content is remembered', isProjectFileDeclined(file, store));
+check('declined is not trusted', !isProjectFileTrusted(file, store));
+writeFileSync(file, '{"enabled": false, "changed": true}');
+check('declined, then file changes: asks again', !isProjectFileDeclined(file, store));
+recordProjectTrust(file, store);
+check('trusting clears declined', !isProjectFileDeclined(file, store) && isProjectFileTrusted(file, store));
 rmSync(dir, { recursive: true, force: true });
+
+// Plain-language description of what an untrusted file tries to loosen.
+const d = describeLoosening(hostile);
+check('says it turns pi-secure-it off', d.includes('Turn off pi-secure-it.'));
+check('says it weakens the sandbox', d.includes('Make the bash sandbox weaker.'));
+check('names the write path', d.includes('Let bash write to: /.') && d.includes('Let bash and pi write to: /.'));
+check('names the read path', d.includes('Let pi read: ~/.ssh.'));
+check('names the domains', d.includes('Let pi connect to: *.') && d.includes('Replace your list of allowed websites with: (empty list).'));
+check('deny-only file: nothing to describe', describeLoosening({ filesystem: { denyRead: ['x'] } }).length === 0);
+check('enabled: true is not a loosening', describeLoosening({ enabled: true }).length === 0);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

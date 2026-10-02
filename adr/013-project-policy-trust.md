@@ -20,7 +20,8 @@ pi's own project trust does not cover this: `ctx.isProjectTrusted()` is true unl
 - **Trusted**, the file merges as before.
 - `/security trust` shows the keys that trusting would apply and asks (pre-selected "no"); `/security untrust` forgets the file. `/security` shows the state.
 - pi-secure-it's own "always for CURRENT project" grants record the new hash after writing, but only into a file that was already trusted (or did not exist). Into an untrusted file they are refused, so a grant can never launder content the user did not review.
-- Layer 2 warns at session start and audits `untrusted-project-policy` with the ignored keys.
+- Layer 2 warns at session start in short plain sentences (ASD-STE100 style) that say what the file tries to make weaker, with the values ("Turn off pi-secure-it.", "Let bash write to: /."), and audits `untrusted-project-policy`. Deny-only files cause no warning.
+- A "No" to the trust question is remembered for that exact content (`declined` in the trust store): no more warnings until the file changes.
 
 ## Consequences
 

@@ -57,7 +57,7 @@ Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/
 
 ## Project policy trust
 
-A project `.pi/sandbox.json` applies in full only after the user trusted its exact content with `/security trust` (hash in `~/.pi/agent/extensions/sandbox.trust.json`). Untrusted, only its deny lists and stricter postures apply; `enabled`, allow lists, `overrides` and sandbox-weakening flags are ignored, and a warning lists them at session start. If a user's project overrides "stopped working", check `/security` for "NOT trusted" and suggest `/security trust`. Never suggest editing the trust store by hand.
+A project `.pi/sandbox.json` applies in full only after the user trusted its exact content with `/security trust` (stored in `~/.pi/agent/extensions/sandbox.trust.json`). Untrusted, only its block rules and stricter settings apply; changes that make security weaker are ignored, and a warning lists them in plain words. A "No" answer stops the warning until the file changes. If a user's project overrides "stopped working", check `/security` ("not trusted") and suggest `/security trust`. Never suggest editing the trust store by hand.
 
 ## Reads outside the project
 

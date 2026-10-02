@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-02T06:40:03.570Z
+Generated: 2026-10-02T07:05:01.746Z
 
 ## At a glance
 
@@ -47,10 +47,10 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 772 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
 - ✓ `lib/guard-lib.ts` — 161 lines, mtime 2026-10-02
 - ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-02
-- ✓ `lib/project-trust.ts` — 122 lines, mtime 2026-10-02
+- ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-02
 
 **Tests**
 
@@ -59,7 +59,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
 - `L2-user-named` — `node security/tests/user-named.mjs` → expects PASS=16, FAIL=0
-- `L1-L2-project-trust` — `node security/tests/project-trust.mjs` → expects PASS=30, FAIL=0
+- `L1-L2-project-trust` — `node security/tests/project-trust.mjs` → expects PASS=41, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -74,7 +74,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 772 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
 
 **Config**
 

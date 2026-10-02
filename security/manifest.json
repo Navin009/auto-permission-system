@@ -40,7 +40,7 @@
         { "id": "L2-symlink", "command": "node security/tests/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" },
         { "id": "L2-grep-filter", "command": "node security/tests/grep-filter.mjs", "expected": "PASS=15, FAIL=0" },
         { "id": "L2-user-named", "command": "node security/tests/user-named.mjs", "expected": "PASS=16, FAIL=0" },
-        { "id": "L1-L2-project-trust", "command": "node security/tests/project-trust.mjs", "expected": "PASS=30, FAIL=0" }
+        { "id": "L1-L2-project-trust", "command": "node security/tests/project-trust.mjs", "expected": "PASS=41, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

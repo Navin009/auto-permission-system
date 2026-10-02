@@ -16,7 +16,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-type Store = Record<string, string>;
+/** `trusted`: path → hash the user trusted. `declined`: path → hash the user said "no" to (no more warnings for it). */
+type Store = { trusted: Record<string, string>; declined: Record<string, string> };
 
 export function fileHash(path: string): string | null {
 	if (!existsSync(path)) return null;
@@ -24,37 +25,58 @@ export function fileHash(path: string): string | null {
 }
 
 function readStore(storePath: string): Store {
-	if (!existsSync(storePath)) return {};
+	const empty = (): Store => ({ trusted: {}, declined: {} });
+	if (!existsSync(storePath)) return empty();
 	try {
-		const o = JSON.parse(readFileSync(storePath, "utf-8"));
-		return o && typeof o === "object" ? (o as Store) : {};
+		const o = JSON.parse(readFileSync(storePath, "utf-8")) as Partial<Store>;
+		return { trusted: { ...(o?.trusted ?? {}) }, declined: { ...(o?.declined ?? {}) } };
 	} catch {
-		return {};
+		return empty();
 	}
+}
+
+function writeStore(storePath: string, store: Store): void {
+	mkdirSync(dirname(storePath), { recursive: true });
+	writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
 }
 
 /** Trusted when the file's current hash is the one recorded for its path. An absent file is trivially trusted. */
 export function isProjectFileTrusted(projectPath: string, storePath: string): boolean {
 	const h = fileHash(projectPath);
 	if (h === null) return true;
-	return readStore(storePath)[projectPath] === h;
+	return readStore(storePath).trusted[projectPath] === h;
+}
+
+/** The user said "no" to this exact content: do not warn again until the file changes. */
+export function isProjectFileDeclined(projectPath: string, storePath: string): boolean {
+	const h = fileHash(projectPath);
+	return h !== null && readStore(storePath).declined[projectPath] === h;
+}
+
+export function recordProjectDeclined(projectPath: string, storePath: string): void {
+	const store = readStore(storePath);
+	const h = fileHash(projectPath);
+	if (h === null) return;
+	store.declined[projectPath] = h;
+	delete store.trusted[projectPath];
+	writeStore(storePath, store);
 }
 
 /** Record the file's current content as trusted (or forget it when the file is gone). */
 export function recordProjectTrust(projectPath: string, storePath: string): void {
 	const store = readStore(storePath);
 	const h = fileHash(projectPath);
-	if (h === null) delete store[projectPath];
-	else store[projectPath] = h;
-	mkdirSync(dirname(storePath), { recursive: true });
-	writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
+	if (h === null) delete store.trusted[projectPath];
+	else store.trusted[projectPath] = h;
+	delete store.declined[projectPath];
+	writeStore(storePath, store);
 }
 
 export function forgetProjectTrust(projectPath: string, storePath: string): void {
 	const store = readStore(storePath);
-	delete store[projectPath];
-	mkdirSync(dirname(storePath), { recursive: true });
-	writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
+	delete store.trusted[projectPath];
+	delete store.declined[projectPath];
+	writeStore(storePath, store);
 }
 
 type Obj = Record<string, unknown>;
@@ -118,4 +140,53 @@ export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { m
 		}
 	}
 	return { merged: merged as T, ignored };
+}
+
+const listOf = (v: unknown): string => {
+	const xs = strings(v);
+	return xs.length ? xs.join(", ") : "(empty list)";
+};
+
+/**
+ * What an untrusted project file tries to change, in short plain sentences
+ * (ASD-STE100 style), for the warning and the trust question. Only changes
+ * that make the policy weaker are listed.
+ */
+export function describeLoosening(project: Obj): string[] {
+	const out: string[] = [];
+	const fs = isObj(project.filesystem) ? project.filesystem : {};
+	const net = isObj(project.network) ? project.network : {};
+	const ov = isObj(project.overrides) ? project.overrides : {};
+	const op = isObj(fs.outsideProject) ? fs.outsideProject : {};
+	const { ignored } = applyUntrustedProject({}, project);
+	for (const key of ignored) {
+		switch (key) {
+			case "enabled":
+				if (project.enabled === false) out.push("Turn off pi-secure-it.");
+				break;
+			case "enableWeakerNestedSandbox":
+				if (project.enableWeakerNestedSandbox) out.push("Make the bash sandbox weaker.");
+				break;
+			case "ignoreViolations":
+				out.push("Hide some sandbox blocks.");
+				break;
+			case "overrides":
+				if (strings(ov.allowWrite).length) out.push(`Let bash write to: ${listOf(ov.allowWrite)}.`);
+				if (strings(ov.allowRead).length) out.push(`Let pi read: ${listOf(ov.allowRead)}.`);
+				if (strings(ov.allowDomains).length) out.push(`Let pi connect to: ${listOf(ov.allowDomains)}.`);
+				break;
+			case "filesystem.allowWrite":
+				out.push(`Let bash and pi write to: ${listOf(fs.allowWrite)}.`);
+				break;
+			case "filesystem.outsideProject.allowRead":
+				out.push(`Let pi read outside the project: ${listOf(op.allowRead)}.`);
+				break;
+			case "network.allowedDomains":
+				out.push(`Replace your list of allowed websites with: ${listOf(net.allowedDomains)}.`);
+				break;
+			default:
+				out.push(`Change the setting "${key}".`);
+		}
+	}
+	return out;
 }

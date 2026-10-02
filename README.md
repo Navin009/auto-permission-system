@@ -64,11 +64,15 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 
 ### Project policy files and trust
 
-A `<cwd>/.pi/sandbox.json` comes with the repository you cloned, so pi-secure-it does not apply it blindly (ADR-013). Until you trust it, it can only **tighten**: its `denyRead`, `modelDenyRead`, `denyWrite` and `network.deniedDomains` are added to yours, and stricter `subagent.network` / `outsideProject.read` values apply. `enabled: false`, `allowWrite`, `allowedDomains`, `overrides`, `ignoreViolations`, `enableWeakerNestedSandbox` and the rest are ignored, and pi tells you which keys at session start.
+A folder can have its own `.pi/sandbox.json`. It comes with the folder, for example with a repository that you clone. So pi-secure-it does not trust it automatically (ADR-013).
 
-- `/security trust` shows what trusting would apply and asks first. Trust is pinned to the file's content: any change makes it untrusted again.
-- `/security untrust` forgets it. `/security` shows the state.
-- "always for CURRENT project" answers keep a trusted file trusted; into an untrusted file they are refused (use `/security trust` first, or an "ALL projects" option).
+- **Block rules in the file always apply.** They are added to your rules.
+- **Changes that make your security weaker do not apply** until you trust the file. Examples: turn off pi-secure-it, let bash write to `/`, allow more websites.
+- pi-secure-it shows a warning that lists these changes in plain words.
+- **Did you write the file?** Type `/security trust`. pi-secure-it shows the changes and asks you. If you say "No", it does not warn again until the file changes.
+- Trust is for the file as it is now. If the file changes, pi-secure-it asks again.
+- Most folders have no `.pi/sandbox.json`, so you see nothing. Your own "always for CURRENT project" answers keep the file trusted.
+- `/security untrust` removes the trust. `/security` shows the status.
 
 ### Outside the project
 
