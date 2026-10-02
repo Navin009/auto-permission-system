@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-02T06:33:10.580Z
+Generated: 2026-10-02T06:36:43.178Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-smoke` |
-| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter` |
+| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts`<br>`lib/user-named.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -47,8 +47,9 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 582 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 698 lines, mtime 2026-10-02
 - ✓ `lib/guard-lib.ts` — 161 lines, mtime 2026-10-02
+- ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-02
 
 **Tests**
 
@@ -56,6 +57,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-urls` — `node security/tests/url-allowlist.mjs` → expects PASS=8, FAIL=0
 - `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
+- `L2-user-named` — `node security/tests/user-named.mjs` → expects PASS=16, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -70,7 +72,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 582 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 698 lines, mtime 2026-10-02
 
 **Config**
 

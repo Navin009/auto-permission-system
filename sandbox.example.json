@@ -30,6 +30,9 @@
 
   "filesystem": {
     "_comment_denyRead": "Layer 1 (bash) AND Layer 2 (model read tool). Neither subprocesses nor the model read tool may access these.",
+    "_comment_outsideProject": "Reads outside the working directory. read: allow (default) | ask | deny. Never asked: the project, allowWrite roots, ~/.pi/agent, pi's own package, allowRead. Interactive: a read of a full path you named in your own message runs without a prompt. See ADR-012.",
+    "outsideProject": { "read": "ask", "allowRead": [] },
+
     "denyRead": [
       "~/.ssh",
       ".env",

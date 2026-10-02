@@ -62,6 +62,21 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 }
 ```
 
+### Outside the project
+
+Reads outside the working directory can ask before they run (ADR-012):
+
+```jsonc
+"filesystem": {
+  "outsideProject": {
+    "read": "ask",                       // "allow" (default) | "ask" | "deny"
+    "allowRead": ["~/repos", "~/.cargo/registry"]
+  }
+}
+```
+
+Never asked about: the project itself, your `allowWrite` roots, `~/.pi/agent` (skills, settings; `auth.json` stays absolute-denied), pi's own package (docs, examples) and `allowRead`. In an interactive session a read runs without a prompt when **you named its full path** (`/…` or `~/…`) in one of your own messages; only messages you typed count, never tool output or the agent's text. Otherwise you get the ask-tier prompt, including `yes — for this session`. Headless runs block (set `allowRead` for paths a harness needs). Writes outside the project are governed by `allowWrite` as before.
+
 ### Ask-tier prompt
 
 `no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010).

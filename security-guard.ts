@@ -23,6 +23,7 @@ import { dirname, isAbsolute, resolve, basename, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
+import { extractUserMessages, userNamedFile } from "./lib/user-named";
 
 // ---------- Policy ----------
 
@@ -35,6 +36,12 @@ interface Policy {
 		modelDenyRead?: string[];
 		allowWrite: string[];
 		denyWrite: string[];
+		/**
+		 * Reads outside the project directory (ADR-012). "allow" (default),
+		 * "ask" or "deny". Never asked about: the project, allowWrite roots,
+		 * the pi agent dir, pi's own package, and allowRead.
+		 */
+		outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 	};
 	/**
 	 * Additive project-local overrides written by the "always for this cwd"
@@ -223,6 +230,52 @@ function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | n
 	return null;
 }
 
+// ---------- Outside the project (ADR-012) ----------
+
+let piRootCache: string | null | undefined;
+
+/** pi's own package directory (docs, examples), found from the running binary. */
+function piPackageRoot(): string | null {
+	if (piRootCache !== undefined) return piRootCache;
+	piRootCache = null;
+	try {
+		let d = dirname(realpathSync(process.argv[1] ?? ""));
+		for (let i = 0; i < 6; i++) {
+			const pj = join(d, "package.json");
+			if (existsSync(pj) && JSON.parse(readFileSync(pj, "utf-8")).name === "@earendil-works/pi-coding-agent") {
+				piRootCache = d;
+				break;
+			}
+			d = dirname(d);
+		}
+	} catch {
+		/* not found: no built-in root */
+	}
+	return piRootCache;
+}
+
+function outsideProjectReason(abs: string, cwd: string, policy: Policy): string | null {
+	const mode = policy.filesystem.outsideProject?.read ?? "allow";
+	if (mode === "allow") return null;
+	const root = canonicalize(cwd, cwd);
+	if (abs === root || abs.startsWith(`${root}/`)) return null;
+	const roots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), getAgentDir(), piPackageRoot()]
+		.filter((p): p is string => !!p)
+		.map((p) => (p.startsWith("/") ? canonicalize(p, cwd) : p));
+	if (roots.some((p) => matchPattern(abs, p, cwd))) return null;
+	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
+	return `outside the project (filesystem.outsideProject.read: ${mode}) → ${abs}`;
+}
+
+type SessionCtx = UICtx & { sessionManager?: { getBranch?: () => unknown[] } };
+
+/** The spelling of an outside-project path the user named in their own messages, or null (lib/user-named.ts). */
+function userNamedOutside(ctx: SessionCtx, k: AskKind): string | null {
+	const messages = extractUserMessages(ctx.sessionManager?.getBranch?.() ?? []);
+	if (!messages.length) return null;
+	return userNamedFile(messages, { canonical: k.subject, spelled: k.spelled, cwd: canonicalize(ctx.cwd, ctx.cwd), home: homedir() });
+}
+
 // ---------- Domain matching ----------
 
 function hostnameOf(url: string): string | null {
@@ -289,7 +342,18 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 
 // ---------- Ask-tier prompt ----------
 
-type AskKind = { layer: 2; tool: string; subject: string; reason: string; overrideKind: OverrideKind; overrideValue: string };
+type AskKind = {
+	layer: 2;
+	tool: string;
+	subject: string;
+	reason: string;
+	overrideKind: OverrideKind;
+	overrideValue: string;
+	/** A read outside the project (ADR-012); only these may be allowed because the user named the path. */
+	outside?: boolean;
+	/** Absolute path as the call spelled it, before symlink resolution (/tmp vs /private/tmp). */
+	spelled?: string;
+};
 type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 
 /**
@@ -355,6 +419,15 @@ async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | 
 		if (granted) {
 			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
 			return null;
+		}
+		// Interactive only: headless "user" messages may be written by another model.
+		if (k.outside && ctx.hasUI !== false) {
+			const named = userNamedOutside(ctx as SessionCtx, k);
+			if (named) {
+				audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "user-named", named, cwd: ctx.cwd });
+				ctx.ui.notify(`security-guard: read outside the project allowed once → ${k.subject} (you named "${named}")`, "info");
+				return null;
+			}
 		}
 	}
 	const decision = await askDecision(ctx, k, absoluteDenyPattern);
@@ -461,13 +534,28 @@ export default function (pi: ExtensionAPI) {
 		const policy = loadPolicy(ctx.cwd);
 
 		// --- Path-based gates (with ask-tier prompt) ---
-		if (isToolCallEventType("read", event)) {
-			const reason = isDeniedRead(event.input.path, ctx.cwd, policy);
-			if (reason) {
-				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "read", subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
-				if (result) return result;
+		// One gate for every read: the read policy first, then the project boundary.
+		const gateRead = async (rawPath: string, tool: string) => {
+			const abs = canonicalize(rawPath, ctx.cwd);
+			let reason = isDeniedRead(rawPath, ctx.cwd, policy);
+			let outside = false;
+			if (!reason) {
+				reason = outsideProjectReason(abs, ctx.cwd, policy);
+				outside = reason !== null;
 			}
+			if (!reason) return undefined;
+			if (outside && policy.filesystem.outsideProject?.read === "deny") {
+				audit({ layer: 2, tool, subject: abs, reason, decision: "no", note: "outside-project-deny", cwd: ctx.cwd });
+				return { block: true as const, reason: `${tool} blocked: ${reason}` };
+			}
+			const e = expandHome(rawPath);
+			const spelled = isAbsolute(e) ? e : resolve(ctx.cwd, e);
+			const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs, outside, spelled }, isAbsoluteDeny(abs, ctx.cwd));
+			return result ?? undefined;
+		};
+		if (isToolCallEventType("read", event)) {
+			const result = await gateRead(event.input.path, "read");
+			if (result) return result;
 		}
 		// Read-only search tools. grep returns file contents and runs ripgrep in
 		// process, so neither the bash sandbox nor the read gate saw it before.
@@ -477,12 +565,8 @@ export default function (pi: ExtensionAPI) {
 			? (event.input.path ?? ".")
 			: null;
 		if (searchRoot !== null) {
-			const reason = isDeniedRead(searchRoot, ctx.cwd, policy);
-			if (reason) {
-				const abs = canonicalize(searchRoot, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
-				if (result) return result;
-			}
+			const result = await gateRead(searchRoot, event.toolName);
+			if (result) return result;
 		}
 		if (isToolCallEventType("write", event)) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
@@ -582,6 +666,7 @@ export default function (pi: ExtensionAPI) {
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
 				`  session grants:    ${sessionGrants.map((g) => `${g.kind}:${g.value}`).join(", ") || "(none)"}`,
+				`  outside project:   read ${policy.filesystem.outsideProject?.read ?? "allow"}${(policy.filesystem.outsideProject?.allowRead ?? []).length ? `, allowRead ${policy.filesystem.outsideProject?.allowRead?.join(", ")}` : ""}`,
 				"",
 				"Filesystem:",
 				`  denyRead:    ${policy.filesystem.denyRead.join(", ") || "(none)"}`,
