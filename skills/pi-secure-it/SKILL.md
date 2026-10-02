@@ -57,9 +57,10 @@ Paths matching `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/
 
 ## Ask-tier prompt options
 
-When a normal (non-absolute-deny) call is blocked interactively:
+When a normal (non-absolute-deny) call is blocked:
+- **no — block** — hard deny (default, pre-selected)
 - **yes — this once** — allow just this call
-- **no — block** — hard deny (default)
+- **yes — for this session** — this file, its parent folder, or this domain until the session ends; not saved
 - **always for CURRENT project** — whitelist this file in `<cwd>/.pi/sandbox.json`
 - **always for CURRENT project (folder)** — whitelist the parent directory
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`

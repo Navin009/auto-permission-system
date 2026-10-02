@@ -290,7 +290,23 @@ function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: s
 // ---------- Ask-tier prompt ----------
 
 type AskKind = { layer: 2; tool: string; subject: string; reason: string; overrideKind: OverrideKind; overrideValue: string };
-type Decision = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
+type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
+
+/**
+ * Grants from "yes — for this session" (ADR-010). In memory only, cleared on
+ * session_start, never written to sandbox.json, never consulted for the
+ * absolute-deny tier.
+ */
+const sessionGrants: Array<{ kind: OverrideKind; value: string }> = [];
+
+function sessionGranted(k: AskKind, cwd: string): string | null {
+	for (const g of sessionGrants) {
+		if (g.kind !== k.overrideKind) continue;
+		const hit = g.kind === "allowDomains" ? domainMatches(k.overrideValue, g.value) : matchPattern(k.subject, g.value, cwd);
+		if (hit) return g.value;
+	}
+	return null;
+}
 type UICtx = {
 	cwd: string;
 	hasUI?: boolean;
@@ -314,31 +330,44 @@ async function askDecision(ctx: UICtx, k: AskKind, absoluteDenyPattern: string |
 		const check = `Really allow ${k.tool} on credential material?\n\n${k.subject}`;
 		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
 	}
-	type Decision2 = "yes" | "no" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
 	const isFileKind = k.overrideKind === "allowRead" || k.overrideKind === "allowWrite";
 	const parentDir = isFileKind ? dirname(k.overrideValue) : null;
 	const title = `Layer 2 block: ${k.tool}\n\nSubject: ${k.subject}\nReason:  ${k.reason}\n\nAllow?`;
-	const options: string[] = [
-		"yes — this once",
-		"no  — block (default)",
-		"always for CURRENT project — whitelist this file (.pi/sandbox.json)",
-	];
+	// "no" first and pre-selected: Enter alone blocks (ADR-010).
+	const options: string[] = ["no  — block (default)", "yes — this once", "yes — for this session (not saved)"];
+	if (isFileKind) options.push(`yes — for this session: parent folder ${parentDir} (not saved)`);
+	options.push("always for CURRENT project — whitelist this file (.pi/sandbox.json)");
 	if (isFileKind) options.push(`always for CURRENT project — whitelist parent folder ${parentDir} (.pi/sandbox.json)`);
 	options.push("always for ALL projects — whitelist this file (~/.pi/agent/extensions/sandbox.json)");
 	if (isFileKind) options.push(`always for ALL projects — whitelist parent folder ${parentDir} (~/.pi/agent/extensions/sandbox.json)`);
 	const chosen = await ctx.ui.select(title, options, { timeout: 60_000 });
-	if (chosen === options[0]) return "yes";
-	if (!chosen || chosen === options[1]) return "no";
-	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? ("always-cwd-folder" as Decision) : "always-cwd";
-	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? ("always-global-folder" as Decision) : "always-global";
+	if (!chosen || chosen === options[0]) return "no";
+	if (chosen === options[1]) return "yes";
+	if (chosen.startsWith("yes — for this session")) return chosen.includes("parent folder") ? "session-folder" : "session";
+	if (chosen.startsWith("always for CURRENT project")) return chosen.includes("parent folder") ? "always-cwd-folder" : "always-cwd";
+	if (chosen.startsWith("always for ALL projects")) return chosen.includes("parent folder") ? "always-global-folder" : "always-global";
 	return "no";
 }
 
 async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<{ block: true; reason: string } | null> {
+	if (!absoluteDenyPattern) {
+		const granted = sessionGranted(k, ctx.cwd);
+		if (granted) {
+			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
+			return null;
+		}
+	}
 	const decision = await askDecision(ctx, k, absoluteDenyPattern);
 	if (decision === "no") {
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", cwd: ctx.cwd });
 		return { block: true, reason: `${k.tool} blocked: ${k.reason}` };
+	}
+	if (decision === "session" || decision === "session-folder") {
+		const value = decision === "session-folder" ? dirname(k.overrideValue) : k.overrideValue;
+		sessionGrants.push({ kind: k.overrideKind, value });
+		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision, grant: value, cwd: ctx.cwd });
+		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${value}`, "info");
+		return null;
 	}
 	if (decision === "always-cwd" || decision === "always-global" || decision === "always-cwd-folder" || decision === "always-global-folder") {
 		if (absoluteDenyPattern) {
@@ -423,6 +452,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		active = true;
+		sessionGrants.length = 0;
 		ctx.ui.notify("🔒 security-guard (Layer 2) active", "info");
 	});
 
@@ -551,6 +581,7 @@ export default function (pi: ExtensionAPI) {
 				`  cwd:               ${ctx.cwd}`,
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
+				`  session grants:    ${sessionGrants.map((g) => `${g.kind}:${g.value}`).join(", ") || "(none)"}`,
 				"",
 				"Filesystem:",
 				`  denyRead:    ${policy.filesystem.denyRead.join(", ") || "(none)"}`,
