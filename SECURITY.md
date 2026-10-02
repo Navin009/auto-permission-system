@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-02T06:32:50.919Z
+Generated: 2026-10-02T06:33:10.580Z
 
 ## At a glance
 
@@ -34,7 +34,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Tests**
 
-- `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=24, FAIL=0
+- `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=29, FAIL=0
 - `L1-smoke` — `bash docs/security/run-tests.sh` → expects PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)
 
 **Known gaps / accepted risks**
@@ -48,7 +48,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `security-guard.ts` — 582 lines, mtime 2026-10-02
-- ✓ `lib/guard-lib.ts` — 147 lines, mtime 2026-10-02
+- ✓ `lib/guard-lib.ts` — 161 lines, mtime 2026-10-02
 
 **Tests**
 
