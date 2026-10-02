@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+# [2.0.0](https://github.com/hannesro/pi-secure-it/compare/v1.2.0...v2.0.0) (2026-10-02)
+
+
+* fix(policy)!: an untrusted project sandbox.json may only tighten the policy ([94deb76](https://github.com/hannesro/pi-secure-it/commit/94deb763cbaf47c908a7a746cc59a469979f92d9))
+
+
+### Bug Fixes
+
+* **policy:** explain an untrusted project file in plain words and remember "no" ([0a38470](https://github.com/hannesro/pi-secure-it/commit/0a38470788df9b6eb91a334b48c61cee4f726e9c))
+* **sandbox:** attribute Layer 1 blocks to the right path and never offer / as a grant ([c8c89be](https://github.com/hannesro/pi-secure-it/commit/c8c89bec61a3b7077c71173e36bae343a345ddcd))
+* **sandbox:** make file-name deny patterns match anywhere in the project for bash ([fdd8f22](https://github.com/hannesro/pi-secure-it/commit/fdd8f22fe97f2a3c6c7615b798bea578bbc25f05))
+
+
+### Features
+
+* **guard:** ask before reading outside the project; a named path runs once ([49e089a](https://github.com/hannesro/pi-secure-it/commit/49e089affa8bf98d9f02163f4b8c9d56e9882516))
+* **guard:** pre-select "no" in the ask-tier prompt and add session grants ([b1e5530](https://github.com/hannesro/pi-secure-it/commit/b1e553030e133f2749ad6214bcf7ac13f6f0695d))
+
+
+### BREAKING CHANGES
+
+* existing project .pi/sandbox.json files are untrusted
+after upgrading. Their deny rules still apply; their allow lists,
+overrides and enabled flag apply after one /security trust per project.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
 # [1.2.0](https://github.com/hannesro/pi-secure-it/compare/v1.1.0...v1.2.0) (2026-10-01)
 
 
