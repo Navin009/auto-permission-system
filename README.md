@@ -15,10 +15,10 @@ When a tool call is blocked you get an interactive prompt — no need to leave p
 pi install npm:pi-secure-it
 
 # From git
-pi install git:github.com/hannesro/pi-secure-it
+pi install git:github.com/Navin009/pi-secure-it
 
 # Try without installing
-pi -e git:github.com/hannesro/pi-secure-it
+pi -e git:github.com/Navin009/pi-secure-it
 ```
 
 ## Requirements
@@ -139,7 +139,7 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 ## Development
 
 ```bash
-git clone https://github.com/hannesro/pi-secure-it
+git clone https://github.com/Navin009/pi-secure-it
 cd pi-secure-it
 npm install          # installs typescript for typecheck
 npm run typecheck    # type-checks against pi's bundled .d.ts files
@@ -166,7 +166,7 @@ Commit messages on pull requests are checked by `commitlint` (`.github/workflows
 Nothing to run locally beyond writing conventional commit messages — just merge to `main`. Publishing uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — no `NPM_TOKEN` secret required. One-time setup on npmjs.com:
 
 1. Go to the package's **Settings → Trusted Publisher** on npmjs.com.
-2. Select **GitHub Actions** and configure: organization/user `hannesro`, repository `pi-secure-it`, workflow filename `release.yml`, allowed action `npm publish`.
+2. Select **GitHub Actions** and configure: organization/user `Navin009`, repository `pi-secure-it`, workflow filename `release.yml`, allowed action `npm publish`.
 3. (Recommended) Under **Settings → Publishing access**, choose "Require two-factor authentication and disallow tokens" to disable classic token-based publishing entirely, and revoke any automation tokens you previously created.
 
 `GITHUB_TOKEN` is provided automatically by Actions; the `id-token: write` permission in `release.yml` is what lets npm's OIDC exchange work.
