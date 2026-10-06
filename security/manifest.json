@@ -45,7 +45,8 @@
         { "id": "L2-user-named", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs", "expected": "PASS=16, FAIL=0" },
         { "id": "L1-L2-project-trust", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs", "expected": "PASS=41, FAIL=0" },
         { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=24, FAIL=0" },
-        { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=20, FAIL=0" }
+        { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=20, FAIL=0" },
+        { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=13, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

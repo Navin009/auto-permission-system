@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T19:30:28.308Z
+Generated: 2026-10-06T19:42:19.737Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>❌ `~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -65,6 +65,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=24, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=20, FAIL=0
+- `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=13, FAIL=0
 
 **Known gaps / accepted risks**
 

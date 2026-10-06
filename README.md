@@ -32,11 +32,12 @@ pi -e git:github.com/Navin009/auto-permission-system
 Policy files are merged in order:
 
 | File | Scope |
-|------|-------|
+| ---- | ----- |
+| `sandbox.default.json` (shipped in this package) | Baseline — used when no other file overrides it |
 | `~/.pi/agent/extensions/sandbox.json` | Global (all projects) |
 | `<cwd>/.pi/sandbox.json` | Project-local (auto-written by ask-tier prompts) |
 
-Copy `sandbox.example.json` from this package as a starting point for your global config.
+A higher layer only states what it changes; absent keys keep the layer below. A **trusted** project may loosen the baseline; an **untrusted** project (ADR-013) may only tighten it. You do **not** need a global file: the shipped default already turns on the project boundary (`outsideProject.read: "ask"`), the credential `modelDenyRead` list and the full `denyRead` / `denyWrite` lists. Copy `sandbox.example.json` only when you want to start customising.
 
 ### Key fields
 

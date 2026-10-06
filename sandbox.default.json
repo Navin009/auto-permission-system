@@ -1,0 +1,93 @@
+{
+  "enabled": true,
+  "network": {
+    "allowedDomains": [
+      "registry.npmjs.org",
+      "registry.yarnpkg.com",
+      "npmjs.org",
+      "*.npmjs.org",
+      "pypi.org",
+      "*.pypi.org",
+      "files.pythonhosted.org",
+      "github.com",
+      "*.github.com",
+      "api.github.com",
+      "raw.githubusercontent.com",
+      "objects.githubusercontent.com",
+      "codeload.github.com",
+      "crates.io",
+      "static.crates.io",
+      "proxy.golang.org",
+      "sum.golang.org"
+    ],
+    "deniedDomains": []
+  },
+  "filesystem": {
+    "outsideProject": {
+      "read": "ask",
+      "allowRead": [
+        "~/.pi/agent/install",
+        "~/.pi/agent/npm"
+      ]
+    },
+    "denyRead": [
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.aws",
+      "~/.kube",
+      "~/.docker",
+      "~/.claude",
+      "~/.codex",
+      "~/.gemini",
+      "~/.composio",
+      "~/.pi/agent/auth.json",
+      "~/.pi/agent/mcp.json",
+      "~/.pi/agent/mcp-auth.json",
+      "~/.pi/agent/trust.json",
+      "~/.pi/agent/models-store.json",
+      "~/.pi/agent/audit.log",
+      "~/.pi/agent/sessions",
+      "~/.pi/sessions",
+      "~/Downloads",
+      "~/Desktop",
+      "~/Documents",
+      ".env",
+      ".env.*"
+    ],
+    "modelDenyRead": [
+      "~/.config/gh/hosts.yml",
+      "~/.netrc",
+      "~/.aws/credentials",
+      "~/.aws/config",
+      "~/.kube/config",
+      "~/.docker/config.json",
+      "~/.npmrc",
+      "~/.pypirc",
+      "~/.cargo/credentials.toml",
+      "~/.gitconfig"
+    ],
+    "allowWrite": [".", "/tmp"],
+    "denyWrite": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "~/.gnupg",
+      "~/.ssh/**",
+      "~/.pi/agent/extensions",
+      "~/.pi/agent/extensions/**",
+      "~/.pi/agent/auth.json",
+      "~/.pi/agent/mcp.json",
+      "~/.pi/agent/mcp-auth.json",
+      "~/.pi/agent/trust.json",
+      "~/.pi/agent/models-store.json",
+      "~/.pi/agent/audit.log",
+      "~/.pi/agent/sessions",
+      "~/.pi/sessions"
+    ]
+  },
+  "subagent": { "network": "allow" },
+  "overrides": { "allowRead": [], "allowWrite": [], "allowDomains": [] }
+}

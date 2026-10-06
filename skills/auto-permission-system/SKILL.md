@@ -25,8 +25,11 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode), applies the `subagent.n
 ## Policy files
 
 Merged in order (later wins):
-1. `~/.pi/agent/extensions/sandbox.json` — global user policy
-2. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
+1. `sandbox.default.json` — shipped baseline (`outsideProject.read: "ask"`, full `denyRead`/`denyWrite`, `modelDenyRead`)
+2. `~/.pi/agent/extensions/sandbox.json` — global user policy
+3. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
+
+A higher layer only states what it changes; absent keys keep the layer below. A **trusted** project may loosen the baseline; an **untrusted** project may only tighten it (ADR-013). You do not need a global file for good defaults (ADR-016).
 
 ## Key policy fields
 

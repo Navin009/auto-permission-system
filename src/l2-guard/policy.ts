@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE } from "../core/index";
+import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE } from "../core/index";
 
 export interface Policy {
 	enabled: boolean;
@@ -44,7 +44,7 @@ export interface Policy {
 }
 
 // Keep in sync with sandbox/index.ts DEFAULT_CONFIG.
-const DEFAULT_POLICY: Policy = {
+const BUILTIN_POLICY: Policy = {
 	enabled: true,
 	network: {
 		allowedDomains: [
@@ -63,6 +63,9 @@ const DEFAULT_POLICY: Policy = {
 	},
 	subagent: { network: "allow" },
 };
+
+/** Baseline = the shipped sandbox.default.json layered over the built-in constants. */
+const DEFAULT_POLICY: Policy = overlayPolicy(BUILTIN_POLICY, (loadDefaultPolicy() ?? {}) as Partial<Policy>);
 
 export const TRUST_STORE = `${getAgentDir()}/extensions/sandbox.trust.json`;
 
@@ -110,17 +113,7 @@ export function loadPolicy(cwd: string): Policy {
 				policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(policyRec, o).merged as unknown as Policy;
 				continue;
 			}
-			if (o.enabled !== undefined) policy.enabled = o.enabled;
-			if (o.network) policy.network = { ...policy.network, ...o.network };
-			if (o.filesystem) policy.filesystem = { ...policy.filesystem, ...o.filesystem };
-			if (o.subagent) policy.subagent = { ...policy.subagent, ...o.subagent };
-			if (o.overrides) {
-				policy.overrides = {
-					allowRead: [...(policy.overrides?.allowRead ?? []), ...(o.overrides.allowRead ?? [])],
-					allowWrite: [...(policy.overrides?.allowWrite ?? []), ...(o.overrides.allowWrite ?? [])],
-					allowDomains: [...(policy.overrides?.allowDomains ?? []), ...(o.overrides.allowDomains ?? [])],
-				};
-			}
+			policy = overlayPolicy(policy, o as Partial<Policy>);
 		} catch (e) {
 			console.error(`security-guard: failed to parse ${p}: ${e}`);
 		}

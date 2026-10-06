@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, isProjectFileTrusted, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../core/index";
+import { applyUntrustedProject, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -35,7 +35,7 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 	};
 }
 
-const DEFAULT_CONFIG: SandboxConfig = {
+const BUILTIN_CONFIG: SandboxConfig = {
 	enabled: true,
 	network: {
 		allowedDomains: [
@@ -58,6 +58,9 @@ const DEFAULT_CONFIG: SandboxConfig = {
 		denyWrite: [...DEFAULT_DENY_WRITE],
 	},
 };
+
+/** Baseline = the shipped sandbox.default.json layered over the built-in constants. */
+const DEFAULT_CONFIG: SandboxConfig = overlayPolicy(BUILTIN_CONFIG, (loadDefaultPolicy() ?? {}) as Partial<SandboxConfig>);
 
 export const TRUST_STORE = join(getAgentDir(), "extensions", "sandbox.trust.json");
 
@@ -96,7 +99,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 		}
 	}
 
-	const base = deepMerge(DEFAULT_CONFIG, globalConfig);
+	const base = overlayPolicy(DEFAULT_CONFIG, globalConfig);
 	// An untrusted project file may only tighten the sandbox: no enabled:false,
 	// no allowWrite / allowedDomains / overrides, no ignoreViolations or
 	// enableWeakerNestedSandbox, and its deny lists are added, not substituted.
@@ -106,7 +109,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 		const projectRec = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<string, unknown>;
 		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(baseRec, projectRec).merged as unknown as SandboxConfig;
 	} else {
-		merged = deepMerge(base, projectConfig);
+		merged = overlayPolicy(base, projectConfig);
 	}
 	return foldOverrides(merged);
 }
@@ -152,36 +155,5 @@ function foldOverrides(config: SandboxConfig): SandboxConfig {
 	return out;
 }
 
-function deepMerge(base: SandboxConfig, overrides: Partial<SandboxConfig>): SandboxConfig {
-	const result: SandboxConfig = { ...base };
+// Layering lives in src/core/policy/merge.ts (overlayPolicy) so both layers share it.
 
-	if (overrides.enabled !== undefined) result.enabled = overrides.enabled;
-	if (overrides.network) {
-		result.network = { ...base.network, ...overrides.network };
-	}
-	if (overrides.filesystem) {
-		result.filesystem = { ...base.filesystem, ...overrides.filesystem };
-	}
-	if (overrides.overrides) {
-		result.overrides = {
-			allowRead: [...(base.overrides?.allowRead ?? []), ...(overrides.overrides.allowRead ?? [])],
-			allowWrite: [...(base.overrides?.allowWrite ?? []), ...(overrides.overrides.allowWrite ?? [])],
-			allowDomains: [...(base.overrides?.allowDomains ?? []), ...(overrides.overrides.allowDomains ?? [])],
-		};
-	}
-
-	const extOverrides = overrides as {
-		ignoreViolations?: Record<string, string[]>;
-		enableWeakerNestedSandbox?: boolean;
-	};
-	const extResult = result as { ignoreViolations?: Record<string, string[]>; enableWeakerNestedSandbox?: boolean };
-
-	if (extOverrides.ignoreViolations) {
-		extResult.ignoreViolations = extOverrides.ignoreViolations;
-	}
-	if (extOverrides.enableWeakerNestedSandbox !== undefined) {
-		extResult.enableWeakerNestedSandbox = extOverrides.enableWeakerNestedSandbox;
-	}
-
-	return result;
-}
