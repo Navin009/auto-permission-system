@@ -12,14 +12,15 @@
       "status": "shipped",
       "purpose": "Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014).",
       "sourceFiles": [
-        "sandbox/index.ts",
+        "extensions/sandbox.ts",
         "src/l1-sandbox/",
         "src/core/",
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
         { "id": "L1-attribution", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs", "expected": "PASS=29, FAIL=0" },
-        { "id": "L1-outside-fence", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs", "expected": "PASS=38, FAIL=0" }
+        { "id": "L1-outside-fence", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs", "expected": "PASS=38, FAIL=0" },
+        { "id": "L1-e2e", "command": "APS_E2E=1 node security/tests/e2e/sandbox-fs.mjs", "expected": "manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)" }
       ],
       "knownGaps": [
         "Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk",
@@ -32,7 +33,7 @@
       "status": "shipped",
       "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).",
       "sourceFiles": [
-        "security-guard.ts",
+        "extensions/guard.ts",
         "src/l2-guard/",
         "src/core/"
       ],
@@ -42,7 +43,8 @@
         { "id": "L2-symlink", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs", "expected": "PASS=5, FAIL=0" },
         { "id": "L2-grep-filter", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs", "expected": "PASS=15, FAIL=0" },
         { "id": "L2-user-named", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs", "expected": "PASS=16, FAIL=0" },
-        { "id": "L1-L2-project-trust", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs", "expected": "PASS=41, FAIL=0" }
+        { "id": "L1-L2-project-trust", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs", "expected": "PASS=41, FAIL=0" },
+        { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=15, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

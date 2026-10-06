@@ -2,7 +2,7 @@
 
 Pi coding agent extension: two-layer security sandbox + skill docs. Package manifest is the source of truth for what's wired up — see `package.json` → `pi` field:
 
-- `pi.extensions`: `security-guard.ts` (L2 in-process tool guard), `sandbox/index.ts` (L1 OS sandbox via sandbox-exec/bubblewrap)
+- `pi.extensions`: `extensions/guard.ts` (L2 in-process tool guard), `extensions/sandbox.ts` (L1 OS sandbox via sandbox-exec/bubblewrap)
 - `pi.skills`: `skills/auto-permission-system/SKILL.md` (agent-facing how-to, auto-loaded by pi when relevant)
 
 Shared pure logic lives in `src/core/` (the reusable part, no pi/OS imports); the two entrypoints stay thin.

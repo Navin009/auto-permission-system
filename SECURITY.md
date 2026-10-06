@@ -2,15 +2,15 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T18:44:07.047Z
+Generated: 2026-10-06T18:51:41.538Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
-| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
-| **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-e2e` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract` |
+| **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
 ## UX polish
@@ -29,7 +29,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 186 lines, mtime 2026-10-06
+- ✓ `extensions/sandbox.ts` — 186 lines, mtime 2026-10-06
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
@@ -38,6 +38,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 - `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=29, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
+- `L1-e2e` — `APS_E2E=1 node security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
 
 **Known gaps / accepted risks**
 
@@ -50,7 +51,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 282 lines, mtime 2026-10-06
+- ✓ `extensions/guard.ts` — 282 lines, mtime 2026-10-06
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
 
@@ -62,6 +63,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=15, FAIL=0
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
+- `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=15, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -76,7 +78,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 282 lines, mtime 2026-10-06
+- ❌ `security-guard.ts` — MISSING
 
 **Config**
 

@@ -27,13 +27,13 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { filterGrepOutput, policyFileError, forgetProjectTrust, isProjectFileDeclined, recordProjectDeclined, recordProjectTrust } from "./src/core/index";
-import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "./src/l2-guard/policy";
-import { canonicalize, expandHome, isAbsoluteDeny, isDeniedRead, isDeniedWrite, outsideProjectReason } from "./src/l2-guard/matching";
-import { hostnameOf, isAllowedUrl } from "./src/l2-guard/url";
-import { audit, AUDIT_PATH } from "./src/l2-guard/audit";
-import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "./src/l2-guard/prompts";
-import { subagentNetworkBlock } from "./src/l2-guard/subagent";
+import { filterGrepOutput, policyFileError, forgetProjectTrust, isProjectFileDeclined, recordProjectDeclined, recordProjectTrust } from "../src/core/index";
+import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
+import { canonicalize, expandHome, isAbsoluteDeny, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
+import { hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
+import { audit, AUDIT_PATH } from "../src/l2-guard/audit";
+import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
+import { subagentNetworkBlock } from "../src/l2-guard/subagent";
 
 export default function (pi: ExtensionAPI) {
 	let active = false;

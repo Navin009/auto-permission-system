@@ -8,14 +8,16 @@ security/
 └── tests/
     ├── ts-loader.mjs       ← registers the extensionless-import resolver for Node
     ├── ts-hooks.mjs        ← the resolver hook itself
-    └── unit/               ← pure-core tests, run against src/core/
+    ├── unit/               ← pure-core tests, run against src/core/
+    ├── contract/           ← adapter logic driven with a scripted UI (src/l2-guard)
+    └── e2e/                ← real OS sandbox; manual/opt-in (APS_E2E=1)
 ```
 
 ## Workflow
 
 When you change anything security-related:
 
-1. Edit the source (e.g. `~/.pi/agent/extensions/security-guard.ts`, or `sandbox.json`).
+1. Edit the source (e.g. `extensions/guard.ts` / `src/l2-guard/`, or `src/l1-sandbox/`, or `sandbox.json`).
 2. Update `manifest.json` if status / files / tests changed.
 3. Run `./security/check.sh`.
 4. If green, commit. `SECURITY.md` is regenerated and shows the new state.

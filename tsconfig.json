@@ -10,8 +10,7 @@
     "allowImportingTsExtensions": true
   },
   "include": [
-    "security-guard.ts",
-    "sandbox/index.ts",
+    "extensions/**/*.ts",
     "src/**/*.ts"
   ]
 }
