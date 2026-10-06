@@ -300,8 +300,11 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
+		const input = event.input ?? {};
+		const rawPath = input.path ?? input.file_path;
+		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
 		ctx.ui.notify(`🛡 Advanced Secure: blocked ${event.toolName} output — it may contain ${findings.join(", ")}. Nothing was sent to the model.`, "warning");
-		return { content: [{ type: "text", text: withheldNotice(event.toolName, findings) }] };
+		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
 
 	pi.registerCommand?.("security", {

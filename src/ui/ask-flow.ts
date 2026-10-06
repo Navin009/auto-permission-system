@@ -93,11 +93,11 @@ export async function askExposure(ctx: AskCtx, findings: string[]): Promise<Expo
  * and never phrased as a failure, so the model treats it as a deliberate block
  * by the user, not a broken tool or an empty result.
  */
-export function withheldNotice(tool: string, findings: string[]): string {
+export function withheldNotice(subject: string): string {
 	return [
-		`[🛡 Advanced Secure] Output withheld — the user blocked ${tool} output because it may contain sensitive information (${findings.join(", ")}).`,
-		"This is a deliberate policy block by the user, not a tool failure and not an empty result.",
-		"The tool ran; only its output was withheld. Do not retry the same call or guess the hidden values.",
-		"Tell the user you cannot see the output and ask how they want to proceed.",
+		`⚠ Output from \`${subject}\` was withheld because it may contain sensitive information.`,
+		"",
+		"The tool completed successfully, but the output is unavailable.",
+		"Continue with the available information, or ask the user to allow access if the output is needed.",
 	].join("\n");
 }

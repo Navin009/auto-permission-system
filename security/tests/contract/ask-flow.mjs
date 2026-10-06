@@ -62,9 +62,9 @@ check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: {
 check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, ['JWT'])) === 'allow');
 check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, ['JWT'])) === 'block');
 
-const notice = withheldNotice('bash', ['JWT', 'AWS_ACCESS_KEY']);
-check('withheldNotice: names the tool and findings', notice.includes('bash') && notice.includes('JWT') && notice.includes('AWS_ACCESS_KEY'));
-check('withheldNotice: explicit not-a-failure', notice.includes('not a tool failure') && notice.includes('not an empty result'));
+const notice = withheldNotice('config.env');
+check('withheldNotice: names the subject', notice.includes('config.env') && notice.includes('withheld'));
+check('withheldNotice: says the tool completed', notice.includes('completed successfully') && notice.includes('output is unavailable'));
 check('ask timeout defaults to 10s', ASK_TIMEOUT_MS === 10_000);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
