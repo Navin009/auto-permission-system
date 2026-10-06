@@ -52,14 +52,18 @@ check('remember host · project', (await pickHost(0)).scope === 'cwd');
 check('remember host · global', (await pickHost(1)).scope === 'global');
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
-const hit = 'config.env:12\n > key=asdfadsdaasdfdsafasdf';
+const hit = 'config.env\n12: key=asdfadsdaasdfdsafasdf';
 const expOpts = await optionsOf((ctx) => askExposure(ctx, [hit]));
 check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expOpts[0].startsWith('No, keep private'));
 check('askExposure: allow label', expOpts[1].startsWith('Yes, allow'));
 let expTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
-check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Private content found') && expTitle.includes('config.env:12') && expTitle.includes('key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
+check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Private content found') && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
 check('askExposure: no finding-type label', !expTitle.includes('SECRET_ASSIGNMENT'));
+const multiHit = 'config.env\n12: key=aaa\n20: OPENAI_API_KEY=sk-bbb';
+let multiTitle;
+await askExposure({ hasUI: true, ui: { select: async (t) => { multiTitle = t; return undefined; } } }, [multiHit]);
+check('askExposure: multiple lines listed', multiTitle.includes('12: key=aaa') && multiTitle.includes('20: OPENAI_API_KEY=sk-bbb'));
 check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, [hit])) === 'block');
 check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, [hit])) === 'allow');
 check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, [hit])) === 'block');

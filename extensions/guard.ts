@@ -50,11 +50,8 @@ function detectionBlock(action: "read" | "tool", why: string): string {
 	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
 }
 
-/** `file:line` and the matching line, for the exposure prompt. */
-function excerpt(label: string, lineNo: number, lines: string[], i: number): string {
-	const line = lines[i].trim();
-	return `${label}:${lineNo}\n > ${line.length > 200 ? `${line.slice(0, 200)}…` : line}`;
-}
+/** Clip a line so it fits the prompt. */
+const clipLine = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
 
 async function askDetection(
 	ctx: UICtx,
@@ -294,7 +291,7 @@ export default function (pi: ExtensionAPI) {
 		const rawPath = rawInput.path ?? rawInput.file_path;
 		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
 		const types = new Set<string>();
-		const hits: string[] = [];
+		const lines: string[] = [];
 		for (const c of event.content) {
 			if (c.type !== "text") continue;
 			const r = scanToolOutput({ output: c.text });
@@ -302,12 +299,13 @@ export default function (pi: ExtensionAPI) {
 			for (const f of r.findings) types.add(f.type);
 			const before = c.text.split("\n");
 			const after = String(r.redactedOutput ?? "").split("\n");
-			for (let i = 0; i < before.length && hits.length < 6; i++) {
-				if (after[i] !== before[i] && before[i].trim()) hits.push(excerpt(subject, i + 1, before, i));
+			for (let i = 0; i < before.length && lines.length < 8; i++) {
+				if (after[i] !== before[i] && before[i].trim()) lines.push(`${i + 1}: ${clipLine(before[i].trim())}`);
 			}
 		}
 		if (!types.size) return;
 		const findings = [...types];
+		const hits = lines.length ? [`${subject}\n${lines.join("\n")}`] : [subject];
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
 		const allow = ui.hasUI !== false && (await askExposure(ui, hits)) === "allow";
 		if (allow) {
