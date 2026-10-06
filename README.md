@@ -98,6 +98,8 @@ Never asked about: the project itself, your `allowWrite` roots, pi's own package
 
 `no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010).
 
+Every prompt waits **10 seconds** by default. If you do not answer, it resolves to the safe default: **block / deny**.
+
 ### File-name patterns
 
 An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.

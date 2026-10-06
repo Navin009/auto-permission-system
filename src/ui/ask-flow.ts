@@ -17,6 +17,9 @@ export type AskCtx = {
 
 export type MainChoice = "block" | "once" | "session" | "remember";
 
+/** How long a pending permission prompt waits before it resolves to the safe default (block / deny). */
+export const ASK_TIMEOUT_MS = 10_000;
+
 /** Screen 1. `once` defaults on; `session` and `remember` are opt-in. */
 export async function askMain(
 	ctx: AskCtx,
@@ -30,7 +33,7 @@ export async function askMain(
 	if (opts.once !== false) choices.push({ label: "Allow once", value: "once" });
 	if (opts.session) choices.push({ label: "Allow for this session", value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Allow and remember…", value: "remember" });
-	const picked = await ctx.ui.select(`${header}\n${body}`, choices.map((c) => c.label), { timeout: 60_000 });
+	const picked = await ctx.ui.select(`${header}\n${body}`, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }
 
@@ -50,7 +53,7 @@ export async function askRememberFile(
 	if (folderPath) choices.push({ label: `Allow for this folder (${folderPath}) - Scope this project`, value: { scope: "cwd", folder: true } });
 	choices.push({ label: `Allow for this file (${filePath}) - Scope global`, value: { scope: "global", folder: false } });
 	if (folderPath) choices.push({ label: `Allow for this folder (${folderPath}) - Scope global`, value: { scope: "global", folder: true } });
-	const picked = await ctx.ui.select(`${title}\n${body}`, choices.map((c) => c.label), { timeout: 60_000 });
+	const picked = await ctx.ui.select(`${title}\n${body}`, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -65,7 +68,7 @@ export async function askRememberHost(
 		{ label: `Allow for this host (${host}) - Scope this project`, value: { scope: "cwd" } },
 		{ label: `Allow for this host (${host}) - Scope global`, value: { scope: "global" } },
 	];
-	const picked = await ctx.ui.select(`${title}\n${body}`, choices.map((c) => c.label), { timeout: 60_000 });
+	const picked = await ctx.ui.select(`${title}\n${body}`, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -86,7 +89,7 @@ export async function askExposure(ctx: AskCtx, tool: string, findings: string[])
 		`  tool:  ${tool}\n` +
 		`  found: ${findings.join(", ")}\n\n` +
 		"If you allow it, the real values are sent to the model provider.";
-	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: 120_000 });
+	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }
 

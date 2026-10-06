@@ -1,6 +1,6 @@
 // Shared ask-flow contract (src/ui/ask-flow.ts) — the reusable two-screen UI.
 // Drives each helper with a scripted ctx.ui.select; no pi, no fs.
-import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice } from '../../../src/ui/ask-flow.ts';
+import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -62,6 +62,7 @@ check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: 
 const notice = withheldNotice('bash', ['JWT', 'AWS_ACCESS_KEY']);
 check('withheldNotice: names the tool and findings', notice.includes('bash') && notice.includes('JWT') && notice.includes('AWS_ACCESS_KEY'));
 check('withheldNotice: explicit not-a-failure', notice.includes('not a tool failure') && notice.includes('not an empty result'));
+check('ask timeout defaults to 10s', ASK_TIMEOUT_MS === 10_000);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

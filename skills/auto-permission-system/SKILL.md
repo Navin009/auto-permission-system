@@ -82,6 +82,8 @@ When a normal (non-absolute-deny) call is blocked:
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`
 - **always for ALL projects (folder)** — whitelist parent directory globally
 
+Every prompt waits **10 seconds** by default; no answer means the safe default: **block / deny**. Esc on any screen also blocks.
+
 ## Permission modes
 
 `mode` picks how much pi inspects beyond the rules (ADR-018):

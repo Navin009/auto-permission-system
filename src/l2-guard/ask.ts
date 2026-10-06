@@ -7,7 +7,7 @@
  */
 
 import { dirname } from "node:path";
-import { askMain, askRememberFile, askRememberHost, type AskCtx } from "../ui/ask-flow";
+import { ASK_TIMEOUT_MS, askMain, askRememberFile, askRememberHost, type AskCtx } from "../ui/ask-flow";
 
 export type { AskCtx } from "../ui/ask-flow";
 
@@ -68,10 +68,10 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 		// option, so Enter-Enter can never approve. "always" is not offered here.
 		const banner = `⚠  Credential access blocked\n${detailLines(k, action)}`;
 		const step1 = ["Block (default)", "Allow this one call"];
-		if ((await ctx.ui.select(banner, step1, { timeout: 60_000 })) !== step1[1]) return "no";
+		if ((await ctx.ui.select(banner, step1, { timeout: ASK_TIMEOUT_MS })) !== step1[1]) return "no";
 		const check = `Confirm: allow one ${action} of credential material?`;
 		const step2 = ["No — keep blocked (default)", "Yes — allow once"];
-		return (await ctx.ui.select(check, step2, { timeout: 30_000 })) === step2[1] ? "yes" : "no";
+		return (await ctx.ui.select(check, step2, { timeout: ASK_TIMEOUT_MS })) === step2[1] ? "yes" : "no";
 	}
 
 	// Screen 1 — verdict + duration.
