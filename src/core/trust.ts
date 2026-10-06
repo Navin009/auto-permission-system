@@ -6,7 +6,7 @@
  * stricter postures win, and everything that could loosen (enabled, allow
  * lists, overrides, sandbox weakening flags) is ignored. A file is trusted
  * when its SHA-256 is recorded in the trust store, which only `/security
- * trust` and auto-permission-system's own "always for CURRENT project" writes (of an
+ * trust` and auto-permission-system's own "Allow and remember…" writes (of an
  * already trusted file) update.
  *
  * No pi imports: security/tests/unit/project-trust.mjs imports this file directly.

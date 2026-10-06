@@ -3,15 +3,13 @@
  *
  * Pure UI→decision logic: no pi, no fs, no audit. The caller supplies a
  * `ctx.ui.select`; this module only decides which option string means what.
- * Kept separate so the contract tests can script the answers.
- *
- * Two screens:
- *   1. a short verdict + `Block / Allow once / Allow for this session / Allow and remember…`
- *   2. only if "remember": `Allow for this file (<path>) - Scope this project|global`
- * Esc / timeout on either screen blocks.
+ * The shared two-screen UI primitives live in `../ui/ask-flow.ts`.
  */
 
 import { dirname } from "node:path";
+import { askMain, askRememberFile, askRememberHost, type AskCtx } from "../ui/ask-flow";
+
+export type { AskCtx } from "../ui/ask-flow";
 
 export type OverrideKind = "allowRead" | "allowWrite" | "allowDomains";
 
@@ -29,14 +27,6 @@ export type AskKind = {
 };
 
 export type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
-
-/** The slice of pi's ctx that `askDecision` uses. */
-export type AskCtx = {
-	hasUI?: boolean;
-	ui: {
-		select: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>;
-	};
-};
 
 type Action = "read" | "write" | "network";
 
@@ -86,35 +76,20 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 
 	// Screen 1 — verdict + duration.
 	const header = action === "network" ? "Network access blocked" : `${action === "write" ? "Write" : "Read"} blocked by policy`;
-	const main = ["Block (default)", "Allow once", "Allow for this session", "Allow and remember…"];
-	const choice = await ctx.ui.select(`${header}\n${detailLines(k, action)}`, main, { timeout: 60_000 });
-	if (!choice || choice === main[0]) return "no";
-	if (choice === main[1]) return "yes";
-	if (choice === main[2]) return "session";
+	const main = await askMain(ctx, header, detailLines(k, action), { session: true });
+	if (main === "block") return "no";
+	if (main === "once") return "yes";
+	if (main === "session") return "session";
 
-	// Screen 2 — scope + what to allow (only after "Allow and remember…").
+	// Screen 2 — scope + what to allow.
 	if (action === "network") {
-		const host = k.overrideValue;
-		const options = [
-			`Allow for this host (${host}) - Scope this project`,
-			`Allow for this host (${host}) - Scope global`,
-		];
-		const picked = await ctx.ui.select(`Remember this host?\n  host: ${host}`, options, { timeout: 60_000 });
-		if (picked === options[0]) return "always-cwd";
-		if (picked === options[1]) return "always-global";
-		return "no";
+		const picked = await askRememberHost(ctx, "Remember this host?", `  host: ${k.overrideValue}`, k.overrideValue);
+		if (!picked) return "no";
+		return picked.scope === "cwd" ? "always-cwd" : "always-global";
 	}
 	const parent = dirname(k.subject);
-	const options = [
-		`Allow for this file (${k.subject}) - Scope this project`,
-		`Allow for this folder (${parent}) - Scope this project`,
-		`Allow for this file (${k.subject}) - Scope global`,
-		`Allow for this folder (${parent}) - Scope global`,
-	];
-	const picked = await ctx.ui.select(`Remember this ${action}?\n  file:   ${k.subject}\n  folder: ${parent}`, options, { timeout: 60_000 });
-	if (picked === options[0]) return "always-cwd";
-	if (picked === options[1]) return "always-cwd-folder";
-	if (picked === options[2]) return "always-global";
-	if (picked === options[3]) return "always-global-folder";
-	return "no";
+	const picked = await askRememberFile(ctx, `Remember this ${action}?`, `  file:   ${k.subject}\n  folder: ${parent}`, k.subject, parent);
+	if (!picked) return "no";
+	if (picked.scope === "cwd") return picked.folder ? "always-cwd-folder" : "always-cwd";
+	return picked.folder ? "always-global-folder" : "always-global";
 }

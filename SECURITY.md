@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T19:26:08.102Z
+Generated: 2026-10-06T19:30:28.308Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>❌ `~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-e2e` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -32,7 +32,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - ✓ `extensions/sandbox.ts` — 186 lines, mtime 2026-10-06
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
+- ❌ `~/.pi/agent/extensions/sandbox.json` — MISSING
 
 **Tests**
 
@@ -64,6 +64,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=24, FAIL=0
+- `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=20, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -106,7 +107,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
+- Global: `~/.pi/agent/extensions/sandbox.json` — MISSING
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (disables ALL layers globally)`
 
