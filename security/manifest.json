@@ -13,6 +13,7 @@
       "purpose": "Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014).",
       "sourceFiles": [
         "sandbox/index.ts",
+        "src/l1-sandbox/",
         "src/core/",
         "~/.pi/agent/extensions/sandbox.json"
       ],
@@ -32,6 +33,7 @@
       "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).",
       "sourceFiles": [
         "security-guard.ts",
+        "src/l2-guard/",
         "src/core/"
       ],
       "tests": [

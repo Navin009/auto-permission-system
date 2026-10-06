@@ -53,7 +53,6 @@
   },
   "files": [
     "security-guard.ts",
-    "lib/",
     "src/",
     "sandbox/",
     "skills/",

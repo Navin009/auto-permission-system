@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T18:36:36.257Z
+Generated: 2026-10-06T18:44:07.047Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
-| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
+| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`src/l2-guard/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -29,7 +29,8 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 722 lines, mtime 2026-10-06
+- ✓ `sandbox/index.ts` — 186 lines, mtime 2026-10-06
+- ✓ `src/l1-sandbox/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
 
@@ -49,7 +50,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
+- ✓ `security-guard.ts` — 282 lines, mtime 2026-10-06
+- ✓ `src/l2-guard/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
 
 **Tests**
@@ -74,7 +76,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
+- ✓ `security-guard.ts` — 282 lines, mtime 2026-10-06
 
 **Config**
 

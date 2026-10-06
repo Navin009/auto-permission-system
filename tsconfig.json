@@ -12,7 +12,6 @@
   "include": [
     "security-guard.ts",
     "sandbox/index.ts",
-    "lib/**/*.ts",
     "src/**/*.ts"
   ]
 }
