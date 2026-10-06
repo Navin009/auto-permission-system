@@ -50,14 +50,10 @@ function detectionBlock(action: "read" | "tool", why: string): string {
 	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
 }
 
-/** `file:line` with one line of context above and below, for the exposure prompt. */
+/** `file:line` and the matching line, for the exposure prompt. */
 function excerpt(label: string, lineNo: number, lines: string[], i: number): string {
-	const cut = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
-	const block = [`${label}:${lineNo}`];
-	if (lines[i - 1]?.trim()) block.push(`   ${cut(lines[i - 1].trim())}`);
-	block.push(` > ${cut(lines[i].trim())}`);
-	if (lines[i + 1]?.trim()) block.push(`   ${cut(lines[i + 1].trim())}`);
-	return block.join("\n");
+	const line = lines[i].trim();
+	return `${label}:${lineNo}\n > ${line.length > 200 ? `${line.slice(0, 200)}…` : line}`;
 }
 
 async function askDetection(

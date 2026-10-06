@@ -52,7 +52,7 @@ check('remember host · project', (await pickHost(0)).scope === 'cwd');
 check('remember host · global', (await pickHost(1)).scope === 'global');
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
-const hit = 'config.env:12\n   above line\n > key=asdfadsdaasdfdsafasdf\n   below line';
+const hit = 'config.env:12\n > key=asdfadsdaasdfdsafasdf';
 const expOpts = await optionsOf((ctx) => askExposure(ctx, [hit]));
 check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expOpts[0].startsWith('No, keep private'));
 check('askExposure: allow label', expOpts[1].startsWith('Yes, allow'));

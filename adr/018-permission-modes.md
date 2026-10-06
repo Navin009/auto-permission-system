@@ -64,7 +64,7 @@ gate vocabulary.
 ## Consequences
 
 - A detected secret in output is never sent silently: the user sees a warning
-  naming the location (`file:line`) with one line of context, and
+  naming the location (`file:line`) and the matching line, and
   chooses `Yes, allow` or `No, keep private`. On `No, keep private`, the model
   receives a clear withheld notice instead of the values.
 - False positives exist by design (the cores are conservative). The mode is
