@@ -13,7 +13,7 @@ import { audit } from "./audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
 import { domainMatches } from "./url";
-import { askDecision, type AskKind, type OverrideKind } from "./ask";
+import { askDecision, displayWhy, networkWhy, type AskKind, type OverrideKind } from "./ask";
 
 export type { AskKind, Decision, OverrideKind } from "./ask";
 export type Scope = "cwd" | "global";
@@ -75,6 +75,13 @@ export type UICtx = {
 	};
 };
 
+/** The model-facing denial text: one pattern for every L2 block. */
+function blockReason(k: AskKind): string {
+	if (k.overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(k.reason)}. Nothing was fetched — ask the user.`;
+	if (k.overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(k.reason)}. Nothing was written — ask the user.`;
+	return `Read blocked by policy: ${displayWhy(k.reason)}. Nothing was read — ask the user.`;
+}
+
 export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<{ block: true; reason: string } | null> {
 	if (!absoluteDenyPattern) {
 		const granted = sessionGranted(k, ctx.cwd);
@@ -95,7 +102,7 @@ export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: st
 	const decision = await askDecision(ctx, k, absoluteDenyPattern);
 	if (decision === "no") {
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", cwd: ctx.cwd });
-		return { block: true, reason: `${k.tool} blocked: ${k.reason}` };
+		return { block: true, reason: blockReason(k) };
 	}
 	if (decision === "session" || decision === "session-folder") {
 		const value = decision === "session-folder" ? dirname(k.overrideValue) : k.overrideValue;
@@ -107,7 +114,7 @@ export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: st
 	if (decision === "always-cwd" || decision === "always-global" || decision === "always-cwd-folder" || decision === "always-global-folder") {
 		if (absoluteDenyPattern) {
 			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", note: "always-refused-for-absolute-deny", cwd: ctx.cwd });
-			return { block: true, reason: `${k.tool} blocked: ${k.reason}` };
+			return { block: true, reason: blockReason(k) };
 		}
 		const scope: Scope = decision === "always-cwd" || decision === "always-cwd-folder" ? "cwd" : "global";
 		const useFolder = decision === "always-cwd-folder" || decision === "always-global-folder";
