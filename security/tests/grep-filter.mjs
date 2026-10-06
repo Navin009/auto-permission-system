@@ -34,7 +34,7 @@ check('counts removed lines', r.removedLines === 4);
 check('lists removed files once', r.removedFiles.length === 3);
 check('no-op when nothing denied', filterGrepOutput(out, () => false).text === out);
 
-const dir = join(tmpdir(), `pi-secure-it-test-${process.pid}`);
+const dir = join(tmpdir(), `auto-permission-system-test-${process.pid}`);
 mkdirSync(dir, { recursive: true });
 const good = join(dir, 'good.json'), bad = join(dir, 'bad.json');
 writeFileSync(good, '{"filesystem":{"allowWrite":["."]}}');

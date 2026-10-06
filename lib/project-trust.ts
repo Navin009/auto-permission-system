@@ -6,7 +6,7 @@
  * stricter postures win, and everything that could loosen (enabled, allow
  * lists, overrides, sandbox weakening flags) is ignored. A file is trusted
  * when its SHA-256 is recorded in the trust store, which only `/security
- * trust` and pi-secure-it's own "always for CURRENT project" writes (of an
+ * trust` and auto-permission-system's own "always for CURRENT project" writes (of an
  * already trusted file) update.
  *
  * No pi imports: security/tests/project-trust.mjs imports this file directly.
@@ -162,7 +162,7 @@ export function describeLoosening(project: Obj): string[] {
 	for (const key of ignored) {
 		switch (key) {
 			case "enabled":
-				if (project.enabled === false) out.push("Turn off pi-secure-it.");
+				if (project.enabled === false) out.push("Turn off auto-permission-system.");
 				break;
 			case "enableWeakerNestedSandbox":
 				if (project.enableWeakerNestedSandbox) out.push("Make the bash sandbox weaker.");

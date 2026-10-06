@@ -563,7 +563,7 @@ export default function (pi: ExtensionAPI) {
 			audit({ layer: 2, event: "untrusted-project-policy", file: projectPolicyPath(ctx.cwd), changes, cwd: ctx.cwd });
 			ctx.ui.notify(
 				`⚠️  This folder has a .pi/sandbox.json that tries to make your security weaker:\n${bullets(changes)}\n` +
-					"pi-secure-it ignores these changes. Its block rules still apply.\n" +
+					"auto-permission-system ignores these changes. Its block rules still apply.\n" +
 					"Did you write this file? Then type /security trust.",
 				"warning",
 			);
@@ -726,12 +726,12 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 				const options = ["No — ignore these changes (default)", "Yes — I wrote this file. Apply it."];
-				const title = `Do you trust this file?\n${file}\n\nIt will:\n${bullets(changes)}\n\nIf the file changes, pi-secure-it asks again.`;
+				const title = `Do you trust this file?\n${file}\n\nIt will:\n${bullets(changes)}\n\nIf the file changes, auto-permission-system asks again.`;
 				const chosen = await ctx.ui.select(title, options, { timeout: 120_000 });
 				if (chosen !== options[1]) {
 					recordProjectDeclined(file, TRUST_STORE);
 					audit({ layer: 2, event: "project-trust-declined", file, changes, cwd: ctx.cwd });
-					ctx.ui.notify("OK. pi-secure-it ignores these changes. It does not ask again until the file changes.", "info");
+					ctx.ui.notify("OK. auto-permission-system ignores these changes. It does not ask again until the file changes.", "info");
 					return;
 				}
 				recordProjectTrust(file, TRUST_STORE);

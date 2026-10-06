@@ -50,7 +50,7 @@ check('stricter subagent.network applies', tighter.subagent.network === 'deny');
 check('stricter outsideProject.read applies', tighter.filesystem.outsideProject.read === 'deny');
 
 // Trust store: content-pinned.
-const dir = join(tmpdir(), `pi-secure-it-trust-${process.pid}`);
+const dir = join(tmpdir(), `auto-permission-system-trust-${process.pid}`);
 mkdirSync(join(dir, '.pi'), { recursive: true });
 const file = join(dir, '.pi', 'sandbox.json'), store = join(dir, 'trust.json');
 check('absent project file counts as trusted', isProjectFileTrusted(join(dir, 'nope.json'), store));
@@ -77,7 +77,7 @@ rmSync(dir, { recursive: true, force: true });
 
 // Plain-language description of what an untrusted file tries to loosen.
 const d = describeLoosening(hostile);
-check('says it turns pi-secure-it off', d.includes('Turn off pi-secure-it.'));
+check('says it turns auto-permission-system off', d.includes('Turn off auto-permission-system.'));
 check('says it weakens the sandbox', d.includes('Make the bash sandbox weaker.'));
 check('names the write path', d.includes('Let bash write to: /.') && d.includes('Let bash and pi write to: /.'));
 check('names the read path', d.includes('Let pi read: ~/.ssh.'));

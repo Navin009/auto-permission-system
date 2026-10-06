@@ -1,4 +1,4 @@
-# pi-secure-it
+# auto-permission-system
 
 Two-layer security extension for the [Pi coding agent](https://pi.dev):
 
@@ -12,13 +12,13 @@ When a tool call is blocked you get an interactive prompt — no need to leave p
 
 ```bash
 # From npm (once published)
-pi install npm:pi-secure-it
+pi install npm:auto-permission-system
 
 # From git
-pi install git:github.com/Navin009/pi-secure-it
+pi install git:github.com/Navin009/auto-permission-system
 
 # Try without installing
-pi -e git:github.com/Navin009/pi-secure-it
+pi -e git:github.com/Navin009/auto-permission-system
 ```
 
 ## Requirements
@@ -64,13 +64,13 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
 
 ### Project policy files and trust
 
-A folder can have its own `.pi/sandbox.json`. It comes with the folder, for example with a repository that you clone. So pi-secure-it does not trust it automatically (ADR-013).
+A folder can have its own `.pi/sandbox.json`. It comes with the folder, for example with a repository that you clone. So auto-permission-system does not trust it automatically (ADR-013).
 
 - **Block rules in the file always apply.** They are added to your rules.
-- **Changes that make your security weaker do not apply** until you trust the file. Examples: turn off pi-secure-it, let bash write to `/`, allow more websites.
-- pi-secure-it shows a warning that lists these changes in plain words.
-- **Did you write the file?** Type `/security trust`. pi-secure-it shows the changes and asks you. If you say "No", it does not warn again until the file changes.
-- Trust is for the file as it is now. If the file changes, pi-secure-it asks again.
+- **Changes that make your security weaker do not apply** until you trust the file. Examples: turn off auto-permission-system, let bash write to `/`, allow more websites.
+- auto-permission-system shows a warning that lists these changes in plain words.
+- **Did you write the file?** Type `/security trust`. auto-permission-system shows the changes and asks you. If you say "No", it does not warn again until the file changes.
+- Trust is for the file as it is now. If the file changes, auto-permission-system asks again.
 - Most folders have no `.pi/sandbox.json`, so you see nothing. Your own "always for CURRENT project" answers keep the file trusted.
 - `/security untrust` removes the trust. `/security` shows the status.
 
@@ -139,8 +139,8 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 ## Development
 
 ```bash
-git clone https://github.com/Navin009/pi-secure-it
-cd pi-secure-it
+git clone https://github.com/Navin009/auto-permission-system
+cd auto-permission-system
 npm install          # installs typescript for typecheck
 npm run typecheck    # type-checks against pi's bundled .d.ts files
 pi -e .              # load extension for the current session only
@@ -166,7 +166,7 @@ Commit messages on pull requests are checked by `commitlint` (`.github/workflows
 Nothing to run locally beyond writing conventional commit messages — just merge to `main`. Publishing uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — no `NPM_TOKEN` secret required. One-time setup on npmjs.com:
 
 1. Go to the package's **Settings → Trusted Publisher** on npmjs.com.
-2. Select **GitHub Actions** and configure: organization/user `Navin009`, repository `pi-secure-it`, workflow filename `release.yml`, allowed action `npm publish`.
+2. Select **GitHub Actions** and configure: organization/user `Navin009`, repository `auto-permission-system`, workflow filename `release.yml`, allowed action `npm publish`.
 3. (Recommended) Under **Settings → Publishing access**, choose "Require two-factor authentication and disallow tokens" to disable classic token-based publishing entirely, and revoke any automation tokens you previously created.
 
 `GITHUB_TOKEN` is provided automatically by Actions; the `id-token: write` permission in `release.yml` is what lets npm's OIDC exchange work.

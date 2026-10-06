@@ -19,12 +19,12 @@ pi's own project trust does not cover this: `ctx.isProjectTrusted()` is true unl
 - **Untrusted**, both layers apply only what tightens (`lib/project-trust.ts`, `applyUntrustedProject`): `denyRead`, `modelDenyRead`, `denyWrite` and `network.deniedDomains` are added to the user's lists; `subagent.network` and `filesystem.outsideProject.read` apply only when stricter. Every other key is ignored and reported.
 - **Trusted**, the file merges as before.
 - `/security trust` shows the keys that trusting would apply and asks (pre-selected "no"); `/security untrust` forgets the file. `/security` shows the state.
-- pi-secure-it's own "always for CURRENT project" grants record the new hash after writing, but only into a file that was already trusted (or did not exist). Into an untrusted file they are refused, so a grant can never launder content the user did not review.
-- Layer 2 warns at session start in short plain sentences (ASD-STE100 style) that say what the file tries to make weaker, with the values ("Turn off pi-secure-it.", "Let bash write to: /."), and audits `untrusted-project-policy`. Deny-only files cause no warning.
+- auto-permission-system's own "always for CURRENT project" grants record the new hash after writing, but only into a file that was already trusted (or did not exist). Into an untrusted file they are refused, so a grant can never launder content the user did not review.
+- Layer 2 warns at session start in short plain sentences (ASD-STE100 style) that say what the file tries to make weaker, with the values ("Turn off auto-permission-system.", "Let bash write to: /."), and audits `untrusted-project-policy`. Deny-only files cause no warning.
 - A "No" to the trust question is remembered for that exact content (`declined` in the trust store): no more warnings until the file changes.
 
 ## Consequences
 
 - A repository can add protections but cannot lower them without the user's explicit, content-pinned consent.
-- Existing project files, including ones pi-secure-it wrote, are untrusted after upgrading; their loosening keys apply after one `/security trust` per project. This is a breaking change.
+- Existing project files, including ones auto-permission-system wrote, are untrusted after upgrading; their loosening keys apply after one `/security trust` per project. This is a breaking change.
 - The trust store lives outside every project; the default `allowWrite` roots do not cover it. Adding `~/.pi/agent/extensions/**` to `denyWrite` (as the example config does) protects it from the agent as well.

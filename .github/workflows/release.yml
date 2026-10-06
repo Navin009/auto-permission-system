@@ -7,8 +7,8 @@ name: Release
 #
 # Publishing uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret needed.
 # Configure the trusted publisher once at:
-#   https://www.npmjs.com/package/pi-secure-it/access -> Trusted Publisher
-#   Provider: GitHub Actions, Repo: Navin009/pi-secure-it,
+#   https://www.npmjs.com/package/auto-permission-system/access -> Trusted Publisher
+#   Provider: GitHub Actions, Repo: Navin009/auto-permission-system,
 #   Workflow filename: release.yml
 # Requires npm CLI >= 11.5.1 and Node >= 22.14, hence the explicit npm upgrade
 # step below. Pinned to node-version 24 to match ci.yml.
