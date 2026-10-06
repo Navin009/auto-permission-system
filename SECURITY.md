@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T19:19:15.163Z
+Generated: 2026-10-06T19:26:08.102Z
 
 ## At a glance
 

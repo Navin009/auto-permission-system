@@ -43,7 +43,7 @@ const labelCtx = mkCtx([(o) => o[3], undefined]);
 await askDecision(labelCtx.ctx, fileKind, null);
 const fileOpts = labelCtx.seen[1];
 check('label: Allow for this file (<path>) - Scope this project', fileOpts[0] === 'Allow for this file (/home/me/project/.env) - Scope this project');
-check('label: Allow for this folder (<path>) - Scope all projects', fileOpts[3] === 'Allow for this folder (/home/me/project) - Scope all projects');
+check('label: Allow for this folder (<path>) - Scope global', fileOpts[3] === 'Allow for this folder (/home/me/project) - Scope global');
 
 // --- write kind shares the flow ---
 check('write: remember folder · all projects', (await askDecision(mkCtx([(o) => o[3], (o) => o[3]]).ctx, writeKind, null)) === 'always-global-folder');

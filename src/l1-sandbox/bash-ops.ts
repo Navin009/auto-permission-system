@@ -45,32 +45,45 @@ async function preflightOutsideReads(
 	}
 	const once: string[] = [];
 	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
-		const title = `Layer 1 (bash sandbox) wants to read outside the project:\n  ${absPath}\n\nAllow this read?`;
-		const NO = "no  — block this command (default)";
-		const ONCE = "yes — this once (don't save)";
-		const CWD_FILE = "always for CURRENT project — allow this file (.pi/sandbox.json)";
-		const ALL_FILE = "always for ALL projects — allow this file (~/.pi/agent/extensions/sandbox.json)";
-		const chosen = await opts.ctx.ui.select(title, [NO, ONCE, CWD_FILE, ALL_FILE], { timeout: 60_000 });
+		const main = ["Block (default)", "Allow once", "Allow and remember…"];
+		const chosen = await opts.ctx.ui.select(`Read outside the project\n  path:   ${absPath}\n  source: this bash command`, main, { timeout: 60_000 });
 		const ts = new Date().toISOString();
 		const auditPath = `${getAgentDir()}/audit.log`;
-		if (chosen === ONCE) {
+		if (chosen === main[1]) {
 			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd })}\n`);
 			once.push(absPath);
 			continue;
 		}
-		if (chosen !== CWD_FILE && chosen !== ALL_FILE) {
+		let scope: "cwd" | "global" | null = null;
+		let subject = absPath;
+		if (chosen === main[2]) {
+			const parent = dirname(absPath);
+			const folderOk = isSafeFolderGrant(parent, homedir());
+			const remember: Array<{ label: string; scope: "cwd" | "global"; subject: string }> = [
+				{ label: `Allow for this file (${absPath}) - Scope this project`, scope: "cwd", subject: absPath },
+			];
+			if (folderOk) remember.push({ label: `Allow for this folder (${parent}) - Scope this project`, scope: "cwd", subject: parent });
+			remember.push({ label: `Allow for this file (${absPath}) - Scope global`, scope: "global", subject: absPath });
+			if (folderOk) remember.push({ label: `Allow for this folder (${parent}) - Scope global`, scope: "global", subject: parent });
+			const picked = await opts.ctx.ui.select(`Remember this read?\n  file:   ${absPath}\n  folder: ${parent}`, remember.map((r) => r.label), { timeout: 60_000 });
+			const hit = remember.find((r) => r.label === picked);
+			if (hit) {
+				scope = hit.scope;
+				subject = hit.subject;
+			}
+		}
+		if (!scope) {
 			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd })}\n`);
 			onData(Buffer.from(`\n${blockedLine("Read", "outside the project", "run")}\n`));
 			return { blocked: { exitCode: 1 } };
 		}
-		const scope = chosen === CWD_FILE ? "cwd" : "global";
 		try {
-			const persistedTo = await opts.onAlwaysRead(absPath, scope);
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" })}\n`);
-			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} (${scope})`, "warning");
+			const persistedTo = await opts.onAlwaysRead(subject, scope);
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" })}\n`);
+			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${scope})`, "warning");
 		} catch (e) {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, scope, cwd, error: String(e), note: "preflight" })}\n`);
-			onData(Buffer.from(`\n❌ pi-sandbox: could not save the permission (${e}). ${absPath} remains blocked.\n`));
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, scope, cwd, error: String(e), note: "preflight" })}\n`);
+			onData(Buffer.from(`\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`));
 			return { blocked: { exitCode: 1 } };
 		}
 	}

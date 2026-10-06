@@ -7,7 +7,7 @@
  *
  * Two screens:
  *   1. a short verdict + `Block / Allow once / Allow for this session / Allow and remember…`
- *   2. only if "remember": `Allow for this file (<path>) - Scope this project|all projects`
+ *   2. only if "remember": `Allow for this file (<path>) - Scope this project|global`
  * Esc / timeout on either screen blocks.
  */
 
@@ -97,7 +97,7 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 		const host = k.overrideValue;
 		const options = [
 			`Allow for this host (${host}) - Scope this project`,
-			`Allow for this host (${host}) - Scope all projects`,
+			`Allow for this host (${host}) - Scope global`,
 		];
 		const picked = await ctx.ui.select(`Remember this host?\n  host: ${host}`, options, { timeout: 60_000 });
 		if (picked === options[0]) return "always-cwd";
@@ -108,8 +108,8 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 	const options = [
 		`Allow for this file (${k.subject}) - Scope this project`,
 		`Allow for this folder (${parent}) - Scope this project`,
-		`Allow for this file (${k.subject}) - Scope all projects`,
-		`Allow for this folder (${parent}) - Scope all projects`,
+		`Allow for this file (${k.subject}) - Scope global`,
+		`Allow for this folder (${parent}) - Scope global`,
 	];
 	const picked = await ctx.ui.select(`Remember this ${action}?\n  file:   ${k.subject}\n  folder: ${parent}`, options, { timeout: 60_000 });
 	if (picked === options[0]) return "always-cwd";
