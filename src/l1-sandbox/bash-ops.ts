@@ -28,6 +28,11 @@ export interface SandboxedBashOpts {
  * proceed and run the command. Obfuscated reads are not detected and fall back
  * to the fence.
  */
+/** One denial shape for Layer 1, mirroring denyMessage() in Layer 2. */
+function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "written" | "run"): string {
+	return `❌ pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome} — ask the user.`;
+}
+
 async function preflightOutsideReads(
 	command: string,
 	cwd: string,
@@ -55,7 +60,7 @@ async function preflightOutsideReads(
 		}
 		if (chosen !== CWD_FILE && chosen !== ALL_FILE) {
 			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd })}\n`);
-			onData(Buffer.from(`\n❌ pi-sandbox: bash command not run — read outside the project was not allowed: ${absPath}\n   No partial output was produced. Ask the user how to proceed.\n`));
+			onData(Buffer.from(`\n${blockedLine("Read", "outside the project", "run")}\n`));
 			return { blocked: { exitCode: 1 } };
 		}
 		const scope = chosen === CWD_FILE ? "cwd" : "global";
@@ -65,7 +70,7 @@ async function preflightOutsideReads(
 			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} (${scope})`, "warning");
 		} catch (e) {
 			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, scope, cwd, error: String(e), note: "preflight" })}\n`);
-			onData(Buffer.from(`\n❌ pi-sandbox: failed to apply override (${e}). ${absPath} remains blocked.\n`));
+			onData(Buffer.from(`\n❌ pi-sandbox: could not save the permission (${e}). ${absPath} remains blocked.\n`));
 			return { blocked: { exitCode: 1 } };
 		}
 	}
@@ -161,6 +166,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 					let offending: string | undefined;
 					let readDenied = false;
 					let hardDenied = false;
+					let hardWhy = "";
 					let outsideDenied = false;
 					let outsideMode: "allow" | "ask" | "deny" = "allow";
 					if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
@@ -172,7 +178,9 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						if (offending) {
 							const fsCfg = loadConfig(cwd).filesystem;
 							if (fsCfg) {
-								hardDenied = fsCfg.denyRead.some((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+								const hardPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+								hardDenied = hardPat !== undefined;
+								hardWhy = hardPat ? `denyRead matched "${hardPat}"` : "denyRead";
 								outsideDenied = outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
 								outsideMode = outsideProjectMode(fsCfg);
 							}
@@ -235,21 +243,21 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									decisionHint = `\n✅ pi-sandbox: ${absPath} now allowed (${scope}). Retry the bash command.\n`;
 								} catch (e) {
 									appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" })}\n`);
-									decisionHint = `\n❌ pi-sandbox: failed to apply override (${e}). Path remains blocked.\n`;
+									decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${absPath} remains blocked.\n`;
 								}
 							} else {
 								appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" })}\n`);
-								decisionHint = `\n❌ pi-sandbox: read outside the project denied. Do not retry; ask the user how to proceed.\n`;
+								decisionHint = `\n${blockedLine("Read", "outside the project", "read")}\n`;
 							}
 						} catch {
 							/* prompt failure shouldn't crash bash */
 						}
 						if (decisionHint) onData(Buffer.from(decisionHint));
 					} else if (offending && readDenied) {
-						const why = hardDenied ? "denyRead" : "outside the project";
+						const why = hardDenied ? hardWhy : "outside the project";
 						appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: offending, decision: "read-denied", reason: why, cwd })}\n`);
 						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
-						decisionHint = `\n❌ pi-sandbox: reading ${offending} from bash is blocked by policy (${why}). Do not retry or work around it; ask the user.\n`;
+						decisionHint = `\n${blockedLine("Read", why, "read")}\n`;
 						onData(Buffer.from(decisionHint));
 					} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
 						const absPath = offending;
@@ -281,12 +289,12 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${scope}${useParent ? ", folder" : ""}). Retry the bash command.\n`;
 								} catch (e) {
 									appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, granularity: useParent ? "folder" : "file", original: absPath, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd: opts.ctx.cwd, error: String(e) })}\n`);
-									opts.ctx.ui?.notify?.(`pi-sandbox: failed to apply override (${e})`, "error");
-									decisionHint = `\n❌ pi-sandbox: failed to apply override (${e}). Path remains blocked.\n`;
+									opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
+									decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 								}
 							} else {
 								appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", cwd: opts.ctx.cwd })}\n`);
-								decisionHint = `\n❌ pi-sandbox: user denied. ${absPath} remains blocked. Do not retry; ask the user how to proceed.\n`;
+								decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
 							}
 						} catch {
 							/* prompt failure shouldn't crash bash */
