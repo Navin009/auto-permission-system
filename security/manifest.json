@@ -10,13 +10,14 @@
       "id": "L1",
       "name": "Bash sandbox (sandbox-exec)",
       "status": "shipped",
-      "purpose": "Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains.",
+      "purpose": "Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, fences the home dir and re-exposes the project via allowRead (ADR-014), so bash respects the project boundary too.",
       "sourceFiles": [
         "sandbox/index.ts",
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
         { "id": "L1-attribution", "command": "node security/tests/l1-attribution.mjs", "expected": "PASS=29, FAIL=0" },
+        { "id": "L1-outside-fence", "command": "node security/tests/outside-fence.mjs", "expected": "PASS=27, FAIL=0" },
         { "id": "L1-smoke", "command": "bash docs/security/run-tests.sh", "expected": "PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)" }
       ],
       "knownGaps": [

@@ -5,6 +5,17 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
+
+/**
+ * Default read-deny list, shared by both layers so they cannot drift.
+ * `~/.pi/agent` holds `mcp.json` (which can carry API keys), session
+ * transcripts and caches; only `auth.json` was guarded before. It is a
+ * default deny so Layer 1 (bash) is covered too, not just the model tools.
+ */
+export const DEFAULT_DENY_READ = ["~/.ssh", "~/.aws", "~/.gnupg", "~/.pi/agent"];
+export const DEFAULT_ALLOW_WRITE = [".", "/tmp"];
+export const DEFAULT_DENY_WRITE = [".env", ".env.*", "*.pem", "*.key"];
 
 /**
  * Check that a policy file, if present, parses as JSON. Returns the parse
@@ -135,14 +146,26 @@ export function isSafeFolderGrant(dir: string, home: string): boolean {
  * `.` is the project root, anything else matches the basename (glob allowed).
  */
 export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
-	const p = pattern === "~" ? home : pattern.startsWith("~/") ? `${home}/${pattern.slice(2)}` : pattern;
+	let p = pattern;
+	if (p === "~") p = home;
+	else if (p.startsWith("~/")) p = `${home}/${p.slice(2)}`;
 	const ci = process.platform === "darwin" ? "i" : "";
-	const glob = (s: string) =>
-		new RegExp(`^${s.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\x00").replace(/\*/g, "[^/]*").replace(/\x00/g, ".*").replace(/\?/g, "[^/]")}$`, ci);
+	const glob = (s: string) => {
+		const body = s
+			.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+			.split("**")
+			.map((part) => part.replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]"))
+			.join(".*");
+		return new RegExp(`^${body}$`, ci);
+	};
 	if (p === ".") return absPath === cwd || absPath.startsWith(`${cwd}/`);
-	if (p.startsWith("/")) return p.includes("*") ? glob(p).test(absPath) : absPath === p || absPath.startsWith(`${p}/`);
+	if (p.startsWith("/")) {
+		if (p.includes("*")) return glob(p).test(absPath);
+		return absPath === p || absPath.startsWith(`${p}/`);
+	}
 	const base = absPath.slice(absPath.lastIndexOf("/") + 1);
-	return p.includes("*") ? glob(p).test(base) : ci ? base.toLowerCase() === p.toLowerCase() : base === p;
+	if (p.includes("*")) return glob(p).test(base);
+	return ci ? base.toLowerCase() === p.toLowerCase() : base === p;
 }
 
 /**
@@ -157,4 +180,64 @@ export function matchesPolicyPattern(absPath: string, pattern: string, cwd: stri
  */
 export function toSandboxPatterns(patterns: readonly string[]): string[] {
 	return patterns.map((p) => (p === "." || p.includes("/") || p.startsWith("~") ? p : `**/${p}`));
+}
+
+// ---------- Outside the project (ADR-012 / ADR-014) ----------
+
+/** The filesystem slice both layers read, with the Layer-2-only fields. */
+export interface FilesystemPolicy {
+	denyRead: readonly string[];
+	allowWrite: readonly string[];
+	denyWrite: readonly string[];
+	allowRead?: readonly string[];
+	/** Reads outside the project: "allow" (default), "ask" or "deny" (ADR-012). */
+	outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
+}
+
+export function outsideProjectMode(fs: FilesystemPolicy): "allow" | "ask" | "deny" {
+	return fs.outsideProject?.read ?? "allow";
+}
+
+/**
+ * Whether `absPath` is an outside-the-project read the policy wants to gate:
+ * outside cwd, not under an allowWrite / allowRead / outsideProject.allowRead
+ * root, and mode !== "allow". Pure; mirrors Layer 2's outsideProjectReason for
+ * callers (and tests) that cannot import security-guard.ts.
+ */
+export function outsideProjectReadDenied(absPath: string, cwd: string, home: string, fs: FilesystemPolicy): boolean {
+	if (outsideProjectMode(fs) === "allow") return false;
+	if (absPath === cwd || absPath.startsWith(`${cwd}/`)) return false;
+	const allowed = [...fs.allowWrite, ...(fs.allowRead ?? []), ...(fs.outsideProject?.allowRead ?? [])];
+	return !allowed.some((pat) => matchesPolicyPattern(absPath, pat, cwd, home));
+}
+
+/**
+ * Build the `filesystem` block handed to sandbox-runtime (Layer 1).
+ *
+ * When the policy gates outside-project reads, sandbox-runtime has no
+ * interactive prompt, so the boundary is enforced by fencing the home
+ * directory (and the project's parent when it is not under home) with
+ * `denyRead` and then re-exposing the project and the allowed roots with
+ * `allowRead` — the runtime resolves `allowRead` as a re-allow *within* a
+ * denied region. Explicit file denies keep winning over a directory
+ * `allowRead`, so `.env` / `*.pem` / `~/.ssh` stay blocked. Without this,
+ * `outsideProject` never reached Layer 1 at all and `bash` read anything.
+ */
+export function sandboxFilesystem(
+	fs: FilesystemPolicy,
+	opts: { cwd: string; home: string },
+): { denyRead: string[]; allowRead: string[]; allowWrite: string[]; denyWrite: string[] } {
+	const denyRead = toSandboxPatterns(fs.denyRead);
+	const allowRead = toSandboxPatterns(fs.allowRead ?? []);
+	if (outsideProjectMode(fs) !== "allow") {
+		for (const fence of [opts.home, dirname(opts.cwd)]) {
+			if (fence && fence !== "/" && !denyRead.includes(fence)) denyRead.push(fence);
+		}
+		const grants = [opts.cwd, ...fs.allowWrite, ...(fs.outsideProject?.allowRead ?? [])];
+		for (const grant of grants) {
+			const p = toSandboxPatterns([grant])[0];
+			if (!allowRead.includes(p)) allowRead.push(p);
+		}
+	}
+	return { denyRead, allowRead, allowWrite: [...fs.allowWrite], denyWrite: toSandboxPatterns(fs.denyWrite) };
 }

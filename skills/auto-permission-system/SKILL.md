@@ -12,7 +12,8 @@ Use this skill when the user asks about the auto-permission-system extension, se
 **Layer 1 — Bash sandbox (OS-level)**
 Wraps the `bash` tool with `sandbox-exec` (macOS) or `bubblewrap` (Linux). Blocks:
 - Filesystem writes outside `allowWrite`
-- Filesystem reads of `denyRead` paths
+- Filesystem reads of `denyRead` paths (defaults include `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.pi/agent`)
+- Filesystem reads outside the project when `outsideProject.read` is `"ask"` or `"deny"` — the home dir (and the project's parent) is fenced with `denyRead`, and the project plus `allowWrite`/`outsideProject.allowRead` are re-exposed (ADR-014)
 - Network egress to domains not in `allowedDomains`
 
 **Layer 2 — In-process tool guard**
@@ -37,7 +38,7 @@ Merged in order (later wins):
     "deniedDomains": []
   },
   "filesystem": {
-    "denyRead": ["~/.ssh"],           // Layer 1 + 2: hard block
+    "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block (defaults add ~/.aws, ~/.gnupg)
     "modelDenyRead": ["~/.netrc"],    // Layer 2 only: model read blocked, subprocesses ok
     "allowWrite": [".", "/tmp"],      // Layer 2: write only inside these
     "denyWrite": [".env", "*.pem"]   // Layer 1 + 2: always blocked
@@ -61,7 +62,7 @@ A project `.pi/sandbox.json` applies in full only after the user trusted its exa
 
 ## Reads outside the project
 
-`filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. The project, `allowWrite` roots, `~/.pi/agent` and pi's own package never ask. In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.
+`filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. Both layers enforce it: Layer 2 prompts (or blocks headless), and Layer 1 fences the home dir for `bash` (the OS layer cannot prompt, so `ask` and `deny` both block there and the post-block prompt offers a one-file read grant). The project, `allowWrite` roots and pi's own package never ask — but `~/.pi/agent` is **not** exempt (it is in the default `denyRead`; `auth.json` stays absolute-denied). In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.
 
 ## Ask-tier prompt options
 

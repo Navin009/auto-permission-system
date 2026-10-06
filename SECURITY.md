@@ -2,13 +2,13 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-02T07:05:01.746Z
+Generated: 2026-10-06T17:43:53.497Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-smoke` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-smoke` |
 | **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts`<br>`lib/user-named.ts`<br>`lib/project-trust.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
@@ -25,16 +25,17 @@ Generated: 2026-10-02T07:05:01.746Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains.
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, fences the home dir and re-exposes the project via allowRead (ADR-014), so bash respects the project boundary too.
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 589 lines, mtime 2026-10-02
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 89 lines, mtime 2026-10-02
+- ✓ `sandbox/index.ts` — 648 lines, mtime 2026-10-06
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
 
 **Tests**
 
 - `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=29, FAIL=0
+- `L1-outside-fence` — `node security/tests/outside-fence.mjs` → expects PASS=27, FAIL=0
 - `L1-smoke` — `bash docs/security/run-tests.sh` → expects PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)
 
 **Known gaps / accepted risks**
@@ -47,10 +48,10 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
-- ✓ `lib/guard-lib.ts` — 161 lines, mtime 2026-10-02
-- ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-02
-- ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
+- ✓ `lib/guard-lib.ts` — 244 lines, mtime 2026-10-06
+- ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-06
+- ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-06
 
 **Tests**
 
@@ -74,7 +75,7 @@ Stricter network policy when ctx.hasUI === false (subagents, -p mode, JSON mode)
 
 **Source files**
 
-- ✓ `security-guard.ts` — 785 lines, mtime 2026-10-02
+- ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
 
 **Config**
 
@@ -102,7 +103,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 89 lines, mtime 2026-10-02
+- Global: `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (disables ALL layers globally)`
 

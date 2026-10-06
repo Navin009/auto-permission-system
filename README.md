@@ -2,7 +2,7 @@
 
 Two-layer security extension for the [Pi coding agent](https://pi.dev):
 
-- **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, and network egress to unlisted domains.
+- **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, reads outside the project when `outsideProject.read` gates them, and network egress to unlisted domains.
 - **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. `grep` output lines from denied files beneath an allowed search root are removed before the model sees them.
 - **Layer 3** — Subagent posture: optionally drop or restrict network access when running headless (`-p`, JSON mode, subagents).
 
@@ -51,7 +51,7 @@ Copy `sandbox.example.json` from this package as a starting point for your globa
     "deniedDomains": []                 // explicit block-list (checked before allowedDomains)
   },
   "filesystem": {
-    "denyRead": ["~/.ssh", "~/.aws"],   // Layer 1 + Layer 2: no read at all
+    "denyRead": ["~/.ssh", "~/.aws", "~/.pi/agent"],  // Layer 1 + Layer 2: no read at all
     "modelDenyRead": ["~/.netrc"],      // Layer 2 only: model's read tool blocked; subprocesses ok
     "allowWrite": [".", "/tmp"],        // Layer 2: writes only inside these roots
     "denyWrite": [".env", "*.pem"]     // Layer 1 + Layer 2: write always blocked
@@ -87,7 +87,7 @@ Reads outside the working directory can ask before they run (ADR-012):
 }
 ```
 
-Never asked about: the project itself, your `allowWrite` roots, `~/.pi/agent` (skills, settings; `auth.json` stays absolute-denied), pi's own package (docs, examples) and `allowRead`. In an interactive session a read runs without a prompt when **you named its full path** (`/…` or `~/…`) in one of your own messages; only messages you typed count, never tool output or the agent's text. Otherwise you get the ask-tier prompt, including `yes — for this session`. Headless runs block (set `allowRead` for paths a harness needs). Writes outside the project are governed by `allowWrite` as before.
+Never asked about: the project itself, your `allowWrite` roots, pi's own package (docs, examples) and `allowRead`. `~/.pi/agent` is **not** exempt: it is in the default `denyRead` (it holds `mcp.json`, which can carry API keys, plus sessions and caches), while `auth.json` stays absolute-denied. Both layers enforce the boundary — Layer 2 prompts, and Layer 1 fences the home directory for `bash` (ADR-014). The OS layer cannot prompt, so for `bash` an outside read blocks first and then offers a one-file read grant. In an interactive session a read runs without a prompt when **you named its full path** (`/…` or `~/…`) in one of your own messages; only messages you typed count, never tool output or the agent's text. Otherwise you get the ask-tier prompt, including `yes — for this session`. Headless runs block (set `allowRead` for paths a harness needs). Writes outside the project are governed by `allowWrite` as before.
 
 ### Ask-tier prompt
 

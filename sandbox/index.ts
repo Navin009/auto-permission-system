@@ -49,15 +49,23 @@ import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, readPolicyForUpdate, toSandboxPatterns } from "../lib/guard-lib";
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, outsideProjectMode, outsideProjectReadDenied, readPolicyForUpdate, sandboxFilesystem, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../lib/guard-lib";
 import { applyUntrustedProject, isProjectFileTrusted, recordProjectTrust } from "../lib/project-trust";
 
-interface SandboxConfig extends SandboxRuntimeConfig {
+interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
+	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
+	modelDenyRead?: string[];
+	/** Reads outside the project (ADR-012). Layer 1 enforces it via sandboxFilesystem(). */
+	outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
+}
+
+interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> {
 	enabled?: boolean;
+	filesystem?: SandboxFilesystem;
 	/**
-	 * Additive project-local overrides written by the Layer 1 ask-tier
-	 * prompt (and shared with Layer 2 via the same <cwd>/.pi/sandbox.json).
-	 * Read by loadConfig() and folded into filesystem.allowWrite /
+	 * Additive project-local overrides written by the ask-tier prompts (Layer 1
+	 * writes allowWrite/allowRead; Layer 2 shares the same file). Read by
+	 * loadConfig() and folded into filesystem.allowWrite / allowRead /
 	 * network.allowedDomains so the OS-level sandbox honors them.
 	 */
 	overrides?: {
@@ -85,9 +93,9 @@ const DEFAULT_CONFIG: SandboxConfig = {
 		deniedDomains: [],
 	},
 	filesystem: {
-		denyRead: ["~/.ssh", "~/.aws", "~/.gnupg"],
-		allowWrite: [".", "/tmp"],
-		denyWrite: [".env", ".env.*", "*.pem", "*.key"],
+		denyRead: [...DEFAULT_DENY_READ],
+		allowWrite: [...DEFAULT_ALLOW_WRITE],
+		denyWrite: [...DEFAULT_DENY_WRITE],
 	},
 };
 
@@ -127,9 +135,14 @@ function loadConfig(cwd: string): SandboxConfig {
 	// An untrusted project file may only tighten the sandbox: no enabled:false,
 	// no allowWrite / allowedDomains / overrides, no ignoreViolations or
 	// enableWeakerNestedSandbox, and its deny lists are added, not substituted.
-	const merged = existsSync(projectConfigPath) && !projectTrusted(cwd)
-		? (applyUntrustedProject(base as unknown as Record<string, unknown>, projectConfig as Record<string, unknown>).merged as unknown as SandboxConfig)
-		: deepMerge(base, projectConfig);
+	let merged: SandboxConfig;
+	if (existsSync(projectConfigPath) && !projectTrusted(cwd)) {
+		const baseRec = /* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<string, unknown>;
+		const projectRec = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<string, unknown>;
+		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(baseRec, projectRec).merged as unknown as SandboxConfig;
+	} else {
+		merged = deepMerge(base, projectConfig);
+	}
 	return foldOverrides(merged);
 }
 
@@ -154,17 +167,23 @@ function foldOverrides(config: SandboxConfig): SandboxConfig {
 			...overrides.allowWrite,
 		];
 	}
+	// Fold read grants too: an ask-tier "always" for an outside bash read
+	// re-exposes it via filesystem.allowRead (ADR-014). This cannot unmask a
+	// secret: the absolute-deny tier refuses "always" for credentials, and
+	// sandbox-runtime keeps explicit file denies winning over a directory
+	// allowRead.
+	if (overrides.allowRead?.length) {
+		out.filesystem!.allowRead = [
+			...(out.filesystem!.allowRead ?? []),
+			...overrides.allowRead,
+		];
+	}
 	if (overrides.allowDomains?.length) {
 		out.network!.allowedDomains = [
 			...(out.network!.allowedDomains ?? []),
 			...overrides.allowDomains,
 		];
 	}
-	// allowRead intentionally NOT folded into denyRead removal: Layer 1
-	// treats sensitive paths as hard-deny. Layer 2 honors allowRead at
-	// prompt-time as a model-tool gate. Keeping them split prevents an
-	// "always" decision in Layer 2 from accidentally widening the OS
-	// sandbox.
 	return out;
 }
 
@@ -205,6 +224,7 @@ function deepMerge(base: SandboxConfig, overrides: Partial<SandboxConfig>): Sand
 function createSandboxedBashOps(opts?: {
 	ctx?: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } };
 	onAlways?: (absPath: string, scope: "cwd" | "global") => Promise<string>;
+	onAlwaysRead?: (absPath: string, scope: "cwd" | "global") => Promise<string>;
 }): BashOperations {
 	return {
 		async exec(command, cwd, { onData, signal, timeout }) {
@@ -272,19 +292,33 @@ function createSandboxedBashOps(opts?: {
 
 					let offending: string | undefined;
 					let readDenied = false;
+					let hardDenied = false;
+					let outsideDenied = false;
+					let outsideMode: "allow" | "ask" | "deny" = "allow";
 					if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
 						// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
 						offending = extractBlockedPath(outputTail, cwd, homedir());
-						// A denyRead path: a write grant would not help, and one-click read
-						// grants for secrets are not offered. Tell the user, do not prompt.
+						// A hard denyRead path (secret material): a write grant would not help,
+						// and "always" is not offered. The outside-project fence (ADR-014) is
+						// ask-able, so keep the two reasons apart.
 						if (offending) {
-							const denyRead = (loadConfig(cwd).filesystem?.denyRead ?? []) as string[];
-							readDenied = denyRead.some((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+							const fsCfg = loadConfig(cwd).filesystem;
+							if (fsCfg) {
+								hardDenied = fsCfg.denyRead.some((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+								outsideDenied = outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
+								outsideMode = outsideProjectMode(fsCfg);
+							}
+							readDenied = hardDenied || outsideDenied;
 						}
 						const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
 
 						let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
-						if (offending) hint += `   Path: ${offending}${readDenied ? " (denyRead: reading it is blocked by policy)" : ""}\n`;
+						if (offending) {
+							let why = "";
+							if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
+							else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
+							hint += `   Path: ${offending}${why}\n`;
+						}
 						hint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
 						if (configDirHint) {
 							hint +=
@@ -310,10 +344,44 @@ function createSandboxedBashOps(opts?: {
 					// user decides. Otherwise the model gets the EPERM hint immediately,
 					// tries an alternative, and the prompt sits orphaned in the UI.
 					let decisionHint = "";
-					if (offending && readDenied) {
-						appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: offending, decision: "read-denied", cwd })}\n`);
-						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (denyRead). Edit denyRead in sandbox.json if that is wrong.`, "warning");
-						decisionHint = `\n❌ pi-sandbox: ${offending} is in denyRead; reading it from bash is blocked by policy. Do not retry or work around it; ask the user.\n`;
+					if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
+						// ask-tier read grant for a path outside the project (ADR-014).
+						const absPath = offending;
+						const title = `Layer 1 (bash sandbox) blocked a read outside the project:\n  ${absPath}\n\nAllow future bash reads of this file?`;
+						const NO = "no  — leave blocked (default)";
+						const CWD_FILE = "always for CURRENT project — allow this file (.pi/sandbox.json)";
+						const ALL_FILE = "always for ALL projects — allow this file (~/.pi/agent/extensions/sandbox.json)";
+						const options = [NO, CWD_FILE, ALL_FILE];
+						try {
+							const chosen = await opts.ctx.ui.select(title, options, { timeout: 60_000 });
+							const ts = new Date().toISOString();
+							const auditPath = `${getAgentDir()}/audit.log`;
+							let scope: "cwd" | "global" | null = null;
+							if (chosen === CWD_FILE) scope = "cwd";
+							else if (chosen === ALL_FILE) scope = "global";
+							if (scope) {
+								try {
+									const persistedTo = await opts.onAlwaysRead(absPath, scope);
+									appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" })}\n`);
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} (${scope}) — retry the bash command`, "warning");
+									decisionHint = `\n✅ pi-sandbox: ${absPath} now allowed (${scope}). Retry the bash command.\n`;
+								} catch (e) {
+									appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" })}\n`);
+									decisionHint = `\n❌ pi-sandbox: failed to apply override (${e}). Path remains blocked.\n`;
+								}
+							} else {
+								appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" })}\n`);
+								decisionHint = `\n❌ pi-sandbox: read outside the project denied. Do not retry; ask the user how to proceed.\n`;
+							}
+						} catch {
+							/* prompt failure shouldn't crash bash */
+						}
+						if (decisionHint) onData(Buffer.from(decisionHint));
+					} else if (offending && readDenied) {
+						const why = hardDenied ? "denyRead" : "outside the project";
+						appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: offending, decision: "read-denied", reason: why, cwd })}\n`);
+						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
+						decisionHint = `\n❌ pi-sandbox: reading ${offending} from bash is blocked by policy (${why}). Do not retry or work around it; ask the user.\n`;
 						onData(Buffer.from(decisionHint));
 					} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
 						const absPath = offending;
@@ -393,7 +461,7 @@ export default function (pi: ExtensionAPI) {
 	let activeCtx: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } } | undefined;
 
 	/** Persist an "always" Layer 1 override (scope: cwd or global) and live-reload SandboxManager. */
-	async function persistAndReload(absPath: string, scope: "cwd" | "global"): Promise<string> {
+	async function persistLayer1Override(kind: "allowWrite" | "allowRead", absPath: string, scope: "cwd" | "global"): Promise<string> {
 		const { dir, path } =
 			scope === "cwd"
 				? { dir: join(localCwd, ".pi"), path: join(localCwd, ".pi", "sandbox.json") }
@@ -404,11 +472,11 @@ export default function (pi: ExtensionAPI) {
 			throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);
 		}
 		// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
-		const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: { allowWrite?: string[] } };
-		const overrides = (existing.overrides ?? {}) as { allowWrite?: string[] };
-		const list = overrides.allowWrite ?? [];
+		const existing = readPolicyForUpdate(path) as { overrides?: { allowWrite?: string[]; allowRead?: string[] } };
+		const overrides = existing.overrides ?? {};
+		const list = overrides[kind] ?? [];
 		if (!list.includes(absPath)) list.push(absPath);
-		overrides.allowWrite = list;
+		overrides[kind] = list;
 		existing.overrides = overrides;
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`);
@@ -416,11 +484,12 @@ export default function (pi: ExtensionAPI) {
 		await reloadSandbox();
 		return path;
 	}
+	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override("allowWrite", absPath, scope);
+	const persistAndReloadRead = (absPath: string, scope: "cwd" | "global") => persistLayer1Override("allowRead", absPath, scope);
 
 	async function reloadSandbox(): Promise<void> {
 		if (!sandboxInitialized) return;
 		const config = loadConfig(localCwd);
-		const configExt = config as unknown as { ignoreViolations?: Record<string, string[]>; enableWeakerNestedSandbox?: boolean };
 		try {
 			await SandboxManager.reset();
 		} catch {
@@ -429,14 +498,10 @@ export default function (pi: ExtensionAPI) {
 		await SandboxManager.initialize({
 			network: config.network,
 			filesystem: config.filesystem
-				? {
-						denyRead: toSandboxPatterns(config.filesystem.denyRead),
-						allowWrite: config.filesystem.allowWrite,
-						denyWrite: toSandboxPatterns(config.filesystem.denyWrite),
-					}
-				: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
-			ignoreViolations: configExt.ignoreViolations,
-			enableWeakerNestedSandbox: configExt.enableWeakerNestedSandbox,
+				? sandboxFilesystem(config.filesystem, { cwd: localCwd, home: homedir() })
+				: { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [], disabled: true },
+			ignoreViolations: config.ignoreViolations,
+			enableWeakerNestedSandbox: config.enableWeakerNestedSandbox,
 		});
 	}
 
@@ -449,7 +514,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			const sandboxedBash = createBashTool(localCwd, {
-				operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload }),
+				operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }),
 			});
 			return sandboxedBash.execute(id, params, signal, onUpdate);
 		},
@@ -457,11 +522,11 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("user_bash", () => {
 		if (!sandboxEnabled || !sandboxInitialized) return;
-		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload }) };
+		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		activeCtx = ctx as unknown as typeof activeCtx;
+		activeCtx = /* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */ ctx as unknown as typeof activeCtx;
 		piDeclinedTrust = (ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false;
 		const yolo = pi.getFlag("yolo") as boolean;
 		const noSandbox = pi.getFlag("no-sandbox") as boolean; // backwards compat
@@ -500,25 +565,17 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		try {
-			const configExt = config as unknown as {
-				ignoreViolations?: Record<string, string[]>;
-				enableWeakerNestedSandbox?: boolean;
-			};
-
 			await SandboxManager.initialize({
 				network: config.network,
 				// Strip pi-only fields (modelDenyRead, _comment_*) so SandboxManager
-				// doesn't see keys it doesn't understand. modelDenyRead is
-				// enforced by Layer 2 (security-guard.ts), not sandbox-exec.
+				// doesn't see keys it doesn't understand; modelDenyRead is enforced by
+				// Layer 2 (security-guard.ts). sandboxFilesystem() also adds the
+				// outside-project fence when filesystem.outsideProject.read gates reads.
 				filesystem: config.filesystem
-					? {
-							denyRead: toSandboxPatterns(config.filesystem.denyRead),
-							allowWrite: config.filesystem.allowWrite,
-							denyWrite: toSandboxPatterns(config.filesystem.denyWrite),
-						}
-					: { denyRead: [], allowWrite: [], denyWrite: [], disabled: true },
-				ignoreViolations: configExt.ignoreViolations,
-				enableWeakerNestedSandbox: configExt.enableWeakerNestedSandbox,
+					? sandboxFilesystem(config.filesystem, { cwd: ctx.cwd, home: homedir() })
+					: { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [], disabled: true },
+				ignoreViolations: config.ignoreViolations,
+				enableWeakerNestedSandbox: config.enableWeakerNestedSandbox,
 			});
 
 			sandboxEnabled = true;
@@ -579,8 +636,10 @@ export default function (pi: ExtensionAPI) {
 				"",
 				"Filesystem:",
 				`  Deny Read: ${config.filesystem?.denyRead?.join(", ") || "(none)"}`,
+				`  Allow Read: ${config.filesystem?.allowRead?.join(", ") || "(none)"}`,
 				`  Allow Write: ${config.filesystem?.allowWrite?.join(", ") || "(none)"}`,
 				`  Deny Write: ${config.filesystem?.denyWrite?.join(", ") || "(none)"}`,
+				`  Outside project reads: ${config.filesystem?.outsideProject?.read ?? "allow"}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

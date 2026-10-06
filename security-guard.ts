@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, resolve, basename, join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { filterGrepOutput, policyFileError, readPolicyForUpdate } from "./lib/guard-lib";
+import { filterGrepOutput, policyFileError, readPolicyForUpdate, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE } from "./lib/guard-lib";
 import { extractUserMessages, userNamedFile } from "./lib/user-named";
 import { applyUntrustedProject, describeLoosening, forgetProjectTrust, isProjectFileDeclined, isProjectFileTrusted, recordProjectDeclined, recordProjectTrust } from "./lib/project-trust";
 
@@ -40,7 +40,8 @@ interface Policy {
 		/**
 		 * Reads outside the project directory (ADR-012). "allow" (default),
 		 * "ask" or "deny". Never asked about: the project, allowWrite roots,
-		 * the pi agent dir, pi's own package, and allowRead.
+		 * pi's own package, and allowRead. `~/.pi/agent` is not exempt: it is in
+		 * the default denyRead list (mcp.json can hold API keys).
 		 */
 		outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 	};
@@ -76,9 +77,9 @@ const DEFAULT_POLICY: Policy = {
 		deniedDomains: [],
 	},
 	filesystem: {
-		denyRead: ["~/.ssh", "~/.aws", "~/.gnupg"],
-		allowWrite: [".", "/tmp"],
-		denyWrite: [".env", ".env.*", "*.pem", "*.key"],
+		denyRead: [...DEFAULT_DENY_READ],
+		allowWrite: [...DEFAULT_ALLOW_WRITE],
+		denyWrite: [...DEFAULT_DENY_WRITE],
 	},
 	subagent: { network: "allow" },
 };
@@ -114,7 +115,7 @@ function loadPolicy(cwd: string): Policy {
 		`${getAgentDir()}/extensions/sandbox.json`,
 		projectPolicyPath(cwd),
 	];
-	let policy: Policy = JSON.parse(JSON.stringify(DEFAULT_POLICY));
+	let policy: Policy = structuredClone(DEFAULT_POLICY);
 	for (const p of paths) {
 		if (!existsSync(p)) continue;
 		try {
@@ -122,7 +123,8 @@ function loadPolicy(cwd: string): Policy {
 			// An untrusted project file may only tighten: deny lists are added,
 			// stricter postures win, anything that could loosen is ignored.
 			if (p === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
-				policy = applyUntrustedProject(policy as unknown as Record<string, unknown>, o).merged as unknown as Policy;
+				const policyRec = /* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
+				policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(policyRec, o).merged as unknown as Policy;
 				continue;
 			}
 			if (o.enabled !== undefined) policy.enabled = o.enabled;
@@ -292,7 +294,10 @@ function outsideProjectReason(abs: string, cwd: string, policy: Policy): string 
 	if (mode === "allow") return null;
 	const root = canonicalize(cwd, cwd);
 	if (abs === root || abs.startsWith(`${root}/`)) return null;
-	const roots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), getAgentDir(), piPackageRoot()]
+	// The pi agent dir is deliberately NOT here: it holds mcp.json (API keys),
+	// sessions and caches, so it must go through the outside-project gate. It is
+	// in DEFAULT_DENY_READ as well, which also covers bash (ADR-014).
+	const roots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), piPackageRoot()]
 		.filter((p): p is string => !!p)
 		.map((p) => (p.startsWith("/") ? canonicalize(p, cwd) : p));
 	if (roots.some((p) => matchPattern(abs, p, cwd))) return null;
@@ -600,7 +605,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			const e = expandHome(rawPath);
 			const spelled = isAbsolute(e) ? e : resolve(ctx.cwd, e);
-			const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs, outside, spelled }, isAbsoluteDeny(abs, ctx.cwd));
+			const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime; local UICtx names the members used. */ ctx as unknown as UICtx, { layer: 2, tool, subject: abs, reason, overrideKind: "allowRead", overrideValue: abs, outside, spelled }, isAbsoluteDeny(abs, ctx.cwd));
 			return result ?? undefined;
 		};
 		if (isToolCallEventType("read", event)) {
@@ -622,7 +627,7 @@ export default function (pi: ExtensionAPI) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "write", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: "write", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
 				if (result) return result;
 			}
 		}
@@ -630,7 +635,7 @@ export default function (pi: ExtensionAPI) {
 			const reason = isDeniedWrite(event.input.path, ctx.cwd, policy);
 			if (reason) {
 				const abs = canonicalize(event.input.path, ctx.cwd);
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: "edit", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
+				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: "edit", subject: abs, reason, overrideKind: "allowWrite", overrideValue: abs }, isAbsoluteDeny(abs, ctx.cwd));
 				if (result) return result;
 			}
 		}
@@ -654,7 +659,7 @@ export default function (pi: ExtensionAPI) {
 				const reason = isAllowedUrl(u, policy);
 				if (!reason) continue;
 				const host = hostnameOf(u) ?? u;
-				const result = await askOrBlock(ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null);
+				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null);
 				if (result) return result;
 			}
 		}
