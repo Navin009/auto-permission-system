@@ -42,7 +42,7 @@ gate vocabulary.
   - `mcp__*` — `evaluateMcpCall` with the tool's description, schema, and
     annotations from `pi.getAllTools()`; an `ask` verdict prompts.
   - `tool_result` for every tool — `scanToolOutput`; a hit prompts the user
-    **before** the output reaches the model (`⚠ Private content found`, the
+    **before** the output reaches the model (`⚠ Sensitive information detected`, the
     finding types, the line(s) where it was found, then `Should the AI
     be allowed to see it?` with `No, keep private` / `Yes, allow`). No, keep
     private withholds it and returns an explicit notice (never empty, never

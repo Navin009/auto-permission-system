@@ -58,7 +58,7 @@ check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expO
 check('askExposure: allow label', expOpts[1].startsWith('Yes, allow'));
 let expTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
-check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Private content found') && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
+check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Sensitive information detected') && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
 check('askExposure: no finding-type label', !expTitle.includes('SECRET_ASSIGNMENT'));
 const multiHit = 'config.env\n12: key=aaa\n20: OPENAI_API_KEY=sk-bbb';
 let multiTitle;

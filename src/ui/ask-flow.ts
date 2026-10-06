@@ -80,7 +80,7 @@ export async function askExposure(ctx: AskCtx, hits: string[]): Promise<Exposure
 		{ label: "No, keep private", value: "block" },
 		{ label: "Yes, allow", value: "allow" },
 	];
-	const title = ["⚠ Private content found", "", hits.join("\n\n"), "", "Should the AI be allowed to see it?"].join("\n");
+	const title = ["⚠ Sensitive information detected", "", hits.join("\n\n"), "", "Should the AI be allowed to see it?"].join("\n");
 	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }
