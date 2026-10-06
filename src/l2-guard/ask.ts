@@ -56,6 +56,13 @@ export function networkWhy(reason: string): string {
 	return reason.startsWith("domain not in allowlist") ? "not in the allowlist" : displayWhy(reason);
 }
 
+/** The model-facing denial text: one pattern for every Layer 2 block. */
+export function denyMessage(overrideKind: OverrideKind, reason: string): string {
+	if (overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(reason)}. Nothing was fetched — ask the user.`;
+	if (overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(reason)}. Nothing was written — ask the user.`;
+	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read — ask the user.`;
+}
+
 /** The short body shared by screen 1 and the credential banner. */
 function detailLines(k: AskKind, action: Action): string {
 	if (action === "network") return `  host:  ${k.overrideValue}\n  why:   ${networkWhy(k.reason)}`;

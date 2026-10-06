@@ -1,6 +1,6 @@
 // Layer 2 ask-tier decision contract (ADR-009 / ADR-010).
 // Drives `askDecision` with a scripted `ctx.ui.select` — no pi, no fs, no audit.
-import { askDecision, displayWhy } from '../../../src/l2-guard/ask.ts';
+import { askDecision, denyMessage, displayWhy } from '../../../src/l2-guard/ask.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -63,6 +63,11 @@ check('absolute-deny: step2 block → no', (await askDecision(mkCtx([(o) => o[1]
 
 // --- displayWhy strips the arrow path ---
 check('displayWhy strips " → path"', displayWhy('denyRead matched ".env" → /x/.env') === 'denyRead matched ".env"');
+
+// --- one denial pattern for every L2 block ---
+check('denyMessage: read', denyMessage('allowRead', 'denyRead matched ".env" → /x/.env') === 'Read blocked by policy: denyRead matched ".env". Nothing was read — ask the user.');
+check('denyMessage: write', denyMessage('allowWrite', 'not under any allowWrite root → /x') === 'Write blocked by policy: not under any allowWrite root. Nothing was written — ask the user.');
+check('denyMessage: network', denyMessage('allowDomains', 'domain not in allowlist: x.com') === 'Network blocked by policy: not in the allowlist. Nothing was fetched — ask the user.');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

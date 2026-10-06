@@ -20,7 +20,7 @@ export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: un
 	if (ctx.hasUI !== false) return null; // only applies headless
 	const mode = policy.subagent?.network ?? "allow";
 	if (mode === "allow") return null;
-	if (mode === "deny") return "subagent network access denied (policy: subagent.network=deny)";
+	if (mode === "deny") return "Network blocked by policy: subagent.network=deny. Nothing was fetched — ask the user.";
 	if (mode === "research-only") {
 		// Best-effort: scan recent session for a known research-agent name.
 		const sm = ctx.sessionManager as { getBranch?: () => Array<{ type: string; text?: string }> } | undefined;
@@ -31,7 +31,7 @@ export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: un
 			.join(" ")
 			.toLowerCase();
 		for (const a of RESEARCH_AGENTS) if (joined.includes(a)) return null;
-		return "subagent network access denied (policy: subagent.network=research-only)";
+		return "Network blocked by policy: subagent.network=research-only. Nothing was fetched — ask the user.";
 	}
 	return null;
 }

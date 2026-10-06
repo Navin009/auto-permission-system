@@ -33,6 +33,7 @@ import { canonicalize, expandHome, isAbsoluteDeny, isDeniedRead, isDeniedWrite, 
 import { hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
 import { audit, AUDIT_PATH } from "../src/l2-guard/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
+import { denyMessage } from "../src/l2-guard/ask";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent";
 
 export default function (pi: ExtensionAPI) {
@@ -93,7 +94,7 @@ export default function (pi: ExtensionAPI) {
 			if (!reason) return undefined;
 			if (outside && policy.filesystem.outsideProject?.read === "deny") {
 				audit({ layer: 2, tool, subject: abs, reason, decision: "no", note: "outside-project-deny", cwd: ctx.cwd });
-				return { block: true as const, reason: `${tool} blocked: ${reason}` };
+				return { block: true as const, reason: denyMessage("allowRead", reason) };
 			}
 			const e = expandHome(rawPath);
 			const spelled = isAbsolute(e) ? e : resolve(ctx.cwd, e);
