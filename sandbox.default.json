@@ -18,16 +18,26 @@
       "crates.io",
       "static.crates.io",
       "proxy.golang.org",
-      "sum.golang.org"
-    ],
-    "deniedDomains": []
+      "sum.golang.org",
+      "repo.maven.apache.org",
+      "rubygems.org",
+      "api.nuget.org",
+      "deno.land",
+      "jsr.io"
+    ]
   },
   "filesystem": {
     "outsideProject": {
       "read": "ask",
       "allowRead": [
         "~/.pi/agent/install",
-        "~/.pi/agent/npm"
+        "~/.pi/agent/npm",
+        "~/Capture",
+        "~/.nvm",
+        "~/.pyenv",
+        "~/.cargo/registry",
+        "~/go/pkg",
+        "~/.rustup"
       ]
     },
     "denyRead": [
@@ -52,7 +62,10 @@
       "~/Desktop",
       "~/Documents",
       ".env",
-      ".env.*"
+      ".env.*",
+      "~/.bash_history",
+      "~/.zsh_history",
+      "~/.history"
     ],
     "modelDenyRead": [
       "~/.config/gh/hosts.yml",
@@ -66,7 +79,10 @@
       "~/.cargo/credentials.toml",
       "~/.gitconfig"
     ],
-    "allowWrite": [".", "/tmp"],
+    "allowWrite": [
+      ".",
+      "/tmp"
+    ],
     "denyWrite": [
       ".env",
       ".env.*",
@@ -85,9 +101,19 @@
       "~/.pi/agent/models-store.json",
       "~/.pi/agent/audit.log",
       "~/.pi/agent/sessions",
-      "~/.pi/sessions"
+      "~/.pi/sessions",
+      "~/.bashrc",
+      "~/.zshrc",
+      "~/.profile",
+      "~/.bash_profile"
     ]
   },
-  "subagent": { "network": "allow" },
-  "overrides": { "allowRead": [], "allowWrite": [], "allowDomains": [] }
+  "subagent": {
+    "network": "allow"
+  },
+  "overrides": {
+    "allowRead": [],
+    "allowWrite": [],
+    "allowDomains": []
+  }
 }
