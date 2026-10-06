@@ -28,7 +28,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput, policyFileError, forgetProjectTrust, isProjectFileDeclined, recordProjectDeclined, recordProjectTrust } from "../src/core/index";
-import { classifyFilename, evaluateMcpCall, scanToolOutput, type JsonSchemaLike, type McpToolAnnotations } from "../src/detect";
+import { classifyFilename, evaluateMcpCall, type JsonSchemaLike, type McpToolAnnotations } from "../src/detect/index";
+import { collectExposure } from "../src/l2-guard/exposure";
 import { askExposure, askMain, withheldNotice } from "../src/ui/ask-flow";
 import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
 import { canonicalize, expandHome, isAbsoluteDeny, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
@@ -49,9 +50,6 @@ function detectionBlock(action: "read" | "tool", why: string): string {
 	if (action === "read") return `Read blocked by policy: ${why}. Nothing was read — ask the user.`;
 	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
 }
-
-/** Clip a line so it fits the prompt. */
-const clipLine = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
 
 async function askDetection(
 	ctx: UICtx,
@@ -290,22 +288,9 @@ export default function (pi: ExtensionAPI) {
 		const rawInput = event.input ?? {};
 		const rawPath = rawInput.path ?? rawInput.file_path;
 		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
-		const types = new Set<string>();
-		const lines: string[] = [];
-		for (const c of event.content) {
-			if (c.type !== "text") continue;
-			const r = scanToolOutput({ output: c.text });
-			if (r.decision !== "ask") continue;
-			for (const f of r.findings) types.add(f.type);
-			const before = c.text.split("\n");
-			const after = String(r.redactedOutput ?? "").split("\n");
-			for (let i = 0; i < before.length && lines.length < 8; i++) {
-				if (after[i] !== before[i] && before[i].trim()) lines.push(`${i + 1}: ${clipLine(before[i].trim())}`);
-			}
-		}
-		if (!types.size) return;
-		const findings = [...types];
-		const hits = lines.length ? [`${subject}\n${lines.join("\n")}`] : [subject];
+		const { types, hits } = collectExposure(event.content, subject);
+		if (!types.length) return;
+		const findings = types;
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
 		const allow = ui.hasUI !== false && (await askExposure(ui, hits)) === "allow";
 		if (allow) {
