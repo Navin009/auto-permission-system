@@ -52,15 +52,17 @@ check('remember host · project', (await pickHost(0)).scope === 'cwd');
 check('remember host · global', (await pickHost(1)).scope === 'global');
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
-const expOpts = await optionsOf((ctx) => askExposure(ctx, ['AWS_ACCESS_KEY'], ['key=asdfadsdaasdfdsafasdf']));
+const hit = 'config.env:12\n   above line\n > key=asdfadsdaasdfdsafasdf\n   below line';
+const expOpts = await optionsOf((ctx) => askExposure(ctx, [hit]));
 check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expOpts[0].startsWith('No, keep private'));
 check('askExposure: allow label', expOpts[1].startsWith('Yes, allow'));
 let expTitle;
-await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, ['SECRET_ASSIGNMENT'], ['key=asdfadsdaasdfdsafasdf']);
-check('askExposure: header + line + question', expTitle.startsWith('⚠ Private content found') && expTitle.includes('SECRET_ASSIGNMENT') && expTitle.includes('key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
-check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, ['JWT'], [])) === 'block');
-check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, ['JWT'], [])) === 'allow');
-check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, ['JWT'], [])) === 'block');
+await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
+check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Private content found') && expTitle.includes('config.env:12') && expTitle.includes('key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
+check('askExposure: no finding-type label', !expTitle.includes('SECRET_ASSIGNMENT'));
+check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, [hit])) === 'block');
+check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, [hit])) === 'allow');
+check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, [hit])) === 'block');
 
 const notice = withheldNotice('config.env');
 check('withheldNotice: names the subject', notice.includes('config.env') && notice.includes('withheld'));

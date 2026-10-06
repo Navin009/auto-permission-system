@@ -92,7 +92,7 @@ Every prompt waits **10 seconds** by default; no answer means the safe default: 
 - **`advanced-secure`** — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
   - file reads whose name looks like a credential store ask before the read;
   - risky `mcp__<server>__<tool>` calls ask before they run;
-  - before any tool/command/file output reaches the model, a secret-like hit shows the finding types and the line(s) where it was found, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
+  - before any tool/command/file output reaches the model, a secret-like hit shows the location (`file:line`) with one line of context above and below, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
 Switch with `/permission-mode` or **Shift+S**; the choice is saved to the global `sandbox.json` and shown in the footer. An untrusted project may turn `advanced-secure` **on**, never off.
 

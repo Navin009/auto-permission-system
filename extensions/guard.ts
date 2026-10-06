@@ -50,6 +50,16 @@ function detectionBlock(action: "read" | "tool", why: string): string {
 	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
 }
 
+/** `file:line` with one line of context above and below, for the exposure prompt. */
+function excerpt(label: string, lineNo: number, lines: string[], i: number): string {
+	const cut = (s: string) => (s.length > 200 ? `${s.slice(0, 200)}…` : s);
+	const block = [`${label}:${lineNo}`];
+	if (lines[i - 1]?.trim()) block.push(`   ${cut(lines[i - 1].trim())}`);
+	block.push(` > ${cut(lines[i].trim())}`);
+	if (lines[i + 1]?.trim()) block.push(`   ${cut(lines[i + 1].trim())}`);
+	return block.join("\n");
+}
+
 async function askDetection(
 	ctx: UICtx,
 	kind: "read" | "tool",
@@ -284,8 +294,11 @@ export default function (pi: ExtensionAPI) {
 		if (!active || event.isError) return;
 		const policy = loadPolicy(ctx.cwd);
 		if (policy.mode !== "advanced-secure") return;
+		const rawInput = event.input ?? {};
+		const rawPath = rawInput.path ?? rawInput.file_path;
+		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
 		const types = new Set<string>();
-		const lines: string[] = [];
+		const hits: string[] = [];
 		for (const c of event.content) {
 			if (c.type !== "text") continue;
 			const r = scanToolOutput({ output: c.text });
@@ -293,23 +306,20 @@ export default function (pi: ExtensionAPI) {
 			for (const f of r.findings) types.add(f.type);
 			const before = c.text.split("\n");
 			const after = String(r.redactedOutput ?? "").split("\n");
-			for (let i = 0; i < before.length && lines.length < 8; i++) {
-				if (after[i] !== before[i] && before[i].trim()) lines.push(before[i].trim());
+			for (let i = 0; i < before.length && hits.length < 6; i++) {
+				if (after[i] !== before[i] && before[i].trim()) hits.push(excerpt(subject, i + 1, before, i));
 			}
 		}
 		if (!types.size) return;
 		const findings = [...types];
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
-		const allow = ui.hasUI !== false && (await askExposure(ui, findings, lines)) === "allow";
+		const allow = ui.hasUI !== false && (await askExposure(ui, hits)) === "allow";
 		if (allow) {
 			audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
 			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent (${findings.join(", ")}).`, "warning");
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-		const input = event.input ?? {};
-		const rawPath = input.path ?? input.file_path;
-		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
 		ctx.ui.notify(`🛡 Advanced Secure: blocked ${event.toolName} output — it may contain ${findings.join(", ")}. Nothing was sent to the model.`, "warning");
 		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
