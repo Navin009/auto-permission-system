@@ -37,7 +37,11 @@
         "~/.pyenv",
         "~/.cargo/registry",
         "~/go/pkg",
-        "~/.rustup"
+        "~/.rustup",
+        "~/.pnpm-store",
+        "~/.local/share/pnpm",
+        "~/.bun",
+        "~/.cache/pip"
       ]
     },
     "denyRead": [
