@@ -9,7 +9,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { extractUserMessages, readPolicyForUpdate, recordProjectTrust, userNamedFile } from "../core/index";
-import { audit } from "./audit";
+import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
 import { domainMatches } from "./url";

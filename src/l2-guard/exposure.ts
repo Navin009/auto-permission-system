@@ -1,10 +1,4 @@
-/**
- * Advanced Secure output gate (ADR-018).
- *
- * Scans the text blocks of any tool result — bash `cat`, `read`, `grep`, an MCP
- * result — and returns the finding types plus the detected lines, so the caller
- * can ask before any of it reaches the model. Pure: no pi, no fs.
- */
+/** Advanced Secure output gate (ADR-018). Pure: no pi, no fs. */
 
 import { scanToolOutput } from "../detect/index";
 

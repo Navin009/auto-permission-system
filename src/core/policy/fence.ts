@@ -31,52 +31,6 @@ export function shellTokens(segment: string): string[] {
 	return out;
 }
 
-/** A token that could name a path, expanded (`~`) but not yet resolved. */
-function expandPathToken(token: string, home: string): string | undefined {
-	const t = token.trim();
-	if (!t || t.startsWith("-")) return undefined;
-	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(t)) return undefined; // URL, not a path
-	if (t === "~") return home;
-	if (t.startsWith("~/")) return `${home}/${t.slice(2)}`;
-	const looksLikePath = t.startsWith("/") || t.startsWith("./") || t.startsWith("../") || t.includes("/");
-	return looksLikePath ? t : undefined;
-}
-
-/**
- * Absolute paths a bash command **plainly** reads that are outside the project
- * and not already allowed (Layer 1 ask-tier, ADR-015). Best-effort: only
- * read-like segments, only tokens that exist on disk, never a hard `denyRead`
- * match. Obfuscated reads are not returned; the sidecar fence still covers
- * those, so the pre-flight ask is an improvement over silent masking, not a
- * replacement for the OS boundary.
- */
-export function outsideProjectReadCandidates(
-	command: string,
-	cwd: string,
-	home: string,
-	fs: FilesystemPolicy,
-	exists: (path: string) => boolean = existsSync,
-): string[] {
-	const found = new Set<string>();
-	for (const segment of shellSegments(command)) {
-		const tokens = shellTokens(segment);
-		const head = (tokens[0] ?? "").split("/").pop() ?? "";
-		if (!READ_COMMANDS.has(head)) continue;
-		for (const raw of tokens.slice(1)) {
-			const expanded = expandPathToken(raw, home);
-			if (!expanded) continue;
-			const abs = expanded.startsWith("/")
-				? normalizeAbs(expanded)
-				: normalizeAbs(`${cwd.replace(/\/+$/, "")}/${expanded}`);
-			if (!exists(abs)) continue;
-			if (fs.denyRead.some((pat) => matchesPolicyPattern(abs, pat, cwd, home))) continue;
-			if (!outsideProjectReadDenied(abs, cwd, home, fs)) continue;
-			found.add(abs);
-		}
-	}
-	return [...found];
-}
-
 /** Expand a leading `~`; other tokens are returned as-is. */
 function expandHomeToken(token: string, home: string): string {
 	if (token === "~") return home;
@@ -85,10 +39,57 @@ function expandHomeToken(token: string, home: string): string {
 }
 
 /**
- * Absolute paths a bash command **plainly** reads that match `filesystem.askRead`
- * (ADR-019). Same best-effort scan as outsideProjectReadCandidates: read-like
- * segments only, existing tokens only, never a hard `denyRead` match.
+ * Absolute paths named by read-like segments of a bash command. Best-effort:
+ * only read-like heads, only tokens that exist on disk. Bare names count (`.env`
+ * has no slash); the caller's pattern match decides. Obfuscated reads are not
+ * returned — the OS fence covers those.
  */
+function readPathCandidates(
+	command: string,
+	cwd: string,
+	home: string,
+	exists: (path: string) => boolean,
+): string[] {
+	const found = new Set<string>();
+	for (const segment of shellSegments(command)) {
+		const tokens = shellTokens(segment);
+		const head = (tokens[0] ?? "").split("/").pop() ?? "";
+		if (!READ_COMMANDS.has(head)) continue;
+		for (const raw of tokens.slice(1)) {
+			const t = raw.trim();
+			if (!t || t.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(t)) continue;
+			const expanded = expandHomeToken(t, home);
+			const abs = expanded.startsWith("/")
+				? normalizeAbs(expanded)
+				: normalizeAbs(`${cwd.replace(/\/+$/, "")}/${expanded}`);
+			if (exists(abs)) found.add(abs);
+		}
+	}
+	return [...found];
+}
+
+/** Never a hard `denyRead` match, whatever the caller asks about. */
+function notDenied(abs: string, cwd: string, home: string, fs: FilesystemPolicy): boolean {
+	return !fs.denyRead.some((pat) => matchesPolicyPattern(abs, pat, cwd, home));
+}
+
+/**
+ * Absolute paths a bash command **plainly** reads that are outside the project
+ * and not already allowed (Layer 1 ask-tier, ADR-015).
+ */
+export function outsideProjectReadCandidates(
+	command: string,
+	cwd: string,
+	home: string,
+	fs: FilesystemPolicy,
+	exists: (path: string) => boolean = existsSync,
+): string[] {
+	return readPathCandidates(command, cwd, home, exists).filter(
+		(abs) => notDenied(abs, cwd, home, fs) && outsideProjectReadDenied(abs, cwd, home, fs),
+	);
+}
+
+/** Absolute paths a bash command **plainly** reads that match `filesystem.askRead` (ADR-019). */
 export function askReadCandidates(
 	command: string,
 	cwd: string,
@@ -98,26 +99,9 @@ export function askReadCandidates(
 ): string[] {
 	const ask = fs.askRead ?? [];
 	if (!ask.length) return [];
-	const found = new Set<string>();
-	for (const segment of shellSegments(command)) {
-		const tokens = shellTokens(segment);
-		const head = (tokens[0] ?? "").split("/").pop() ?? "";
-		if (!READ_COMMANDS.has(head)) continue;
-		for (const raw of tokens.slice(1)) {
-			// Bare names count here: `.env` has no slash, and the askRead match decides.
-			const t = raw.trim();
-			if (!t || t.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(t)) continue;
-			const expanded = expandHomeToken(t, home);
-			const abs = expanded.startsWith("/")
-				? normalizeAbs(expanded)
-				: normalizeAbs(`${cwd.replace(/\/+$/, "")}/${expanded}`);
-			if (!exists(abs)) continue;
-			if (fs.denyRead.some((pat) => matchesPolicyPattern(abs, pat, cwd, home))) continue;
-			if (!ask.some((pat) => matchesPolicyPattern(abs, pat, cwd, home))) continue;
-			found.add(abs);
-		}
-	}
-	return [...found];
+	return readPathCandidates(command, cwd, home, exists).filter(
+		(abs) => notDenied(abs, cwd, home, fs) && ask.some((pat) => matchesPolicyPattern(abs, pat, cwd, home)),
+	);
 }
 
 /**

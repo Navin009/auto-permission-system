@@ -1,18 +1,16 @@
 /**
- * Layer 1 bash execution: replace the bash child process with one wrapped by
- * sandbox-runtime, pre-flight outside-project reads (ADR-015), and turn a
- * blocked access into an ask-tier prompt + hint.
- *
- * Adapter module: spawns processes and prompts the UI; no policy internals.
+ * Layer 1 bash execution: run the command wrapped by sandbox-runtime, with
+ * pre-flight asks (ADR-015, ADR-019) and an ask-tier prompt on a blocked access.
  */
 
 import { spawn } from "node:child_process";
-import { existsSync, appendFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
-import { type BashOperations, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { type BashOperations } from "@earendil-works/pi-coding-agent";
 import { askReadCandidates, extractBlockedPath, isSafeFolderGrant, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { audit } from "../shared/audit";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
 import { loadConfig } from "./config";
 
@@ -22,17 +20,12 @@ export interface SandboxedBashOpts {
 	onAlwaysRead?: (absPath: string, scope: "cwd" | "global") => Promise<string>;
 }
 
-/**
- * ADR-015 pre-flight: ask about a plainly-named read outside the project BEFORE
- * the command runs, so the OS fence never silently trims the output. Returns a
- * blocked exit result when the user declines (or a grant fails); undefined to
- * proceed and run the command. Obfuscated reads are not detected and fall back
- * to the fence.
- */
 /** One denial shape for Layer 1, mirroring denyMessage() in Layer 2. */
 function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "written" | "run"): string {
 	return `❌ pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome} — ask the user.`;
 }
+
+const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
 
 /**
  * Gate commands that can print secrets (`printenv`, `env`, a read of the proc
@@ -51,14 +44,12 @@ async function preflightSensitiveCommands(
 	const ui = opts.ctx as AskCtx;
 	const body = `  command: ${matched.join(", ")}\n  why:     it can print environment values (API tokens)`;
 	const choice = await askMain(ui, "Command may print secrets", body, { once: true, remember: false });
-	const ts = new Date().toISOString();
-	const auditPath = `${getAgentDir()}/audit.log`;
 	const subject = matched.join(", ");
 	if (choice === "once") {
-		appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: "once", note: "sensitive-command", cwd })}\n`);
+		auditL1({ subject, decision: "once", note: "sensitive-command", cwd });
 		return undefined;
 	}
-	appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: "no", note: "sensitive-command", cwd })}\n`);
+	auditL1({ subject, decision: "no", note: "sensitive-command", cwd });
 	onData(Buffer.from(`\n❌ pi-sandbox: command blocked — it can print secrets: ${subject}. Nothing was run — ask the user.\n`));
 	return { exitCode: 1 };
 }
@@ -77,21 +68,19 @@ async function preflightAskReads(
 	if (!cfg?.askRead?.length) return undefined;
 	const paths = askReadCandidates(command, cwd, homedir(), cfg);
 	if (!paths.length) return undefined;
-	const auditPath = `${getAgentDir()}/audit.log`;
 	const ui = opts?.ctx as AskCtx | undefined;
 	for (const absPath of paths) {
-		const ts = new Date().toISOString();
 		if (!ui?.hasUI || !ui.ui?.select) {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", note: "ask-read-headless", cwd })}\n`);
+			auditL1({ subject: absPath, decision: "no", note: "ask-read-headless", cwd });
 			onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
 			return { exitCode: 1 };
 		}
 		const choice = await askMain(ui, "Sensitive file read", `  file:   ${absPath}\n  why:    it may hold secrets`, { remember: false });
 		if (choice === "once" || choice === "session") {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: choice, note: "ask-read", cwd })}\n`);
+			auditL1({ subject: absPath, decision: choice, note: "ask-read", cwd });
 			continue;
 		}
-		appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", note: "ask-read", cwd })}\n`);
+		auditL1({ subject: absPath, decision: "no", note: "ask-read", cwd });
 		onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
 		return { exitCode: 1 };
 	}
@@ -111,11 +100,9 @@ async function preflightOutsideReads(
 	const once: string[] = [];
 	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
 		const ui = opts.ctx as AskCtx;
-		const ts = new Date().toISOString();
-		const auditPath = `${getAgentDir()}/audit.log`;
 		const main = await askMain(ui, "Read outside the project", `  path:   ${absPath}\n  source: this bash command`);
 		if (main === "once") {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd })}\n`);
+			auditL1({ subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd });
 			once.push(absPath);
 			continue;
 		}
@@ -131,16 +118,16 @@ async function preflightOutsideReads(
 			}
 		}
 		if (!subject) {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd })}\n`);
+			auditL1({ subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd });
 			onData(Buffer.from(`\n${blockedLine("Read", "outside the project", "run")}\n`));
 			return { blocked: { exitCode: 1 } };
 		}
 		try {
 			const persistedTo = await opts.onAlwaysRead(subject, scope);
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" })}\n`);
+			auditL1({ subject, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" });
 			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${scope})`, "warning");
 		} catch (e) {
-			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, scope, cwd, error: String(e), note: "preflight" })}\n`);
+			auditL1({ subject, scope, cwd, error: String(e), note: "preflight" });
 			onData(Buffer.from(`\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`));
 			return { blocked: { exitCode: 1 } };
 		}
@@ -310,15 +297,13 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								const picked = await askRememberFile(ui, "Remember this read?", `  file:   ${absPath}\n  folder: ${parent}`, absPath, folder);
 								if (picked) {
 									const subject = picked.folder ? parent : absPath;
-									const ts = new Date().toISOString();
-									const auditPath = `${getAgentDir()}/audit.log`;
 									try {
 										const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
-										appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" })}\n`);
+										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
 										opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
 										decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
 									} catch (e) {
-										appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" })}\n`);
+										auditL1({ subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
 										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
 								}
@@ -327,13 +312,13 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							/* prompt failure shouldn't crash bash */
 						}
 						if (!decisionHint) {
-							appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" })}\n`);
+							auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" });
 							decisionHint = `\n${blockedLine("Read", "outside the project", "read")}\n`;
 						}
 						onData(Buffer.from(decisionHint));
 					} else if (offending && readDenied) {
 						const why = hardDenied ? hardWhy : "outside the project";
-						appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: offending, decision: "read-denied", reason: why, cwd })}\n`);
+						auditL1({ subject: offending, decision: "read-denied", reason: why, cwd });
 						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
 						decisionHint = `\n${blockedLine("Read", why, "read")}\n`;
 						onData(Buffer.from(decisionHint));
@@ -348,15 +333,13 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								const picked = await askRememberFile(ui, "Remember this write?", `  file:   ${absPath}\n  folder: ${parentDir}`, absPath, folder);
 								if (picked) {
 									const subject = picked.folder ? parentDir : absPath;
-									const ts = new Date().toISOString();
-									const auditPath = `${getAgentDir()}/audit.log`;
 									try {
 										const persistedTo = await opts.onAlways(subject, picked.scope);
-										appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo })}\n`);
+										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
 										opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
 										decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
 									} catch (e) {
-										appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) })}\n`);
+										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) });
 										opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
 										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
@@ -366,7 +349,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							/* prompt failure shouldn't crash bash */
 						}
 						if (!decisionHint) {
-							appendFileSync(`${getAgentDir()}/audit.log`, `${JSON.stringify({ ts: new Date().toISOString(), layer: 1, tool: "bash", subject: absPath, decision: "no", cwd: opts.ctx.cwd })}\n`);
+							auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd });
 							decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
 						}
 						onData(Buffer.from(decisionHint));

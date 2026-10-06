@@ -1,5 +1,6 @@
 /**
- * Layer 2 audit log. Best-effort: a write failure never blocks a decision.
+ * Best-effort audit log, shared by both layers. A write failure never blocks a
+ * decision.
  */
 
 import { appendFileSync } from "node:fs";

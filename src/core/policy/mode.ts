@@ -1,14 +1,4 @@
-/**
- * Permission modes (ADR-018).
- *
- * - `"default"`: rule-based only — sandbox.json paths, domains, and commands.
- * - `"advanced-secure"`: adds secret/credential detection on top of the rules:
- *   file reads, MCP tool calls, and tool/command/file output.
- *
- * Detection may only ADD asks or redactions; it never downgrades a rule.
- *
- * Pure: no pi, no fs.
- */
+/** Permission modes (ADR-018). Detection may only ADD asks; it never downgrades a rule. Pure. */
 
 export type PermissionMode = "default" | "advanced-secure";
 

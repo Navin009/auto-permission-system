@@ -1,26 +1,9 @@
 /**
  * Pi Security Guard — Layer 2 entrypoint (thin pi wiring).
  *
- * Hooks `tool_call` for the in-process tools that bash sandbox can't reach
- * (`read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`,
- * `web_search`, `get_search_content`) and applies the same policy file as
- * the bash sandbox. Hooks `tool_result` to drop grep output lines from denied
- * files beneath an allowed search root.
- *
- * Layer 3 (subagent posture) is folded in: when `ctx.hasUI === false` we
- * (a) never prompt, always block on ambiguity, and (b) drop network unless
- * the running agent is in the small research allowlist.
- *
- * All logic lives in `src/l2-guard/`:
- *  - `policy.ts`    policy shape, defaults, loading, project trust
- *  - `matching.ts`  path matching, absolute-deny tier, outside-project boundary
- *  - `url.ts`       domain allow/deny matching
- *  - `prompts.ts`   ask-tier prompts, session grants, persisted overrides
- *  - `subagent.ts`  Layer 3 posture
- *  - `audit.ts`     audit log
- * The pure policy logic is in `src/core/`.
- *
- * Disabled by `--yolo` (single global escape hatch shared with Layer 1).
+ * Hooks `tool_call` for the in-process tools the bash sandbox can't reach, and
+ * `tool_result` to filter grep output and (in Advanced Secure) gate secrets.
+ * Logic lives in `src/l2-guard/` and `src/core/`. Disabled by `--yolo`.
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -34,7 +17,7 @@ import { askExposure, askMain, withheldNotice } from "../src/ui/ask-flow";
 import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
 import { canonicalize, expandHome, isAbsoluteDeny, isAskRead, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
 import { hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
-import { audit, AUDIT_PATH } from "../src/l2-guard/audit";
+import { audit, AUDIT_PATH } from "../src/shared/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
 import { denyMessage } from "../src/l2-guard/ask";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent";

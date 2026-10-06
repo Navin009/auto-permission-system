@@ -1,19 +1,13 @@
 /**
- * Permission-mode UI — a small third entrypoint (ADR-018).
- *
- * Owns the one footer status, `/permission-mode`, and the Shift+S shortcut.
- * It enforces nothing: both layers read `mode` from the merged sandbox.json and
- * act on it. The choice is persisted to the global
- * `~/.pi/agent/extensions/sandbox.json` so Layer 1 and Layer 2 — separate
- * entrypoints with no shared memory — both pick it up (Layer 2 at once, Layer 1
- * on its next session_start).
+ * Permission-mode UI (ADR-018): the footer status, `/permission-mode`, and the
+ * Shift+S shortcut. Enforces nothing; persists `mode` to the global sandbox.json.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { modeLabel, normalizeMode, setPolicyMode, type PermissionMode } from "../src/core/index";
 import { loadPolicy } from "../src/l2-guard/policy";
-import { audit } from "../src/l2-guard/audit";
+import { audit } from "../src/shared/audit";
 
 const GLOBAL_POLICY = `${getAgentDir()}/extensions/sandbox.json`;
 

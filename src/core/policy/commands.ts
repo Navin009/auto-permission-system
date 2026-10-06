@@ -1,10 +1,4 @@
-/**
- * Commands and paths a bash command must not use without asking first, because
- * they can print secrets: `printenv` / `env` dump the environment (provider
- * API tokens live there), and the proc environ files expose it as a file.
- *
- * Pure: no pi, no OS. The caller supplies the list (from policy) and prompts.
- */
+/** Commands/paths that can print secrets and must ask first (ADR-017). Pure. */
 
 import { resolve } from "node:path";
 import { shellSegments, shellTokens } from "./fence";
