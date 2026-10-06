@@ -42,12 +42,13 @@ gate vocabulary.
   - `mcp__*` — `evaluateMcpCall` with the tool's description, schema, and
     annotations from `pi.getAllTools()`; an `ask` verdict prompts.
   - `tool_result` for every tool — `scanToolOutput`; a hit prompts the user
-    **before** the output reaches the model (`--- ⚠ Sensitive information
-    detected`, the finding types, `No, keep private (default)` / `Yes, share`).
-    No, keep private withholds it and returns an explicit notice (never empty,
-    never phrased as a failure), so the model treats it as a deliberate user
-    block, not a broken tool; Yes, share passes the real values through. Esc /
-    timeout keeps it private. Headless (no UI) keeps it private.
+    **before** the output reaches the model (`⚠ Private content found`, the
+    finding types, the line(s) where it was found, then `Should the AI
+    be allowed to see it?` with `No, keep private` / `Yes, allow`). No, keep
+    private withholds it and returns an explicit notice (never empty, never
+    phrased as a failure), so the model treats it as a deliberate user block,
+    not a broken tool; Yes, allow passes the real values through. Esc / timeout
+    keeps it private. Headless (no UI) keeps it private.
   - **`key` is a weak key.** A bare `key` is too generic to flag on its own
     (`key=value` is ordinary config), but it counts when the value is not a
     placeholder and looks random — so `key=<random secret>` asks while
@@ -63,9 +64,9 @@ gate vocabulary.
 ## Consequences
 
 - A detected secret in output is never sent silently: the user sees a warning
-  naming the finding types, and chooses `Yes, share` or `No, keep private`. On
-  `No, keep private`, the model receives a clear withheld notice instead of the
-  values.
+  naming the finding types and the line(s) where it was found, and
+  chooses `Yes, allow` or `No, keep private`. On `No, keep private`, the model
+  receives a clear withheld notice instead of the values.
 - False positives exist by design (the cores are conservative). The mode is
   opt-in and can be switched off from the footer or `/permission-mode`.
 - The output scanner runs on every tool result in this mode. The cores cap their

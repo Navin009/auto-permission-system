@@ -74,16 +74,21 @@ export async function askRememberHost(
 
 export type ExposureChoice = "allow" | "block";
 
-/** Advanced Secure output gate (ADR-018): ask before a secret-looking output reaches the model. */
-export async function askExposure(ctx: AskCtx, findings: string[]): Promise<ExposureChoice> {
+/** Advanced Secure output gate (ADR-018): show the redacted lines and ask before the output reaches the model. */
+export async function askExposure(ctx: AskCtx, types: string[], lines: string[]): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
-		{ label: "No, keep private (default)", value: "block" },
-		{ label: "Yes, share", value: "allow" },
+		{ label: "No, keep private", value: "block" },
+		{ label: "Yes, allow", value: "allow" },
 	];
-	const title =
-		"--- ⚠ Sensitive information detected\n" +
-		`   ${findings.join(", ")}\n\n` +
-		"This information is private. Do you want to share it?";
+	const shown = lines.slice(0, 6).map((l) => `   ${l.length > 200 ? `${l.slice(0, 200)}…` : l}`);
+	if (lines.length > 6) shown.push(`   …and ${lines.length - 6} more`);
+	const title = [
+		"⚠ Private content found",
+		`   ${types.join(", ")}`,
+		...(shown.length ? ["", ...shown] : []),
+		"",
+		"Should the AI be allowed to see it?",
+	].join("\n");
 	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }

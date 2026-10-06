@@ -285,15 +285,22 @@ export default function (pi: ExtensionAPI) {
 		const policy = loadPolicy(ctx.cwd);
 		if (policy.mode !== "advanced-secure") return;
 		const types = new Set<string>();
+		const lines: string[] = [];
 		for (const c of event.content) {
 			if (c.type !== "text") continue;
 			const r = scanToolOutput({ output: c.text });
-			if (r.decision === "ask") for (const f of r.findings) types.add(f.type);
+			if (r.decision !== "ask") continue;
+			for (const f of r.findings) types.add(f.type);
+			const before = c.text.split("\n");
+			const after = String(r.redactedOutput ?? "").split("\n");
+			for (let i = 0; i < before.length && lines.length < 8; i++) {
+				if (after[i] !== before[i] && before[i].trim()) lines.push(before[i].trim());
+			}
 		}
 		if (!types.size) return;
 		const findings = [...types];
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
-		const allow = ui.hasUI !== false && (await askExposure(ui, findings)) === "allow";
+		const allow = ui.hasUI !== false && (await askExposure(ui, findings, lines)) === "allow";
 		if (allow) {
 			audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
 			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent (${findings.join(", ")}).`, "warning");
