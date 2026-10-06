@@ -293,7 +293,7 @@ export default function (pi: ExtensionAPI) {
 		if (!types.size) return;
 		const findings = [...types];
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
-		const allow = ui.hasUI !== false && (await askExposure(ui, event.toolName, findings)) === "allow";
+		const allow = ui.hasUI !== false && (await askExposure(ui, findings)) === "allow";
 		if (allow) {
 			audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
 			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent (${findings.join(", ")}).`, "warning");

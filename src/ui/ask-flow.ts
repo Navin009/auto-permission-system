@@ -74,21 +74,16 @@ export async function askRememberHost(
 
 export type ExposureChoice = "allow" | "block";
 
-/**
- * Advanced Secure output gate (ADR-018). Shown when tool output looks like it
- * carries a secret, before any of it reaches the model. `Block` is first and
- * pre-selected; Esc / timeout blocks.
- */
-export async function askExposure(ctx: AskCtx, tool: string, findings: string[]): Promise<ExposureChoice> {
+/** Advanced Secure output gate (ADR-018): ask before a secret-looking output reaches the model. */
+export async function askExposure(ctx: AskCtx, findings: string[]): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
-		{ label: "Block (default) — keep it out of the model", value: "block" },
-		{ label: "Allow send — send the real values to the model", value: "allow" },
+		{ label: "No, keep private (default)", value: "block" },
+		{ label: "Yes, share", value: "allow" },
 	];
 	const title =
-		"⚠  Sensitive data may go to the model\n" +
-		`  tool:  ${tool}\n` +
-		`  found: ${findings.join(", ")}\n\n` +
-		"If you allow it, the real values are sent to the model provider.";
+		"--- ⚠ Sensitive information detected\n" +
+		`   ${findings.join(", ")}\n\n` +
+		"This information is private. Do you want to share it?";
 	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: ASK_TIMEOUT_MS });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }

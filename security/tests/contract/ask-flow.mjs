@@ -52,12 +52,15 @@ check('remember host · project', (await pickHost(0)).scope === 'cwd');
 check('remember host · global', (await pickHost(1)).scope === 'global');
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
-const expOpts = await optionsOf((ctx) => askExposure(ctx, 'bash', ['AWS_ACCESS_KEY']));
-check('askExposure: 2 options, Block first', expOpts.length === 2 && expOpts[0].startsWith('Block (default)'));
-check('askExposure: Allow send label', expOpts[1].startsWith('Allow send'));
-check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, 'bash', ['JWT'])) === 'block');
-check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, 'bash', ['JWT'])) === 'allow');
-check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, 'bash', ['JWT'])) === 'block');
+const expOpts = await optionsOf((ctx) => askExposure(ctx, ['AWS_ACCESS_KEY']));
+check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expOpts[0].startsWith('No, keep private (default)'));
+check('askExposure: share label', expOpts[1].startsWith('Yes, share'));
+let expTitle;
+await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, ['SECRET_ASSIGNMENT']);
+check('askExposure: header format', expTitle.startsWith('--- ⚠ Sensitive information detected') && expTitle.includes('SECRET_ASSIGNMENT') && expTitle.includes('Do you want to share it?'));
+check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, ['JWT'])) === 'block');
+check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, ['JWT'])) === 'allow');
+check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, ['JWT'])) === 'block');
 
 const notice = withheldNotice('bash', ['JWT', 'AWS_ACCESS_KEY']);
 check('withheldNotice: names the tool and findings', notice.includes('bash') && notice.includes('JWT') && notice.includes('AWS_ACCESS_KEY'));
