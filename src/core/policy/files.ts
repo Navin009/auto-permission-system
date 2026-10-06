@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { normalizeMode, type PermissionMode } from "./mode";
 
 /**
  * Check that a policy file, if present, parses as JSON. Returns the parse
@@ -31,4 +33,16 @@ export function readPolicyForUpdate(path: string): Record<string, unknown> {
 	} catch (e) {
 		throw new Error(`refusing to overwrite ${path}: it does not parse as JSON (${e instanceof Error ? e.message : e})`);
 	}
+}
+
+/**
+ * Set `mode` in a policy file in place, preserving its other fields (ADR-018).
+ * Used by `/permission-mode` and the Shift+S shortcut. Creates the file when it
+ * is absent; refuses to overwrite one that does not parse.
+ */
+export function setPolicyMode(path: string, mode: PermissionMode): void {
+	const policy = readPolicyForUpdate(path);
+	policy.mode = normalizeMode(mode);
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, `${JSON.stringify(policy, null, 2)}\n`);
 }

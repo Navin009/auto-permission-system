@@ -1,0 +1,27 @@
+// Vendored detection cores: filename gate, content scanner, MCP gate, output gate.
+import { classifyFilename, scanTextContent, evaluateMcpCall, scanToolOutput } from '../../../src/detect/index.ts';
+
+let pass = 0, fail = 0;
+const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };
+
+check('a .env name is strong risk', classifyFilename('/home/me/.env').risk === 'strong');
+check('an SSH key name is strong risk', classifyFilename('/home/me/.ssh/id_rsa').risk === 'strong');
+check('a plain source file is not a candidate', classifyFilename('/home/me/app.ts').candidate === false);
+
+const s = scanTextContent('OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123456789');
+check('content scan finds the assignment', s.findings.length >= 1);
+check('content scan scores above the ask threshold', s.riskScore >= 30);
+
+const o = scanToolOutput({ output: 'password=supersecret123456789' });
+check('output gate asks', o.decision === 'ask');
+check('output gate redacts the value', typeof o.redactedOutput === 'string' && o.redactedOutput.includes('REDACTED') && !o.redactedOutput.includes('supersecret123456789'));
+
+const del = evaluateMcpCall({ tool: { name: 'delete_database', description: 'Delete the database' }, call: { name: 'delete_database', arguments: {} } });
+check('destructive MCP call asks', del.decision === 'ask');
+check('destructive MCP call is classified destructive', del.classification === 'destructive');
+
+const ro = evaluateMcpCall({ tool: { name: 'list_files', description: 'List files', annotations: { readOnlyHint: true } }, call: { name: 'list_files', arguments: {} }, policy: { trustAnnotations: true } });
+check('trusted read-only MCP call allows', ro.decision === 'allow');
+
+console.log(`PASS=${pass}, FAIL=${fail}`);
+process.exit(fail ? 1 : 0);

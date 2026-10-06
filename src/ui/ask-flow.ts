@@ -68,3 +68,38 @@ export async function askRememberHost(
 	const picked = await ctx.ui.select(`${title}\n${body}`, choices.map((c) => c.label), { timeout: 60_000 });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
+
+export type ExposureChoice = "allow" | "block";
+
+/**
+ * Advanced Secure output gate (ADR-018). Shown when tool output looks like it
+ * carries a secret, before any of it reaches the model. `Block` is first and
+ * pre-selected; Esc / timeout blocks.
+ */
+export async function askExposure(ctx: AskCtx, tool: string, findings: string[]): Promise<ExposureChoice> {
+	const choices: Array<{ label: string; value: ExposureChoice }> = [
+		{ label: "Block (default) — keep it out of the model", value: "block" },
+		{ label: "Allow send — send the real values to the model", value: "allow" },
+	];
+	const title =
+		"⚠  Sensitive data may go to the model\n" +
+		`  tool:  ${tool}\n` +
+		`  found: ${findings.join(", ")}\n\n` +
+		"If you allow it, the real values are sent to the model provider.";
+	const picked = await ctx.ui.select(title, choices.map((c) => c.label), { timeout: 120_000 });
+	return choices.find((c) => c.label === picked)?.value ?? "block";
+}
+
+/**
+ * The model-facing notice when Advanced Secure withholds output. Never empty
+ * and never phrased as a failure, so the model treats it as a deliberate block
+ * by the user, not a broken tool or an empty result.
+ */
+export function withheldNotice(tool: string, findings: string[]): string {
+	return [
+		`[🛡 Advanced Secure] Output withheld — the user blocked ${tool} output because it may contain sensitive information (${findings.join(", ")}).`,
+		"This is a deliberate policy block by the user, not a tool failure and not an empty result.",
+		"The tool ran; only its output was withheld. Do not retry the same call or guess the hidden values.",
+		"Tell the user you cannot see the output and ask how they want to proceed.",
+	].join("\n");
+}

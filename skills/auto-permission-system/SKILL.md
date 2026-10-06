@@ -36,6 +36,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
 ```jsonc
 {
   "enabled": true,
+  "mode": "default",                     // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
   "network": {
     "allowedDomains": ["github.com", "*.github.com"],  // empty = allow all
     "deniedDomains": []
@@ -81,11 +82,24 @@ When a normal (non-absolute-deny) call is blocked:
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`
 - **always for ALL projects (folder)** — whitelist parent directory globally
 
+## Permission modes
+
+`mode` picks how much pi inspects beyond the rules (ADR-018):
+
+- **`default`** (shipped) — rules only. No content inspection.
+- **`advanced-secure`** — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
+  - file reads whose name looks like a credential store ask before the read;
+  - risky `mcp__<server>__<tool>` calls ask before they run;
+  - before any tool/command/file output reaches the model, a secret-like hit shows the finding types with two choices — **Block (default)** or **Allow send**. Block withholds the output and tells the model it was blocked *by the user because of sensitive information* (not a failure, not an empty result).
+
+Switch with `/permission-mode` or **Shift+S**; the choice is saved to the global `sandbox.json` and shown in the footer. An untrusted project may turn `advanced-secure` **on**, never off.
+
 ## Commands
 
 - `/security` — show Layer 2 status, effective policy, and last 10 audit events
 - `/sandbox` — show Layer 1 bash sandbox config
 - `/sandbox reload` — live-reload sandbox after manual `sandbox.json` edits
+- `/permission-mode` (or **Shift+S**) — choose Default (rules) or Advanced Secure (secret detection)
 
 ## Escape hatches
 

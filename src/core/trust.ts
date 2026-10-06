@@ -15,6 +15,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { MODE_ORDER } from "./policy/mode";
 
 /** `trusted`: path → hash the user trusted. `declined`: path → hash the user said "no" to (no more warnings for it). */
 type Store = { trusted: Record<string, string>; declined: Record<string, string> };
@@ -143,6 +144,11 @@ export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { m
 				else ignored.push(`subagent.${sk}`);
 			}
 			merged.subagent = sa;
+		} else if (key === "mode") {
+			// An untrusted project may opt IN to Advanced Secure (stricter), never out of it.
+			const next = stricter(MODE_ORDER, merged.mode, value);
+			if (value === "default" && merged.mode === "advanced-secure") ignored.push("mode");
+			if (next !== undefined) merged.mode = next;
 		} else {
 			ignored.push(key);
 		}
@@ -182,6 +188,9 @@ export function describeLoosening(project: Obj): string[] {
 				if (strings(ov.allowWrite).length) out.push(`Let bash write to: ${listOf(ov.allowWrite)}.`);
 				if (strings(ov.allowRead).length) out.push(`Let pi read: ${listOf(ov.allowRead)}.`);
 				if (strings(ov.allowDomains).length) out.push(`Let pi connect to: ${listOf(ov.allowDomains)}.`);
+				break;
+			case "mode":
+				out.push("Turn off Advanced Secure mode.");
 				break;
 			case "filesystem.allowWrite":
 				out.push(`Let bash and pi write to: ${listOf(fs.allowWrite)}.`);

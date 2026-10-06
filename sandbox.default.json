@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "mode": "default",
   "network": {
     "allowedDomains": [
       "registry.npmjs.org",

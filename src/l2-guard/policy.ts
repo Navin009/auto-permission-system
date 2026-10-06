@@ -6,10 +6,12 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE } from "../core/index";
+import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_MODE, type PermissionMode } from "../core/index";
 
 export interface Policy {
 	enabled: boolean;
+	/** `default` = rules only; `advanced-secure` adds secret/credential detection (ADR-018). */
+	mode?: PermissionMode;
 	network: { allowedDomains: string[]; deniedDomains: string[] };
 	filesystem: {
 		denyRead: string[];
@@ -46,6 +48,7 @@ export interface Policy {
 // Keep in sync with sandbox/index.ts DEFAULT_CONFIG.
 const BUILTIN_POLICY: Policy = {
 	enabled: true,
+	mode: DEFAULT_MODE,
 	network: {
 		allowedDomains: [
 			"npmjs.org", "*.npmjs.org",
@@ -118,5 +121,5 @@ export function loadPolicy(cwd: string): Policy {
 			console.error(`security-guard: failed to parse ${p}: ${e}`);
 		}
 	}
-	return policy;
+	return { ...policy, mode: normalizeMode(policy.mode) };
 }

@@ -1,6 +1,6 @@
 // Shared ask-flow contract (src/ui/ask-flow.ts) — the reusable two-screen UI.
 // Drives each helper with a scripted ctx.ui.select; no pi, no fs.
-import { askMain, askRememberFile, askRememberHost } from '../../../src/ui/ask-flow.ts';
+import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -50,6 +50,18 @@ check('askRememberHost: 2 options', hostOpts.length === 2 && hostOpts[0].include
 const pickHost = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'example.com');
 check('remember host · project', (await pickHost(0)).scope === 'cwd');
 check('remember host · global', (await pickHost(1)).scope === 'global');
+
+// --- askExposure (Advanced Secure output gate, ADR-018) ---
+const expOpts = await optionsOf((ctx) => askExposure(ctx, 'bash', ['AWS_ACCESS_KEY']));
+check('askExposure: 2 options, Block first', expOpts.length === 2 && expOpts[0].startsWith('Block (default)'));
+check('askExposure: Allow send label', expOpts[1].startsWith('Allow send'));
+check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: { select: async () => undefined } }, 'bash', ['JWT'])) === 'block');
+check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, 'bash', ['JWT'])) === 'allow');
+check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, 'bash', ['JWT'])) === 'block');
+
+const notice = withheldNotice('bash', ['JWT', 'AWS_ACCESS_KEY']);
+check('withheldNotice: names the tool and findings', notice.includes('bash') && notice.includes('JWT') && notice.includes('AWS_ACCESS_KEY'));
+check('withheldNotice: explicit not-a-failure', notice.includes('not a tool failure') && notice.includes('not an empty result'));
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

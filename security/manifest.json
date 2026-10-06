@@ -32,10 +32,12 @@
       "id": "L2",
       "name": "In-process tool guard",
       "status": "shipped",
-      "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008).",
+      "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model.",
       "sourceFiles": [
         "extensions/guard.ts",
+        "extensions/permission-mode.ts",
         "src/l2-guard/",
+        "src/detect/",
         "src/core/"
       ],
       "tests": [
@@ -46,8 +48,10 @@
         { "id": "L2-user-named", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs", "expected": "PASS=16, FAIL=0" },
         { "id": "L1-L2-project-trust", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs", "expected": "PASS=41, FAIL=0" },
         { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=24, FAIL=0" },
-        { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=20, FAIL=0" },
-        { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=13, FAIL=0" }
+        { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=27, FAIL=0" },
+        { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=13, FAIL=0" },
+        { "id": "L2-detect-smoke", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs", "expected": "PASS=10, FAIL=0" },
+        { "id": "L1-L2-permission-mode", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs", "expected": "PASS=13, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

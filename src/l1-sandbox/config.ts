@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../core/index";
+import { applyUntrustedProject, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, type PermissionMode } from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -21,6 +21,8 @@ export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["fil
 
 export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> {
 	enabled?: boolean;
+	/** `default` = rules only; `advanced-secure` adds secret/credential detection (ADR-018). */
+	mode?: PermissionMode;
 	filesystem?: SandboxFilesystem;
 	/**
 	 * Additive project-local overrides written by the ask-tier prompts (Layer 1
@@ -39,6 +41,7 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 
 const BUILTIN_CONFIG: SandboxConfig = {
 	enabled: true,
+	mode: DEFAULT_MODE,
 	network: {
 		allowedDomains: [
 			"npmjs.org",
@@ -113,7 +116,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 	} else {
 		merged = overlayPolicy(base, projectConfig);
 	}
-	return foldOverrides(merged);
+	return { ...foldOverrides(merged), mode: normalizeMode(merged.mode) };
 }
 
 /**

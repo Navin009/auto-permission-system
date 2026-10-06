@@ -44,6 +44,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
 ```jsonc
 {
   "enabled": true,                      // set false to disable Layer 2 without --yolo
+  "mode": "default",                   // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
   "network": {
     "allowedDomains": [                 // domains fetch_content / get_search_content may reach
       "github.com", "*.github.com",
@@ -101,6 +102,20 @@ Never asked about: the project itself, your `allowWrite` roots, pi's own package
 
 An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.
 
+### Permission modes
+
+`mode` selects how much pi inspects, on top of the rules:
+
+- **`default`** (shipped) — rules only: sandbox.json paths, domains, and commands. Nothing inspects file contents.
+- **`advanced-secure`** — adds secret/credential detection:
+  - **File reads:** a filename that looks like a credential store asks before the read.
+  - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky (mutating/destructive) call asks before it runs.
+  - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows a warning and two choices — **Block (default)** or **Allow send**. Block withholds the output and tells the model plainly that it was blocked **by the user because of sensitive information**, so the model does not mistake it for a failure or an empty result. Esc or timeout blocks.
+
+Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
+
+Change it with `/permission-mode` or the **Shift+S** shortcut; the choice is saved to the global `sandbox.json` and shown in the footer (`🛡 Default (Shift+S)` / `🛡 Advanced Secure (Shift+S)`).
+
 ### Commands that print secrets
 
 Bash commands that dump the environment can print the API tokens pi runs on. `commands.ask` lists them, and Layer 1 asks before running one (`Block` / `Allow once`); deny runs nothing (ADR-017). An entry without `/` is a command name (matched on the head of each `;`/`&&`/`|` segment); an entry with a path is globbed against every path token, so any reader of the per-process environ file is caught. The shipped default is `["printenv", "env", "/proc/*/environ"]`.
@@ -120,6 +135,7 @@ Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/a
 | `/security` | Show Layer 2 policy, project-local overrides, last 10 audit events |
 | `/sandbox` | Show Layer 1 (bash sandbox) config |
 | `/sandbox reload` | Live-reload sandbox after manual edits to `sandbox.json` |
+| `/permission-mode` (or **Shift+S**) | Choose the permission mode: Default (rules) or Advanced Secure (secret detection) |
 
 ## Escape hatches
 

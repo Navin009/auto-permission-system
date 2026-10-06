@@ -6,6 +6,7 @@ export * from "./policy/defaults";
 export * from "./policy/default-file";
 export * from "./policy/files";
 export * from "./policy/merge";
+export * from "./policy/mode";
 export * from "./policy/patterns";
 export * from "./policy/classify";
 export * from "./policy/commands";
