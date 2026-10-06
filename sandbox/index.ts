@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { type BashOperations, createBashTool, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, outsideProjectMode, outsideProjectReadDenied, readPolicyForUpdate, sandboxFilesystem, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../lib/guard-lib";
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, readPolicyForUpdate, sandboxFilesystem, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE } from "../lib/guard-lib";
 import { applyUntrustedProject, isProjectFileTrusted, recordProjectTrust } from "../lib/project-trust";
 
 interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
@@ -221,21 +221,95 @@ function deepMerge(base: SandboxConfig, overrides: Partial<SandboxConfig>): Sand
 	return result;
 }
 
-function createSandboxedBashOps(opts?: {
+interface SandboxedBashOpts {
 	ctx?: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } };
 	onAlways?: (absPath: string, scope: "cwd" | "global") => Promise<string>;
 	onAlwaysRead?: (absPath: string, scope: "cwd" | "global") => Promise<string>;
-}): BashOperations {
+}
+
+/**
+ * ADR-015 pre-flight: ask about a plainly-named read outside the project BEFORE
+ * the command runs, so the OS fence never silently trims the output. Returns a
+ * blocked exit result when the user declines (or a grant fails); undefined to
+ * proceed and run the command. Obfuscated reads are not detected and fall back
+ * to the fence.
+ */
+async function preflightOutsideReads(
+	command: string,
+	cwd: string,
+	opts: SandboxedBashOpts | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ blocked: { exitCode: number } } | { once: string[] } | undefined> {
+	const cfg = loadConfig(cwd).filesystem;
+	if (!cfg || outsideProjectMode(cfg) !== "ask" || !opts?.ctx?.hasUI || !opts.ctx.ui?.select || !opts.onAlwaysRead) {
+		return undefined;
+	}
+	const once: string[] = [];
+	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
+		const title = `Layer 1 (bash sandbox) wants to read outside the project:\n  ${absPath}\n\nAllow this read?`;
+		const NO = "no  — block this command (default)";
+		const ONCE = "yes — this once (don't save)";
+		const CWD_FILE = "always for CURRENT project — allow this file (.pi/sandbox.json)";
+		const ALL_FILE = "always for ALL projects — allow this file (~/.pi/agent/extensions/sandbox.json)";
+		const chosen = await opts.ctx.ui.select(title, [NO, ONCE, CWD_FILE, ALL_FILE], { timeout: 60_000 });
+		const ts = new Date().toISOString();
+		const auditPath = `${getAgentDir()}/audit.log`;
+		if (chosen === ONCE) {
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd })}\n`);
+			once.push(absPath);
+			continue;
+		}
+		if (chosen !== CWD_FILE && chosen !== ALL_FILE) {
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd })}\n`);
+			onData(Buffer.from(`\n❌ pi-sandbox: bash command not run — read outside the project was not allowed: ${absPath}\n   No partial output was produced. Ask the user how to proceed.\n`));
+			return { blocked: { exitCode: 1 } };
+		}
+		const scope = chosen === CWD_FILE ? "cwd" : "global";
+		try {
+			const persistedTo = await opts.onAlwaysRead(absPath, scope);
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" })}\n`);
+			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} (${scope})`, "warning");
+		} catch (e) {
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, scope, cwd, error: String(e), note: "preflight" })}\n`);
+			onData(Buffer.from(`\n❌ pi-sandbox: failed to apply override (${e}). ${absPath} remains blocked.\n`));
+			return { blocked: { exitCode: 1 } };
+		}
+	}
+	return { once };
+}
+
+function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations {
 	return {
 		async exec(command, cwd, { onData, signal, timeout }) {
 			if (!existsSync(cwd)) {
 				throw new Error(`Working directory does not exist: ${cwd}`);
 			}
 
-			const wrappedCommand = await SandboxManager.wrapWithSandbox(command);
+			// ADR-015: sandbox-runtime masks a gated directory with an empty tmpfs,
+			// so an outside read would otherwise succeed with silently trimmed output
+			// and never reach the EPERM post-block hook. Ask before running.
+			const pre = await preflightOutsideReads(command, cwd, opts, onData);
+			if (pre && "blocked" in pre) return pre.blocked;
+			// "this once" grants apply to this one invocation only: hand them to
+			// wrapWithSandbox as a customConfig, so nothing is persisted and the
+			// session-wide sandbox is not re-initialised.
+			let custom: Partial<SandboxRuntimeConfig> | undefined;
+			if (pre?.once.length) {
+				const fresh = loadConfig(cwd).filesystem ?? { denyRead: [], allowWrite: [], denyWrite: [] };
+				custom = {
+					filesystem: sandboxFilesystem(
+						{ ...fresh, allowRead: [...(fresh.allowRead ?? []), ...pre.once] },
+						{ cwd, home: homedir() },
+					),
+				};
+			}
+
+			const wrappedCommand = await SandboxManager.wrapWithSandbox(command, undefined, custom);
 
 			const uid = process.getuid?.() ?? 0;
-			const piTmp = `/private/tmp/pi-${uid}`;
+			// macOS has /private/tmp; Linux only /tmp. Either sits in the default
+			// allowWrite list, so the sandboxed command can write its scratch files.
+			const piTmp = `${existsSync("/private/tmp") ? "/private/tmp" : "/tmp"}/pi-${uid}`;
 
 			return new Promise((resolve, reject) => {
 				const child = spawn("bash", ["-c", wrappedCommand], {

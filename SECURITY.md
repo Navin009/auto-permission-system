@@ -2,13 +2,13 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T17:43:53.497Z
+Generated: 2026-10-06T18:18:26.762Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-smoke` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
 | **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts`<br>`lib/user-named.ts`<br>`lib/project-trust.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
@@ -25,22 +25,22 @@ Generated: 2026-10-06T17:43:53.497Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, fences the home dir and re-exposes the project via allowRead (ADR-014), so bash respects the project boundary too.
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014).
 
 **Source files**
 
-- ✓ `sandbox/index.ts` — 648 lines, mtime 2026-10-06
+- ✓ `sandbox/index.ts` — 722 lines, mtime 2026-10-06
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
 
 **Tests**
 
 - `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=29, FAIL=0
-- `L1-outside-fence` — `node security/tests/outside-fence.mjs` → expects PASS=27, FAIL=0
-- `L1-smoke` — `bash docs/security/run-tests.sh` → expects PASS=19, FAIL=0 (+1 SKIP, +1 XFAIL)
+- `L1-outside-fence` — `node security/tests/outside-fence.mjs` → expects PASS=38, FAIL=0
 
 **Known gaps / accepted risks**
 
 - Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk
+- Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence
 
 ### L2 — In-process tool guard  ✅ shipped
 
@@ -49,7 +49,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
-- ✓ `lib/guard-lib.ts` — 244 lines, mtime 2026-10-06
+- ✓ `lib/guard-lib.ts` — 318 lines, mtime 2026-10-06
 - ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-06
 - ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-06
 

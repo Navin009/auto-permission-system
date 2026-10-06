@@ -11,8 +11,15 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-TMPDIR="${TMPDIR:-/private/tmp/pi-$(id -u)/}"
-mkdir -p "$TMPDIR" 2>/dev/null || true
+# Prefer the sandbox's pi scratch dir; macOS has /private/tmp, Linux only /tmp.
+if [[ -z "${TMPDIR:-}" ]]; then
+	if [[ -d /private/tmp ]]; then
+		TMPDIR="/private/tmp/pi-$(id -u)/"
+	else
+		TMPDIR="/tmp/pi-$(id -u)/"
+	fi
+fi
+mkdir -p "$TMPDIR" || { echo "security/check.sh: cannot create TMPDIR=$TMPDIR" >&2; exit 1; }
 out="$TMPDIR/sec-$$-out"
 
 mode="${1:-all}"

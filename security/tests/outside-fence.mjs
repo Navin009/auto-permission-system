@@ -1,6 +1,6 @@
 // Outside-project fence for Layer 1 (ADR-014) and the shared default deny list.
 // Imports the real lib (Node strips the types), like the other newer tests.
-import { DEFAULT_DENY_READ, outsideProjectMode, outsideProjectReadDenied, sandboxFilesystem } from '../../lib/guard-lib.ts';
+import { DEFAULT_DENY_READ, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from '../../lib/guard-lib.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -56,6 +56,23 @@ const atRoot = sandboxFilesystem(ask, { cwd: '/proj', home: '/root' });
 check('parent / is not fenced', !atRoot.denyRead.includes('/'));
 check('home is still fenced', atRoot.denyRead.includes('/root'));
 check('project under / is re-exposed', atRoot.allowRead.includes('/proj'));
+
+// --- ADR-015: pre-flight read candidates (Layer 1 bash ask) ---
+// `yes` makes existence deterministic; hard-denied paths are still excluded.
+const gate = fs({ denyRead: ['~/.ssh'], outsideProject: { read: 'ask', allowRead: ['/srv/shared'] } });
+const yes = () => true;
+const cand = (cmd, exists = yes) => outsideProjectReadCandidates(cmd, cwd, home, gate, exists);
+check('preflight: ls absolute outside dir', cand('ls -la /home/me/.pi/agent/').join() === '/home/me/.pi/agent');
+check('preflight: cat ~ path', cand('cat ~/.bashrc').join() === '/home/me/.bashrc');
+check('preflight: find outside dir', cand('find /home/me/.pi/agent -type f').join() === '/home/me/.pi/agent');
+check('preflight: project path is not gated', cand('ls ./src').length === 0);
+check('preflight: allowWrite root is not gated', cand('ls /tmp/x').length === 0);
+check('preflight: outsideProject.allowRead is not gated', cand('ls /srv/shared/x').length === 0);
+check('preflight: hard denyRead is never a candidate', cand('cat ~/.ssh/id_rsa').length === 0);
+check('preflight: non-read command is ignored', cand('echo ~/.pi/agent').length === 0);
+check('preflight: nonexistent path is ignored', cand('cat /nope/x', () => false).length === 0);
+check('preflight: cd segment is inspected', cand('cd ~/.pi/agent && ls').join() === '/home/me/.pi/agent');
+check('preflight: mode allow never asks', outsideProjectReadCandidates('ls /home/me/.pi/agent', cwd, home, fs(), yes).length === 0);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);
