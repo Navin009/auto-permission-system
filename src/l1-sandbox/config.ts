@@ -15,6 +15,8 @@ import { applyUntrustedProject, isProjectFileTrusted, loadDefaultPolicy, overlay
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
 	modelDenyRead?: string[];
+	/** Paths that prompt on read instead of being hard-denied (ADR-019). Layer 1 asks in the bash pre-flight. */
+	askRead?: string[];
 	/** Reads outside the project (ADR-012). Layer 1 enforces it via sandboxFilesystem(). */
 	outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 }

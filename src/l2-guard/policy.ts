@@ -19,6 +19,8 @@ export interface Policy {
 		modelDenyRead?: string[];
 		allowWrite: string[];
 		denyWrite: string[];
+		/** Paths that prompt on read instead of being hard-denied (ADR-019). */
+		askRead?: string[];
 		/**
 		 * Reads outside the project directory (ADR-012). "allow" (default),
 		 * "ask" or "deny". Never asked about: the project, allowWrite roots,

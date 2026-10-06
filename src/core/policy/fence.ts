@@ -77,6 +77,49 @@ export function outsideProjectReadCandidates(
 	return [...found];
 }
 
+/** Expand a leading `~`; other tokens are returned as-is. */
+function expandHomeToken(token: string, home: string): string {
+	if (token === "~") return home;
+	if (token.startsWith("~/")) return `${home}/${token.slice(2)}`;
+	return token;
+}
+
+/**
+ * Absolute paths a bash command **plainly** reads that match `filesystem.askRead`
+ * (ADR-019). Same best-effort scan as outsideProjectReadCandidates: read-like
+ * segments only, existing tokens only, never a hard `denyRead` match.
+ */
+export function askReadCandidates(
+	command: string,
+	cwd: string,
+	home: string,
+	fs: FilesystemPolicy,
+	exists: (path: string) => boolean = existsSync,
+): string[] {
+	const ask = fs.askRead ?? [];
+	if (!ask.length) return [];
+	const found = new Set<string>();
+	for (const segment of shellSegments(command)) {
+		const tokens = shellTokens(segment);
+		const head = (tokens[0] ?? "").split("/").pop() ?? "";
+		if (!READ_COMMANDS.has(head)) continue;
+		for (const raw of tokens.slice(1)) {
+			// Bare names count here: `.env` has no slash, and the askRead match decides.
+			const t = raw.trim();
+			if (!t || t.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(t)) continue;
+			const expanded = expandHomeToken(t, home);
+			const abs = expanded.startsWith("/")
+				? normalizeAbs(expanded)
+				: normalizeAbs(`${cwd.replace(/\/+$/, "")}/${expanded}`);
+			if (!exists(abs)) continue;
+			if (fs.denyRead.some((pat) => matchesPolicyPattern(abs, pat, cwd, home))) continue;
+			if (!ask.some((pat) => matchesPolicyPattern(abs, pat, cwd, home))) continue;
+			found.add(abs);
+		}
+	}
+	return [...found];
+}
+
 /**
  * Build the `filesystem` block handed to sandbox-runtime (Layer 1).
  *

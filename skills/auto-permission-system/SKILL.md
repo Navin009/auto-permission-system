@@ -43,6 +43,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   },
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block (defaults add ~/.aws, ~/.gnupg)
+    "askRead": [".env", ".env.*"],  // Layer 1 + 2: ask before reading (ADR-019)
     "modelDenyRead": ["~/.netrc"],    // Layer 2 only: model read blocked, subprocesses ok
     "allowWrite": [".", "/tmp"],      // Layer 2: write only inside these
     "denyWrite": [".env", "*.pem"]   // Layer 1 + 2: always blocked
@@ -83,6 +84,10 @@ When a normal (non-absolute-deny) call is blocked:
 - **always for ALL projects (folder)** — whitelist parent directory globally
 
 Every prompt waits **10 seconds** by default; no answer means the safe default: **block / deny**. Esc on any screen also blocks.
+
+## Sensitive reads ask
+
+`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). Shipped default: `.env`, `.env.*`. Both layers ask — the `read` tool in `tool_call`, and the bash pre-flight before a command that plainly reads the file. Esc / 10s timeout blocks; headless blocks. `denyRead` wins over `askRead` (a path in both is denied), and the credential tier stays hard.
 
 ## Permission modes
 

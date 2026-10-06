@@ -6,6 +6,8 @@ export interface FilesystemPolicy {
 	allowWrite: readonly string[];
 	denyWrite: readonly string[];
 	allowRead?: readonly string[];
+	/** Paths that prompt on read instead of being hard-denied (ADR-019). */
+	askRead?: readonly string[];
 	/** Reads outside the project: "allow" (default), "ask" or "deny" (ADR-012). */
 	outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 }

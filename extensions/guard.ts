@@ -32,7 +32,7 @@ import { classifyFilename, evaluateMcpCall, type JsonSchemaLike, type McpToolAnn
 import { collectExposure } from "../src/l2-guard/exposure";
 import { askExposure, askMain, withheldNotice } from "../src/ui/ask-flow";
 import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
-import { canonicalize, expandHome, isAbsoluteDeny, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
+import { canonicalize, expandHome, isAbsoluteDeny, isAskRead, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
 import { hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
 import { audit, AUDIT_PATH } from "../src/l2-guard/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
@@ -151,6 +151,7 @@ export default function (pi: ExtensionAPI) {
 		const gateRead = async (rawPath: string, tool: string) => {
 			const abs = canonicalize(rawPath, ctx.cwd);
 			let reason = isDeniedRead(rawPath, ctx.cwd, policy);
+			if (!reason) reason = isAskRead(rawPath, ctx.cwd, policy);
 			let outside = false;
 			if (!reason) {
 				reason = outsideProjectReason(abs, ctx.cwd, policy);

@@ -117,6 +117,16 @@ export function isDeniedRead(rawPath: string, cwd: string, policy: Policy): stri
 	return null;
 }
 
+/** A path the user chose to be asked about, not hard-denied (ADR-019). */
+export function isAskRead(rawPath: string, cwd: string, policy: Policy): string | null {
+	const abs = canonicalize(rawPath, cwd);
+	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
+	for (const pat of policy.filesystem.askRead ?? []) {
+		if (matchPattern(abs, pat, cwd)) return `askRead matched "${pat}" → ${abs}`;
+	}
+	return null;
+}
+
 export function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | null {
 	const abs = canonicalize(rawPath, cwd);
 	const absolute = isAbsoluteDeny(abs, cwd);

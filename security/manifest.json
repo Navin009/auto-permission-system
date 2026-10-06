@@ -25,7 +25,8 @@
       ],
       "knownGaps": [
         "Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk",
-        "Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence"
+        "Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence",
+        "askRead (ADR-019) pre-flight is heuristic too: an obfuscated read of an askRead path is not prompted (put the path in denyRead to hard-deny it)"
       ]
     },
     {
@@ -52,7 +53,8 @@
         { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=13, FAIL=0" },
         { "id": "L2-detect-smoke", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs", "expected": "PASS=17, FAIL=0" },
         { "id": "L1-L2-permission-mode", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs", "expected": "PASS=13, FAIL=0" },
-        { "id": "L2-exposure", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs", "expected": "PASS=8, FAIL=0" }
+        { "id": "L2-exposure", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs", "expected": "PASS=8, FAIL=0" },
+        { "id": "L1-L2-ask-read", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs", "expected": "PASS=12, FAIL=0" }
       ],
       "knownGaps": [
         "Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)",

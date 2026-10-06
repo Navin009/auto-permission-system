@@ -54,6 +54,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   },
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws", "~/.pi/agent"],  // Layer 1 + Layer 2: no read at all
+    "askRead": [".env", ".env.*"],    // Layer 1 + Layer 2: ask before reading, not hard-denied (ADR-019)
     "modelDenyRead": ["~/.netrc"],      // Layer 2 only: model's read tool blocked; subprocesses ok
     "allowWrite": [".", "/tmp"],        // Layer 2: writes only inside these roots
     "denyWrite": [".env", "*.pem"]     // Layer 1 + Layer 2: write always blocked
@@ -121,6 +122,10 @@ Change it with `/permission-mode` or the **Shift+S** shortcut; the choice is sav
 ### Commands that print secrets
 
 Bash commands that dump the environment can print the API tokens pi runs on. `commands.ask` lists them, and Layer 1 asks before running one (`Block` / `Allow once`); deny runs nothing (ADR-017). An entry without `/` is a command name (matched on the head of each `;`/`&&`/`|` segment); an entry with a path is globbed against every path token, so any reader of the per-process environ file is caught. The shipped default is `["printenv", "env", "/proc/*/environ"]`.
+
+### Sensitive reads ask by default
+
+`askRead` lists paths that **prompt** instead of being hard-denied (ADR-019). The shipped default asks for `.env` and `.env.*`, in both layers: the model's `read` tool asks, and the bash pre-flight asks before a command that plainly reads the file. No answer (Esc or the 10s timeout) blocks, and headless runs block. `denyRead` still wins over `askRead`, so put a path in `denyRead` to hard-deny it. The credential tier (`~/.ssh`, `~/.aws`, `*.pem`, `*.key`, `~/.gnupg`, `auth.json`) stays hard.
 
 ### Absolute-deny tier
 

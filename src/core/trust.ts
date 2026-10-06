@@ -101,8 +101,8 @@ function stricter(order: readonly string[], base: unknown, project: unknown): Ti
 	return typeof base === "string" ? base : undefined;
 }
 
-/** Deny lists an untrusted file may add to. */
-const DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite"] as const;
+/** Lists an untrusted file may add to (additive: deny lists and the ask list). */
+const DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite", "askRead"] as const;
 
 /**
  * Merge an untrusted project policy into `base` so it can only tighten.

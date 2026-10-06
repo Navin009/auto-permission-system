@@ -12,7 +12,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractBlockedPath, isSafeFolderGrant, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { askReadCandidates, extractBlockedPath, isSafeFolderGrant, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
 import { loadConfig } from "./config";
 
@@ -61,6 +61,41 @@ async function preflightSensitiveCommands(
 	appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: "no", note: "sensitive-command", cwd })}\n`);
 	onData(Buffer.from(`\n❌ pi-sandbox: command blocked — it can print secrets: ${subject}. Nothing was run — ask the user.\n`));
 	return { exitCode: 1 };
+}
+
+/**
+ * Ask before a bash command plainly reads a path on the `askRead` list
+ * (ADR-019). Headless (no UI) fails closed, like every other gate.
+ */
+async function preflightAskReads(
+	command: string,
+	cwd: string,
+	opts: SandboxedBashOpts | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ exitCode: number } | undefined> {
+	const cfg = loadConfig(cwd).filesystem;
+	if (!cfg?.askRead?.length) return undefined;
+	const paths = askReadCandidates(command, cwd, homedir(), cfg);
+	if (!paths.length) return undefined;
+	const auditPath = `${getAgentDir()}/audit.log`;
+	const ui = opts?.ctx as AskCtx | undefined;
+	for (const absPath of paths) {
+		const ts = new Date().toISOString();
+		if (!ui?.hasUI || !ui.ui?.select) {
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", note: "ask-read-headless", cwd })}\n`);
+			onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
+			return { exitCode: 1 };
+		}
+		const choice = await askMain(ui, "Sensitive file read", `  file:   ${absPath}\n  why:    it may hold secrets`, { remember: false });
+		if (choice === "once" || choice === "session") {
+			appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: choice, note: "ask-read", cwd })}\n`);
+			continue;
+		}
+		appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject: absPath, decision: "no", note: "ask-read", cwd })}\n`);
+		onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
+		return { exitCode: 1 };
+	}
+	return undefined;
 }
 
 async function preflightOutsideReads(
@@ -123,6 +158,9 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			// Commands that can print secrets (tokens in the environment) ask first.
 			const sensitive = await preflightSensitiveCommands(command, cwd, opts, onData);
 			if (sensitive) return sensitive;
+
+			const askRead = await preflightAskReads(command, cwd, opts, onData);
+			if (askRead) return askRead;
 
 			// ADR-015: sandbox-runtime masks a gated directory with an empty tmpfs,
 			// so an outside read would otherwise succeed with silently trimmed output

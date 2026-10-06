@@ -35,9 +35,13 @@
 
     "denyRead": [
       "~/.ssh",
-      ".env",
-      ".env.*",
       "~/.gnupg"
+    ],
+
+    "_comment_askRead": "Layer 1 (bash pre-flight) AND Layer 2 (model read tool): ask before reading these instead of hard-denying them. Put a path in denyRead to deny it outright. See ADR-019.",
+    "askRead": [
+      ".env",
+      ".env.*"
     ],
 
     "_comment_modelDenyRead": "Layer 2 ONLY. Token/credential files inside dirs that CLI tools (gh, aws, kubectl, docker) need to read. The model's `read` tool is blocked; subprocesses still work. Caveat: the model could `bash cat` these — `denyRead` is the hard block for that.",

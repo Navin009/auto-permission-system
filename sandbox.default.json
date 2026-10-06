@@ -66,11 +66,13 @@
       "~/Downloads",
       "~/Desktop",
       "~/Documents",
-      ".env",
-      ".env.*",
       "~/.bash_history",
       "~/.zsh_history",
       "~/.history"
+    ],
+    "askRead": [
+      ".env",
+      ".env.*"
     ],
     "modelDenyRead": [
       "~/.config/gh/hosts.yml",
