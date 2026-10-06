@@ -6,9 +6,9 @@ security/
 ├── render.mjs        ← reads manifest, writes ../SECURITY.md
 ├── check.sh          ← runs all tests + render. THE only command you need.
 └── tests/
-    ├── path-matcher.mjs    (Layer 2)
-    ├── url-allowlist.mjs   (Layer 2)
-    └── symlink-escape.mjs  (Layer 2)
+    ├── ts-loader.mjs       ← registers the extensionless-import resolver for Node
+    ├── ts-hooks.mjs        ← the resolver hook itself
+    └── unit/               ← pure-core tests, run against src/core/
 ```
 
 ## Workflow
@@ -24,7 +24,7 @@ When you change anything security-related:
 
 ## Adding a test
 
-Drop a runnable script in `security/tests/` that prints `PASS=N FAIL=M` and `exit 1` on failure. Then add it to the relevant layer's `tests` array in `manifest.json`. Re-run `check.sh` and it picks up the new test automatically.
+Drop a runnable script in `security/tests/unit/` that imports the pure logic from `src/core/` and prints `PASS=N FAIL=M` and `exit 1` on failure. Register it in the relevant layer's `tests` array in `manifest.json` as `node --import ./security/tests/ts-loader.mjs security/tests/unit/<file>.mjs` (the loader lets Node follow the sources' extensionless imports). Re-run `check.sh` and it picks up the new test automatically.
 
 ## Adding a new layer
 

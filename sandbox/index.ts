@@ -36,8 +36,8 @@
  * - `/sandbox` - show current sandbox configuration
  *
  * Setup:
- * 1. Copy sandbox/ directory to ~/.pi/agent/extensions/
- * 2. Run `npm install` in ~/.pi/agent/extensions/sandbox/
+ * 1. A root `npm install` provides @anthropic-ai/sandbox-runtime.
+ * 2. pi loads this file as an extension (see package.json `pi.extensions`).
  *
  * Linux also requires: bubblewrap, socat, ripgrep
  */

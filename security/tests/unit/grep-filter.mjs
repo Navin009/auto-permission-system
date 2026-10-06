@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { filterGrepOutput, policyFileError, readPolicyForUpdate } from '../../lib/guard-lib.ts';
+import { filterGrepOutput, policyFileError, readPolicyForUpdate } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 function check(name, cond) { if (cond) pass++; else { fail++; console.log('FAIL:', name); } }

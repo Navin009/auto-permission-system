@@ -1,5 +1,5 @@
 // "User named it" for reads outside the project (ADR-012). Imports the real lib.
-import { extractUserMessages, userNamedFile } from '../../lib/user-named.ts';
+import { extractUserMessages, userNamedFile } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

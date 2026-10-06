@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T18:18:26.762Z
+Generated: 2026-10-06T18:36:36.257Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
-| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`lib/guard-lib.ts`<br>`lib/user-named.ts`<br>`lib/project-trust.ts` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `sandbox/index.ts`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence` |
+| **L2** In-process tool guard | ✅ shipped | `security-guard.ts`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -30,12 +30,13 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 **Source files**
 
 - ✓ `sandbox/index.ts` — 722 lines, mtime 2026-10-06
+- ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 90 lines, mtime 2026-10-05
 
 **Tests**
 
-- `L1-attribution` — `node security/tests/l1-attribution.mjs` → expects PASS=29, FAIL=0
-- `L1-outside-fence` — `node security/tests/outside-fence.mjs` → expects PASS=38, FAIL=0
+- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=29, FAIL=0
+- `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -49,18 +50,16 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `security-guard.ts` — 790 lines, mtime 2026-10-06
-- ✓ `lib/guard-lib.ts` — 318 lines, mtime 2026-10-06
-- ✓ `lib/user-named.ts` — 87 lines, mtime 2026-10-06
-- ✓ `lib/project-trust.ts` — 193 lines, mtime 2026-10-06
+- ✓ `src/core/` — dir, mtime 2026-10-06
 
 **Tests**
 
-- `L2-paths` — `node security/tests/path-matcher.mjs` → expects PASS=13, FAIL=0
-- `L2-urls` — `node security/tests/url-allowlist.mjs` → expects PASS=8, FAIL=0
-- `L2-symlink` — `node security/tests/symlink-escape.mjs` → expects PASS=5, FAIL=0
-- `L2-grep-filter` — `node security/tests/grep-filter.mjs` → expects PASS=15, FAIL=0
-- `L2-user-named` — `node security/tests/user-named.mjs` → expects PASS=16, FAIL=0
-- `L1-L2-project-trust` — `node security/tests/project-trust.mjs` → expects PASS=41, FAIL=0
+- `L2-paths` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/path-matcher.mjs` → expects PASS=13, FAIL=0
+- `L2-urls` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs` → expects PASS=8, FAIL=0
+- `L2-symlink` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs` → expects PASS=5, FAIL=0
+- `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=15, FAIL=0
+- `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
+- `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
 
 **Known gaps / accepted risks**
 

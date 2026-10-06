@@ -6,13 +6,13 @@
     "moduleResolution": "bundler",
     "module": "esnext",
     "target": "es2022",
-    "types": []
+    "types": [],
+    "allowImportingTsExtensions": true
   },
   "include": [
     "security-guard.ts",
     "sandbox/index.ts",
-    "lib/guard-lib.ts",
-    "lib/user-named.ts",
-    "lib/project-trust.ts"
+    "lib/**/*.ts",
+    "src/**/*.ts"
   ]
 }

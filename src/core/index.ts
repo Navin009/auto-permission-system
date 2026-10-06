@@ -1,0 +1,12 @@
+/**
+ * Core barrel: the pure, reusable policy logic. No pi, no OS, no UI imports.
+ * Both layer adapters and the unit tests import from here.
+ */
+export * from "./policy/defaults";
+export * from "./policy/files";
+export * from "./policy/patterns";
+export * from "./policy/classify";
+export * from "./policy/fence";
+export * from "./grep-filter";
+export * from "./trust";
+export * from "./user-named";

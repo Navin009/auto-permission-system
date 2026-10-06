@@ -1,6 +1,6 @@
 // Layer 1 violation attribution: which path was refused, whether it was a denyRead,
 // and which folders may be offered as a write grant. Imports the real lib.
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, toSandboxPatterns } from '../../lib/guard-lib.ts';
+import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, toSandboxPatterns } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
