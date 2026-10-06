@@ -310,11 +310,11 @@ export default function (pi: ExtensionAPI) {
 		const allow = ui.hasUI !== false && (await askExposure(ui, hits)) === "allow";
 		if (allow) {
 			audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent (${findings.join(", ")}).`, "warning");
+			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-		ctx.ui.notify(`🛡 Advanced Secure: blocked ${event.toolName} output — it may contain ${findings.join(", ")}. Nothing was sent to the model.`, "warning");
+		ctx.ui.notify(`🛡 Advanced Secure: blocked ${event.toolName} output — it may contain sensitive information. Nothing was sent to the model.`, "warning");
 		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
 
