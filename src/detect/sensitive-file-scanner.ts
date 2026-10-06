@@ -203,6 +203,11 @@ const SENSITIVE_KEYS = new Set([
   "accountkey",
   "smtppassword",
   "dbpassword",
+  // Bare `key` (exact match only; adding it to the suffix list would match
+  // `monkey`). `key=value` is ordinary config, so it is a WEAK key: see
+  // WEAK_KEYS / looksLikeRealSecret — it counts only when the value looks
+  // random rather than like a word.
+  "key",
 ]);
 
 const SENSITIVE_KEY_SUFFIXES = [
@@ -556,9 +561,21 @@ export function isPlaceholder(value: string): boolean {
   return false;
 }
 
+/**
+ * Weak keys: a bare `key` is too generic to flag on its own (`key=value` is an
+ * ordinary config line everywhere). It still counts when the value is not a
+ * placeholder and looks random, so `key=<random secret>` is caught while
+ * `key=value` stays clean. This is an auto-permission-system addition to the
+ * vendored scanner (ADR-018).
+ */
+const WEAK_KEYS = new Set(["key"]);
+/** A per-character entropy floor that still rejects `aaaaaaaa` / `abababab`. */
+const WEAK_KEY_MIN_ENTROPY = 1.5;
+
 function looksLikeRealSecret(value: string, normalizedKey: string): boolean {
   const trimmed = value.trim();
   const isPasswordKey = PASSWORD_KEY_REGEX.test(normalizedKey);
+  const isWeakKey = WEAK_KEYS.has(normalizedKey);
   const minLength = isPasswordKey ? 6 : 8;
 
   if (trimmed.length < minLength) {
@@ -575,17 +592,26 @@ function looksLikeRealSecret(value: string, normalizedKey: string): boolean {
   }
 
   // Purely alphabetic identifiers (generateToken, mySecretValue) are code.
+  // A weak key skips this: its value is expected to be a random blob, and the
+  // entropy floor below still rejects plain repeats.
   if (
     !isPasswordKey &&
+    !isWeakKey &&
     /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(trimmed) &&
     entropy(trimmed) < 4.0
   ) {
     return false;
   }
 
+  const e = entropy(trimmed);
+
+  if (isWeakKey) {
+    return e >= WEAK_KEY_MIN_ENTROPY;
+  }
+
   const threshold = isPasswordKey ? 2.0 : 3.0;
 
-  return entropy(trimmed) >= threshold;
+  return e >= threshold;
 }
 
 function getSeverity(findingType: string): Finding["severity"] {

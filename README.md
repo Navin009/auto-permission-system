@@ -110,7 +110,7 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 - **`advanced-secure`** — adds secret/credential detection:
   - **File reads:** a filename that looks like a credential store asks before the read.
   - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky (mutating/destructive) call asks before it runs.
-  - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows a warning and two choices — **Block (default)** or **Allow send**. Block withholds the output and tells the model plainly that it was blocked **by the user because of sensitive information**, so the model does not mistake it for a failure or an empty result. Esc or timeout blocks.
+  - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows a warning and two choices — **Block (default)** or **Allow send**. A bare `key=<random>` counts; `key=value` does not. Block withholds the output and tells the model plainly that it was blocked **by the user because of sensitive information**, so the model does not mistake it for a failure or an empty result. Esc or timeout blocks.
 
 Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
 

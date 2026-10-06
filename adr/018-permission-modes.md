@@ -47,6 +47,12 @@ gate vocabulary.
     model treats it as a deliberate user block, not a broken tool; `Allow send`
     passes the real values through. Esc / timeout blocks. Headless (no UI)
     blocks.
+  - **`key` is a weak key.** A bare `key` is too generic to flag on its own
+    (`key=value` is ordinary config), but it counts when the value is not a
+    placeholder and looks random — so `key=<random secret>` asks while
+    `key=value`, `key=somevalue`, and repeats like `key=aaaaaaaa` stay clean.
+    Stronger names (`api_key`, `secret`, `token`, …) keep the stricter value
+    rule. This is a local tuning of the vendored scanner.
 - **No "remember" yet.** Detection asks offer `Block (default)` / `Allow once` /
   `Allow for this session`. Session grants are in memory only.
 - **Trust still governs loosening.** `applyUntrustedProject` treats `mode` as an

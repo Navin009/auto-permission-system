@@ -23,5 +23,15 @@ check('destructive MCP call is classified destructive', del.classification === '
 const ro = evaluateMcpCall({ tool: { name: 'list_files', description: 'List files', annotations: { readOnlyHint: true } }, call: { name: 'list_files', arguments: {} }, policy: { trustAnnotations: true } });
 check('trusted read-only MCP call allows', ro.decision === 'allow');
 
+// Weak `key`: a random value asks; a placeholder value does not.
+const keyRandom = scanTextContent('key=asdfadsdaasdfdsafasdf');
+check('key=<random> is flagged', keyRandom.findings.length >= 1 && keyRandom.riskScore >= 30);
+check('key=Xk9pQ2… is flagged', scanTextContent('key=Xk9pQ2mN7vR4tY8wZ1aB3cD6eF0gH5jL').findings.length >= 1);
+check('key=value stays clean', scanTextContent('key=value').findings.length === 0);
+check('key=somevalue stays clean', scanTextContent('key=somevalue').findings.length === 0);
+check('a repeated value stays clean', scanTextContent('key=aaaaaaaa').findings.length === 0);
+check('a lookalike key name stays clean', scanTextContent('monkey=asdfadsdaasdfdsafasdf').findings.length === 0);
+check('output gate asks on key=<random>', scanToolOutput({ output: 'key=asdfadsdaasdfdsafasdf' }).decision === 'ask');
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

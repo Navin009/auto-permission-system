@@ -50,7 +50,7 @@
         { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=24, FAIL=0" },
         { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=27, FAIL=0" },
         { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=13, FAIL=0" },
-        { "id": "L2-detect-smoke", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs", "expected": "PASS=10, FAIL=0" },
+        { "id": "L2-detect-smoke", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs", "expected": "PASS=17, FAIL=0" },
         { "id": "L1-L2-permission-mode", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs", "expected": "PASS=13, FAIL=0" }
       ],
       "knownGaps": [
