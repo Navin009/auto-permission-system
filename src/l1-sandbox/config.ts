@@ -33,6 +33,8 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 		allowWrite?: string[];
 		allowDomains?: string[];
 	};
+	/** Commands/paths that can print secrets (env, proc environ) and must ask first. */
+	commands?: { ask?: string[] };
 }
 
 const BUILTIN_CONFIG: SandboxConfig = {

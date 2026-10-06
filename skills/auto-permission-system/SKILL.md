@@ -47,6 +47,9 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "denyWrite": [".env", "*.pem"]   // Layer 1 + 2: always blocked
   },
   "subagent": { "network": "allow" },
+  "commands": {
+    "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
+  },
   "overrides": {                      // written by ask-tier prompts or manual edits
     "allowRead": [],
     "allowWrite": [],

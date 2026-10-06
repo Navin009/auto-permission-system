@@ -115,6 +115,9 @@
   "subagent": {
     "network": "allow"
   },
+  "commands": {
+    "ask": ["printenv", "env", "/proc/*/environ"]
+  },
   "overrides": {
     "allowRead": [],
     "allowWrite": [],

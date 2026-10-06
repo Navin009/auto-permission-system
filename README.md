@@ -59,6 +59,9 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   },
   "subagent": {
     "network": "allow"                  // "allow" | "deny" | "research-only"
+  },
+  "commands": {
+    "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
   }
 }
 ```
@@ -97,6 +100,10 @@ Never asked about: the project itself, your `allowWrite` roots, pi's own package
 ### File-name patterns
 
 An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.
+
+### Commands that print secrets
+
+Bash commands that dump the environment can print the API tokens pi runs on. `commands.ask` lists them, and Layer 1 asks before running one (`Block` / `Allow once`); deny runs nothing (ADR-017). An entry without `/` is a command name (matched on the head of each `;`/`&&`/`|` segment); an entry with a path is globbed against every path token, so any reader of the per-process environ file is caught. The shipped default is `["printenv", "env", "/proc/*/environ"]`.
 
 ### Absolute-deny tier
 

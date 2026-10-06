@@ -12,7 +12,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractBlockedPath, isSafeFolderGrant, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { extractBlockedPath, isSafeFolderGrant, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
 import { loadConfig } from "./config";
 
@@ -32,6 +32,35 @@ export interface SandboxedBashOpts {
 /** One denial shape for Layer 1, mirroring denyMessage() in Layer 2. */
 function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "written" | "run"): string {
 	return `❌ pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome} — ask the user.`;
+}
+
+/**
+ * Gate commands that can print secrets (`printenv`, `env`, a read of the proc
+ * environ file). Asks once per call; deny means the command does not run.
+ */
+async function preflightSensitiveCommands(
+	command: string,
+	cwd: string,
+	opts: SandboxedBashOpts | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ exitCode: number } | undefined> {
+	const ask = loadConfig(cwd).commands?.ask ?? [];
+	if (!ask.length || !opts?.ctx?.hasUI || !opts.ctx.ui?.select) return undefined;
+	const matched = matchedAskCommands(command, ask, cwd, homedir());
+	if (!matched.length) return undefined;
+	const ui = opts.ctx as AskCtx;
+	const body = `  command: ${matched.join(", ")}\n  why:     it can print environment values (API tokens)`;
+	const choice = await askMain(ui, "Command may print secrets", body, { once: true, remember: false });
+	const ts = new Date().toISOString();
+	const auditPath = `${getAgentDir()}/audit.log`;
+	const subject = matched.join(", ");
+	if (choice === "once") {
+		appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: "once", note: "sensitive-command", cwd })}\n`);
+		return undefined;
+	}
+	appendFileSync(auditPath, `${JSON.stringify({ ts, layer: 1, tool: "bash", subject, decision: "no", note: "sensitive-command", cwd })}\n`);
+	onData(Buffer.from(`\n❌ pi-sandbox: command blocked — it can print secrets: ${subject}. Nothing was run — ask the user.\n`));
+	return { exitCode: 1 };
 }
 
 async function preflightOutsideReads(
@@ -90,6 +119,10 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			if (!existsSync(cwd)) {
 				throw new Error(`Working directory does not exist: ${cwd}`);
 			}
+
+			// Commands that can print secrets (tokens in the environment) ask first.
+			const sensitive = await preflightSensitiveCommands(command, cwd, opts, onData);
+			if (sensitive) return sensitive;
 
 			// ADR-015: sandbox-runtime masks a gated directory with an empty tmpfs,
 			// so an outside read would otherwise succeed with silently trimmed output

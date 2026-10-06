@@ -8,6 +8,7 @@ export * from "./policy/files";
 export * from "./policy/merge";
 export * from "./policy/patterns";
 export * from "./policy/classify";
+export * from "./policy/commands";
 export * from "./policy/fence";
 export * from "./grep-filter";
 export * from "./trust";

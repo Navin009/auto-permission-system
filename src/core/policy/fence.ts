@@ -18,12 +18,12 @@ const READ_COMMANDS = new Set([
 ]);
 
 /** Split a shell command on the operators that start a new simple command. */
-function shellSegments(command: string): string[] {
+export function shellSegments(command: string): string[] {
 	return command.split(/\s*(?:;|&&|\|\||\||\n)\s*/).map((s) => s.trim()).filter(Boolean);
 }
 
 /** Tokenize one segment, dropping the quotes around fully quoted words. */
-function shellTokens(segment: string): string[] {
+export function shellTokens(segment: string): string[] {
 	const out: string[] = [];
 	const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
 	let m: RegExpExecArray | null;
