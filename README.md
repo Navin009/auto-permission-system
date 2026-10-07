@@ -117,7 +117,7 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 
 Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
 
-Change it with `/permission-mode`; `default` / `advanced-secure` are saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: 🔐 N domains, M paths` for `advanced-secure`, `Sandbox: 🔒 N domains, M paths` for `default`.
+Change it with `/permission-mode`; `default` / `advanced-secure` are saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: 🧠 N domains, M paths` for `advanced-secure`, `Sandbox: 🔒 N domains, M paths` for `default`.
 
 The third choice, **YOLO**, turns every layer off. It is a persisted mode like the others — `setPolicyMode()` writes `mode: "yolo"` to the global `sandbox.json`, so the next session starts that way too. The chip reads `⚠️ YOLO — all security layers disabled`, and it is one pick in the same menu. Pick `Default` or `Advanced Secure` to turn the layers back on (ADR-020).
 
