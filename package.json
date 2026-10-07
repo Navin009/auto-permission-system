@@ -34,11 +34,11 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.4.0",
-    "@commitlint/config-conventional": "^19.4.0",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/git": "^10.0.1",
-    "semantic-release": "^25.0.8",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/git": "^11.0.1",
+    "semantic-release": "^25.0.9",
     "typescript": "^7.0.2"
   },
   "pi": {
