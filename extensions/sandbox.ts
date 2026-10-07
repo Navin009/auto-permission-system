@@ -130,7 +130,7 @@ export default function (pi: ExtensionAPI) {
 				"sandbox",
 				ctx.ui.theme.fg(
 					secure ? "success" : "accent",
-					`Sandbox: ${secure ? "☢️ " : "🛡️ "}${networkCount} domains, ${writeCount} paths`,
+					`Sandbox: ${secure ? "☢️\u2002" : "🛡️\u2002"}${networkCount} domains, ${writeCount} paths`,
 				),
 			);
 			ctx.ui.notify("Sandbox initialized", "info");
