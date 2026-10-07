@@ -51,10 +51,14 @@ gate vocabulary.
     keeps it private. Headless (no UI) keeps it private.
   - **`key` is a weak key.** A bare `key` is too generic to flag on its own
     (`key=value` is ordinary config), but it counts when the value is not a
-    placeholder and looks random — so `key=<random secret>` asks while
-    `key=value`, `key=somevalue`, and repeats like `key=aaaaaaaa` stay clean.
-    Stronger names (`api_key`, `secret`, `token`, …) keep the stricter value
-    rule. This is a local tuning of the vendored scanner.
+    placeholder and looks machine-generated — so `key=<random secret>` asks
+    while `key=value`, `key=somevalue`, and repeats like `key=aaaaaaaa` stay
+    clean. An identifier, a dotted namespace, or a slash path
+    (`key=customer_id`, `"key": "subagent.network"`) is never a secret, and
+    neither is a code expression (`const key = \`${a}:${b}\``,
+    `const key = tokens[i]`). Stronger names (`api_key`, `secret`, `token`, …)
+    keep the stricter value rule. This is a local tuning of the vendored
+    scanner.
 - **No "remember" yet.** Detection asks offer `Block (default)` / `Allow once` /
   `Allow for this session`. Session grants are in memory only.
 - **Trust still governs loosening.** `applyUntrustedProject` treats `mode` as an

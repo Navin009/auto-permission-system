@@ -33,5 +33,16 @@ check('a repeated value stays clean', scanTextContent('key=aaaaaaaa').findings.l
 check('a lookalike key name stays clean', scanTextContent('monkey=asdfadsdaasdfdsafasdf').findings.length === 0);
 check('output gate asks on key=<random>', scanToolOutput({ output: 'key=asdfadsdaasdfdsafasdf' }).decision === 'ask');
 
+// `key` is also an everyday field name: code and identifiers stay clean.
+check('a namespaced JSON key value stays clean', scanTextContent('"key": "subagent.network"').findings.length === 0);
+check('a template-literal key value stays clean', scanTextContent('const key = \`${kind}:${subject}\`;').findings.length === 0);
+check('a method-call key value stays clean', scanTextContent('const key = rawKey.normalize("NFKC").toLowerCase();').findings.length === 0);
+check('an index-access key value stays clean', scanTextContent('const key = tokens[index];').findings.length === 0);
+check('a snake_case key value stays clean', scanTextContent('"key": "customer_id"').findings.length === 0);
+check('a camelCase key value stays clean', scanTextContent('key=primaryKey').findings.length === 0);
+check('an arrow function is not an assignment', scanTextContent('return xs.some((token) => TOKENS.has(token));').findings.length === 0);
+check('a two-word label stays clean', scanTextContent('PRIVATE_KEY: "private key"').findings.length === 0);
+check('a quoted random key value still flags', scanTextContent('key="Xk9pQ2mN7vR4tY8wZ1aB3cD6eF0gH5jL"').findings.length >= 1);
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

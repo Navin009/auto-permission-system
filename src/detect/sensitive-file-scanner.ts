@@ -560,6 +560,32 @@ export function isPlaceholder(value: string): boolean {
 const WEAK_KEYS = new Set(["key"]);
 const WEAK_KEY_MIN_ENTROPY = 1.5;
 
+/**
+ * A value that reads as an identifier, a namespaced path, or a file path —
+ * never a generated secret. Used only for the bare `key` (WEAK_KEYS): `key`
+ * is also an ordinary JSON/object field name, so `"key": "subagent.network"`
+ * must stay clean while `key=<random>` still counts.
+ */
+function looksLikeIdentifierOrPath(value: string): boolean {
+  if (/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(value)) {
+    return true; // dotted path / namespace, e.g. subagent.network
+  }
+
+  if (/^[\w.-]+\/[\w./-]*$/.test(value)) {
+    return true; // file or slash path, e.g. entropy/length
+  }
+
+  if (/^[A-Za-z]+(?:[_-][A-Za-z]+)+$/.test(value)) {
+    return true; // snake_case / kebab-case, e.g. customer_id
+  }
+
+  if (/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$/.test(value)) {
+    return true; // lowerCamelCase, e.g. primaryKey
+  }
+
+  return false;
+}
+
 function looksLikeRealSecret(value: string, normalizedKey: string): boolean {
   const trimmed = value.trim();
   const isPasswordKey = PASSWORD_KEY_REGEX.test(normalizedKey);
@@ -574,8 +600,20 @@ function looksLikeRealSecret(value: string, normalizedKey: string): boolean {
     return false;
   }
 
+  // Code, not a literal value: template interpolation, calls, indexing,
+  // member access, quoting and escapes are code syntax (`const key = \`${a}:${b}\``).
+  if (/[(){}[\]<>]|=>|`|\\/.test(trimmed)) {
+    return false;
+  }
+
   // Avoid flagging human-readable code phrases.
   if (/^[a-zA-Z]+(?:\s+[a-zA-Z]+){2,}$/.test(trimmed)) {
+    return false;
+  }
+
+  // A generated secret never contains whitespace. Passphrases may, so this
+  // excludes the password keys ("my secret phrase") only.
+  if (!isPasswordKey && /\s/.test(trimmed)) {
     return false;
   }
 
@@ -592,6 +630,12 @@ function looksLikeRealSecret(value: string, normalizedKey: string): boolean {
   const e = entropy(trimmed);
 
   if (isWeakKey) {
+    // `key` is also an everyday field name; only a value that does not read
+    // as an identifier or a path counts as a secret.
+    if (looksLikeIdentifierOrPath(trimmed)) {
+      return false;
+    }
+
     return e >= WEAK_KEY_MIN_ENTROPY;
   }
 
@@ -1062,8 +1106,8 @@ function findAssignmentOperator(line: string): Operator | null {
     const previous = line[i - 1];
     const next = line[i + 1];
 
-    if (next === "=") {
-      i += 1; // == or ===
+    if (next === "=" || next === ">") {
+      i += 1; // ==, === or =>
       continue;
     }
 
@@ -1071,7 +1115,7 @@ function findAssignmentOperator(line: string): Operator | null {
       continue;
     }
 
-    return next === ">" ? { start: i, end: i + 2 } : { start: i, end: i + 1 };
+    return { start: i, end: i + 1 };
   }
 
   for (let i = 0; i < line.length; i++) {

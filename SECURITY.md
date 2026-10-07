@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-07T06:34:12.780Z
+Generated: 2026-10-07T06:58:00.910Z
 
 ## At a glance
 
@@ -55,7 +55,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `extensions/guard.ts` — 387 lines, mtime 2026-10-07
-- ✓ `extensions/permission-mode.ts` — 121 lines, mtime 2026-10-07
+- ✓ `extensions/permission-mode.ts` — 123 lines, mtime 2026-10-07
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-06
 - ✓ `src/detect/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
@@ -72,7 +72,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=24, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=13, FAIL=0
-- `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=17, FAIL=0
+- `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=8, FAIL=0
