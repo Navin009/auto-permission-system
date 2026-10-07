@@ -152,15 +152,7 @@ export default function (pi: ExtensionAPI) {
 		if (runtimeYolo) {
 			await stopSandbox();
 			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
-			ctx.ui.notify(
-				"⚠️  YOLO mode — all pi security layers disabled.\n" +
-					"   Layer 1 (bash sandbox): OFF\n" +
-					"   Layer 2 (in-process guard): OFF\n" +
-					"   Layer 3 (subagent stricter): OFF\n" +
-					"   Layer 4 (browser gate): OFF\n" +
-					"   You can now do anything, including reading secrets and writing system paths.",
-				"error",
-			);
+			ctx.ui.notify("⚠️  YOLO mode — all pi security layers disabled.", "error");
 			return;
 		}
 
