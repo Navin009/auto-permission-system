@@ -41,9 +41,16 @@ npm install
 npm run typecheck
 npm test
 
-npm login            # opens the browser; complete 2FA
-npm publish --access public
+npm login --auth-type=web   # opens the browser; complete 2FA
+npm whoami                  # sanity check: prints your username
+npm publish --access public --otp=<6-digit-code>
 ```
+
+If the account requires 2FA on writes (npm's default), the publish is rejected
+with `E403 ... Two-factor authentication or granular access token with bypass 2fa
+enabled is required`. Pass `--otp=<code>` from your authenticator, or publish with
+a Granular Access Token that has **Bypass 2FA** enabled. See
+[Troubleshooting](#7-troubleshooting).
 
 `--access public` is required for an unscoped package to be publicly visible
 (it is the default, but being explicit avoids an accidental 402). Provenance is
@@ -155,6 +162,7 @@ npm view auto-permission-system keywords
 | Symptom | Cause / fix |
 | ------- | ----------- |
 | `E402 Payment Required` | Scoped/private publish; add `--access public`. |
+| `E403 ... Two-factor authentication or granular access token with bypass 2fa enabled is required to publish packages` | npm requires 2FA on writes. Either run `npm publish --access public --otp=<TOTP>` (have the authenticator open — the code expires in ~30s), or publish with a [Granular Access Token](https://docs.npmjs.com/about-access-tokens) that has **Bypass 2FA** enabled. This is the expected first-publish obstacle for accounts with 2FA. |
 | `E403 Forbidden` on first publish | Two-factor auth required; use `npm publish --otp=<code>`. |
 | Trusted Publisher settings page 404s | The package does not exist yet — do step 2 first. |
 | Release run fails at npm, no GitHub Release | Should not happen: the GitHub plugin runs first. Confirm `.releaserc.cjs` order and that `NPM_PUBLISH` is only set once Trusted Publishing works. |
