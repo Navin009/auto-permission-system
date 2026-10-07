@@ -125,9 +125,13 @@ export default function (pi: ExtensionAPI) {
 
 			const networkCount = config.network?.allowedDomains?.length ?? 0;
 			const writeCount = config.filesystem?.allowWrite?.length ?? 0;
+			const secure = config.mode === "advanced-secure";
 			ctx.ui.setStatus(
 				"sandbox",
-				ctx.ui.theme.fg("accent", `🔒 Sandbox: ${networkCount} domains, ${writeCount} write paths`),
+				ctx.ui.theme.fg(
+					secure ? "success" : "accent",
+					`Sandbox: ${secure ? "☢️" : "🛡️"}  ${networkCount} domains, ${writeCount} paths`,
+				),
 			);
 			ctx.ui.notify("Sandbox initialized", "info");
 		} catch (err) {

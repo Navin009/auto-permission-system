@@ -117,7 +117,7 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 
 Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
 
-Change it with `/permission-mode` or the **Shift+S** shortcut; the choice is saved to the global `sandbox.json` and shown in the footer (`🛡 Default (Shift+S)` / `🛡 Advanced Secure (Shift+S)`).
+Change it with `/permission-mode`; the choice is saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: ☢️ N domains, M paths` for `advanced-secure`, `Sandbox: 🛡️ N domains, M paths` for `default`.
 
 ### Commands that print secrets
 
@@ -142,7 +142,7 @@ Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/a
 | `/security` | Show Layer 2 policy, project-local overrides, last 10 audit events |
 | `/sandbox` | Show Layer 1 (bash sandbox) config |
 | `/sandbox reload` | Live-reload sandbox after manual edits to `sandbox.json` |
-| `/permission-mode` (or **Shift+S**) | Choose the permission mode: Default (rules) or Advanced Secure (secret detection) |
+| `/permission-mode` | Choose the permission mode: Default (rules) or Advanced Secure (secret detection) |
 
 ## Escape hatches
 

@@ -99,14 +99,14 @@ Every prompt waits **10 seconds** by default; no answer means the safe default: 
   - risky `mcp__<server>__<tool>` calls ask before they run;
   - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
-Switch with `/permission-mode` or **Shift+S**; the choice is saved to the global `sandbox.json` and shown in the footer. An untrusted project may turn `advanced-secure` **on**, never off.
+Switch with `/permission-mode`; the choice is saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: ☢️ N domains, M paths` for advanced-secure, `Sandbox: 🛡️ …` for default). An untrusted project may turn `advanced-secure` **on**, never off.
 
 ## Commands
 
 - `/security` — show Layer 2 status, effective policy, and last 10 audit events
 - `/sandbox` — show Layer 1 bash sandbox config
 - `/sandbox reload` — live-reload sandbox after manual `sandbox.json` edits
-- `/permission-mode` (or **Shift+S**) — choose Default (rules) or Advanced Secure (secret detection)
+- `/permission-mode` — choose Default (rules) or Advanced Secure (secret detection)
 
 ## Escape hatches
 
