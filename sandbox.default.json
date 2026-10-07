@@ -33,6 +33,7 @@
       "allowRead": [
         "~/.pi/agent/install",
         "~/.pi/agent/npm",
+        "~/.pi/agent/git",
         "~/Capture",
         "~/.nvm",
         "~/.pyenv",
