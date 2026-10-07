@@ -1,6 +1,6 @@
 {
   "name": "auto-permission-system",
-  "version": "2.20.0",
+  "version": "2.20.1",
   "description": "Security sandbox, permission system and tool guard for the Pi coding agent (pi): enforce filesystem allow/deny lists and network domain allowlists on read, write, edit, bash, grep, find, ls, fetch_content and web_search, with interactive ask prompts, secret detection and an audit log.",
   "type": "module",
   "author": "Navin Kumar",
