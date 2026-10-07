@@ -152,7 +152,9 @@ export default function (pi: ExtensionAPI) {
 		if (runtimeYolo) {
 			await stopSandbox();
 			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
-			ctx.ui.notify("⚠️  YOLO mode — all pi security layers disabled.", "info");
+			// Keep the red error color, but send it as a plain status so pi does not
+			// prefix the message with "Error:" (only the red is meaningful here).
+			ctx.ui.notify(ctx.ui.theme.fg("error", "⚠️  YOLO mode — all pi security layers disabled."), "info");
 			return;
 		}
 
