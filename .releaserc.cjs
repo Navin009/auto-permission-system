@@ -35,6 +35,9 @@ module.exports = {
       '@semantic-release/npm',
       {
         npmPublish,
+        // Provenance is only meaningful when the publish actually runs in CI
+        // over OIDC; it is ignored while npmPublish is false.
+        provenance: true,
       },
     ],
     [

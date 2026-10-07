@@ -1,6 +1,15 @@
 # auto-permission-system
 
-Two-layer security extension for the [Pi coding agent](https://pi.dev):
+[![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
+[![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
+[![CI](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml)
+
+**A security sandbox, permission system and tool guard for the [Pi coding agent](https://pi.dev).**
+It puts allow/deny rules, interactive ask prompts, secret detection and an audit log around every tool the agent can call — file reads and writes, shell commands, searches and network access — so the agent can work in your repository without reaching your credentials or the wider internet by accident.
+
+Enforcement happens in three layers:
 
 - **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, reads outside the project when `outsideProject.read` gates them, and network egress to unlisted domains.
 - **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. `grep` output lines from denied files beneath an allowed search root are removed before the model sees them.
@@ -8,18 +17,35 @@ Two-layer security extension for the [Pi coding agent](https://pi.dev):
 
 When a tool call is blocked you get an interactive prompt — no need to leave pi and hand-edit config files. Choose *this once*, *always for this project*, or *always for all projects* (file or parent-folder granularity). Decisions are persisted and audited.
 
+## Contents
+
+- [Install](#install)
+- [Requirements](#requirements)
+- [Configuration](#configuration)
+- [Commands](#commands)
+- [Escape hatches](#escape-hatches)
+- [FAQ](#faq)
+- [Audit log](#audit-log)
+- [Development](#development)
+- [Releasing](#releasing)
+- [License](#license)
+
 ## Install
 
+`auto-permission-system` is a [Pi package](https://pi.dev/packages), so it installs with `pi install` from npm or git:
+
 ```bash
-# From npm (once published)
+# From npm (recommended)
 pi install npm:auto-permission-system
 
 # From git
 pi install git:github.com/Navin009/auto-permission-system
 
-# Try without installing
-pi -e git:github.com/Navin009/auto-permission-system
+# Try it for one run, without installing
+pi -e npm:auto-permission-system
 ```
+
+Browse it on the [Pi package gallery](https://pi.dev/packages). Installing from npm pins the released version; `pi update --extensions` reconciles to the latest.
 
 ## Requirements
 
@@ -171,6 +197,32 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 }
 ```
 
+## FAQ
+
+### How do I allow the agent to reach a new domain?
+Add it to `network.allowedDomains` in a policy file (global `~/.pi/agent/extensions/sandbox.json` or project `<cwd>/.pi/sandbox.json`), or just run the tool once and pick an **always** option in the ask prompt — that writes the domain to the project file for you.
+
+### How do I allow writes to another folder?
+Add the folder to `filesystem.allowWrite`. Relative paths (`.`, `/tmp`) resolve from the project root.
+
+### Why was my tool call or command blocked?
+Run `/security` to see the active Layer 2 policy and the last 10 audit events; run `/sandbox` for the Layer 1 bash sandbox config. The audit log at `~/.pi/agent/audit.log` records the rule that matched (`reason`).
+
+### How do I turn the sandbox off temporarily?
+`pi --yolo` (alias `--no-sandbox`) for a single run, or `/permission-mode` → **YOLO** mid-session. YOLO is persisted like the other modes; pick Default or Advanced Secure to re-enable the layers.
+
+### Why does `.env` (or my SSH key) get flagged while other files do not?
+`.env` and `.env.*` are in the shipped `askRead` list, so reads **prompt** by default. The absolute-deny tier (`~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key`, pi's `auth.json`) always needs a two-step confirmation. Add paths to `denyRead` to hard-deny, or to `askRead` to prompt instead of block.
+
+### How is this different from just using `--yolo`?
+`--yolo` removes every guard for one run. `auto-permission-system` is the guard: it decides what runs, prompts when it is unsure, and records the decision. Use `/permission-mode` to switch between **Default** (rules only), **Advanced Secure** (rules + secret/credential detection, recommended) and **YOLO**.
+
+### Does it work on Windows?
+No. Layer 1 needs `sandbox-exec` (macOS, built in) or `bubblewrap` + `socat` (Linux). Layer 2 is platform-independent.
+
+### Where do the prompts persist my answers?
+Project answers go to `<cwd>/.pi/sandbox.json`; global answers go to `~/.pi/agent/extensions/sandbox.json`. Session-only grants live in memory and are never written to disk.
+
 ## Development
 
 ```bash
@@ -194,17 +246,13 @@ Commit messages on pull requests are checked by `commitlint` (`.github/workflows
 
 1. Determines the next version from commits since the last release.
 2. Generates release notes and prepends them to `CHANGELOG.md`.
-3. Publishes to npm (`npm publish --provenance`) and bumps `package.json`.
-4. Creates the `vX.Y.Z` git tag and GitHub release.
-5. Commits `CHANGELOG.md`/`package.json` back to `main` (`chore(release): ... [skip ci]`).
+3. Creates the `vX.Y.Z` git tag and GitHub release.
+4. Bumps `package.json` and commits `CHANGELOG.md`/`package.json` back to `main` (`chore(release): ... [skip ci]`).
+5. Publishes to npm (`npm publish --provenance`) — **only when the repository variable `NPM_PUBLISH` is `true`**.
 
-Nothing to run locally beyond writing conventional commit messages — just merge to `main`. Publishing uses npm [Trusted Publishing](https://docs.npmjs.com/trusted-publishers) (OIDC) — no `NPM_TOKEN` secret required. One-time setup on npmjs.com:
+npm publishing is opt-in (`npmPublish: process.env.NPM_PUBLISH === 'true'` in `.releaserc.cjs`, wired through `.github/workflows/release.yml`), and the GitHub plugin runs before the npm plugin so a failing registry publish can never stop the GitHub Release from being created.
 
-1. Go to the package's **Settings → Trusted Publisher** on npmjs.com.
-2. Select **GitHub Actions** and configure: organization/user `Navin009`, repository `auto-permission-system`, workflow filename `release.yml`, allowed action `npm publish`.
-3. (Recommended) Under **Settings → Publishing access**, choose "Require two-factor authentication and disallow tokens" to disable classic token-based publishing entirely, and revoke any automation tokens you previously created.
-
-`GITHUB_TOKEN` is provided automatically by Actions; the `id-token: write` permission in `release.yml` is what lets npm's OIDC exchange work.
+See **[PUBLISHING.md](https://github.com/Navin009/auto-permission-system/blob/main/PUBLISHING.md)** for the full first-publish and npm Trusted Publishing checklist, and for how the package becomes searchable on the [Pi package gallery](https://pi.dev/packages). Nothing is needed locally beyond writing conventional commit messages — just merge to `main`.
 
 ## License
 
