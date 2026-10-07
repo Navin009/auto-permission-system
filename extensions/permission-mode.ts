@@ -49,7 +49,7 @@ function renderSandboxChip(pi: ExtensionAPI, ctx: ExtensionContext): void {
 	const secure = config.mode === "advanced-secure";
 	const domains = config.network?.allowedDomains?.length ?? 0;
 	const paths = config.filesystem?.allowWrite?.length ?? 0;
-	const text = `Sandbox: ${secure ? "☢️" : "🛡️"} -${domains} domains, ${paths} paths`;
+	const text = `Sandbox: ${secure ? "☢️" : "🛡️"} ~${domains} domains, ${paths} paths`;
 	ctx.ui.setStatus("sandbox", ctx.ui.theme.fg(secure ? "success" : "accent", text));
 }
 
