@@ -117,7 +117,9 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 
 Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
 
-Change it with `/permission-mode`; the choice is saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: ☢️ N domains, M paths` for `advanced-secure`, `Sandbox: 🛡️ N domains, M paths` for `default`.
+Change it with `/permission-mode`; `default` / `advanced-secure` are saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: ☢️ N domains, M paths` for `advanced-secure`, `Sandbox: 🛡️ N domains, M paths` for `default`.
+
+The third choice, **YOLO**, turns every layer off. It is a persisted mode like the others — `setPolicyMode()` writes `mode: "yolo"` to the global `sandbox.json`, so the next session starts that way too. The chip reads `⚠️ YOLO — all security layers disabled`, and it is one pick in the same menu. Pick `Default` or `Advanced Secure` to turn the layers back on (ADR-020).
 
 ### Commands that print secrets
 
@@ -142,7 +144,7 @@ Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/a
 | `/security` | Show Layer 2 policy, project-local overrides, last 10 audit events |
 | `/sandbox` | Show Layer 1 (bash sandbox) config |
 | `/sandbox reload` | Live-reload sandbox after manual edits to `sandbox.json` |
-| `/permission-mode` | Choose the permission mode: Default (rules) or Advanced Secure (secret detection) |
+| `/permission-mode` | Choose the permission mode: Default (rules), Advanced Secure (secret detection), or YOLO (all layers off). Saved to the global `sandbox.json`. |
 
 ## Escape hatches
 
@@ -150,6 +152,8 @@ Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/a
 pi --yolo          # disables ALL layers globally (visible warning banner)
 pi --no-sandbox    # alias for --yolo
 ```
+
+Mid-session, `/permission-mode` → **YOLO** disables every layer in place (no restart); it is saved to the global `sandbox.json` like the other modes, and choosing Default or Advanced Secure brings the layers back (ADR-020). `pi --yolo` remains a per-run flag and writes nothing.
 
 ## Audit log
 

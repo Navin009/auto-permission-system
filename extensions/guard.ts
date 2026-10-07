@@ -21,6 +21,7 @@ import { audit, AUDIT_PATH } from "../src/shared/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
 import { denyMessage } from "../src/l2-guard/ask";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent";
+import { onYolo } from "../src/shared/yolo";
 
 /**
  * Advanced Secure (ADR-018): detection-based asks and output redaction.
@@ -85,14 +86,24 @@ async function detectMcpAsk(
 
 export default function (pi: ExtensionAPI) {
 	let active = false;
+	let policyEnabled = false;
+	let runtimeYolo = false;
+
+	const applyActive = () => {
+		active = policyEnabled && !runtimeYolo;
+	};
+
+	// `--yolo` and the `/permission-mode` toggle both arrive on pi's process-wide
+	// bus; `sandbox.ts` is the only extension that registers the CLI flags and
+	// broadcasts the state (ADR-020). The entrypoints share no memory, so this is
+	// the only channel that reaches Layer 2.
+	onYolo(pi.events, (enabled) => {
+		runtimeYolo = enabled;
+		applyActive();
+		if (enabled) detectionGrants.clear();
+	});
 
 	pi.on("session_start", (_event, ctx) => {
-		const yolo = (pi.getFlag?.("yolo") as boolean) || (pi.getFlag?.("no-sandbox") as boolean);
-		if (yolo) {
-			active = false;
-			ctx.ui.notify("⚠️  security-guard (Layer 2) disabled: --yolo", "warning");
-			return;
-		}
 		// A policy file that does not parse is skipped and the defaults apply.
 		// Say so loudly: otherwise one trailing comma silently disables the whole file.
 		for (const p of [`${getAgentDir()}/extensions/sandbox.json`, `${ctx.cwd}/.pi/sandbox.json`]) {
@@ -115,14 +126,15 @@ export default function (pi: ExtensionAPI) {
 		}
 		const policy = loadPolicy(ctx.cwd);
 		if (!policy.enabled) {
-			active = false;
+			policyEnabled = false;
+			applyActive();
 			ctx.ui.notify("security-guard (Layer 2) disabled: enabled=false in sandbox.json", "info");
 			return;
 		}
-		active = true;
+		policyEnabled = true;
+		applyActive();
 		clearSessionGrants();
 		detectionGrants.clear();
-		ctx.ui.notify("🔒 security-guard (Layer 2) active", "info");
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
@@ -327,7 +339,10 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (!active) {
-				ctx.ui.notify("security-guard: inactive (yolo or disabled)", "info");
+				ctx.ui.notify(
+					runtimeYolo ? "security-guard: inactive — YOLO is on (/permission-mode to turn it off)" : "security-guard: inactive (yolo or disabled)",
+					"info",
+				);
 				return;
 			}
 			const policy = loadPolicy(ctx.cwd);

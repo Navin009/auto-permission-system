@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-06T21:49:32.847Z
+Generated: 2026-10-07T06:34:12.780Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L2-exposure`, `L1-L2-ask-read` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-e2e` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -29,10 +29,11 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 186 lines, mtime 2026-10-06
+- ✓ `extensions/sandbox.ts` — 217 lines, mtime 2026-10-07
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-06
+- ✓ `src/shared/` — dir, mtime 2026-10-07
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-07
 
 **Tests**
 
@@ -53,11 +54,12 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 372 lines, mtime 2026-10-06
-- ✓ `extensions/permission-mode.ts` — 86 lines, mtime 2026-10-06
+- ✓ `extensions/guard.ts` — 387 lines, mtime 2026-10-07
+- ✓ `extensions/permission-mode.ts` — 121 lines, mtime 2026-10-07
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-06
 - ✓ `src/detect/` — dir, mtime 2026-10-06
 - ✓ `src/core/` — dir, mtime 2026-10-06
+- ✓ `src/shared/` — dir, mtime 2026-10-07
 
 **Tests**
 
@@ -71,7 +73,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=13, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=17, FAIL=0
-- `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=13, FAIL=0
+- `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
+- `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=8, FAIL=0
 - `L1-L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=12, FAIL=0
 
@@ -116,9 +119,9 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-06
+- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-07
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
-- Escape hatch: `--yolo (disables ALL layers globally)`
+- Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 
 ## Where to find things
 

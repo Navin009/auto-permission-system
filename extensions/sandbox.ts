@@ -28,41 +28,102 @@
  * Linux also requires: bubblewrap, socat, ripgrep
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
 import { createSandboxedBashOps } from "../src/l1-sandbox/bash-ops";
 import { initSandbox, persistLayer1Override, reloadSandbox, resetSandbox } from "../src/l1-sandbox/manager";
 import { loadConfig, setPiDeclinedTrust } from "../src/l1-sandbox/config";
+import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo";
 
 export default function (pi: ExtensionAPI) {
-	pi.registerFlag("yolo", {
-		description: "Disable all pi security layers (no-sandbox, no in-process guard, no browser gate). Use with caution.",
-		type: "boolean",
-		default: false,
-	});
-
-	// Backwards compat alias
-	pi.registerFlag("no-sandbox", {
-		description: "(Deprecated) alias for --yolo. Use --yolo instead.",
-		type: "boolean",
-		default: false,
-	});
+	// pi scopes flags per extension (ADR-020); registering here makes
+	// `yoloFromFlags(pi)` below read the real CLI value.
+	registerYoloFlags(pi);
 
 	const localCwd = process.cwd();
 	const localBash = createBashTool(localCwd);
 
 	let sandboxEnabled = false;
 	let sandboxInitialized = false;
+	let runtimeYolo = false;
+	let sandboxStarting: Promise<void> | null = null;
+	let latestCtx: ExtensionContext | undefined;
 	let activeCtx: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } } | undefined;
 
 	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowWrite", absPath, scope);
 	const persistAndReloadRead = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowRead", absPath, scope);
 
+	/** Bring the bash sandbox down; safe when it was never up. */
+	const stopSandbox = async (): Promise<void> => {
+		sandboxEnabled = false;
+		if (!sandboxInitialized) return;
+		sandboxInitialized = false;
+		await resetSandbox();
+	};
+
+	/** Re-read policy and bring the bash sandbox up. No-op while YOLO is on. */
+	const startSandbox = async (ctx: ExtensionContext): Promise<void> => {
+		if (runtimeYolo || (sandboxEnabled && sandboxInitialized)) return;
+		const config = loadConfig(ctx.cwd);
+		if (!config.enabled) {
+			sandboxEnabled = false;
+			ctx.ui.notify("Sandbox disabled via config", "info");
+			return;
+		}
+		const platform = process.platform;
+		if (platform !== "darwin" && platform !== "linux") {
+			sandboxEnabled = false;
+			ctx.ui.notify(`Sandbox not supported on ${platform}`, "warning");
+			return;
+		}
+		try {
+			await initSandbox(ctx.cwd, config);
+			sandboxEnabled = true;
+			sandboxInitialized = true;
+			const networkCount = config.network?.allowedDomains?.length ?? 0;
+			const writeCount = config.filesystem?.allowWrite?.length ?? 0;
+			const secure = config.mode === "advanced-secure";
+			ctx.ui.setStatus(
+				"sandbox",
+				ctx.ui.theme.fg(
+					secure ? "success" : "accent",
+					`Sandbox: ${secure ? "☢️" : "🛡️"}  ${networkCount} domains, ${writeCount} paths`,
+				),
+			);
+			ctx.ui.notify("Sandbox initialized", "info");
+		} catch (err) {
+			sandboxEnabled = false;
+			ctx.ui.notify(`Sandbox initialization failed: ${err instanceof Error ? err.message : err}`, "error");
+		}
+	};
+
+	// Runtime YOLO from `/permission-mode` (ADR-020): stop or restart the
+	// sandbox in place, without a session restart.
+	onYolo(pi.events, (enabled) => {
+		// The startup broadcast originates here; ignore our own echo.
+		if (enabled === runtimeYolo) return;
+		runtimeYolo = enabled;
+		const ctx = latestCtx;
+		if (!ctx) return;
+		if (!enabled) {
+			// Gate bash until the sandbox is back up, so turning YOLO off cannot
+			// leave a window where a command runs unfenced (ADR-020 follow-up).
+			sandboxStarting = startSandbox(ctx).finally(() => {
+				sandboxStarting = null;
+			});
+			return;
+		}
+		void stopSandbox().then(() => {
+			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
+		});
+	});
+
 	pi.registerTool({
 		...localBash,
 		label: "bash (sandboxed)",
 		async execute(id, params, signal, onUpdate, _ctx) {
-			if (!sandboxEnabled || !sandboxInitialized) {
+			if (!runtimeYolo && sandboxStarting) await sandboxStarting;
+			if (runtimeYolo || !sandboxEnabled || !sandboxInitialized) {
 				return localBash.execute(id, params, signal, onUpdate);
 			}
 
@@ -73,71 +134,37 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	pi.on("user_bash", () => {
-		if (!sandboxEnabled || !sandboxInitialized) return;
+	pi.on("user_bash", async () => {
+		if (!runtimeYolo && sandboxStarting) await sandboxStarting;
+		if (runtimeYolo || !sandboxEnabled || !sandboxInitialized) return;
 		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
+		latestCtx = ctx;
 		activeCtx = /* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */ ctx as unknown as typeof activeCtx;
 		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
-		const yolo = pi.getFlag("yolo") as boolean;
-		const noSandbox = pi.getFlag("no-sandbox") as boolean; // backwards compat
+		runtimeYolo = yoloFromFlags(pi) || loadConfig(ctx.cwd).mode === "yolo";
+		// Broadcast before any await: guard.ts consumes this on the same bus to
+		// learn YOLO is on (ADR-020).
+		emitYolo(pi.events, runtimeYolo);
 
-		if (yolo || noSandbox) {
-			sandboxEnabled = false;
-			ctx.ui.setStatus(
-				"sandbox",
-				ctx.ui.theme.fg("error", "⚠️  YOLO — security layers disabled"),
-			);
+		if (runtimeYolo) {
+			await stopSandbox();
+			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
 			ctx.ui.notify(
-				"⚠️  YOLO mode — all pi security layers disabled for this session.\n" +
-				"   Layer 1 (bash sandbox): OFF\n" +
-				"   Layer 2 (in-process guard): OFF\n" +
-				"   Layer 3 (subagent stricter): OFF\n" +
-				"   Layer 4 (browser gate): OFF\n" +
-				"   You can now do anything, including reading secrets and writing system paths.",
+				"⚠️  YOLO mode — all pi security layers disabled.\n" +
+					"   Layer 1 (bash sandbox): OFF\n" +
+					"   Layer 2 (in-process guard): OFF\n" +
+					"   Layer 3 (subagent stricter): OFF\n" +
+					"   Layer 4 (browser gate): OFF\n" +
+					"   You can now do anything, including reading secrets and writing system paths.",
 				"error",
 			);
 			return;
 		}
 
-		const config = loadConfig(ctx.cwd);
-
-		if (!config.enabled) {
-			sandboxEnabled = false;
-			ctx.ui.notify("Sandbox disabled via config", "info");
-			return;
-		}
-
-		const platform = process.platform;
-		if (platform !== "darwin" && platform !== "linux") {
-			sandboxEnabled = false;
-			ctx.ui.notify(`Sandbox not supported on ${platform}`, "warning");
-			return;
-		}
-
-		try {
-			await initSandbox(ctx.cwd, config);
-
-			sandboxEnabled = true;
-			sandboxInitialized = true;
-
-			const networkCount = config.network?.allowedDomains?.length ?? 0;
-			const writeCount = config.filesystem?.allowWrite?.length ?? 0;
-			const secure = config.mode === "advanced-secure";
-			ctx.ui.setStatus(
-				"sandbox",
-				ctx.ui.theme.fg(
-					secure ? "success" : "accent",
-					`Sandbox: ${secure ? "☢️" : "🛡️"} ~${networkCount} domains, ${writeCount} paths`,
-				),
-			);
-			ctx.ui.notify("Sandbox initialized", "info");
-		} catch (err) {
-			sandboxEnabled = false;
-			ctx.ui.notify(`Sandbox initialization failed: ${err instanceof Error ? err.message : err}`, "error");
-		}
+		await startSandbox(ctx);
 	});
 
 	pi.on("session_shutdown", async () => {

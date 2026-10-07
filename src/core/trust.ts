@@ -145,9 +145,10 @@ export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { m
 			}
 			merged.subagent = sa;
 		} else if (key === "mode") {
-			// An untrusted project may opt IN to Advanced Secure (stricter), never out of it.
+			// An untrusted project may move UP the ladder (toward strict), never down:
+			// a project cannot turn on YOLO, and cannot drop Advanced Secure.
 			const next = stricter(MODE_ORDER, merged.mode, value);
-			if (value === "default" && merged.mode === "advanced-secure") ignored.push("mode");
+			if (next !== undefined && value !== merged.mode && next === merged.mode) ignored.push("mode");
 			if (next !== undefined) merged.mode = next;
 		} else {
 			ignored.push(key);
@@ -173,6 +174,11 @@ export function describeLoosening(project: Obj): string[] {
 	const ov = isObj(project.overrides) ? project.overrides : {};
 	const op = isObj(fs.outsideProject) ? fs.outsideProject : {};
 	const { ignored } = applyUntrustedProject({}, project);
+	// `mode` may not land in `ignored` when the base has no mode, so describe it
+	// directly: any value below `advanced-secure` is a loosening.
+	if (typeof project.mode === "string" && project.mode !== "advanced-secure") {
+		out.push(project.mode === "yolo" ? "Turn off all security layers (YOLO)." : "Turn off Advanced Secure mode.");
+	}
 	for (const key of ignored) {
 		switch (key) {
 			case "enabled":
@@ -190,8 +196,7 @@ export function describeLoosening(project: Obj): string[] {
 				if (strings(ov.allowDomains).length) out.push(`Let pi connect to: ${listOf(ov.allowDomains)}.`);
 				break;
 			case "mode":
-				out.push("Turn off Advanced Secure mode.");
-				break;
+				break; // handled above
 			case "filesystem.allowWrite":
 				out.push(`Let bash and pi write to: ${listOf(fs.allowWrite)}.`);
 				break;

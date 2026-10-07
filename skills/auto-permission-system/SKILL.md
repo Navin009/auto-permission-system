@@ -1,6 +1,6 @@
 ---
 name: auto-permission-system
-description: Use this skill when the user asks about the auto-permission-system extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox), the audit log, and common tasks like allowing a new domain or write path.
+description: Use this skill when the user asks about the auto-permission-system extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
 ---
 
 # Pi Security — Skill
@@ -99,14 +99,14 @@ Every prompt waits **10 seconds** by default; no answer means the safe default: 
   - risky `mcp__<server>__<tool>` calls ask before they run;
   - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
-Switch with `/permission-mode`; the choice is saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: ☢️ N domains, M paths` for advanced-secure, `Sandbox: 🛡️ …` for default). An untrusted project may turn `advanced-secure` **on**, never off.
+Switch with `/permission-mode`; all three modes are saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: ☢️ N domains, M paths` for advanced-secure, `Sandbox: 🛡️ …` for default). An untrusted project may move the mode **up** (toward stricter), never down: it cannot turn on YOLO or turn off Advanced Secure. The third choice, **YOLO**, disables every layer; the chip reads `⚠️ YOLO — all security layers disabled` until you pick another mode (ADR-020).
 
 ## Commands
 
 - `/security` — show Layer 2 status, effective policy, and last 10 audit events
 - `/sandbox` — show Layer 1 bash sandbox config
 - `/sandbox reload` — live-reload sandbox after manual `sandbox.json` edits
-- `/permission-mode` — choose Default (rules) or Advanced Secure (secret detection)
+- `/permission-mode` — choose Default (rules), Advanced Secure (secret detection), or YOLO (all layers off). Saved to the global `sandbox.json`.
 
 ## Escape hatches
 
@@ -114,7 +114,8 @@ Switch with `/permission-mode`; the choice is saved to the global `sandbox.json`
 pi --yolo          # disables ALL layers
 pi --no-sandbox    # alias for --yolo
 ```
-Setting `"enabled": false` in `sandbox.json` disables Layer 2 without disabling Layer 1.
+
+Without restarting, `/permission-mode` → **YOLO** turns every layer off in one pick; it is saved to the global `sandbox.json` like the other modes, and picking Default or Advanced Secure turns them back on in place (ADR-020). `pi --yolo` is a per-run flag and writes nothing. Setting `"enabled": false` in `sandbox.json` disables Layer 2 without disabling Layer 1.
 
 ## When a policy file does not parse
 
@@ -140,4 +141,4 @@ Setting `"enabled": false` in `sandbox.json` disables Layer 2 without disabling 
 tail -20 ~/.pi/agent/audit.log | python3 -m json.tool
 ```
 
-**Disable for one session** — `pi --yolo` or `pi --no-sandbox`.
+**Disable every layer** — for one run: `pi --yolo` or `pi --no-sandbox`. Persistently: `/permission-mode` → YOLO (saved to the global `sandbox.json`, like the other modes).

@@ -43,8 +43,8 @@
   },
   "pi": {
     "extensions": [
-      "./extensions/guard.ts",
       "./extensions/sandbox.ts",
+      "./extensions/guard.ts",
       "./extensions/permission-mode.ts"
     ],
     "skills": [

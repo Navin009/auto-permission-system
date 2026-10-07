@@ -1,17 +1,26 @@
-/** Permission modes (ADR-018). Detection may only ADD asks; it never downgrades a rule. Pure. */
+/**
+ * Permission modes (ADR-018, ADR-020). Detection may only ADD asks; it never
+ * downgrades a rule. Pure.
+ *
+ * `yolo` is the weakest tier: every layer is off. `MODE_ORDER` is weakest →
+ * strictest, which is what the untrusted-project merge uses to decide whether a
+ * project file may change `mode` (it may only move up).
+ */
 
-export type PermissionMode = "default" | "advanced-secure";
+export type PermissionMode = "yolo" | "default" | "advanced-secure";
 
 export const DEFAULT_MODE: PermissionMode = "default";
 
-/** `advanced-secure` is the stricter tier; used by the untrusted-project merge. */
-export const MODE_ORDER: readonly PermissionMode[] = ["default", "advanced-secure"];
+/** Weakest → strictest. Used by the untrusted-project tighten-only merge. */
+export const MODE_ORDER: readonly PermissionMode[] = ["yolo", "default", "advanced-secure"];
 
-/** Anything that is not exactly `"advanced-secure"` resolves to the default. */
+/** Anything that is not one of the known modes resolves to the default. */
 export function normalizeMode(value: unknown): PermissionMode {
-	return value === "advanced-secure" ? "advanced-secure" : DEFAULT_MODE;
+	return value === "advanced-secure" || value === "yolo" ? value : DEFAULT_MODE;
 }
 
 export function modeLabel(mode: PermissionMode): string {
-	return mode === "advanced-secure" ? "Advanced Secure" : "Default";
+	if (mode === "advanced-secure") return "Advanced Secure";
+	if (mode === "yolo") return "YOLO";
+	return "Default";
 }
