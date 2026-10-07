@@ -157,38 +157,69 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			// "this once" grants apply to this one invocation only: hand them to
 			// wrapWithSandbox as a customConfig, so nothing is persisted and the
 			// session-wide sandbox is not re-initialised.
-			let custom: Partial<SandboxRuntimeConfig> | undefined;
-			if (pre?.once.length) {
+			const readOnce = pre?.once ?? [];
+			const buildCustom = (writeOnce: string[]): Partial<SandboxRuntimeConfig> | undefined => {
+				if (!readOnce.length && !writeOnce.length) return undefined;
 				const fresh = loadConfig(cwd).filesystem ?? { denyRead: [], allowWrite: [], denyWrite: [] };
-				custom = {
+				return {
 					filesystem: sandboxFilesystem(
-						{ ...fresh, allowRead: [...(fresh.allowRead ?? []), ...pre.once] },
+						{ ...fresh, allowRead: [...(fresh.allowRead ?? []), ...readOnce], allowWrite: [...fresh.allowWrite, ...writeOnce] },
 						{ cwd, home: homedir() },
 					),
 				};
-			}
-
-			const wrappedCommand = await SandboxManager.wrapWithSandbox(command, undefined, custom);
+			};
 
 			const uid = process.getuid?.() ?? 0;
 			// macOS has /private/tmp; Linux only /tmp. Either sits in the default
 			// allowWrite list, so the sandboxed command can write its scratch files.
 			const piTmp = `${existsSync("/private/tmp") ? "/private/tmp" : "/tmp"}/pi-${uid}`;
 
-			return new Promise((resolve, reject) => {
-				const child = spawn("bash", ["-c", wrappedCommand], {
-					cwd,
-					detached: true,
-					stdio: ["ignore", "pipe", "pipe"],
-					env: { ...process.env, TMPDIR: `${piTmp}/` },
-				});
+			// One one-time write grant = one re-run of the same command with that path
+			// added to allowWrite, never persisted (mirrors the read pre-flight's
+			// customConfig). A path already granted is not offered again, so a command
+			// that keeps hitting the same fence cannot loop.
+			const attempt = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
+				const wrappedCommand = await SandboxManager.wrapWithSandbox(command, undefined, buildCustom(writeOnce));
 
-				let timedOut = false;
-				let timeoutHandle: NodeJS.Timeout | undefined;
+				return new Promise((resolve, reject) => {
+					const child = spawn("bash", ["-c", wrappedCommand], {
+						cwd,
+						detached: true,
+						stdio: ["ignore", "pipe", "pipe"],
+						env: { ...process.env, TMPDIR: `${piTmp}/` },
+					});
 
-				if (timeout !== undefined && timeout > 0) {
-					timeoutHandle = setTimeout(() => {
-						timedOut = true;
+					let timedOut = false;
+					let timeoutHandle: NodeJS.Timeout | undefined;
+
+					if (timeout !== undefined && timeout > 0) {
+						timeoutHandle = setTimeout(() => {
+							timedOut = true;
+							if (child.pid) {
+								try {
+									process.kill(-child.pid, "SIGKILL");
+								} catch {
+									child.kill("SIGKILL");
+								}
+							}
+						}, timeout * 1000);
+					}
+
+					let outputTail = "";
+					const captureOut = (chunk: Buffer | string) => {
+						outputTail = (outputTail + chunk.toString()).slice(-2048);
+						onData(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+					};
+					child.stdout?.on("data", captureOut);
+					child.stderr?.on("data", captureOut);
+
+					child.on("error", (err) => {
+						if (timeoutHandle) clearTimeout(timeoutHandle);
+						SandboxManager.cleanupAfterCommand();
+						reject(err);
+					});
+
+					const onAbort = () => {
 						if (child.pid) {
 							try {
 								process.kill(-child.pid, "SIGKILL");
@@ -196,174 +227,163 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								child.kill("SIGKILL");
 							}
 						}
-					}, timeout * 1000);
-				}
+					};
 
-				let outputTail = "";
-				const captureOut = (chunk: Buffer | string) => {
-					outputTail = (outputTail + chunk.toString()).slice(-2048);
-					onData(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-				};
-				child.stdout?.on("data", captureOut);
-				child.stderr?.on("data", captureOut);
+					signal?.addEventListener("abort", onAbort, { once: true });
 
-				child.on("error", (err) => {
-					if (timeoutHandle) clearTimeout(timeoutHandle);
-					reject(err);
-				});
+					child.on("close", async (code) => {
+						if (timeoutHandle) clearTimeout(timeoutHandle);
+						signal?.removeEventListener("abort", onAbort);
 
-				const onAbort = () => {
-					if (child.pid) {
-						try {
-							process.kill(-child.pid, "SIGKILL");
-						} catch {
-							child.kill("SIGKILL");
-						}
-					}
-				};
+						SandboxManager.cleanupAfterCommand();
 
-				signal?.addEventListener("abort", onAbort, { once: true });
-
-				child.on("close", async (code) => {
-					if (timeoutHandle) clearTimeout(timeoutHandle);
-					signal?.removeEventListener("abort", onAbort);
-
-					let offending: string | undefined;
-					let readDenied = false;
-					let hardDenied = false;
-					let hardWhy = "";
-					let outsideDenied = false;
-					let outsideMode: "allow" | "ask" | "deny" = "allow";
-					if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
-						// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
-						offending = extractBlockedPath(outputTail, cwd, homedir());
-						// A hard denyRead path (secret material): a write grant would not help,
-						// and "always" is not offered. The outside-project fence (ADR-014) is
-						// ask-able, so keep the two reasons apart.
-						if (offending) {
-							const fsCfg = loadConfig(cwd).filesystem;
-							if (fsCfg) {
-								const hardPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
-								hardDenied = hardPat !== undefined;
-								hardWhy = hardPat ? `denyRead matched "${hardPat}"` : "denyRead";
-								outsideDenied = outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
-								outsideMode = outsideProjectMode(fsCfg);
+						let offending: string | undefined;
+						let readDenied = false;
+						let hardDenied = false;
+						let hardWhy = "";
+						let outsideDenied = false;
+						let outsideMode: "allow" | "ask" | "deny" = "allow";
+						if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
+							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
+							offending = extractBlockedPath(outputTail, cwd, homedir());
+							// A hard denyRead path (secret material): a write grant would not help,
+							// and "always" is not offered. The outside-project fence (ADR-014) is
+							// ask-able, so keep the two reasons apart.
+							if (offending) {
+								const fsCfg = loadConfig(cwd).filesystem;
+								if (fsCfg) {
+									const hardPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+									hardDenied = hardPat !== undefined;
+									hardWhy = hardPat ? `denyRead matched "${hardPat}"` : "denyRead";
+									outsideDenied = outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
+									outsideMode = outsideProjectMode(fsCfg);
+								}
+								readDenied = hardDenied || outsideDenied;
 							}
-							readDenied = hardDenied || outsideDenied;
-						}
-						const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
+							const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
 
-						let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
-						if (offending) {
-							let why = "";
-							if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
-							else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
-							hint += `   Path: ${offending}${why}\n`;
+							let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
+							if (offending) {
+								let why = "";
+								if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
+								else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
+								hint += `   Path: ${offending}${why}\n`;
+							}
+							hint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
+							if (configDirHint) {
+								hint +=
+									`   Looks like a tool's own config dir. To allow this tool in the\n` +
+									`   current project, add a project-local policy:\n` +
+									`     mkdir -p ${cwd}/.pi && cat > ${cwd}/.pi/sandbox.json <<'JSON'\n` +
+									`     { "filesystem": { "allowWrite": [".", "${offending?.replace(/^~/, "$HOME") ?? "~/.config/<tool>"}"] } }\n` +
+									`     JSON\n` +
+									`   Or run pi with --yolo for one-off elevated access (disables ALL layers).\n`;
+							} else {
+								hint +=
+									`   Use $TMPDIR (= ${piTmp}/) for scratch files,\n` +
+									`   or write inside the project directory (${cwd}).\n`;
+							}
+							hint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
+							if (opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways && !readDenied) {
+								hint += `   → Waiting for your decision in the prompt above before this bash call returns to the model.\n`;
+							}
+							onData(Buffer.from(hint));
 						}
-						hint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
-						if (configDirHint) {
-							hint +=
-								`   Looks like a tool's own config dir. To allow this tool in the\n` +
-								`   current project, add a project-local policy:\n` +
-								`     mkdir -p ${cwd}/.pi && cat > ${cwd}/.pi/sandbox.json <<'JSON'\n` +
-								`     { "filesystem": { "allowWrite": [".", "${offending?.replace(/^~/, "$HOME") ?? "~/.config/<tool>"}"] } }\n` +
-								`     JSON\n` +
-								`   Or run pi with --yolo for one-off elevated access (disables ALL layers).\n`;
+
+						// Ask-tier prompt: BEFORE resolve so the agent loop pauses while the
+						// user decides. Otherwise the model gets the EPERM hint immediately,
+						// tries an alternative, and the prompt sits orphaned in the UI.
+						let decisionHint = "";
+						if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
+							// ask-tier read grant for a path outside the project (ADR-014).
+							const absPath = offending;
+							try {
+								const ui = opts.ctx as AskCtx;
+								const main = await askMain(ui, "Read blocked by policy", `  path:   ${absPath}\n  why:    outside the project\n  layer:  bash sandbox`, { once: false });
+								if (main === "remember") {
+									const parent = dirname(absPath);
+									const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
+									const picked = await askRememberFile(ui, "Remember this read?", `  file:   ${absPath}\n  folder: ${parent}`, absPath, folder);
+									if (picked) {
+										const subject = picked.folder ? parent : absPath;
+										try {
+											const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
+											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
+											opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
+											decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
+										} catch (e) {
+											auditL1({ subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
+											decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
+										}
+									}
+								}
+							} catch {
+								/* prompt failure shouldn't crash bash */
+							}
+							if (!decisionHint) {
+								auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" });
+								decisionHint = `\n${blockedLine("Read", "outside the project", "read")}\n`;
+							}
+							onData(Buffer.from(decisionHint));
+						} else if (offending && readDenied) {
+							const why = hardDenied ? hardWhy : "outside the project";
+							auditL1({ subject: offending, decision: "read-denied", reason: why, cwd });
+							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
+							decisionHint = `\n${blockedLine("Read", why, "read")}\n`;
+							onData(Buffer.from(decisionHint));
+						} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
+							const absPath = offending;
+							const parentDir = dirname(absPath);
+							const alreadyGranted = writeOnce.includes(parentDir);
+							try {
+								const ui = opts.ctx as AskCtx;
+								const main = await askMain(ui, "Write blocked by policy", `  path:   ${absPath}\n  why:    not under any allowWrite root\n  layer:  bash sandbox`, { once: !alreadyGranted });
+								if (main === "once") {
+									auditL1({ subject: absPath, granularity: "folder", original: absPath, decision: "once", scope: "invocation", cwd: opts.ctx.cwd, note: "write-once" });
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${absPath} once — re-running the command`, "warning");
+									onData(Buffer.from(`\n✅ pi-sandbox: allowed ${absPath} once — re-running the command.\n`));
+									resolve(attempt([...writeOnce, parentDir]));
+									return;
+								}
+								if (main === "remember") {
+									const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
+									const picked = await askRememberFile(ui, "Remember this write?", `  file:   ${absPath}\n  folder: ${parentDir}`, absPath, folder);
+									if (picked) {
+										const subject = picked.folder ? parentDir : absPath;
+										try {
+											const persistedTo = await opts.onAlways(subject, picked.scope);
+											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
+											opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
+											decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
+										} catch (e) {
+											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) });
+											opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
+											decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
+										}
+									}
+								}
+							} catch {
+								/* prompt failure shouldn't crash bash */
+							}
+							if (!decisionHint) {
+								auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd });
+								decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
+							}
+							onData(Buffer.from(decisionHint));
+						}
+
+						if (signal?.aborted) {
+							reject(new Error("aborted"));
+						} else if (timedOut) {
+							reject(new Error(`timeout:${timeout}`));
 						} else {
-							hint +=
-								`   Use $TMPDIR (= ${piTmp}/) for scratch files,\n` +
-								`   or write inside the project directory (${cwd}).\n`;
+							resolve({ exitCode: code });
 						}
-						hint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
-						if (opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways && !readDenied) {
-							hint += `   → Waiting for your decision in the prompt above before this bash call returns to the model.\n`;
-						}
-						onData(Buffer.from(hint));
-					}
-
-					// Ask-tier prompt: BEFORE resolve so the agent loop pauses while the
-					// user decides. Otherwise the model gets the EPERM hint immediately,
-					// tries an alternative, and the prompt sits orphaned in the UI.
-					let decisionHint = "";
-					if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
-						// ask-tier read grant for a path outside the project (ADR-014).
-						const absPath = offending;
-						try {
-							const ui = opts.ctx as AskCtx;
-							const main = await askMain(ui, "Read blocked by policy", `  path:   ${absPath}\n  why:    outside the project\n  layer:  bash sandbox`, { once: false });
-							if (main === "remember") {
-								const parent = dirname(absPath);
-								const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
-								const picked = await askRememberFile(ui, "Remember this read?", `  file:   ${absPath}\n  folder: ${parent}`, absPath, folder);
-								if (picked) {
-									const subject = picked.folder ? parent : absPath;
-									try {
-										const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
-										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
-										opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
-										decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
-									} catch (e) {
-										auditL1({ subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
-										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
-									}
-								}
-							}
-						} catch {
-							/* prompt failure shouldn't crash bash */
-						}
-						if (!decisionHint) {
-							auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" });
-							decisionHint = `\n${blockedLine("Read", "outside the project", "read")}\n`;
-						}
-						onData(Buffer.from(decisionHint));
-					} else if (offending && readDenied) {
-						const why = hardDenied ? hardWhy : "outside the project";
-						auditL1({ subject: offending, decision: "read-denied", reason: why, cwd });
-						opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
-						decisionHint = `\n${blockedLine("Read", why, "read")}\n`;
-						onData(Buffer.from(decisionHint));
-					} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
-						const absPath = offending;
-						try {
-							const ui = opts.ctx as AskCtx;
-							const main = await askMain(ui, "Write blocked by policy", `  path:   ${absPath}\n  why:    not under any allowWrite root\n  layer:  bash sandbox`, { once: false });
-							if (main === "remember") {
-								const parentDir = dirname(absPath);
-								const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
-								const picked = await askRememberFile(ui, "Remember this write?", `  file:   ${absPath}\n  folder: ${parentDir}`, absPath, folder);
-								if (picked) {
-									const subject = picked.folder ? parentDir : absPath;
-									try {
-										const persistedTo = await opts.onAlways(subject, picked.scope);
-										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
-										opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
-										decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
-									} catch (e) {
-										auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) });
-										opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
-										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
-									}
-								}
-							}
-						} catch {
-							/* prompt failure shouldn't crash bash */
-						}
-						if (!decisionHint) {
-							auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd });
-							decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
-						}
-						onData(Buffer.from(decisionHint));
-					}
-
-					if (signal?.aborted) {
-						reject(new Error("aborted"));
-					} else if (timedOut) {
-						reject(new Error(`timeout:${timeout}`));
-					} else {
-						resolve({ exitCode: code });
-					}
+					});
 				});
-			});
+			};
+
+			return attempt([]);
 		},
 	};
 }

@@ -123,7 +123,7 @@ Never asked about: the project itself, your `allowWrite` roots, pi's own package
 
 ### Ask-tier prompt
 
-`no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010).
+`no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010). For a bash write that the sandbox refused after the command already ran, `yes — this once` re-runs the command once with that folder allowed for the one invocation only (never saved), and `denyWrite` still wins.
 
 Every prompt waits **10 seconds** by default. If you do not answer, it resolves to the safe default: **block / deny**.
 

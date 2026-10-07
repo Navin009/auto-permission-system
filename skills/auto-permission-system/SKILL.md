@@ -83,6 +83,8 @@ When a normal (non-absolute-deny) call is blocked:
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`
 - **always for ALL projects (folder)** — whitelist parent directory globally
 
+For a Layer 1 bash **write** blocked after the command already ran, `yes — this once` re-runs the command once with the offending path's parent folder allowed for that invocation only (never saved); the same folder is not offered again within that invocation, and `denyWrite` still wins over the grant.
+
 Every prompt waits **10 seconds** by default; no answer means the safe default: **block / deny**. Esc on any screen also blocks.
 
 ## Sensitive reads ask
