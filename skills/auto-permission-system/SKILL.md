@@ -94,7 +94,7 @@ Every prompt waits **10 seconds** by default; no answer means the safe default: 
 `mode` picks how much pi inspects beyond the rules (ADR-018):
 
 - **`default`** (shipped) — rules only. No content inspection.
-- **`advanced-secure`** — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
+- **`advanced-secure`** (recommended) — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
   - file reads whose name looks like a credential store ask before the read;
   - risky `mcp__<server>__<tool>` calls ask before they run;
   - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).

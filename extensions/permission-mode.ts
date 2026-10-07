@@ -21,12 +21,12 @@ const GLOBAL_POLICY = `${getAgentDir()}/extensions/sandbox.json`;
 
 const MODES: Array<{ label: string; value: PermissionMode }> = [
 	{
-		label: "Default — rules only (recommended)",
-		value: "default",
+		label: "Advanced Secure (recommended) — detect secrets in reads, MCP calls, and output",
+		value: "advanced-secure",
 	},
 	{
-		label: "Advanced Secure — detect secrets in reads, MCP calls, and output",
-		value: "advanced-secure",
+		label: "Default — rules only",
+		value: "default",
 	},
 	{
 		label: "YOLO — disable ALL security layers",
@@ -35,15 +35,15 @@ const MODES: Array<{ label: string; value: PermissionMode }> = [
 ];
 
 const EXPLANATION = [
-	"Default (recommended)",
-	"  Rule-based only: sandbox.json paths, domains, and commands.",
-	"  No file contents are inspected.",
-	"",
-	"Advanced Secure",
+	"Advanced Secure (recommended)",
 	"  Adds secret/credential detection on top of the rules:",
 	"   • File reads — scans contents for keys, tokens, and passwords",
 	"   • MCP calls — flags risky tool calls before they run",
 	"   • Tool/command/file output — redacts secrets before they reach the model",
+	"",
+	"Default",
+	"  Rule-based only: sandbox.json paths, domains, and commands.",
+	"  No file contents are inspected.",
 	"",
 	"YOLO",
 	"  Turns every layer off. Saved like the other modes, so new sessions",

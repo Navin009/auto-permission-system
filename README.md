@@ -110,7 +110,7 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 `mode` selects how much pi inspects, on top of the rules:
 
 - **`default`** (shipped) — rules only: sandbox.json paths, domains, and commands. Nothing inspects file contents.
-- **`advanced-secure`** — adds secret/credential detection:
+- **`advanced-secure`** (recommended) — adds secret/credential detection:
   - **File reads:** a filename that looks like a credential store asks before the read.
   - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky (mutating/destructive) call asks before it runs.
   - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows `⚠ Sensitive information detected`, the file, and each detected line as `lineNo: text`, and the question **Should the AI be allowed to see it?** with two choices — **No, keep private** or **Yes, allow**. A bare `key=<random>` counts; `key=value` does not. No, keep private withholds the output and tells the model plainly that the output was withheld because it may contain sensitive information, so the model does not mistake it for a failure or an empty result. Esc or timeout keeps it private.
