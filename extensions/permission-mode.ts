@@ -1,8 +1,8 @@
 /**
  * Permission-mode UI (ADR-018, ADR-020): `/permission-mode` and the persisted mode.
  * Enforces nothing; persists `mode` to the global sandbox.json. The mode is
- * reflected in the single sandbox footer chip as an icon: `☢️`
- * advanced-secure, `🛡️` default, `⚠️` YOLO.
+ * reflected in the single sandbox footer chip as an icon: `🔐`
+ * advanced-secure, `🔒` default, `⚠️` YOLO.
  *
  * All three modes are persisted the same way and are one menu pick. YOLO is the
  * weakest tier: every layer is off. It travels to the layers over pi's event bus
@@ -52,7 +52,9 @@ const EXPLANATION = [
 
 /**
  * The single sandbox footer chip: `Sandbox: <icon> N domains, M paths`.
- * `☢️` marks advanced-secure, `🛡️` default; YOLO replaces it with the warning.
+ * `🔐` marks advanced-secure, `🔒` default; YOLO replaces it with the warning.
+ * Both sandbox icons are single-code-point emoji (no U+FE0F variation selector),
+ * so every terminal measures them as two cells and the padding stays even.
  * Skipped when the sandbox is off, so it never clobbers those notices.
  */
 function renderSandboxChip(ctx: ExtensionContext): void {
@@ -65,7 +67,7 @@ function renderSandboxChip(ctx: ExtensionContext): void {
 	const secure = config.mode === "advanced-secure";
 	const domains = config.network?.allowedDomains?.length ?? 0;
 	const paths = config.filesystem?.allowWrite?.length ?? 0;
-	const text = `Sandbox: ${secure ? "☢️" : "🛡️"}  ${domains} domains, ${paths} paths`;
+	const text = `Sandbox: ${secure ? "🔐" : "🔒"}  ${domains} domains, ${paths} paths`;
 	ctx.ui.setStatus("sandbox", ctx.ui.theme.fg(secure ? "success" : "accent", text));
 }
 

@@ -99,7 +99,7 @@ Every prompt waits **10 seconds** by default; no answer means the safe default: 
   - risky `mcp__<server>__<tool>` calls ask before they run;
   - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
-Switch with `/permission-mode`; all three modes are saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: ☢️ N domains, M paths` for advanced-secure, `Sandbox: 🛡️ …` for default). An untrusted project may move the mode **up** (toward stricter), never down: it cannot turn on YOLO or turn off Advanced Secure. The third choice, **YOLO**, disables every layer; the chip reads `⚠️ YOLO — all security layers disabled` until you pick another mode (ADR-020).
+Switch with `/permission-mode`; all three modes are saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: 🔐 N domains, M paths` for advanced-secure, `Sandbox: 🔒 …` for default). An untrusted project may move the mode **up** (toward stricter), never down: it cannot turn on YOLO or turn off Advanced Secure. The third choice, **YOLO**, disables every layer; the chip reads `⚠️ YOLO — all security layers disabled` until you pick another mode (ADR-020).
 
 ## Commands
 
