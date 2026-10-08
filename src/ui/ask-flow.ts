@@ -80,46 +80,48 @@ function queueTail(): Promise<unknown> {
  * while the prompt is open, the timeout is reset. They aren't being idle —
  * they're reading options and deciding. Setting `timeoutMs` to `0` disables
  * the countdown entirely (the prompt stays open until pick or Esc).
+ *
+ * v3.5.7: `skipQueue` runs the select immediately, bypassing the FIFO queue.
+ * The screen-2 helpers (askRememberFile/AskRememberHost) use this so
+ * screen 2 always runs immediately after screen 1's pick — no other queued
+ * prompt can interleave between them.
  */
 export async function askSelect(
 	ctx: AskCtx,
 	title: string,
 	options: string[],
 	timeoutMs: number = ASK_TIMEOUT_MS,
+	opts: { skipQueue?: boolean } = {},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const run = async (): Promise<{ picked: string | undefined; expired: boolean }> => {
 		if (timeoutMs === 0) {
-			// No countdown — the prompt stays open until pick or Esc.
-			const queued = queueTail().then(
-				() => ctx.ui.select(title, options),
-				() => ctx.ui.select(title, options),
-			);
-			(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
-			const picked = await queued;
+			const picked = await ctx.ui.select(title, options);
 			return { picked, expired: false };
 		}
 		const started = Date.now();
 		const picked = await askSelectWithActivity(ctx, title, options, timeoutMs);
 		return { picked, expired: picked === undefined && Date.now() - started >= timeoutMs };
 	};
+	if (opts.skipQueue) return run();
 	const queued = queueTail().then(run, run);
 	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
 	return queued;
 }
 
 /**
- * `ui.select` with activity-based timer extension. While the prompt is open,
- * ↑/↓/Tab/Home/End/PgUp/PgDn (and any other escape sequence) refresh the
- * countdown back to the full timeout. The user is reading options, not idle.
+ * `ui.select` with activity-based timer extension. v3.5.6: pi's "(Ns)"
+ * countdown display is restored (per user feedback — "show the countdown,
+ * only hide it when changing options"). To reset the visible countdown on
+ * activity, the in-flight select is aborted and re-issued with a fresh
+ * timeout. The highlight position resets to option 0 on every re-issue
+ * (the user re-navigates with one keypress per step). `timeoutMs === 0`
+ * takes the no-countdown-no-auto-dismiss path (prompt stays open until
+ * pick or Esc).
  *
- * Implementation: a per-prompt `onTerminalInput` listener that clears and
- * resets the local `setTimeout` whenever navigation input arrives. The
- * listener is removed when the prompt resolves. The single-flight queue in
- * `queueTail` still applies — this only extends the timer, it does not
- * parallelize prompts. v3.5.4: do not pass `timeout` to pi (its "(Ns)"
- * countdown is distracting while reading); auto-dismiss is driven by our
- * outer timer instead. `timeoutMs === 0` falls back to the no-countdown
- * path with no auto-dismiss (prompt stays open until pick or Esc).
+ * Implementation: a per-prompt `onTerminalInput` listener that aborts the
+ * current select and re-issues whenever navigation input arrives. The listener
+ * is removed when the prompt resolves. The single-flight queue in `queueTail`
+ * still applies.
  */
 async function askSelectWithActivity(
 	ctx: AskCtx,
@@ -129,39 +131,58 @@ async function askSelectWithActivity(
 ): Promise<string | undefined> {
 	if (timeoutMs === 0) return ctx.ui.select(title, options);
 
-	const offInput = ctx.ui.onTerminalInput?.((data: string) => {
-		if (settled) return;
-		// ESC sequences (arrow keys, Home/End, PgUp/PgDn), Tab, and Enter are
-		// all "the user is engaging the prompt" signals. Refresh the timer.
-		if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
-			if (currentTimer) clearTimeout(currentTimer);
-			currentTimer = setTimeout(finish, timeoutMs);
-		}
-	}) ?? (() => {});
+	return new Promise<string | undefined>(async (resolveOuter) => {
+		let settled = false;
+		let currentAbort: AbortController | null = null;
+		let offInput: () => void = () => {};
 
-	let settled = false;
-	let currentTimer: ReturnType<typeof setTimeout> | null = null;
-	const ctrl = new AbortController();
+		const finish = (v: string | undefined) => {
+			if (settled) return;
+			settled = true;
+			offInput();
+			resolveOuter(v);
+		};
 
-	const finish = (): undefined => {
-		if (settled) return undefined;
-		settled = true;
-		if (currentTimer) clearTimeout(currentTimer);
-		if (!ctrl.signal.aborted) ctrl.abort();
-		offInput();
-		return undefined;
-	};
+		const tryOnce = async () => {
+			if (settled) return;
+			const ctrl = new AbortController();
+			currentAbort = ctrl;
+			const timer = setTimeout(() => {
+				if (!ctrl.signal.aborted) ctrl.abort();
+			}, timeoutMs);
 
-	currentTimer = setTimeout(finish, timeoutMs);
+			try {
+				const picked = await ctx.ui.select(title, options, { signal: ctrl.signal, timeout: timeoutMs });
+				if (settled) return;
+				clearTimeout(timer);
+				if (picked !== undefined) {
+					finish(picked);
+				} else {
+					// Aborted (activity or Esc). If still pointed at by currentAbort,
+					// re-issue with fresh timeout. If Esc, the listener aborted too,
+					// currentAbort moved, so settle.
+					if (currentAbort === ctrl) tryOnce();
+					else finish(undefined);
+				}
+			} catch {
+				if (settled) return;
+				clearTimeout(timer);
+				finish(undefined);
+			}
+		};
 
-	// No `timeout` passed to pi → no countdown display. Our outer timer owns
-	// auto-dismiss; the listener above resets it on any keystroke.
-	const picked = await ctx.ui.select(title, options, { signal: ctrl.signal });
-	if (settled) return undefined;
-	settled = true;
-	if (currentTimer) clearTimeout(currentTimer);
-	offInput();
-	return picked;
+		offInput = ctx.ui.onTerminalInput?.((data: string) => {
+			if (settled) return;
+			// ESC sequences (arrow keys, Home/End, PgUp/PgDn), Tab, and Enter are
+			// all "the user is engaging the prompt" signals. Abort current select
+			// so pi's countdown display resets on re-issue.
+			if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
+				if (currentAbort) currentAbort.abort();
+			}
+		}) ?? (() => {});
+
+		tryOnce();
+	});
 }
 
 /** Join `header` + optional `icon` (e.g. `🔑  Let pi read your key?`). The icon gets a double space. */
@@ -244,7 +265,7 @@ export async function askRememberFile(
 		titleParts.push(""); // blank line above the footer
 		titleParts.push(footer);
 	}
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
+	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -263,7 +284,9 @@ export function parentDomainWildcard(host: string): string {
 
 /** Screen 2 for a domain subject. ADR-030: wildcard subdomain is offered FIRST when the host
  * has a useful parent domain, so the default grant covers siblings without re-prompting.
- * `pattern` is the actual pattern written to the allowlist. */
+ * `pattern` is the actual pattern written to the allowlist. v3.5.7: skipQueue=true so
+ * screen 2 runs immediately after screen 1's pick — no other queued prompt can
+ * interleave between them. */
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,
@@ -287,7 +310,7 @@ export async function askRememberHost(
 		titleParts.push(""); // blank line above the footer
 		titleParts.push(footer);
 	}
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
+	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
 }
