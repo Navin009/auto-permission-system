@@ -21,6 +21,9 @@ export type AskCtx = {
 		select: (t: string, o: string[], op?: { timeout?: number; signal?: AbortSignal }) => Promise<string | undefined>;
 		/** Optional — only present in interactive TUI mode. Tests/scripts use a stub. */
 		onTerminalInput?: (handler: (data: string) => void) => () => void;
+		/** Optional — writes a status line to the TUI footer (below the select modal).
+		 *  When the select is open, the status bar sits visually below the options. */
+		setStatus?: (key: string, text: string | undefined) => void;
 	};
 };
 
@@ -71,6 +74,66 @@ function queueTail(): Promise<unknown> {
 }
 
 /**
+ * Show a "Default: <action> (Ns)" status line in the TUI footer (below the select modal)
+ * for the lifetime of a prompt. The line hides on any keystroke and re-appears after a
+ * short idle, so the countdown is visible when the user is reading options but doesn't
+ * get in the way of navigation. The countdown is measured from `lastActivity`, not from
+ * prompt open — so it visually resets when the user starts navigating (the v3.5.6
+ * user-visible behavior, achieved without the abort+reissue flicker).
+ *
+ * Returns a cleanup function that removes the listener, clears the interval, and clears
+ * the status. No-op if `text` is null (caller wants to suppress the footer) or if the
+ * ctx has no `setStatus` (stub UIs / tests) or `timeoutMs === 0` (no countdown).
+ */
+function attachAskStatusBar(
+	ctx: AskCtx,
+	text: string | null,
+	timeoutMs: number,
+): () => void {
+	if (!text || !ctx.ui.setStatus || timeoutMs === 0) return () => {};
+	const setStatus = ctx.ui.setStatus;
+	const key = "aps-ask-timer";
+	let lastActivity = Date.now();
+	let restoreTimer: ReturnType<typeof setTimeout> | null = null;
+	let interval: ReturnType<typeof setInterval> | null = null;
+	let settled = false;
+
+	const getRemaining = (): number => {
+		const elapsed = Date.now() - lastActivity;
+		return Math.max(0, Math.ceil((timeoutMs - elapsed) / 1000));
+	};
+	const show = (): void => {
+		const s = getRemaining();
+		setStatus(key, s > 0 ? `${text} (${s}s)` : undefined);
+	};
+	const hide = (): void => {
+		setStatus(key, undefined);
+	};
+
+	const offInput = ctx.ui.onTerminalInput?.(() => {
+		if (settled) return;
+		lastActivity = Date.now();
+		hide();
+		if (restoreTimer) clearTimeout(restoreTimer);
+		restoreTimer = setTimeout(() => {
+			restoreTimer = null;
+			if (!settled) show();
+		}, 300);
+	}) ?? (() => {});
+
+	show();
+	interval = setInterval(() => { if (!restoreTimer) show(); }, 1000);
+
+	return () => {
+		settled = true;
+		if (interval) clearInterval(interval);
+		if (restoreTimer) clearTimeout(restoreTimer);
+		offInput();
+		hide();
+	};
+}
+
+/**
  * One serialized `ui.select`. `expired` separates the countdown running out
  * from an early Esc: both resolve `undefined` in pi, only the countdown is
  * the prompt's default. Measured inside the lock, so time spent queued
@@ -109,19 +172,12 @@ export async function askSelect(
 }
 
 /**
- * `ui.select` with activity-based timer extension. v3.5.6: pi's "(Ns)"
- * countdown display is restored (per user feedback — "show the countdown,
- * only hide it when changing options"). To reset the visible countdown on
- * activity, the in-flight select is aborted and re-issued with a fresh
- * timeout. The highlight position resets to option 0 on every re-issue
- * (the user re-navigates with one keypress per step). `timeoutMs === 0`
- * takes the no-countdown-no-auto-dismiss path (prompt stays open until
- * pick or Esc).
- *
- * Implementation: a per-prompt `onTerminalInput` listener that aborts the
- * current select and re-issues whenever navigation input arrives. The listener
- * is removed when the prompt resolves. The single-flight queue in `queueTail`
- * still applies.
+ * `ui.select` with activity-based timer extension. v3.5.10: pi's "(Ns)"
+ * countdown is NOT passed to `ctx.ui.select` (no flicker from abort+reissue);
+ * instead the countdown is rendered in the TUI status bar by `attachAskStatusBar`
+ * and hides on activity (see the helper). The outer timer is still reset on
+ * navigation input so the user has more time while reading options. `timeoutMs === 0`
+ * takes the no-countdown-no-auto-dismiss path (prompt stays open until pick or Esc).
  */
 async function askSelectWithActivity(
 	ctx: AskCtx,
@@ -208,10 +264,15 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 		? "Default: Yes, just this once"
 		: "Default: No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
-	if (footer) titleParts.push("", footer);
-	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
-	if (expired && opts.allowFirst) return "once";
-	return choices.find((c) => c.label === picked)?.value ?? "block";
+	// Footer is rendered in the TUI status bar (below the select modal) — not in the title.
+	const cleanup = attachAskStatusBar(ctx, footer, opts.timeoutMs ?? ASK_TIMEOUT_MS);
+	try {
+		const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
+		if (expired && opts.allowFirst) return "once";
+		return choices.find((c) => c.label === picked)?.value ?? "block";
+	} finally {
+		cleanup();
+	}
 }
 
 export type ScopeChoice = { scope: "cwd" | "global"; folder: boolean };
@@ -235,9 +296,15 @@ export async function askRememberFile(
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
+	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder · in this project" : `Only ${basename} · in this project`}`;
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
-	return choices.find((c) => c.label === picked)?.value ?? null;
+	const cleanup = attachAskStatusBar(ctx, footer, ASK_TIMEOUT_MS);
+	try {
+		const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
+		return choices.find((c) => c.label === picked)?.value ?? null;
+	} finally {
+		cleanup();
+	}
 }
 
 /** The screen 2 default \u2014 `pattern` is the actual pattern persisted into the allowlist.
@@ -275,10 +342,16 @@ export async function askRememberHost(
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
+	const footer = opts.footer ?? `Default: ${hasWildcard ? `All in group (${wildcard}) · in this project` : `Only ${host} · in this project`}`;
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
-	const found = choices.find((c) => c.label === picked);
-	return found?.value ?? null;
+	const cleanup = attachAskStatusBar(ctx, footer, ASK_TIMEOUT_MS);
+	try {
+		const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
+		const found = choices.find((c) => c.label === picked);
+		return found?.value ?? null;
+	} finally {
+		cleanup();
+	}
 }
 
 export type ExposureChoice = "allow" | "block" | "program-session";
@@ -299,11 +372,14 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		hits.join("\n\n"),
 		"",
 		"Note     you'll be asked again each time a secret shows up",
-		"",
-		"Default: No",
 	];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
-	return choices.find((c) => c.label === picked)?.value ?? "block";
+	const cleanup = attachAskStatusBar(ctx, "Default: No", ASK_TIMEOUT_MS);
+	try {
+		const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
+		return choices.find((c) => c.label === picked)?.value ?? "block";
+	} finally {
+		cleanup();
+	}
 }
 
 /**
