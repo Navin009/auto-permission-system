@@ -13,7 +13,7 @@ import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
 import { domainMatches } from "./url";
-import { askDecision, denyMessage, type AskKind, type OverrideKind } from "../ui/ask";
+import { askDecision, denyMessage, type AskCtx, type AskKind, type OverrideKind } from "../ui/ask";
 
 export type { AskKind, Decision, OverrideKind } from "../ui/ask";
 export type Scope = "cwd" | "global";
@@ -68,8 +68,9 @@ function sessionGranted(k: AskKind, cwd: string): string | null {
 export type UICtx = {
 	cwd: string;
 	hasUI?: boolean;
-	ui: {
-		select: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>;
+	/** pi's run mode; `"tui"` enables the custom footer selector (ADR-031). */
+	mode?: string;
+	ui: AskCtx["ui"] & {
 		input: (t: string, p?: string, op?: { timeout?: number }) => Promise<string | undefined>;
 		notify: (m: string, l?: string) => void;
 	};

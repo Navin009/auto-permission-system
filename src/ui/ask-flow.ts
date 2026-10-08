@@ -15,10 +15,44 @@
  * selector, whose promise never settles (ADR-024).
  */
 
+/** Structural view of a pi-tui component (`ctx.ui.custom` result) — enough for
+ * the ask selector. `render` must return lines that fit the given width. */
+export type AskComponent = {
+	render(width: number): string[];
+	handleInput?(data: string): void;
+	invalidate?(): void;
+	dispose?(): void;
+};
+
+/** The slice of pi's theme the selector styles with. */
+export type AskTheme = {
+	fg(color: string, text: string): string;
+	bold(text: string): string;
+};
+
+/** The slice of pi's KeybindingsManager the selector's list delegates to. */
+export type AskKeybindings = {
+	matches(data: string, action: string): boolean;
+};
+
+/** The slice of pi's TUI the selector needs (countdown repaint). */
+export type AskTui = {
+	requestRender(): void;
+};
+
+export type AskCustomUi = (
+	factory: (tui: AskTui, theme: AskTheme, keybindings: AskKeybindings, done: (result: string | undefined) => void) => AskComponent,
+) => Promise<string | undefined>;
+
 export type AskCtx = {
 	hasUI?: boolean;
+	/** pi's run mode. The custom selector is TUI-only: RPC's `ui.custom` is a
+	 * no-op that resolves `undefined` immediately, so RPC keeps `ui.select`. */
+	mode?: string;
 	ui: {
 		select: (t: string, o: string[], op?: { timeout?: number; signal?: AbortSignal }) => Promise<string | undefined>;
+		/** TUI-only custom component host. Absent in tests and RPC. */
+		custom?: AskCustomUi;
 		/** Optional — only present in interactive TUI mode. Tests/scripts use a stub. */
 		onTerminalInput?: (handler: (data: string) => void) => () => void;
 	};
@@ -71,41 +105,94 @@ function queueTail(): Promise<unknown> {
 }
 
 /**
- * One serialized `ui.select`. `expired` separates the countdown running out
- * from an early Esc: both resolve `undefined` in pi, only the countdown is
- * the prompt's default. Measured inside the lock, so time spent queued
- * behind another prompt never counts.
+ * One serialized ask. `expired` separates the countdown running out from an
+ * early Esc: both resolve `undefined`, only the countdown is the prompt's
+ * default. Measured inside the lock, so time spent queued behind another
+ * prompt never counts.
  *
  * Activity extension (v3.5.3): when the user presses ↑/↓/Tab/Home/End/PgUp/PgDn
  * while the prompt is open, the timeout is reset. They aren't being idle —
  * they're reading options and deciding. Setting `timeoutMs` to `0` disables
  * the countdown entirely (the prompt stays open until pick or Esc).
  *
- * v3.5.7: `skipQueue` runs the select immediately, bypassing the FIFO queue.
+ * v3.5.7: `skipQueue` runs the ask immediately, bypassing the FIFO queue.
  * The screen-2 helpers (askRememberFile/AskRememberHost) use this so
  * screen 2 always runs immediately after screen 1's pick — no other queued
  * prompt can interleave between them.
+ *
+ * v3.5.12 (ADR-031): in TUI mode the footer is rendered separately, with a
+ * live countdown, and disappears on the first selection change. RPC and the
+ * tests keep `ui.select` with the footer as the last title line.
  */
 export async function askSelect(
 	ctx: AskCtx,
 	title: string,
 	options: string[],
 	timeoutMs: number = ASK_TIMEOUT_MS,
-	opts: { skipQueue?: boolean } = {},
+	opts: { skipQueue?: boolean; footer?: string | null } = {},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
+	const footer = opts.footer ?? null;
 	const run = async (): Promise<{ picked: string | undefined; expired: boolean }> => {
-		if (timeoutMs === 0) {
-			const picked = await ctx.ui.select(title, options);
-			return { picked, expired: false };
+		if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
+			return askWithCustom(ctx, title, options, timeoutMs, footer);
 		}
-		const started = Date.now();
-		const picked = await askSelectWithActivity(ctx, title, options, timeoutMs);
-		return { picked, expired: picked === undefined && Date.now() - started >= timeoutMs };
+		return askWithSelect(ctx, title, options, timeoutMs, footer);
 	};
 	if (opts.skipQueue) return run();
 	const queued = queueTail().then(run, run);
 	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
 	return queued;
+}
+
+/**
+ * TUI path (ADR-031): a custom component owns the countdown, so `expired` is
+ * exact — Esc can never be mistaken for the countdown running out. Loaded
+ * lazily: the pi-tui imports only exist in this branch.
+ */
+async function askWithCustom(
+	ctx: AskCtx,
+	title: string,
+	options: string[],
+	timeoutMs: number,
+	footer: string | null,
+): Promise<{ picked: string | undefined; expired: boolean }> {
+	const { AskSelector } = await import("./ask-selector");
+	let expired = false;
+	const picked = await ctx.ui.custom!((tui, theme, keybindings, done) =>
+		new AskSelector({
+			title,
+			footer,
+			options,
+			timeoutMs,
+			tui,
+			theme,
+			keybindings,
+			done,
+			onExpire: () => {
+				expired = true;
+			},
+		}),
+	);
+	return { picked, expired };
+}
+
+/** Select fallback (RPC, print, tests): the footer is the last title line and
+ * expiry is inferred from elapsed time (ADR-024). */
+async function askWithSelect(
+	ctx: AskCtx,
+	title: string,
+	options: string[],
+	timeoutMs: number,
+	footer: string | null,
+): Promise<{ picked: string | undefined; expired: boolean }> {
+	const selectTitle = footer ? `${title}\n\n${footer}` : title;
+	if (timeoutMs === 0) {
+		const picked = await ctx.ui.select(selectTitle, options);
+		return { picked, expired: false };
+	}
+	const started = Date.now();
+	const picked = await askSelectWithActivity(ctx, selectTitle, options, timeoutMs);
+	return { picked, expired: picked === undefined && Date.now() - started >= timeoutMs };
 }
 
 /**
@@ -200,9 +287,8 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	const footer = opts.footer ?? (opts.allowFirst
 		? "Default: Yes, just this once"
 		: "Default: No");
-	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
-	if (footer) titleParts.push("", footer);
-	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
+	const title = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body].join("\n");
+	const { picked, expired } = await askSelect(ctx, title, choices.map((c) => c.label), opts.timeoutMs, { footer });
 	if (expired && opts.allowFirst) return "once";
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }
@@ -222,16 +308,15 @@ export async function askRememberFile(
 	const basename = filePath.slice(filePath.lastIndexOf("/") + 1);
 	const folderLabel = folderPath ? `All in folder   in this project   (recommended)` : null;
 	const choices: Array<{ label: string; value: ScopeChoice }> = [];
-	// The cwd rows are hidden when the project isn't trusted (ADR-031 follow-up).
+	// The cwd rows are hidden when the project isn't trusted (v3.4 follow-up).
 	const showCwd = !opts.untrusted;
 	if (showCwd && folderLabel) choices.push({ label: folderLabel, value: { scope: "cwd", folder: true } });
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
 	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
-	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) titleParts.push("", footer);
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
+	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
+	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -271,9 +356,8 @@ export async function askRememberHost(
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
 	const footer = opts.footer ?? `Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
-	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) titleParts.push("", footer);
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
+	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
+	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
 }
@@ -296,10 +380,8 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		hits.join("\n\n"),
 		"",
 		"Note     you'll be asked again each time a secret shows up",
-		"",
-		"Default: No",
 	];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
+	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { footer: "Default: No" });
 	return choices.find((c) => c.label === picked)?.value ?? "block";
 }
 

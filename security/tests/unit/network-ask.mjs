@@ -3,6 +3,7 @@
 // single-flights overlapping connections, and scopes "once" to one command.
 // Pure: drives createNetworkAsk with a scripted ctx.ui.select and stub deps.
 import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand } from '../../../src/l1-sandbox/network-ask.ts';
+import { ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -96,7 +97,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	const realNow = Date.now;
 	let clock = realNow();
 	Date.now = () => clock;
-	const c = mkCtx([() => { clock = realNow() + 10_001; return undefined; }]);
+	const c = mkCtx([() => { clock = realNow() + ASK_TIMEOUT_MS + 1; return undefined; }]);
 	const { deps, audits } = mkDeps(c.ctx);
 	check('countdown expiry → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
 	check('countdown expiry audited as yes', audits.some((e) => e.decision === 'yes'));

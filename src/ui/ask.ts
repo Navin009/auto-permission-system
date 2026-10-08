@@ -220,8 +220,8 @@ async function askSelectSafe(ctx: AskCtx, header: string, body: string, options:
 	const { askSelect, ICON } = await import("./ask-flow");
 	const icon = opts.icon ? ICON[opts.icon] : undefined;
 	const iconPrefix = icon ? `${icon}  ` : "";
-	const title = [iconPrefix + header, body, "Default: No"].filter(Boolean).join("\n");
-	return askSelect(ctx, title, options);
+	const title = [iconPrefix + header, body].filter(Boolean).join("\n");
+	return askSelect(ctx, title, options, undefined, { footer: "Default: No" });
 }
 
 /** A short, recognizable name for a credential path so the title stays readable. */

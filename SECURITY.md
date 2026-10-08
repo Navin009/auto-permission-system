@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-08T12:09:25.524Z
+Generated: 2026-10-08T15:34:45.379Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -41,7 +41,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=41, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=11, FAIL=0
-- `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=36, FAIL=0
+- `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=41, FAIL=0
 - `L1-L2-network-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs` → expects PASS=6, FAIL=0
 - `L1-e2e` — `APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
 
@@ -50,7 +50,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk
 - The network ask callback receives only host:port, not command identity; an 'Allow once' grant is scoped to the bash invocation in flight and can briefly cover a concurrent user_bash command to the same host
 - An extension prompt can still be replaced by a pi-internal selector (trust, model picker); the prompt queue serializes only this extension's asks
-- Esc and countdown expiry both surface as `undefined` from pi's select; expiry is distinguished from Esc by elapsed time (ADR-024)
+- Esc and countdown expiry both surface as `undefined` from pi's select; in RPC they are distinguished by elapsed time (ADR-024), while the TUI custom selector records expiry exactly (ADR-031)
 - Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence
 - askRead (ADR-019) pre-flight is heuristic too: an obfuscated read of an askRead path is not prompted (put the path in denyRead to hard-deny it)
 - Write attribution is post-hoc (ADR-021): the command has already failed when the prompt appears, and a command whose output never names the operand cannot be attributed
@@ -61,7 +61,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 424 lines, mtime 2026-10-08
+- ✓ `extensions/guard.ts` — 431 lines, mtime 2026-10-08
 - ✓ `extensions/permission-mode.ts` — 123 lines, mtime 2026-10-07
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-08
 - ✓ `src/detect/` — dir, mtime 2026-10-07
@@ -77,13 +77,14 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=15, FAIL=0
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
-- `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=30, FAIL=0
-- `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=40, FAIL=0
+- `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
+- `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=55, FAIL=0
+- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=20 FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
-- `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=8, FAIL=0
+- `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=15, FAIL=0
 - `L1-L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=13, FAIL=0
 
 **Known gaps / accepted risks**

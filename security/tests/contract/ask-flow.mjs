@@ -155,7 +155,7 @@ let expTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
 check(
 	'askExposure: icon-prefixed title + location + line + footer',
-	expTitle.startsWith(`${ICON.cred}  This output may contain a secret`) && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Esc or no answer in 10s = No'),
+	expTitle.startsWith(`${ICON.cred}  This output may contain a secret`) && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Default: No'),
 );
 const multiHit = 'config.env\n12: key=aaa\n20: OPENAI_API_KEY=sk-bbb';
 let multiTitle;
@@ -183,7 +183,34 @@ check(
 const notice = withheldNotice('config.env');
 check('withheldNotice: names the subject', notice.includes('config.env') && notice.includes('withheld'));
 check('withheldNotice: says the tool completed', notice.includes('completed successfully') && notice.includes('output is unavailable'));
-check('ask timeout defaults to 10s', ASK_TIMEOUT_MS === 10_000);
+check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
+
+// --- custom TUI selector (ADR-031): ctx.mode === "tui" routes to ui.custom ---
+{
+	let component;
+	const ctx = {
+		mode: 'tui',
+		hasUI: true,
+		ui: {
+			select: async () => { throw new Error('ui.select must not be used in tui mode'); },
+			custom: (factory) =>
+				new Promise((resolve) => {
+					component = factory(
+						{ requestRender() {} },
+						{ fg: (_c, s) => s, bold: (s) => s },
+						{ matches: () => false },
+						resolve,
+					);
+				}),
+		},
+	};
+	const main = askMain(ctx, 'H', 'b', { allowFirst: true });
+	for (let i = 0; i < 100 && !component; i++) await new Promise((r) => setTimeout(r, 5));
+	check('askMain tui: renders through ui.custom, not ui.select', !!component);
+	check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: Yes, just this once (15s)'));
+	component.handleInput('\r'); // Enter on the preselected "No"
+	check('askMain tui: custom pick maps to a decision', (await main) === 'block');
+}
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

@@ -1,6 +1,7 @@
 # Ask-tier prompt examples (after ADR-030)
 
-Every block triggers one or two `ui.select` prompts. This file shows both
+Every block triggers one or two ask prompts (`ui.select` in RPC, a pi-tui
+custom selector in the TUI — ADR-031). This file shows both
 screens verbatim, for every gate the system has, with realistic scenarios.
 Use it to:
 
@@ -14,10 +15,11 @@ Conventions:
   Yes, for this session · Yes, always… — so row 2 always means "once".
   Answers that don't apply to a prompt are removed, not greyed out.
 - **`>`** marks the highlighted answer that Enter picks. It starts on No
-  everywhere except network prompts, where it starts on "Yes, just this
-  once" (ADR-024).
-- **The footer** says what Esc and no answer do. Today's selector times
-  out after `ASK_TIMEOUT_MS` (default 15s).
+  everywhere; network prompts only change the *countdown* default (ADR-024).
+- **The footer** says what Esc and no answer do. It shows the live countdown
+  (`Default: Yes, just this once (15s)`) and disappears as soon as you press
+  ↑/↓, so the hint never competes with an active choice (ADR-031). The
+  timeout is `ASK_TIMEOUT_MS` (default 15s).
 - **"…"** at the end of an answer opens a second screen.
 - **Screen 2 ("Yes, always…")** shows the File and Folder (or Site and
   Group) once at the top. Rows say "All in folder" / "All in group" or
@@ -368,7 +370,7 @@ Trigger: `composio search googleads` connects to
 `https://backend.composio.dev/v1/...`. The sandbox-runtime proxy asks
 before connecting.
 
-### Screen 1 — starts on Yes (ADR-024)
+### Screen 1 — countdown defaults to Yes (ADR-024)
 
 ```
 🌐  Let composio connect to backend.composio.dev?
@@ -378,17 +380,18 @@ before connecting.
     Command  composio search googleads
     Why      this site isn't on your allowed list yet
 
-    No
-  > Yes, just this once
+  > No
+    Yes, just this once
     Yes, all in group for this session
     Yes, always…
 
-  Default: Yes, just this once
+  Default: Yes, just this once (15s)
 ```
 
-The rows are in the same order as every other prompt; only the cursor
-starts lower, on "Yes, just this once" (ADR-024). The footer says plainly
-that no answer means Yes.
+The rows are in the same order as every other prompt; what changes is the
+footer's default — an untouched countdown allows once (ADR-024). The
+`Default:` line carries the live `(15s)` countdown and disappears on the
+first ↑/↓ (ADR-031).
 
 | Answer                             | What happens |
 | ---------------------------------- | ------------ |
@@ -445,12 +448,12 @@ Same shape as §7; only the site and group change. The group is
     Command  composio search googleads
     Why      this site isn't on your allowed list yet
 
-    No
-  > Yes, just this once
+  > No
+    Yes, just this once
     Yes, all in group for this session
     Yes, always…
 
-  Default: Yes, just this once
+  Default: Yes, just this once (15s)
 ```
 
 ### Audit (session grant):
