@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-07T18:25:40.636Z
+Generated: 2026-10-08T07:02:17.935Z
 
 ## At a glance
 
@@ -17,7 +17,8 @@ Generated: 2026-10-07T18:25:40.636Z
 
 | ID | Status | What |
 |---|---|---|
-| `UX-hint-merged-streams` | ✅ shipped | sandbox/index.ts now scans merged stdout+stderr for EPERM/EACCES, so `cmd 2>&1 | head` still triggers the hint. |
+| `UX-hint-merged-streams` | ✅ shipped | src/l1-sandbox/bash-ops.ts scans merged stdout+stderr for EPERM/EACCES/EROFS/"read-only file system", so `cmd 2>&1 | head` still triggers the hint. |
+| `UX-write-prompt-errno` | ✅ shipped | Layer 1 attributes the refused path from errno-style output (`EROFS: read-only file system, open '/path'`, `cannot touch '/path': Read-only file system`) and routes a Linux EROFS write to the write prompt; a failed write is never mistaken for an outside-project read, so it cannot offer a useless read grant (ADR-022). |
 | `UX-hint-config-dirs` | ✅ shipped | Hint extracts the offending path and recognizes tool config dirs (~/.config/, ~/.kube/, ~/.docker/, ~/.netrc, ~/.aws/, ~/.npmrc, ~/.gitconfig). Suggests a project-local .pi/sandbox.json snippet with the path pre-filled. Says explicitly 'this is the pi sandbox, NOT macOS TCC' so the model stops misdiagnosing. |
 | `UX-confirm-retry` | ⬜ not-started | Ask-tier UX: when sandbox blocks AND ctx.hasUI, prompt 'Retry without sandbox? [y/N/always-for-this-cwd]'. 'always' writes path into <cwd>/.pi/sandbox.json. Avoids per-command-prompt antipattern. |
 
@@ -25,7 +26,7 @@ Generated: 2026-10-07T18:25:40.636Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014).
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022).
 
 **Source files**
 
@@ -33,20 +34,21 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-07
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `src/shared/` — dir, mtime 2026-10-07
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-07
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-08
 
 **Tests**
 
-- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=29, FAIL=0
+- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=41, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=11, FAIL=0
-- `L1-e2e` — `APS_E2E=1 node security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
+- `L1-e2e` — `APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
 
 **Known gaps / accepted risks**
 
 - Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk
 - Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence
 - askRead (ADR-019) pre-flight is heuristic too: an obfuscated read of an askRead path is not prompted (put the path in denyRead to hard-deny it)
+- Write attribution is post-hoc (ADR-021): the command has already failed when the prompt appears, and a command whose output never names the operand cannot be attributed
 
 ### L2 — In-process tool guard  ✅ shipped
 
@@ -71,12 +73,12 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=24, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=31, FAIL=0
-- `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=13, FAIL=0
+- `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=8, FAIL=0
-- `L1-L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=12, FAIL=0
+- `L1-L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=13, FAIL=0
 
 **Known gaps / accepted risks**
 
@@ -119,7 +121,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-07
+- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-08
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 

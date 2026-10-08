@@ -9,7 +9,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
-import { askReadCandidates, extractBlockedPath, isSafeFolderGrant, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { askReadCandidates, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { audit } from "../shared/audit";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
 import { loadConfig } from "./config";
@@ -239,13 +239,15 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 
 						let offending: string | undefined;
 						let readDenied = false;
+						let writeDenied = false;
 						let hardDenied = false;
 						let hardWhy = "";
 						let outsideDenied = false;
 						let outsideMode: "allow" | "ask" | "deny" = "allow";
-						if (/operation not permitted|EPERM|EACCES/i.test(outputTail)) {
+						if (isBlockedAccessError(outputTail)) {
 							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
 							offending = extractBlockedPath(outputTail, cwd, homedir());
+							writeDenied = isWriteBlockError(outputTail);
 							// A hard denyRead path (secret material): a write grant would not help,
 							// and "always" is not offered. The outside-project fence (ADR-014) is
 							// ask-able, so keep the two reasons apart.
@@ -255,7 +257,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									const hardPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
 									hardDenied = hardPat !== undefined;
 									hardWhy = hardPat ? `denyRead matched "${hardPat}"` : "denyRead";
-									outsideDenied = outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
+									outsideDenied = !writeDenied && outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
 									outsideMode = outsideProjectMode(fsCfg);
 								}
 								readDenied = hardDenied || outsideDenied;
@@ -265,7 +267,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
 							if (offending) {
 								let why = "";
-								if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
+								if (writeDenied && !hardDenied) why = " (not under an allowWrite root: writes outside it are read-only)";
+								else if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
 								else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
 								hint += `   Path: ${offending}${why}\n`;
 							}
@@ -327,9 +330,11 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							onData(Buffer.from(decisionHint));
 						} else if (offending && readDenied) {
 							const why = hardDenied ? hardWhy : "outside the project";
-							auditL1({ subject: offending, decision: "read-denied", reason: why, cwd });
-							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a read of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
-							decisionHint = `\n${blockedLine("Read", why, "read")}\n`;
+							const action: "Read" | "Write" = writeDenied ? "Write" : "Read";
+							const outcome = action === "Write" ? "written" : "read";
+							auditL1({ subject: offending, decision: readDenied && !writeDenied ? "read-denied" : "write-denied", reason: why, cwd });
+							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a ${action.toLowerCase()} of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
+							decisionHint = `\n${blockedLine(action, why, outcome)}\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
 							const absPath = offending;
@@ -370,6 +375,11 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
 							}
 							onData(Buffer.from(decisionHint));
+						} else if (offending && writeDenied) {
+							// No UI to prompt with: report the fence and the path to the model.
+							auditL1({ subject: offending, decision: "write-denied", reason: "not under any allowWrite root", cwd });
+							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a write of ${offending} (not under any allowWrite root).`, "warning");
+							onData(Buffer.from(`\n${blockedLine("Write", "not under any allowWrite root", "written")}\n`));
 						}
 
 						if (signal?.aborted) {

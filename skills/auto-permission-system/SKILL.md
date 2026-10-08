@@ -83,7 +83,7 @@ When a normal (non-absolute-deny) call is blocked:
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`
 - **always for ALL projects (folder)** — whitelist parent directory globally
 
-For a Layer 1 bash **write** blocked after the command already ran, `yes — this once` re-runs the command once with the offending path's parent folder allowed for that invocation only (never saved); the same folder is not offered again within that invocation, and `denyWrite` still wins over the grant.
+For a Layer 1 bash **write** blocked after the command already ran, `yes — this once` re-runs the command once with the offending path's parent folder allowed for that invocation only (never saved); the same folder is not offered again within that invocation, and `denyWrite` still wins over the grant. The block is recognized from the error output either way it is reported — `EPERM`/`Operation not permitted` on macOS, `EROFS`/`Read-only file system` on Linux (ADR-022) — and a refused write is never offered as a read grant. If the output never names the operand, there is nothing to attribute and no prompt, so the command is simply refused.
 
 Every prompt waits **10 seconds** by default; no answer means the safe default: **block / deny**. Esc on any screen also blocks.
 

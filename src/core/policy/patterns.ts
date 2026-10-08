@@ -4,27 +4,63 @@
 
 // ---------- Layer 1 violation attribution ----------
 
-const EPERM_RE = /operation not permitted|EPERM|EACCES/i;
+/**
+ * Filesystem-refusal evidence in a sandboxed command's output. Linux
+ * bubblewrap reports a write outside `allowWrite` as `EROFS: read-only file
+ * system`; macOS sandbox-exec reports the same fence as `Operation not
+ * permitted`; EACCES covers a permission-denied variant either can print.
+ */
+const FS_BLOCKED_RE = /operation not permitted|EPERM|EACCES|EROFS|read-only file system/i;
+
+/**
+ * `EROFS` can only come from a modification, so it proves the refused access
+ * was a write even when the target path also matches a read-deny pattern.
+ * EPERM/EACCES are ambiguous about direction.
+ */
+const WRITE_BLOCK_RE = /EROFS|read-only file system/i;
+
+/** True when the output shows the OS sandbox refused a filesystem access. */
+export function isBlockedAccessError(output: string): boolean {
+	return FS_BLOCKED_RE.test(output);
+}
+
+/** True when the refused access was a write (EROFS only happens on a modification). */
+export function isWriteBlockError(output: string): boolean {
+	return WRITE_BLOCK_RE.test(output);
+}
+
+/** A shell-name/empty token is not a path; everything else resolves against cwd unless absolute. */
+function toAbsPath(raw: string, cwd: string, home: string): string | undefined {
+	let token = raw.trim().replace(/[.,;]+$/, "");
+	if (!token || /^(bash|sh|zsh)$/.test(token)) return undefined;
+	if (token === "~" || token.startsWith("~/")) token = home + token.slice(1);
+	const abs = token.startsWith("/") ? token : `${cwd.replace(/\/+$/, "")}/${token}`;
+	return normalizeAbs(abs);
+}
 
 /**
  * The path a sandboxed bash command was refused, from its error output, as
- * an absolute path. Handles `tool: ./rel: Operation not permitted`,
- * quoted paths (`cannot touch 'x.pem'`), `~/…` and absolute paths. Relative
- * paths resolve against the command's working directory, never against `/`.
+ * an absolute path. Handles `tool: ./rel: Operation not permitted`, quoted
+ * paths (`cannot touch 'x.pem'`), `~/…` and absolute paths, plus the
+ * errno-style forms that put the path *after* the error text
+ * (`EROFS: read-only file system, open '/abs/path'`,
+ * `[Errno 30] Read-only file system: '/abs/path'`). Relative paths resolve
+ * against the command's working directory, never against `/`.
  */
 export function extractBlockedPath(output: string, cwd: string, home: string): string | undefined {
 	for (const line of output.split("\n").reverse()) {
-		const m = EPERM_RE.exec(line);
+		const m = FS_BLOCKED_RE.exec(line);
 		if (!m) continue;
+		// errno-style messages (Node, Python, coreutils) put the operand in
+		// quotes, usually after the error token: take the last quoted token.
+		const quoted = [...line.matchAll(/['"“‘`]([^'"”’`]+)['"”’`]/g)].map((q) => q[1] as string);
+		const quotedPath = quoted.length ? toAbsPath(quoted[quoted.length - 1] as string, cwd, home) : undefined;
+		if (quotedPath) return quotedPath;
 		// The segment right before the error text, e.g. "grep: ./.env: Operation…" → "./.env".
 		const before = line.slice(0, m.index).replace(/[\s:]+$/, "");
 		const segment = before.split(/:\s+/).pop() ?? "";
-		const quoted = /['"“‘`]([^'"”’`]+)['"”’`]\s*$/.exec(segment);
-		let token = (quoted?.[1] ?? segment.split(/\s+/).pop() ?? "").trim();
-		if (!token || /^(bash|sh|zsh)$/.test(token)) continue;
-		if (token === "~" || token.startsWith("~/")) token = home + token.slice(1);
-		const abs = token.startsWith("/") ? token : `${cwd.replace(/\/+$/, "")}/${token}`;
-		return normalizeAbs(abs);
+		const token = toAbsPath(segment.split(/\s+/).pop() ?? "", cwd, home);
+		if (token) return token;
 	}
 	return undefined;
 }

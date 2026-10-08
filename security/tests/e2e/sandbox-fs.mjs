@@ -8,9 +8,10 @@
 // Needs bubblewrap + socat (Linux) or sandbox-exec (macOS), and ripgrep.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
+import { extractBlockedPath, isBlockedAccessError, isWriteBlockError } from "../../../src/core/index.ts";
 
 const TIMEOUT_MS = 90_000;
 
@@ -34,6 +35,7 @@ const withTimeout = (p, ms) =>
 	Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms))]);
 
 const dir = mkdtempSync(join(tmpdir(), "aps-e2e-"));
+const roDir = mkdtempSync(join(tmpdir(), "aps-e2e-ro-"));
 const secret = join(dir, "secret.txt");
 const visible = join(dir, "visible.txt");
 writeFileSync(secret, "TOPSECRET-DO-NOT-LEAK\n");
@@ -70,6 +72,18 @@ try {
 	const allowed = run(await SandboxManager.wrapWithSandbox(`cat '${visible}'`));
 	check("allowed file is readable", allowed.includes("VISIBLE-OK"), `out=${JSON.stringify(allowed)}`);
 
+	// A write outside allowWrite is refused by the OS (read-only mount), and the
+	// output must be attributable: this is what Layer 1's write ask fires on.
+	// Linux reports EROFS ("Read-only file system"); macOS reports EPERM, which is
+	// direction-ambiguous and must not be treated as write evidence.
+	const target = join(roDir, "blocked.txt");
+	const deniedWrite = run(await SandboxManager.wrapWithSandbox(`touch '${target}'`));
+	check("write outside allowWrite is refused", isBlockedAccessError(deniedWrite), `out=${JSON.stringify(deniedWrite)}`);
+	check("refused write is attributed to its path", extractBlockedPath(deniedWrite, process.cwd(), homedir()) === target, `out=${JSON.stringify(deniedWrite)}`);
+	if (process.platform === "linux") {
+		check("Linux EROFS is recognized as a write", isWriteBlockError(deniedWrite), `out=${JSON.stringify(deniedWrite)}`);
+	}
+
 	await SandboxManager.reset();
 	console.log(`PASS=${pass}, FAIL=${fail}`);
 	process.exit(fail ? 1 : 0);
@@ -79,4 +93,5 @@ try {
 	process.exit(1);
 } finally {
 	rmSync(dir, { recursive: true, force: true });
+	rmSync(roDir, { recursive: true, force: true });
 }
