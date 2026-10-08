@@ -1,6 +1,6 @@
 // Program-id detection for the Advanced Secure output gate. Drives
 // bashBinary, mcpServer, programIdForToolCall directly \u2014 no pi, no fs.
-import { bashBinary, mcpServer, programIdForToolCall } from '../../../src/l2-guard/program-id.ts';
+import { bashBinary, programIdForToolCall } from '../../../src/l2-guard/program-id.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -19,22 +19,18 @@ check('bashBinary: empty returns undefined', bashBinary(undefined) === undefined
 check('bashBinary: whitespace-only returns undefined', bashBinary('   ') === undefined);
 check('bashBinary: env-only returns undefined', bashBinary('FOO=bar') === undefined);
 
-// --- mcpServer ---
-check('mcpServer: composio', mcpServer('mcp__composio__search') === 'composio');
-check('mcpServer: composio_io (underscores allowed in server)', mcpServer('mcp__composio_io__search') === 'composio_io');
-check('mcpServer: tool has underscores too', mcpServer('mcp__composio__search_query') === 'composio');
-check('mcpServer: non-mcp returns undefined', mcpServer('bash') === undefined);
-check('mcpServer: malformed returns undefined', mcpServer('mcp_composio_search') === undefined);
-check('mcpServer: empty returns undefined', mcpServer('') === undefined);
+// --- mcpServer was removed: MCP tools don't get the per-program session grant ---
+// (Program id detection is bash-only. MCP and other tools return undefined so the
+// Advanced Secure output gate doesn't offer them a per-program row.)
 
 // --- programIdForToolCall ---
 check('programId: bash + composio', programIdForToolCall('bash', { command: 'composio search googleads' }) === 'composio');
 check('programId: bash + sudo gcloud', programIdForToolCall('bash', { command: 'sudo gcloud auth print-access-token' }) === 'gcloud');
 check('programId: bash + env-prefixed aws', programIdForToolCall('bash', { command: 'AWS_PROFILE=prod aws s3 ls' }) === 'aws');
-check('programId: mcp__composio__search', programIdForToolCall('mcp__composio__search', {}) === 'composio');
-check('programId: mcp__composio_io__search', programIdForToolCall('mcp__composio_io__search', {}) === 'composio_io');
-check('programId: generic tool falls back to tool name', programIdForToolCall('read', { path: '/etc/foo' }) === 'read');
-check('programId: bash without command', programIdForToolCall('bash', {}) === 'bash');
+check('programId: mcp__composio__search returns undefined (MCP excluded)', programIdForToolCall('mcp__composio__search', {}) === undefined);
+check('programId: mcp__composio_io__search returns undefined (MCP excluded)', programIdForToolCall('mcp__composio_io__search', {}) === undefined);
+check('programId: read tool returns undefined', programIdForToolCall('read', { path: '/etc/foo' }) === undefined);
+check('programId: bash without command returns undefined', programIdForToolCall('bash', {}) === undefined);
 check('programId: empty toolName returns undefined', programIdForToolCall('', { command: 'x' }) === undefined);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

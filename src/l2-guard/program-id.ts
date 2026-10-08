@@ -25,25 +25,13 @@ export function bashBinary(command: string | undefined): string | undefined {
 	return tokens[i];
 }
 
-/** `mcp__<server>__<tool>` → server name. Underscores are allowed in server names
- *  (e.g. `mcp__composio_io__search` → `composio_io`). Returns undefined for non-MCP tools. */
-export function mcpServer(toolName: string): string | undefined {
-	if (!toolName.startsWith("mcp__")) return undefined;
-	const parts = toolName.split("__");
-	if (parts.length < 3 || parts[0] !== "mcp") return undefined;
-	return parts[1];
-}
-
-/** The program id for a tool call. Falls back to the tool name when the binary
- *  can't be inferred. Returns undefined only when both tool name and input are empty. */
+/** The program id for a tool call. Bash binaries only — MCP and other tools return
+ *  `undefined` so the Advanced Secure output gate doesn't offer them a per-program
+ *  session grant (MCP tools handle their own secrets and don't share the
+ *  composio-style "same binary, same surface" pattern). */
 export function programIdForToolCall(toolName: string | undefined, input: unknown): string | undefined {
 	if (!toolName) return undefined;
-	if (toolName === "bash") {
-		const cmd = (input as { command?: string } | undefined)?.command;
-		const bin = bashBinary(cmd);
-		if (bin) return bin;
-	}
-	const server = mcpServer(toolName);
-	if (server) return server;
-	return toolName;
+	if (toolName !== "bash") return undefined;
+	const cmd = (input as { command?: string } | undefined)?.command;
+	return bashBinary(cmd);
 }
