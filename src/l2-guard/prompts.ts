@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractUserMessages, readPolicyForUpdate, recordProjectTrust, userNamedFile } from "../core/index";
+import { extractUserMessages, isSafeFolderGrant, readPolicyForUpdate, recordProjectTrust, userNamedFile } from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
@@ -98,7 +98,11 @@ export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: st
 		return { block: true, reason: denyMessage(k.overrideKind, k.reason) };
 	}
 	if (decision === "session" || decision === "session-folder") {
-		const value = decision === "session-folder" ? dirname(k.overrideValue) : k.overrideValue;
+		// ADR-030: a session grant for a file covers the whole folder, so a CLI writing
+		// many files under ~/.composio/ stops re-prompting after the first grant. Falls
+		// back to the exact path when the parent folder is unsafe (root, home, …).
+		const parent = k.overrideKind === "allowDomains" ? k.overrideValue : dirname(k.overrideValue);
+		const value = k.overrideKind === "allowDomains" || isSafeFolderGrant(parent, homedir()) ? parent : k.overrideValue;
 		sessionGrants.push({ kind: k.overrideKind, value });
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision, grant: value, cwd: ctx.cwd });
 		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${value}`, "info");

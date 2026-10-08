@@ -31,41 +31,42 @@ check('screen1 timeout/undefined → no', (await askDecision(mkCtx([undefined]).
 check('screen1 Allow once → yes', (await askDecision(mkCtx([(o) => o[1]]).ctx, fileKind, null)) === 'yes');
 check('screen1 Allow for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, fileKind, null)) === 'session');
 
-// --- screen 2 mapping (file kind) ---
+// --- screen 2 mapping (file kind) — ADR-030: folder is the prominent option, so order is
+// folder-cwd, file-cwd, folder-global, file-global.
 const remember = (idx) => [(o) => o[3], (o) => o[idx]];
-check('remember: file · this project → always-cwd', (await askDecision(mkCtx(remember(0)).ctx, fileKind, null)) === 'always-cwd');
-check('remember: folder · this project → always-cwd-folder', (await askDecision(mkCtx(remember(1)).ctx, fileKind, null)) === 'always-cwd-folder');
-check('remember: file · all projects → always-global', (await askDecision(mkCtx(remember(2)).ctx, fileKind, null)) === 'always-global');
-check('remember: folder · all projects → always-global-folder', (await askDecision(mkCtx(remember(3)).ctx, fileKind, null)) === 'always-global-folder');
+check('remember: folder · this project → always-cwd-folder', (await askDecision(mkCtx(remember(0)).ctx, fileKind, null)) === 'always-cwd-folder');
+check('remember: file · this project → always-cwd', (await askDecision(mkCtx(remember(1)).ctx, fileKind, null)) === 'always-cwd');
+check('remember: folder · all projects → always-global-folder', (await askDecision(mkCtx(remember(2)).ctx, fileKind, null)) === 'always-global-folder');
+check('remember: file · all projects → always-global', (await askDecision(mkCtx(remember(3)).ctx, fileKind, null)) === 'always-global');
 check('screen2 esc/timeout → no', (await askDecision(mkCtx([(o) => o[3], undefined]).ctx, fileKind, null)) === 'no');
 
 // --- exact screen-2 labels (the finalized format) ---
 const labelCtx = mkCtx([(o) => o[3], undefined]);
 await askDecision(labelCtx.ctx, fileKind, null);
 const fileOpts = labelCtx.seen[1];
-check('label: Allow for this file (<path>) - Scope this project', fileOpts[0] === 'Allow for this file (/home/me/project/.env) - Scope this project');
-check('label: Allow for this folder (<path>) - Scope global', fileOpts[3] === 'Allow for this folder (/home/me/project) - Scope global');
+check('label: Allow for this folder (<path>) - Scope this project', fileOpts[0] === 'Allow for this folder (/home/me/project) - Scope this project');
+check('label: Allow for this file (<path>) - Scope global', fileOpts[3] === 'Allow for this file (/home/me/project/.env) - Scope global');
 
 // --- write kind shares the flow ---
-check('write: remember folder · all projects', (await askDecision(mkCtx([(o) => o[3], (o) => o[3]]).ctx, writeKind, null)) === 'always-global-folder');
+check('write: remember folder · all projects', (await askDecision(mkCtx([(o) => o[3], (o) => o[2]]).ctx, writeKind, null)) === 'always-global-folder');
 
-// --- domain kind: no folder option ---
+// --- domain kind: no folder option, but wildcard subdomain is offered first when useful ---
 check('domain remember: this project → always-cwd', (await askDecision(mkCtx([(o) => o[3], (o) => o[0]]).ctx, domainKind, null)) === 'always-cwd');
 check('domain remember: all projects → always-global', (await askDecision(mkCtx([(o) => o[3], (o) => o[1]]).ctx, domainKind, null)) === 'always-global');
 const domainCtx = mkCtx([(o) => o[3], undefined]);
 await askDecision(domainCtx.ctx, domainKind, null);
 check('domain screen2 has no folder option', domainCtx.seen[1].every((o) => !o.includes('folder')));
-check('domain label: Allow for this host (example.com) - Scope this project', domainCtx.seen[1][0] === 'Allow for this host (example.com) - Scope this project');
+check('domain label: Allow this host (example.com) - Scope this project', domainCtx.seen[1][0] === 'Allow this host (example.com) - Scope this project');
 
 // --- domain screen 1: Allow first, and the countdown default is Allow (ADR-024) ---
 const domainMain = mkCtx([(o) => o[0]]);
 check('domain screen1 Allow (default) → yes', (await askDecision(domainMain.ctx, domainKind, null)) === 'yes');
 check(
 	'domain screen1 order = Allow (default) / Deny / session / remember',
-	domainMain.seen[0].join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+	domainMain.seen[0].join('|') === 'Allow (default)|Deny|Allow this host group for this session|Allow and remember…',
 );
 check('domain screen1 Deny → no', (await askDecision(mkCtx([(o) => o[1]]).ctx, domainKind, null)) === 'no');
-check('domain screen1 Allow for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, domainKind, null)) === 'session');
+check('domain screen1 Allow this host group for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, domainKind, null)) === 'session');
 {
 	const realNow = Date.now;
 	let clock = realNow();

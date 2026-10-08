@@ -81,7 +81,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('Allow (default) → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
 	check(
 		'order = Allow (default) / Deny / session / remember',
-		c.seen[0].join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+		c.seen[0].join('|') === 'Allow (default)|Deny|Allow this host group for this session|Allow and remember…',
 	);
 }
 {
@@ -135,7 +135,10 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	const c = mkCtx([(o) => o[3], (o) => o[1]]);
+	// ADR-030: askRememberHost now offers 4 options for 3-part hosts (wildcard-cwd,
+	// exact-cwd, wildcard-global, exact-global). To remember the exact host globally
+	// we pick index 3.
+	const c = mkCtx([(o) => o[3], (o) => o[3]]);
 	const { deps, audits, persisted } = mkDeps(c.ctx);
 	check('remember global → allow', (await createNetworkAsk(deps)({ host: 'api.example.com', port: 443 })) === true);
 	check('remember global persists global scope', JSON.stringify(persisted) === '[["api.example.com","global"]]');

@@ -16,7 +16,8 @@
  */
 
 import { domainMatches } from "../core/index";
-import { askDecision, type AskCtx, type AskKind } from "../ui/ask";
+import { networkWhy } from "../ui/ask";
+import { askMain, askRememberHost, ASK_TIMEOUT_MS, parentDomainWildcard, type AskCtx, type MainChoice } from "../ui/ask-flow";
 
 /** In-memory session grants ("Allow for this session"). Cleared at session_start. */
 const sessionGrants: string[] = [];
@@ -79,43 +80,54 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		return false;
 	}
 
-	const kind: AskKind = {
-		layer: 1,
-		tool: "network",
-		subject,
-		reason: `domain not in allowlist: ${host}`,
-		overrideKind: "allowDomains",
-		overrideValue: host,
-	};
-	let decision;
+	const wild = parentDomainWildcard(host);
+	const groupLine = wild === host.toLowerCase()
+		? `  host:  ${host}`
+		: `  host:  ${host}\n  group: ${wild}    (covers all subdomains)`;
+	const body = `${groupLine}\n  why:   ${networkWhy(`domain not in allowlist: ${host}`)}`;
+	const header = "Network access blocked";
+
+	let main: MainChoice;
 	try {
-		decision = await askDecision(ctx, kind, null);
+		main = await askMain(ctx, header, body, { session: true, sessionLabel: "Allow this host group for this session", allowFirst: true, timeoutMs: ASK_TIMEOUT_MS });
 	} catch {
-		decision = "no" as const;
+		deps.audit({ ...base, decision: "no", note: "screen1-threw" });
+		return false;
 	}
 
-	if (decision === "no") {
+	if (main === "block") {
 		deps.audit({ ...base, decision: "no" });
 		return false;
 	}
-	if (decision === "yes") {
+	if (main === "once") {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes" });
 		return true;
 	}
-	if (decision === "session" || decision === "session-folder") {
-		sessionGrants.push(host);
-		deps.audit({ ...base, decision: "session", grant: host });
-		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) → ${host}`, "info");
+	if (main === "session") {
+		// ADR-030: session grant uses the parent-domain wildcard (e.g. *.composio.dev)
+		// when the host has a useful parent, so any sibling subdomain is also covered
+		// for the rest of the session without re-prompting. Apex hosts (2 parts)
+		// fall back to the exact host since `*.example.com` would not match `example.com`.
+		const grant = wild;
+		sessionGrants.push(grant);
+		deps.audit({ ...base, decision: "session", grant, requested: host });
+		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) → ${grant}`, "info");
 		return true;
 	}
 
-	// always-* / always-*-folder (network never returns folder variants today).
-	const scope = decision === "always-global" || decision === "always-global-folder" ? "global" : "cwd";
+	// main === "remember" — screen 2 picks the wildcard or exact host pattern.
+	const picked = await askRememberHost(ctx, "Remember this host?", `  host: ${host}`, host);
+	if (!picked) {
+		deps.audit({ ...base, decision: "no", note: "remember-screen-cancelled" });
+		return false;
+	}
+	const scope = picked.scope;
+	const pattern = picked.pattern;
 	try {
-		const path = await deps.persist(host, scope);
-		deps.applyLive(host);
-		deps.audit({ ...base, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, persisted_to: path });
+		const path = await deps.persist(pattern, scope);
+		deps.applyLive(pattern);
+		deps.audit({ ...base, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
 		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override → ${path}`, "warning");
 	} catch (e) {
 		// Mirror Layer 2: a failed write still allows the call, covering the

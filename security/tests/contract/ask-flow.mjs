@@ -73,22 +73,27 @@ check('askMain undefined → block', (await askMain({ hasUI: true, ui: { select:
 // --- askRememberFile ---
 const fileOpts = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', '/f'));
 check('askRememberFile: 4 options with folder', fileOpts.length === 4);
-check('askRememberFile: labels', fileOpts[0] === 'Allow for this file (/f/x) - Scope this project' && fileOpts[3] === 'Allow for this folder (/f) - Scope global');
+check('askRememberFile: labels', fileOpts[0] === 'Allow for this folder (/f) - Scope this project' && fileOpts[3] === 'Allow for this file (/f/x) - Scope global');
 const fileNoFolder = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', null));
 check('askRememberFile: 2 options without folder', fileNoFolder.length === 2 && fileNoFolder.every((o) => !o.includes('folder')));
 const pickFile = async (idx) => askRememberFile({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', '/f/x', '/f');
-check('remember file · project', JSON.stringify(await pickFile(0)) === '{"scope":"cwd","folder":false}');
-check('remember folder · project', JSON.stringify(await pickFile(1)) === '{"scope":"cwd","folder":true}');
-check('remember file · global', JSON.stringify(await pickFile(2)) === '{"scope":"global","folder":false}');
-check('remember folder · global', JSON.stringify(await pickFile(3)) === '{"scope":"global","folder":true}');
+check('remember folder · project', JSON.stringify(await pickFile(0)) === '{"scope":"cwd","folder":true}');
+check('remember file · project', JSON.stringify(await pickFile(1)) === '{"scope":"cwd","folder":false}');
+check('remember folder · global', JSON.stringify(await pickFile(2)) === '{"scope":"global","folder":true}');
+check('remember file · global', JSON.stringify(await pickFile(3)) === '{"scope":"global","folder":false}');
 check('askRememberFile undefined → null', (await askRememberFile({ hasUI: true, ui: { select: async () => undefined } }, 'T', 'b', '/f/x', '/f')) === null);
 
 // --- askRememberHost ---
 const hostOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'example.com'));
-check('askRememberHost: 2 options', hostOpts.length === 2 && hostOpts[0].includes('Scope this project') && hostOpts[1].includes('Scope global'));
+check('askRememberHost: 2 options for apex', hostOpts.length === 2 && hostOpts[0].includes('Scope this project') && hostOpts[1].includes('Scope global'));
 const pickHost = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'example.com');
-check('remember host · project', (await pickHost(0)).scope === 'cwd');
-check('remember host · global', (await pickHost(1)).scope === 'global');
+check('remember host · project', (await pickHost(0)).scope === 'cwd' && (await pickHost(0)).pattern === 'example.com');
+check('remember host · global', (await pickHost(1)).scope === 'global' && (await pickHost(1)).pattern === 'example.com');
+const subdomainOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'api.example.com'));
+check('askRememberHost: 4 options for subdomain (wildcard first)', subdomainOpts.length === 4 && subdomainOpts[0].includes('*.example.com') && subdomainOpts[1].includes('(api.example.com)') && subdomainOpts[1].includes('Scope this project'));
+const pickSubdomain = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'api.example.com');
+check('remember wildcard · project', (await pickSubdomain(0)).scope === 'cwd' && (await pickSubdomain(0)).pattern === '*.example.com');
+check('remember exact host · project', (await pickSubdomain(1)).scope === 'cwd' && (await pickSubdomain(1)).pattern === 'api.example.com');
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
 const hit = 'config.env\n12: key=asdfadsdaasdfdsafasdf';

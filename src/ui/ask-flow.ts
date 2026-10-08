@@ -23,8 +23,18 @@ export type AskCtx = {
 
 export type MainChoice = "block" | "once" | "session" | "remember";
 
-/** How long a pending permission prompt waits before it resolves to its default. */
+/** How long a pending permission prompt waits before it resolves to its default.
+ * ADR-030: per-action overrides below — the user picks a wider scope (folder / wildcard) and
+ * needs more time on screen 2 than on the fast yes/no of screen 1. */
 export const ASK_TIMEOUT_MS = 10_000;
+
+/** Per-action overrides; `0` means no countdown (the prompt stays open until Esc/select). */
+export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remember", number> = {
+	read:     15_000,
+	write:    10_000,
+	network:  30_000,
+	remember: 60_000,
+};
 
 /**
  * The tail of the FIFO prompt queue. pi's selector is a singleton: when a
@@ -74,6 +84,9 @@ export type MainOpts = {
 	once?: boolean;
 	/** Offer `Allow for this session` (opt-in). */
 	session?: boolean;
+	/** Override the session label so the caller can name what the session grant covers
+	 * (ADR-030: `Allow this folder for this session` / `Allow this host group for this session`). */
+	sessionLabel?: string;
 	/** Offer `Allow and remember…` (default on). */
 	remember?: boolean;
 	/**
@@ -87,13 +100,16 @@ export type MainOpts = {
 	timeoutMs?: number;
 };
 
-/** Screen 1. `once` defaults on; `session` and `remember` are opt-in. */
+/** Screen 1. `once` defaults on; `session` and `remember` are opt-in. ADR-030: the `session`
+ * label now names what the grant covers — folder for files, wildcard group for networks —
+ * so the user understands the consequence of pressing Enter without re-reading docs. */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
+	const sessionLabel = opts.sessionLabel ?? "Allow for this session";
 	const choices: Array<{ label: string; value: MainChoice }> = [];
 	if (opts.allowFirst && opts.once !== false) choices.push({ label: "Allow (default)", value: "once" });
 	choices.push({ label: opts.allowFirst ? "Deny" : "Block (default)", value: "block" });
 	if (!opts.allowFirst && opts.once !== false) choices.push({ label: "Allow once", value: "once" });
-	if (opts.session) choices.push({ label: "Allow for this session", value: "session" });
+	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Allow and remember…", value: "remember" });
 	const { picked, expired } = await askSelect(ctx, `${header}\n${body}`, choices.map((c) => c.label), opts.timeoutMs);
 	if (expired && opts.allowFirst) return "once";
@@ -102,7 +118,9 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 
 export type ScopeChoice = { scope: "cwd" | "global"; folder: boolean };
 
-/** Screen 2 for a file/folder subject. `folderPath === null` hides the folder grants. */
+/** Screen 2 for a file/folder subject. ADR-030: folder is offered FIRST (default on Enter)
+ * because granting a folder is the right answer almost every time — the caller still
+ * offers the narrower file grant as the second option. */
 export async function askRememberFile(
 	ctx: AskCtx,
 	title: string,
@@ -110,29 +128,48 @@ export async function askRememberFile(
 	filePath: string,
 	folderPath: string | null,
 ): Promise<ScopeChoice | null> {
-	const choices: Array<{ label: string; value: ScopeChoice }> = [
-		{ label: `Allow for this file (${filePath}) - Scope this project`, value: { scope: "cwd", folder: false } },
-	];
+	const choices: Array<{ label: string; value: ScopeChoice }> = [];
 	if (folderPath) choices.push({ label: `Allow for this folder (${folderPath}) - Scope this project`, value: { scope: "cwd", folder: true } });
-	choices.push({ label: `Allow for this file (${filePath}) - Scope global`, value: { scope: "global", folder: false } });
+	choices.push({ label: `Allow for this file (${filePath}) - Scope this project`, value: { scope: "cwd", folder: false } });
 	if (folderPath) choices.push({ label: `Allow for this folder (${folderPath}) - Scope global`, value: { scope: "global", folder: true } });
+	choices.push({ label: `Allow for this file (${filePath}) - Scope global`, value: { scope: "global", folder: false } });
 	const { picked } = await askSelect(ctx, `${title}\n${body}`, choices.map((c) => c.label));
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
-/** Screen 2 for a domain subject (no file/folder). */
+/** The screen 2 default — `pattern` is the actual pattern persisted into the allowlist.
+ * For 3+ part hosts (`backend.composio.dev`) the default is the parent-domain wildcard
+ * (`*.composio.dev`) so one click covers every subdomain; for 2-part hosts (`example.com`)
+ * the only sensible pattern is the host. ADR-030. */
+export type HostGrant = { scope: "cwd" | "global"; pattern: string };
+
+/** `*.composio.dev` from `backend.composio.dev`; `example.com` from `example.com`. */
+export function parentDomainWildcard(host: string): string {
+	const parts = host.toLowerCase().split(".");
+	if (parts.length <= 2) return host;
+	return `*.${parts.slice(-2).join(".")}`;
+}
+
+/** Screen 2 for a domain subject. ADR-030: wildcard subdomain is offered FIRST when the host
+ * has a useful parent domain, so the default grant covers siblings without re-prompting.
+ * `pattern` is the actual pattern written to the allowlist. */
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,
 	body: string,
 	host: string,
-): Promise<{ scope: "cwd" | "global" } | null> {
-	const choices: Array<{ label: string; value: { scope: "cwd" | "global" } }> = [
-		{ label: `Allow for this host (${host}) - Scope this project`, value: { scope: "cwd" } },
-		{ label: `Allow for this host (${host}) - Scope global`, value: { scope: "global" } },
-	];
+): Promise<HostGrant | null> {
+	const wildcard = parentDomainWildcard(host);
+	const hasWildcard = wildcard !== host.toLowerCase();
+	const wildcardLabel = wildcard.replace(/^\*\./, "");
+	const choices: Array<{ label: string; value: HostGrant }> = [];
+	if (hasWildcard) choices.push({ label: `Allow *.${wildcardLabel} (covers all subdomains) - Scope this project`, value: { scope: "cwd", pattern: wildcard } });
+	choices.push({ label: `Allow this host (${host}) - Scope this project`, value: { scope: "cwd", pattern: host } });
+	if (hasWildcard) choices.push({ label: `Allow *.${wildcardLabel} (covers all subdomains) - Scope global`, value: { scope: "global", pattern: wildcard } });
+	choices.push({ label: `Allow this host (${host}) - Scope global`, value: { scope: "global", pattern: host } });
 	const { picked } = await askSelect(ctx, `${title}\n${body}`, choices.map((c) => c.label));
-	return choices.find((c) => c.label === picked)?.value ?? null;
+	const found = choices.find((c) => c.label === picked);
+	return found?.value ?? null;
 }
 
 export type ExposureChoice = "allow" | "block";

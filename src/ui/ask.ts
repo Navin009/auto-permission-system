@@ -8,7 +8,7 @@
  */
 
 import { dirname } from "node:path";
-import { askMain, askRememberFile, askRememberHost, askSelect, type AskCtx } from "./ask-flow";
+import { askMain, askRememberFile, askRememberHost, askSelect, parentDomainWildcard, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
 
@@ -54,10 +54,22 @@ export function denyMessage(overrideKind: OverrideKind, reason: string): string 
 	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read — ask the user.`;
 }
 
-/** The short body shared by screen 1 and the credential banner. */
+/** The short body shared by screen 1 and the credential banner. ADR-030: the second line
+ * shows what a session grant would cover (parent folder / wildcard subdomain) so the user
+ * understands the consequence of pressing Enter on the highlighted option. */
 function detailLines(k: AskKind, action: Action): string {
-	if (action === "network") return `  host:  ${k.overrideValue}\n  why:   ${networkWhy(k.reason)}`;
-	return `  file:  ${k.subject}\n  why:   ${displayWhy(k.reason)}`;
+	if (action === "network") {
+		const wild = parentDomainWildcard(k.overrideValue);
+		const groupLine = wild === k.overrideValue.toLowerCase()
+			? `  host:  ${k.overrideValue}`
+			: `  host:  ${k.overrideValue}\n  group: ${wild}    (covers all subdomains)`;
+		return `${groupLine}\n  why:   ${networkWhy(k.reason)}`;
+	}
+	const folder = dirname(k.subject);
+	const folderLine = folder === k.subject
+		? `  file:  ${k.subject}`
+		: `  file:  ${k.subject}\n  folder:${folder}    (covers every file under it)`;
+	return `${folderLine}\n  why:   ${displayWhy(k.reason)}`;
 }
 
 export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
@@ -76,13 +88,21 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 	}
 
 	// Screen 1 — verdict + duration. Network asks show Allow first (ADR-024).
+	// ADR-030: the session label names what the grant will cover, so the user doesn't have
+	// to read the docs to know that "Allow this folder for this session" lets every future
+	// file under `~/.composio/` through for the rest of the session.
 	const header = action === "network" ? "Network access blocked" : `${action === "write" ? "Write" : "Read"} blocked by policy`;
-	const main = await askMain(ctx, header, detailLines(k, action), { session: true, allowFirst: action === "network" });
+	const sessionLabel = action === "network"
+		? `Allow this host group for this session`
+		: `Allow this folder for this session`;
+	const main = await askMain(ctx, header, detailLines(k, action), { session: true, sessionLabel, allowFirst: action === "network" });
 	if (main === "block") return "no";
 	if (main === "once") return "yes";
 	if (main === "session") return "session";
 
-	// Screen 2 — scope + what to allow.
+	// Screen 2 — scope + what to allow. askRememberFile/askRememberHost pick the wider
+	// grant by default; the caller just learns the decision and the actual pattern/wildcard
+	// is applied by the layer that performs the persistence.
 	if (action === "network") {
 		const picked = await askRememberHost(ctx, "Remember this host?", `  host: ${k.overrideValue}`, k.overrideValue);
 		if (!picked) return "no";
