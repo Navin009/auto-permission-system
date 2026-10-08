@@ -314,7 +314,14 @@ export default function (pi: ExtensionAPI) {
 		}
 		const rawInput = event.input ?? {};
 		const rawPath = rawInput.path ?? rawInput.file_path;
-		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
+		const subject = (() => {
+			if (typeof rawPath === "string" && rawPath) return rawPath;
+			if (event.toolName === "bash") {
+				const cmd = (event.input as { command?: string } | undefined)?.command;
+				return cmd ? `bash: ${cmd}` : "bash";
+			}
+			return event.toolName;
+		})();
 		const { types, hits } = collectExposure(event.content, subject);
 		if (!types.length) return;
 		const findings = types;

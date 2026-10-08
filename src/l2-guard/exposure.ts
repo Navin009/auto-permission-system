@@ -24,9 +24,19 @@ export function collectExposure(content: ReadonlyArray<{ type: string; text?: st
 		for (const f of r.findings) types.add(f.type);
 		const before = c.text.split("\n");
 		const after = String(r.redactedOutput ?? "").split("\n");
-		for (let i = 0; i < before.length && lines.length < MAX_LINES; i++) {
-			if (after[i] !== before[i] && before[i].trim()) lines.push(`${i + 1}: ${clip(before[i].trim())}`);
+		const matchedIndices: number[] = [];
+		for (let i = 0; i < before.length; i++) {
+			if (after[i] !== before[i] && before[i].trim()) matchedIndices.push(i);
 		}
+		if (matchedIndices.length === 0) continue;
+		const shown = matchedIndices.slice(0, MAX_LINES);
+		const firstIdx = shown[0];
+		const lastIdx = shown[shown.length - 1];
+		const moreMatched = matchedIndices.length > MAX_LINES;
+		const moreBelow = lastIdx < before.length - 1;
+		if (firstIdx > 0) lines.push("        \u2026");
+		for (const idx of shown) lines.push(`${idx + 1}: ${clip(before[idx].trim())}`);
+		if (moreMatched || moreBelow) lines.push("        \u2026");
 	}
-	return { types: [...types], hits: lines.length ? [`${subject}\n${lines.join("\n")}`] : [] };
+	return { types: [...types], hits: lines.length ? [`From     ${subject}\n${lines.join("\n")}`] : [] };
 }

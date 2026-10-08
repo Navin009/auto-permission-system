@@ -226,6 +226,8 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		"",
 		hits.join("\n\n"),
 		"",
+		"Note     you'll be asked again each time a secret shows up",
+		"",
 		"Esc or no answer in 10s = No",
 	];
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
