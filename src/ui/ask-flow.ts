@@ -131,58 +131,37 @@ async function askSelectWithActivity(
 ): Promise<string | undefined> {
 	if (timeoutMs === 0) return ctx.ui.select(title, options);
 
-	return new Promise<string | undefined>(async (resolveOuter) => {
-		let settled = false;
-		let currentAbort: AbortController | null = null;
-		let offInput: () => void = () => {};
+	const offInput = ctx.ui.onTerminalInput?.((data: string) => {
+		if (settled) return;
+		if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
+			if (currentTimer) clearTimeout(currentTimer);
+			currentTimer = setTimeout(finish, timeoutMs);
+		}
+	}) ?? (() => {});
 
-		const finish = (v: string | undefined) => {
-			if (settled) return;
-			settled = true;
-			offInput();
-			resolveOuter(v);
-		};
+	let settled = false;
+	let currentTimer: ReturnType<typeof setTimeout> | null = null;
+	const ctrl = new AbortController();
 
-		const tryOnce = async () => {
-			if (settled) return;
-			const ctrl = new AbortController();
-			currentAbort = ctrl;
-			const timer = setTimeout(() => {
-				if (!ctrl.signal.aborted) ctrl.abort();
-			}, timeoutMs);
+	const finish = (): undefined => {
+		if (settled) return undefined;
+		settled = true;
+		if (currentTimer) clearTimeout(currentTimer);
+		if (!ctrl.signal.aborted) ctrl.abort();
+		offInput();
+		return undefined;
+	};
 
-			try {
-				const picked = await ctx.ui.select(title, options, { signal: ctrl.signal, timeout: timeoutMs });
-				if (settled) return;
-				clearTimeout(timer);
-				if (picked !== undefined) {
-					finish(picked);
-				} else {
-					// Aborted (activity or Esc). If still pointed at by currentAbort,
-					// re-issue with fresh timeout. If Esc, the listener aborted too,
-					// currentAbort moved, so settle.
-					if (currentAbort === ctrl) tryOnce();
-					else finish(undefined);
-				}
-			} catch {
-				if (settled) return;
-				clearTimeout(timer);
-				finish(undefined);
-			}
-		};
+	currentTimer = setTimeout(finish, timeoutMs);
 
-		offInput = ctx.ui.onTerminalInput?.((data: string) => {
-			if (settled) return;
-			// ESC sequences (arrow keys, Home/End, PgUp/PgDn), Tab, and Enter are
-			// all "the user is engaging the prompt" signals. Abort current select
-			// so pi's countdown display resets on re-issue.
-			if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
-				if (currentAbort) currentAbort.abort();
-			}
-		}) ?? (() => {});
-
-		tryOnce();
-	});
+	// No timeout passed to pi → no '(Ns)' countdown display.
+	// Outer timer owns auto-dismiss; activity listener resets it.
+	const picked = await ctx.ui.select(title, options, { signal: ctrl.signal });
+	if (settled) return undefined;
+	settled = true;
+	if (currentTimer) clearTimeout(currentTimer);
+	offInput();
+	return picked;
 }
 
 /** Join `header` + optional `icon` (e.g. `🔑  Let pi read your key?`). The icon gets a double space. */
@@ -225,14 +204,7 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: "once" });
 	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
-	const footer = opts.footer ?? (opts.allowFirst
-		? "Default: Yes, just this once"
-		: "Default: No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
-	if (footer) {
-		titleParts.push(""); // blank line above the footer
-		titleParts.push(footer);
-	}
 	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
 	if (expired && opts.allowFirst) return "once";
 	return choices.find((c) => c.label === picked)?.value ?? "block";
@@ -259,12 +231,7 @@ export async function askRememberFile(
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
-	const footer = opts.footer ?? "Default: All in folder \u00b7 in this project";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) {
-		titleParts.push(""); // blank line above the footer
-		titleParts.push(footer);
-	}
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
@@ -304,12 +271,7 @@ export async function askRememberHost(
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
-	const footer = opts.footer ?? "Default: All in group \u00b7 in this project";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) {
-		titleParts.push(""); // blank line above the footer
-		titleParts.push(footer);
-	}
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { skipQueue: true });
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
