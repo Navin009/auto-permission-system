@@ -14,7 +14,7 @@ Wraps the `bash` tool with `sandbox-exec` (macOS) or `bubblewrap` (Linux). Block
 - Filesystem writes outside `allowWrite`
 - Filesystem reads of `denyRead` paths (defaults include `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.pi/agent`)
 - Filesystem reads outside the project when `outsideProject.read` is `"ask"` or `"deny"` — when set, the home dir (and the project's parent) is fenced with `denyRead` and the project plus `allowWrite`/`outsideProject.allowRead` are re-exposed (ADR-014). With `"ask"`, a bash command that *plainly* names an outside path is confirmed with you **before it runs** (ADR-015): allow (`yes — this once`, or a persistent `always` grant) → the real, complete output; deny → the command is not run at all (no silently trimmed output). `install`/`npm` under `~/.pi/agent` are pre-allowed via `outsideProject.allowRead`, so they never prompt. Obfuscated reads still hit the fence and stay masked.
-- Network egress to domains not in `allowedDomains`
+- Network egress to domains not in `allowedDomains`: a host in neither list asks before the proxy decides (ADR-023) — `yes — this once` covers that bash command's connections to the host, `yes — for this session` lasts until the session ends, and `always` writes `overrides.allowDomains` and applies live. A host in `deniedDomains`, or `network.strictAllowlist: true`, is a hard deny that is never ask-able; headless blocks.
 
 **Layer 2 — In-process tool guard**
 Hooks `tool_call` for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. Applies the same policy file as Layer 1. For `grep`, `find` and `ls` the search root is checked like a `read` path. A `tool_result` hook also removes `grep` output lines from denied files beneath an allowed root (for example a `.env` deep in the tree); approving the root does not approve those files. When a call is blocked, shows an interactive prompt with persistence options.
@@ -39,7 +39,8 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   "mode": "default",                     // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
   "network": {
     "allowedDomains": ["github.com", "*.github.com"],  // empty = allow all
-    "deniedDomains": []
+    "deniedDomains": [],                   // hard deny, never ask-able
+    "strictAllowlist": false               // true = deny unknown hosts instead of asking
   },
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block (defaults add ~/.aws, ~/.gnupg)
@@ -87,6 +88,8 @@ For a Layer 1 bash **write** blocked after the command already ran, `yes — thi
 
 Every prompt waits **10 seconds** by default; no answer means the safe default: **block / deny**. Esc on any screen also blocks.
 
+The same options apply to a bash command whose network request reaches a host outside `allowedDomains` (ADR-023). Because the sandbox proxy asks per connection, `yes — this once` is scoped to that bash command rather than one connection — redirects and parallel connections to the same host do not re-prompt. A host in `deniedDomains`, or `network.strictAllowlist: true`, is blocked outright: the prompt never appears. A remembered host is written to `overrides.allowDomains` and takes effect immediately, so the waiting request completes without a retry.
+
 ## Sensitive reads ask
 
 `filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). Shipped default: `.env`, `.env.*`. Both layers ask — the `read` tool in `tool_call`, and the bash pre-flight before a command that plainly reads the file. Esc / 10s timeout blocks; headless blocks. `denyRead` wins over `askRead` (a path in both is denied), and the credential tier stays hard.
@@ -129,7 +132,7 @@ Without restarting, `/permission-mode` → **YOLO** turns every layer off in one
 
 ## Common tasks
 
-**Allow a new domain** — either answer "always" in the prompt when the block fires, or add it manually:
+**Allow a new domain** — either answer "always" in the prompt when the block fires (from a bash command or a URL tool), or add it manually:
 ```json
 // ~/.pi/agent/extensions/sandbox.json  (global)
 // or <cwd>/.pi/sandbox.json  (project-local)

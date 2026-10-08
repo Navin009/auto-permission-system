@@ -11,7 +11,7 @@ It puts allow/deny rules, interactive ask prompts, secret detection and an audit
 
 Enforcement happens in three layers:
 
-- **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, reads outside the project when `outsideProject.read` gates them, and network egress to unlisted domains.
+- **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, reads outside the project when `outsideProject.read` gates them, and network egress to unlisted domains — an unknown host asks first (a host in `deniedDomains` never does), with the same once/session/remember options as Layer 2.
 - **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. `grep` output lines from denied files beneath an allowed search root are removed before the model sees them.
 - **Layer 3** — Subagent posture: optionally drop or restrict network access when running headless (`-p`, JSON mode, subagents).
 
@@ -72,11 +72,12 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   "enabled": true,                      // set false to disable Layer 2 without --yolo
   "mode": "default",                   // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
   "network": {
-    "allowedDomains": [                 // domains fetch_content / get_search_content may reach
+    "allowedDomains": [                 // domains the URL tools and bash may reach
       "github.com", "*.github.com",
       "registry.npmjs.org"
     ],
-    "deniedDomains": []                 // explicit block-list (checked before allowedDomains)
+    "deniedDomains": [],                // hard deny, checked first, never ask-able
+    "strictAllowlist": false            // true = deny unknown hosts instead of asking
   },
   "filesystem": {
     "denyRead": ["~/.ssh", "~/.aws", "~/.pi/agent"],  // Layer 1 + Layer 2: no read at all
@@ -123,7 +124,7 @@ Never asked about: the project itself, your `allowWrite` roots, pi's own package
 
 ### Ask-tier prompt
 
-`no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010). For a bash write that the sandbox refused after the command already ran, `yes — this once` re-runs the command once with that folder allowed for the one invocation only (never saved), and `denyWrite` still wins. The refusal is read from the command's own error text — `EPERM` / `Operation not permitted` on macOS, `EROFS` / `Read-only file system` on Linux (ADR-022) — so a Linux EROFS gets the same prompt instead of a silent read-only failure; a refused write is never mistaken for an outside-project read.
+`no — block` is pre-selected, so Enter alone blocks. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010). A bash command that reaches a domain outside `allowedDomains` gets the same prompt (ADR-023); because the sandbox proxy asks per connection, `yes — this once` covers that command's connections to the host, and a remembered host is written to `overrides.allowDomains` and applies immediately. Hosts in `deniedDomains`, or with `strictAllowlist: true`, are blocked without a prompt. For a bash write that the sandbox refused after the command already ran, `yes — this once` re-runs the command once with that folder allowed for the one invocation only (never saved), and `denyWrite` still wins. The refusal is read from the command's own error text — `EPERM` / `Operation not permitted` on macOS, `EROFS` / `Read-only file system` on Linux (ADR-022) — so a Linux EROFS gets the same prompt instead of a silent read-only failure; a refused write is never mistaken for an outside-project read.
 
 Every prompt waits **10 seconds** by default. If you do not answer, it resolves to the safe default: **block / deny**.
 
@@ -200,7 +201,7 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 ## FAQ
 
 ### How do I allow the agent to reach a new domain?
-Add it to `network.allowedDomains` in a policy file (global `~/.pi/agent/extensions/sandbox.json` or project `<cwd>/.pi/sandbox.json`), or just run the tool once and pick an **always** option in the ask prompt — that writes the domain to the project file for you.
+Add it to `network.allowedDomains` in a policy file (global `~/.pi/agent/extensions/sandbox.json` or project `<cwd>/.pi/sandbox.json`), or just run the tool (or a bash `curl`) once and pick an **always** option in the ask prompt — that writes the domain to the project file for you.
 
 ### How do I allow writes to another folder?
 Add the folder to `filesystem.allowWrite`. Relative paths (`.`, `/tmp`) resolve from the project root.

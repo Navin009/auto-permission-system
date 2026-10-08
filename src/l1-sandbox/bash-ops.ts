@@ -13,6 +13,7 @@ import { askReadCandidates, extractBlockedPath, isBlockedAccessError, isSafeFold
 import { audit } from "../shared/audit";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
 import { loadConfig } from "./config";
+import { beginNetworkCommand, endNetworkCommand } from "./network-ask";
 
 export interface SandboxedBashOpts {
 	ctx?: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } };
@@ -393,7 +394,14 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 				});
 			};
 
-			return attempt([]);
+			// "Allow once" network grants cover this command's connections to a host;
+			// the finally releases them however the command ends (abort/timeout too).
+			beginNetworkCommand();
+			try {
+				return await attempt([]);
+			} finally {
+				endNetworkCommand();
+			}
 		},
 	};
 }

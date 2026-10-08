@@ -13,9 +13,9 @@ import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
 import { domainMatches } from "./url";
-import { askDecision, denyMessage, type AskKind, type OverrideKind } from "./ask";
+import { askDecision, denyMessage, type AskKind, type OverrideKind } from "../ui/ask";
 
-export type { AskKind, Decision, OverrideKind } from "./ask";
+export type { AskKind, Decision, OverrideKind } from "../ui/ask";
 export type Scope = "cwd" | "global";
 
 export function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: string): string {
@@ -75,7 +75,7 @@ export type UICtx = {
 	};
 };
 
-export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null): Promise<{ block: true; reason: string } | null> {
+export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: string | null, onPersist?: (kind: OverrideKind, value: string, scope: Scope) => void): Promise<{ block: true; reason: string } | null> {
 	if (!absoluteDenyPattern) {
 		const granted = sessionGranted(k, ctx.cwd);
 		if (granted) {
@@ -114,6 +114,7 @@ export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: st
 		const value = useFolder ? dirname(k.overrideValue) : k.overrideValue;
 		try {
 			const path = persistOverride(scope, ctx.cwd, k.overrideKind, value);
+			onPersist?.(k.overrideKind, value, scope);
 			audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision, scope, granularity: useFolder ? "folder" : "file", cwd: ctx.cwd, persisted_to: path, override: { [k.overrideKind]: value } });
 			ctx.ui.notify(`security-guard: persisted ${scope}${useFolder ? " (folder)" : ""} override → ${path}`, "warning");
 		} catch (e) {

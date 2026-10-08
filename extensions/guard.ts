@@ -16,10 +16,11 @@ import { collectExposure } from "../src/l2-guard/exposure";
 import { askExposure, askMain, withheldNotice } from "../src/ui/ask-flow";
 import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
 import { canonicalize, expandHome, isAbsoluteDeny, isAskRead, isDeniedRead, isDeniedWrite, outsideProjectReason } from "../src/l2-guard/matching";
-import { hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
+import { deniedUrlReason, hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
 import { audit, AUDIT_PATH } from "../src/shared/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
-import { denyMessage } from "../src/l2-guard/ask";
+import { denyMessage } from "../src/ui/ask";
+import { emitDomainGrant } from "../src/shared/network-grants";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent";
 import { onYolo } from "../src/shared/yolo";
 
@@ -218,10 +219,20 @@ export default function (pi: ExtensionAPI) {
 			const saReason = subagentNetworkBlock(ctx as { hasUI?: boolean; sessionManager?: unknown }, policy);
 			if (saReason) return { block: true, reason: saReason };
 			for (const u of collectUrls()) {
+				// deniedDomains is the hard-deny tier: the bash proxy refuses it before
+				// any ask, so Layer 2 must not offer to override it either.
+				const denied = deniedUrlReason(u, policy);
+				if (denied) {
+					audit({ layer: 2, tool: event.toolName, subject: u, reason: denied, decision: "no", note: "denied-domain", cwd: ctx.cwd });
+					return { block: true, reason: denyMessage("allowDomains", denied) };
+				}
 				const reason = isAllowedUrl(u, policy);
 				if (!reason) continue;
 				const host = hostnameOf(u) ?? u;
-				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null);
+				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null, (kind, value) => {
+					// Layer 1's proxy does not re-read the file: apply the remembered host live (ADR-023).
+					if (kind === "allowDomains") emitDomainGrant(pi.events, value);
+				});
 				if (result) return result;
 			}
 		}

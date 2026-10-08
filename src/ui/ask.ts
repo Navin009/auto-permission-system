@@ -1,20 +1,21 @@
 /**
- * Layer 2 ask-tier decision mapping (ADR-009, ADR-010).
+ * Ask-tier decision mapping shared by Layer 1 (network asks from the bash
+ * sandbox proxy) and Layer 2 (in-process tool guards). ADR-009, ADR-010.
  *
  * Pure UI→decision logic: no pi, no fs, no audit. The caller supplies a
  * `ctx.ui.select`; this module only decides which option string means what.
- * The shared two-screen UI primitives live in `../ui/ask-flow.ts`.
+ * The shared two-screen UI primitives live in `./ask-flow.ts`.
  */
 
 import { dirname } from "node:path";
-import { ASK_TIMEOUT_MS, askMain, askRememberFile, askRememberHost, type AskCtx } from "../ui/ask-flow";
+import { ASK_TIMEOUT_MS, askMain, askRememberFile, askRememberHost, type AskCtx } from "./ask-flow";
 
-export type { AskCtx } from "../ui/ask-flow";
+export type { AskCtx } from "./ask-flow";
 
 export type OverrideKind = "allowRead" | "allowWrite" | "allowDomains";
 
 export type AskKind = {
-	layer: 2;
+	layer: 1 | 2;
 	tool: string;
 	subject: string;
 	reason: string;
@@ -46,7 +47,7 @@ export function networkWhy(reason: string): string {
 	return reason.startsWith("domain not in allowlist") ? "not in the allowlist" : displayWhy(reason);
 }
 
-/** The model-facing denial text: one pattern for every Layer 2 block. */
+/** The model-facing denial text: one pattern for every block. */
 export function denyMessage(overrideKind: OverrideKind, reason: string): string {
 	if (overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(reason)}. Nothing was fetched — ask the user.`;
 	if (overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(reason)}. Nothing was written — ask the user.`;

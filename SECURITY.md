@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-08T07:02:17.935Z
+Generated: 2026-10-08T07:37:21.686Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -26,14 +26,14 @@ Generated: 2026-10-08T07:02:17.935Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022).
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. A host in neither allowedDomains nor deniedDomains asks through the shared ask-tier prompt (ADR-023) — once per bash command, for the session, or remembered into overrides.allowDomains (applied live, without restarting the proxy); headless denies. `deniedDomains` is a hard deny the prompt cannot override. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022).
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 209 lines, mtime 2026-10-07
-- ✓ `src/l1-sandbox/` — dir, mtime 2026-10-07
+- ✓ `extensions/sandbox.ts` — 226 lines, mtime 2026-10-08
+- ✓ `src/l1-sandbox/` — dir, mtime 2026-10-08
 - ✓ `src/core/` — dir, mtime 2026-10-06
-- ✓ `src/shared/` — dir, mtime 2026-10-07
+- ✓ `src/shared/` — dir, mtime 2026-10-08
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-08
 
 **Tests**
@@ -41,32 +41,36 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=41, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=11, FAIL=0
+- `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=32, FAIL=0
+- `L1-L2-network-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs` → expects PASS=6, FAIL=0
 - `L1-e2e` — `APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
 
 **Known gaps / accepted risks**
 
 - Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk
+- The network ask callback receives only host:port, not command identity; an 'Allow once' grant is scoped to the bash invocation in flight and can briefly cover a concurrent user_bash command to the same host
 - Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence
 - askRead (ADR-019) pre-flight is heuristic too: an obfuscated read of an askRead path is not prompted (put the path in denyRead to hard-deny it)
 - Write attribution is post-hoc (ADR-021): the command has already failed when the prompt appears, and a command whose output never names the operand cannot be attributed
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model.
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model.
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 387 lines, mtime 2026-10-07
+- ✓ `extensions/guard.ts` — 398 lines, mtime 2026-10-08
 - ✓ `extensions/permission-mode.ts` — 123 lines, mtime 2026-10-07
-- ✓ `src/l2-guard/` — dir, mtime 2026-10-06
+- ✓ `src/l2-guard/` — dir, mtime 2026-10-08
 - ✓ `src/detect/` — dir, mtime 2026-10-07
 - ✓ `src/core/` — dir, mtime 2026-10-06
-- ✓ `src/shared/` — dir, mtime 2026-10-07
+- ✓ `src/shared/` — dir, mtime 2026-10-08
 
 **Tests**
 
 - `L2-paths` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/path-matcher.mjs` → expects PASS=13, FAIL=0
 - `L2-urls` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs` → expects PASS=8, FAIL=0
+- `L2-url-deny` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/url-gate.mjs` → expects PASS=12, FAIL=0
 - `L2-symlink` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=15, FAIL=0
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
@@ -84,6 +88,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 - Live end-to-end tests via the actual tools are manual today (no in-session test harness in pi yet)
 - fetch_content redirects are not re-checked against the allowlist
+- web_search itself is not domain-checked (only its follow-on fetch_content is)
 - find and ls still print names (not contents) of denied files beneath an allowed root (ADR-008, accepted)
 - The grep output filter parses pi's grep line format; a format change leaves lines unfiltered until grep-filter.mjs is updated
 

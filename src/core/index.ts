@@ -3,6 +3,7 @@
  * Both layer adapters and the unit tests import from here.
  */
 export * from "./policy/defaults";
+export * from "./policy/domains";
 export * from "./policy/default-file";
 export * from "./policy/files";
 export * from "./policy/merge";

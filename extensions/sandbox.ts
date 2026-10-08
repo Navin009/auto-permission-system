@@ -31,14 +31,21 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
 import { createSandboxedBashOps } from "../src/l1-sandbox/bash-ops";
-import { initSandbox, persistLayer1Override, reloadSandbox, resetSandbox } from "../src/l1-sandbox/manager";
+import { applyNetworkGrant, initSandbox, persistLayer1Override, reloadSandbox, resetSandbox, writeNetworkOverride } from "../src/l1-sandbox/manager";
+import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask";
 import { loadConfig, setPiDeclinedTrust } from "../src/l1-sandbox/config";
+import { audit } from "../src/shared/audit";
+import { onDomainGrant } from "../src/shared/network-grants";
 import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo";
 
 export default function (pi: ExtensionAPI) {
 	// pi scopes flags per extension (ADR-020); registering here makes
 	// `yoloFromFlags(pi)` below read the real CLI value.
 	registerYoloFlags(pi);
+
+	// A domain remembered from the Layer 2 guard prompt is written to
+	// sandbox.json by the guard; apply it to the running proxy here (ADR-023).
+	onDomainGrant(pi.events, applyNetworkGrant);
 
 	const localCwd = process.cwd();
 	const localBash = createBashTool(localCwd);
@@ -50,8 +57,17 @@ export default function (pi: ExtensionAPI) {
 	let latestCtx: ExtensionContext | undefined;
 	let activeCtx: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } } | undefined;
 
-	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowWrite", absPath, scope);
-	const persistAndReloadRead = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowRead", absPath, scope);
+	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowWrite", absPath, scope, networkDeps(localCwd));
+	const persistAndReloadRead = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowRead", absPath, scope, networkDeps(localCwd));
+
+	/** Layer 1 network ask wiring (ADR-023): the proxy asks for unknown hosts and applies grants live. */
+	const networkDeps = (cwd: string): NetworkAskDeps => ({
+		cwd,
+		getCtx: () => /* SAFETY: pi's runtime ctx carries ui.select/ui.notify; the local type names only the members used. */ activeCtx as unknown as NetworkAskCtx | undefined,
+		persist: (host, scope) => writeNetworkOverride(cwd, host, scope),
+		applyLive: applyNetworkGrant,
+		audit,
+	});
 
 	/** Bring the bash sandbox down; safe when it was never up. */
 	const stopSandbox = async (): Promise<void> => {
@@ -77,7 +93,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		try {
-			await initSandbox(ctx.cwd, config);
+			await initSandbox(ctx.cwd, config, networkDeps(ctx.cwd));
 			sandboxEnabled = true;
 			sandboxInitialized = true;
 			const networkCount = config.network?.allowedDomains?.length ?? 0;
@@ -143,6 +159,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		latestCtx = ctx;
 		activeCtx = /* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */ ctx as unknown as typeof activeCtx;
+		clearNetworkSessionGrants();
 		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
 		runtimeYolo = yoloFromFlags(pi) || loadConfig(ctx.cwd).mode === "yolo";
 		// Broadcast before any await: guard.ts consumes this on the same bus to
@@ -175,7 +192,7 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 				try {
-					await reloadSandbox(localCwd);
+					await reloadSandbox(localCwd, networkDeps(localCwd));
 					ctx.ui.notify("🔄 Sandbox reloaded from disk (global + project sandbox.json)", "info");
 				} catch (e) {
 					ctx.ui.notify(`Sandbox reload failed: ${e instanceof Error ? e.message : e}`, "error");
