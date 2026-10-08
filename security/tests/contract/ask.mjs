@@ -1,5 +1,6 @@
 // Layer 2 ask-tier decision contract (ADR-009 / ADR-010).
 // Drives `askDecision` with a scripted `ctx.ui.select` — no pi, no fs, no audit.
+import { ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
 import { askDecision, denyMessage, displayWhy } from '../../../src/ui/ask.ts';
 
 let pass = 0, fail = 0;
@@ -55,6 +56,28 @@ const domainCtx = mkCtx([(o) => o[3], undefined]);
 await askDecision(domainCtx.ctx, domainKind, null);
 check('domain screen2 has no folder option', domainCtx.seen[1].every((o) => !o.includes('folder')));
 check('domain label: Allow for this host (example.com) - Scope this project', domainCtx.seen[1][0] === 'Allow for this host (example.com) - Scope this project');
+
+// --- domain screen 1: Allow first, and the countdown default is Allow (ADR-024) ---
+const domainMain = mkCtx([(o) => o[0]]);
+check('domain screen1 Allow (default) → yes', (await askDecision(domainMain.ctx, domainKind, null)) === 'yes');
+check(
+	'domain screen1 order = Allow (default) / Deny / session / remember',
+	domainMain.seen[0].join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+);
+check('domain screen1 Deny → no', (await askDecision(mkCtx([(o) => o[1]]).ctx, domainKind, null)) === 'no');
+check('domain screen1 Allow for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, domainKind, null)) === 'session');
+{
+	const realNow = Date.now;
+	let clock = realNow();
+	Date.now = () => clock;
+	const expire = () => {
+		clock = realNow() + ASK_TIMEOUT_MS + 1;
+		return undefined;
+	};
+	check('domain screen1 countdown expiry → yes', (await askDecision(mkCtx([expire]).ctx, domainKind, null)) === 'yes');
+	check('file screen1 countdown expiry → no', (await askDecision(mkCtx([expire]).ctx, fileKind, null)) === 'no');
+	Date.now = realNow;
+}
 
 // --- absolute-deny: two deliberate steps, no "remember" ---
 check('absolute-deny: allow both steps → yes', (await askDecision(mkCtx([(o) => o[1], (o) => o[1]]).ctx, fileKind, '~/.ssh')) === 'yes');

@@ -1,6 +1,7 @@
 # ADR-023: Layer 1 network asks, with per-command once grants
 
 **Status:** Accepted
+**Amended by:** ADR-024 (network screen-1 order, countdown default, prompt serialization)
 
 ## Context
 

@@ -8,7 +8,7 @@
  */
 
 import { dirname } from "node:path";
-import { ASK_TIMEOUT_MS, askMain, askRememberFile, askRememberHost, type AskCtx } from "./ask-flow";
+import { askMain, askRememberFile, askRememberHost, askSelect, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
 
@@ -69,15 +69,15 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 		// option, so Enter-Enter can never approve. "always" is not offered here.
 		const banner = `⚠  Credential access blocked\n${detailLines(k, action)}`;
 		const step1 = ["Block (default)", "Allow this one call"];
-		if ((await ctx.ui.select(banner, step1, { timeout: ASK_TIMEOUT_MS })) !== step1[1]) return "no";
+		if ((await askSelect(ctx, banner, step1)).picked !== step1[1]) return "no";
 		const check = `Confirm: allow one ${action} of credential material?`;
 		const step2 = ["No — keep blocked (default)", "Yes — allow once"];
-		return (await ctx.ui.select(check, step2, { timeout: ASK_TIMEOUT_MS })) === step2[1] ? "yes" : "no";
+		return (await askSelect(ctx, check, step2)).picked === step2[1] ? "yes" : "no";
 	}
 
-	// Screen 1 — verdict + duration.
+	// Screen 1 — verdict + duration. Network asks show Allow first (ADR-024).
 	const header = action === "network" ? "Network access blocked" : `${action === "write" ? "Write" : "Read"} blocked by policy`;
-	const main = await askMain(ctx, header, detailLines(k, action), { session: true });
+	const main = await askMain(ctx, header, detailLines(k, action), { session: true, allowFirst: action === "network" });
 	if (main === "block") return "no";
 	if (main === "once") return "yes";
 	if (main === "session") return "session";

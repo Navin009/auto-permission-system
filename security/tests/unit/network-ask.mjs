@@ -64,19 +64,42 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('no ctx denies', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
 }
 
-// --- screen 1: block ---
+// --- screen 1: deny (second option; Allow is first, ADR-024) ---
+{
+	reset();
+	const c = mkCtx([(o) => o[1]]);
+	const { deps, audits } = mkDeps(c.ctx);
+	check('deny → block', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false);
+	check('deny audited as no', audits.some((e) => e.decision === 'no' && e.layer === 1 && e.tool === 'network'));
+}
+
+// --- screen 1: order and countdown default (ADR-024) ---
 {
 	reset();
 	const c = mkCtx([(o) => o[0]]);
+	const { deps } = mkDeps(c.ctx);
+	check('Allow (default) → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
+	check(
+		'order = Allow (default) / Deny / session / remember',
+		c.seen[0].join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+	);
+}
+{
+	reset();
+	const realNow = Date.now;
+	let clock = realNow();
+	Date.now = () => clock;
+	const c = mkCtx([() => { clock = realNow() + 10_001; return undefined; }]);
 	const { deps, audits } = mkDeps(c.ctx);
-	check('block → deny', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false);
-	check('block audited as no', audits.some((e) => e.decision === 'no' && e.layer === 1 && e.tool === 'network'));
+	check('countdown expiry → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
+	check('countdown expiry audited as yes', audits.some((e) => e.decision === 'yes'));
+	Date.now = realNow;
 }
 
 // --- once: covers the command's connections, not the next command ---
 {
 	reset();
-	const c = mkCtx([(o) => o[1], (o) => o[0]]);
+	const c = mkCtx([(o) => o[0], (o) => o[1]]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -130,9 +153,9 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	const c = mkCtx([undefined]);
+	const c = mkCtx([(o) => o[1]]);
 	const { deps } = mkDeps(c.ctx);
-	check('screen 1 timeout/escape → deny', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
+	check('screen 1 escape → deny', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
 }
 
 // --- persist failure: allow the command, never save ---
@@ -152,7 +175,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 // --- single-flight and host keys ---
 {
 	reset();
-	const c = mkCtx([(o) => o[1]]);
+	const c = mkCtx([(o) => o[0]]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -162,7 +185,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	const c = mkCtx([(o) => o[1], (o) => o[1]]);
+	const c = mkCtx([(o) => o[0], (o) => o[0]]);
 	const { deps, audits } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -177,7 +200,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 // --- clearing ---
 {
 	reset();
-	const c = mkCtx([(o) => o[2], (o) => o[0]]);
+	const c = mkCtx([(o) => o[2], (o) => o[1]]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	await ask({ host: 'b.example.com' });

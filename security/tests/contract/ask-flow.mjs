@@ -23,6 +23,45 @@ check('askMain once:false omits Allow once', !noOnce.includes('Allow once') && n
 const noRemember = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { remember: false }));
 check('askMain remember:false omits remember', !noRemember.includes('Allow and remember…'));
 
+// --- askMain: allow-first ordering (network asks, ADR-024) ---
+const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true, allowFirst: true }));
+check(
+	'askMain allowFirst = Allow (default) / Deny / session / remember',
+	allowFirstOpts.join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+);
+const pickAllowFirst = async (pick) =>
+	askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true, allowFirst: true });
+check('askMain allowFirst o0 → once', (await pickAllowFirst((o) => o[0])) === 'once');
+check('askMain allowFirst o1 → block', (await pickAllowFirst((o) => o[1])) === 'block');
+check('askMain allowFirst o2 → session', (await pickAllowFirst((o) => o[2])) === 'session');
+check('askMain allowFirst o3 → remember', (await pickAllowFirst((o) => o[3])) === 'remember');
+check('askMain allowFirst undefined (Esc) → block', (await pickAllowFirst(undefined)) === 'block');
+
+// --- askMain: countdown expiry is the default; Esc is not ---
+const expires = { hasUI: true, ui: { select: async () => { await new Promise((r) => setTimeout(r, 30)); return undefined; } } };
+check('askMain allowFirst countdown expiry → once', (await askMain(expires, 'H', 'b', { allowFirst: true, timeoutMs: 10 })) === 'once');
+check('askMain countdown expiry stays block for file asks', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
+
+// --- prompts are serialized: pi's selector is a singleton (ADR-024) ---
+let active = 0;
+let maxActive = 0;
+const starts = [];
+const serialized = {
+	hasUI: true,
+	ui: {
+		select: async (_t, o) => {
+			active++;
+			maxActive = Math.max(maxActive, active);
+			starts.push(o[0]);
+			await new Promise((r) => setTimeout(r, 15));
+			active--;
+			return undefined;
+		},
+	},
+};
+await Promise.all([askMain(serialized, 'A', 'b'), askMain(serialized, 'B', 'b')]);
+check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 && starts.join('|') === 'Block (default)|Block (default)');
+
 // --- askMain: mapping ---
 const pickMain = async (pick) => askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });
 check('askMain Block → block', (await pickMain((o) => o[0])) === 'block');
