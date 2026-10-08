@@ -92,7 +92,7 @@ export async function askOrBlock(ctx: UICtx, k: AskKind, absoluteDenyPattern: st
 			}
 		}
 	}
-	const decision = await askDecision(ctx, k, absoluteDenyPattern);
+	const decision = await askDecision(ctx, { ...k, projectTrusted: projectTrusted(ctx.cwd) }, absoluteDenyPattern);
 	if (decision === "no") {
 		audit({ layer: 2, tool: k.tool, subject: k.subject, reason: k.reason, decision: "no", cwd: ctx.cwd });
 		return { block: true, reason: denyMessage(k.overrideKind, k.reason) };

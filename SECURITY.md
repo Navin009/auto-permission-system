@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-08T09:05:41.492Z
+Generated: 2026-10-08T10:37:58.056Z
 
 ## At a glance
 
@@ -30,7 +30,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 226 lines, mtime 2026-10-08
+- ✓ `extensions/sandbox.ts` — 240 lines, mtime 2026-10-08
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-08
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `src/shared/` — dir, mtime 2026-10-08

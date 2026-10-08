@@ -1,4 +1,4 @@
-// Layer 1 network ask (ADR-023): the sandbox-runtime proxy callback routes
+// Layer 1 network ask (ADR-023 / ADR-030): the sandbox-runtime proxy callback routes
 // unknown hosts through the shared ask-tier (once / session / remember),
 // single-flights overlapping connections, and scopes "once" to one command.
 // Pure: drives createNetworkAsk with a scripted ctx.ui.select and stub deps.
@@ -7,18 +7,25 @@ import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNe
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-/** A ctx whose select answers from a queue and records the option lists it was shown. */
+/** A ctx whose select answers from a queue and records the option lists and titles it was shown. */
 function mkCtx(answers) {
 	const seen = [];
+	const seenTitles = [];
 	const notified = [];
 	let i = 0;
 	return {
 		seen,
+		seenTitles,
 		notified,
 		ctx: {
 			hasUI: true,
 			ui: {
-				select: async (_t, o) => { seen.push(o); const a = answers[i++]; return typeof a === 'function' ? a(o) : a; },
+				select: async (t, o) => {
+					seenTitles.push(t);
+					seen.push(o);
+					const a = answers[i++];
+					return typeof a === 'function' ? a(o) : a;
+				},
 				notify: (m) => notified.push(m),
 			},
 		},
@@ -43,6 +50,8 @@ function mkDeps(ctx, opts = {}) {
 			},
 			applyLive: (h) => live.push(h),
 			audit: (e) => audits.push(e),
+			projectTrusted: opts.projectTrusted,
+			command: opts.command,
 		},
 	};
 }
@@ -64,24 +73,22 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('no ctx denies', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
 }
 
-// --- screen 1: deny (second option; Allow is first, ADR-024) ---
-{
-	reset();
-	const c = mkCtx([(o) => o[1]]);
-	const { deps, audits } = mkDeps(c.ctx);
-	check('deny → block', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false);
-	check('deny audited as no', audits.some((e) => e.decision === 'no' && e.layer === 1 && e.tool === 'network'));
-}
-
-// --- screen 1: order and countdown default (ADR-024) ---
+// --- screen 1: No is the first option, Yes (just this once) is preselected (ADR-024) ---
 {
 	reset();
 	const c = mkCtx([(o) => o[0]]);
+	const { deps, audits } = mkDeps(c.ctx);
+	check('No → block', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false);
+	check('No audited', audits.some((a) => a.decision === 'no' && a.layer === 1 && a.tool === 'network'));
+}
+{
+	reset();
+	const c = mkCtx([(o) => o[1]]);
 	const { deps } = mkDeps(c.ctx);
-	check('Allow (default) → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
+	check('Yes, just this once → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
 	check(
-		'order = Allow (default) / Deny / session / remember',
-		c.seen[0].join('|') === 'Allow (default)|Deny|Allow this host group for this session|Allow and remember…',
+		'order = No / Yes, just this once / session / remember',
+		c.seen[0].join('|') === 'No|Yes, just this once|Yes, all in group for this session|Yes, always\u2026',
 	);
 }
 {
@@ -99,7 +106,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 // --- once: covers the command's connections, not the next command ---
 {
 	reset();
-	const c = mkCtx([(o) => o[0], (o) => o[1]]);
+	const c = mkCtx([(o) => o[1], undefined]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -111,7 +118,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	endNetworkCommand();
 }
 
-// --- session: in memory across commands ---
+// --- session: in memory across commands (parent-domain wildcard) ---
 {
 	reset();
 	const c = mkCtx([(o) => o[2]]);
@@ -122,10 +129,22 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('session notifies "not saved"', c.notified.some((m) => m.includes('this session')));
 	check('session audited', audits.some((e) => e.decision === 'session' && e.grant === 'example.com'));
 }
+// --- session: 3-part host stores the parent-domain wildcard ---
+{
+	reset();
+	const c = mkCtx([(o) => o[2]]);
+	const { deps, audits } = mkDeps(c.ctx);
+	const ask = createNetworkAsk(deps);
+	check('session wildcard → allow', (await ask({ host: 'backend.composio.dev' })) === true);
+	check('session wildcard covers siblings', (await ask({ host: 'api.composio.dev' })) === true && c.seen.length === 1);
+	check('session wildcard audited', audits.some((e) => e.decision === 'session' && e.grant === '*.composio.dev' && e.requested === 'backend.composio.dev'));
+}
 
 // --- remember: project / global scope, persisted and applied live ---
 {
 	reset();
+	// ADR-030 + v3.3: askRememberHost still offers the SAME 4 options for subdomains.
+	// (o[3] is the second screen's exact-host-global row.)
 	const c = mkCtx([(o) => o[3], (o) => o[0]]);
 	const { deps, audits, persisted, live } = mkDeps(c.ctx);
 	check('remember project → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
@@ -135,9 +154,6 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	// ADR-030: askRememberHost now offers 4 options for 3-part hosts (wildcard-cwd,
-	// exact-cwd, wildcard-global, exact-global). To remember the exact host globally
-	// we pick index 3.
 	const c = mkCtx([(o) => o[3], (o) => o[3]]);
 	const { deps, audits, persisted } = mkDeps(c.ctx);
 	check('remember global → allow', (await createNetworkAsk(deps)({ host: 'api.example.com', port: 443 })) === true);
@@ -156,9 +172,9 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	const c = mkCtx([(o) => o[1]]);
+	const c = mkCtx([(o) => o[0]]);
 	const { deps } = mkDeps(c.ctx);
-	check('screen 1 escape → deny', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
+	check('screen 1 No → deny', (await createNetworkAsk(deps)({ host: 'example.com' })) === false);
 }
 
 // --- persist failure: allow the command, never save ---
@@ -178,7 +194,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 // --- single-flight and host keys ---
 {
 	reset();
-	const c = mkCtx([(o) => o[0]]);
+	const c = mkCtx([(o) => o[1]]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -188,7 +204,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 }
 {
 	reset();
-	const c = mkCtx([(o) => o[0], (o) => o[0]]);
+	const c = mkCtx([(o) => o[1], (o) => o[1]]);
 	const { deps, audits } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	beginNetworkCommand();
@@ -203,12 +219,23 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 // --- clearing ---
 {
 	reset();
-	const c = mkCtx([(o) => o[2], (o) => o[1]]);
+	const c = mkCtx([(o) => o[2], undefined]);
 	const { deps } = mkDeps(c.ctx);
 	const ask = createNetworkAsk(deps);
 	await ask({ host: 'b.example.com' });
 	clearNetworkSessionGrants();
 	check('clearSession drops the session grant', (await ask({ host: 'b.example.com' })) === false && c.seen.length === 2);
+}
+
+// --- command field: shown in body, used to name the binary in the title ---
+{
+	reset();
+	const c = mkCtx([(o) => o[1]]);
+	const { deps } = mkDeps(c.ctx, { command: 'composio search googleads' });
+	await createNetworkAsk(deps)({ host: 'backend.composio.dev' });
+	const allText = JSON.stringify(c.seenTitles) + JSON.stringify(c.seen);
+	check('command in body', allText.includes('Command  composio search googleads'));
+	check('binary in title', c.seenTitles[0].includes('composio') && c.seenTitles[0].includes('connect'));
 }
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

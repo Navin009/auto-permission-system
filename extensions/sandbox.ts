@@ -55,6 +55,7 @@ export default function (pi: ExtensionAPI) {
 	let runtimeYolo = false;
 	let sandboxStarting: Promise<void> | null = null;
 	let latestCtx: ExtensionContext | undefined;
+	let latestBashCommand: string | undefined;
 	let activeCtx: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } } | undefined;
 
 	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowWrite", absPath, scope, networkDeps(localCwd));
@@ -67,6 +68,11 @@ export default function (pi: ExtensionAPI) {
 		persist: (host, scope) => writeNetworkOverride(cwd, host, scope),
 		applyLive: applyNetworkGrant,
 		audit,
+		// v3.3: lazy getters so each proxy ask reads the live trust state and the
+		// most recent bash command. Without these, the values captured at
+		// initSandbox() would be stale.
+		get projectTrusted() { return latestCtx?.isProjectTrusted?.(); },
+		get command() { return latestBashCommand; },
 	});
 
 	/** Bring the bash sandbox down; safe when it was never up. */
@@ -154,6 +160,14 @@ export default function (pi: ExtensionAPI) {
 		if (!runtimeYolo && sandboxStarting) await sandboxStarting;
 		if (runtimeYolo || !sandboxEnabled || !sandboxInitialized) return;
 		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
+	});
+
+	// v3.3: capture the latest bash command so the network ask body can show it.
+	pi.on("tool_call", (event, _ctx) => {
+		if (event.toolName === "bash") {
+			const input = event.input as { command?: string };
+			if (typeof input.command === "string") latestBashCommand = input.command;
+		}
 	});
 
 	pi.on("session_start", async (_event, ctx) => {

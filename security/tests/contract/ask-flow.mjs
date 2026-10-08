@@ -1,6 +1,6 @@
 // Shared ask-flow contract (src/ui/ask-flow.ts) — the reusable two-screen UI.
 // Drives each helper with a scripted ctx.ui.select; no pi, no fs.
-import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
+import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS, ICON } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -13,26 +13,45 @@ const optionsOf = async (fn) => {
 	return seen;
 };
 
-// --- askMain: option set ---
+// --- askMain: option set (v3.3 UX revamp) ---
 const base = await optionsOf((ctx) => askMain(ctx, 'H', '  body'));
-check('askMain base = Block / once / remember', base.join('|') === 'Block (default)|Allow once|Allow and remember…');
+check(
+	'askMain base = No / Yes, just this once / remember',
+	base.join('|') === 'No|Yes, just this once|Yes, always\u2026',
+);
 const withSession = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
-check('askMain session inserts before remember', withSession[2] === 'Allow for this session' && withSession[3] === 'Allow and remember…');
+check(
+	'askMain session inserts before remember',
+	withSession.join('|') === 'No|Yes, just this once|Yes, for this session|Yes, always\u2026',
+);
 const noOnce = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { once: false }));
-check('askMain once:false omits Allow once', !noOnce.includes('Allow once') && noOnce[0] === 'Block (default)');
+check(
+	'askMain once:false omits Yes, just this once',
+	!noOnce.includes('Yes, just this once') && noOnce[0] === 'No',
+);
 const noRemember = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { remember: false }));
-check('askMain remember:false omits remember', !noRemember.includes('Allow and remember…'));
+check(
+	'askMain remember:false omits Yes, always\u2026',
+	!noRemember.includes('Yes, always\u2026'),
+);
 
-// --- askMain: allow-first ordering (network asks, ADR-024) ---
+// --- askMain: order with footer ---
+const withSessionTitle = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
+check(
+	'askMain: title has header + body + footer',
+	withSessionTitle[0] === 'No' && withSessionTitle[2] === 'Yes, for this session' && withSessionTitle[3] === 'Yes, always\u2026',
+);
+
+// --- askMain: allow-first ordering (network asks, ADR-024) — same option order, Enter picks Yes (once) ---
 const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true, allowFirst: true }));
 check(
-	'askMain allowFirst = Allow (default) / Deny / session / remember',
-	allowFirstOpts.join('|') === 'Allow (default)|Deny|Allow for this session|Allow and remember…',
+	'askMain allowFirst = No / Yes, just this once / session / remember',
+	allowFirstOpts.join('|') === 'No|Yes, just this once|Yes, for this session|Yes, always\u2026',
 );
 const pickAllowFirst = async (pick) =>
 	askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true, allowFirst: true });
-check('askMain allowFirst o0 → once', (await pickAllowFirst((o) => o[0])) === 'once');
-check('askMain allowFirst o1 → block', (await pickAllowFirst((o) => o[1])) === 'block');
+check('askMain allowFirst o0 → block', (await pickAllowFirst((o) => o[0])) === 'block');
+check('askMain allowFirst o1 → once', (await pickAllowFirst((o) => o[1])) === 'once');
 check('askMain allowFirst o2 → session', (await pickAllowFirst((o) => o[2])) === 'session');
 check('askMain allowFirst o3 → remember', (await pickAllowFirst((o) => o[3])) === 'remember');
 check('askMain allowFirst undefined (Esc) → block', (await pickAllowFirst(undefined)) === 'block');
@@ -60,50 +79,84 @@ const serialized = {
 	},
 };
 await Promise.all([askMain(serialized, 'A', 'b'), askMain(serialized, 'B', 'b')]);
-check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 && starts.join('|') === 'Block (default)|Block (default)');
+check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 && starts.join('|') === 'No|No');
 
 // --- askMain: mapping ---
 const pickMain = async (pick) => askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });
-check('askMain Block → block', (await pickMain((o) => o[0])) === 'block');
-check('askMain once → once', (await pickMain((o) => o[1])) === 'once');
-check('askMain session → session', (await pickMain((o) => o[2])) === 'session');
-check('askMain remember → remember', (await pickMain((o) => o[3])) === 'remember');
+check('askMain o0 → block', (await pickMain((o) => o[0])) === 'block');
+check('askMain o1 → once', (await pickMain((o) => o[1])) === 'once');
+check('askMain o2 → session', (await pickMain((o) => o[2])) === 'session');
+check('askMain o3 → remember', (await pickMain((o) => o[3])) === 'remember');
 check('askMain undefined → block', (await askMain({ hasUI: true, ui: { select: async () => undefined } }, 'H', 'b')) === 'block');
 
-// --- askRememberFile ---
+// --- askRememberFile (v3.3 labels) ---
 const fileOpts = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', '/f'));
 check('askRememberFile: 4 options with folder', fileOpts.length === 4);
-check('askRememberFile: labels', fileOpts[0] === 'Allow for this folder (/f) - Scope this project' && fileOpts[3] === 'Allow for this file (/f/x) - Scope global');
+check(
+	'askRememberFile: folder first, (recommended) marker',
+	fileOpts[0] === 'All in folder   in this project   (recommended)' && fileOpts[0].endsWith('(recommended)'),
+);
+check(
+	'askRememberFile: file-then-folder pattern across scopes',
+	fileOpts[2] === 'All in folder   in all projects' && fileOpts[3] === 'Only x   in all projects',
+);
 const fileNoFolder = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', null));
-check('askRememberFile: 2 options without folder', fileNoFolder.length === 2 && fileNoFolder.every((o) => !o.includes('folder')));
+check(
+	'askRememberFile: 2 options without folder (file only, both)',
+	fileNoFolder.length === 2 && fileNoFolder[0] === 'Only x   in this project' && fileNoFolder[1] === 'Only x   in all projects',
+);
 const pickFile = async (idx) => askRememberFile({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', '/f/x', '/f');
 check('remember folder · project', JSON.stringify(await pickFile(0)) === '{"scope":"cwd","folder":true}');
 check('remember file · project', JSON.stringify(await pickFile(1)) === '{"scope":"cwd","folder":false}');
 check('remember folder · global', JSON.stringify(await pickFile(2)) === '{"scope":"global","folder":true}');
 check('remember file · global', JSON.stringify(await pickFile(3)) === '{"scope":"global","folder":false}');
 check('askRememberFile undefined → null', (await askRememberFile({ hasUI: true, ui: { select: async () => undefined } }, 'T', 'b', '/f/x', '/f')) === null);
+// --- askRememberFile: untrusted hides cwd rows ---
+const untrustedOpts = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', '/f', { untrusted: true }));
+check(
+	'askRememberFile untrusted: 2 options, both global',
+	untrustedOpts.length === 2 && untrustedOpts.every((o) => o.includes('in all projects')),
+);
 
-// --- askRememberHost ---
+// --- askRememberHost (v3.3 labels) ---
 const hostOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'example.com'));
-check('askRememberHost: 2 options for apex', hostOpts.length === 2 && hostOpts[0].includes('Scope this project') && hostOpts[1].includes('Scope global'));
+check(
+	'askRememberHost: 2 options for apex',
+	hostOpts.length === 2 && hostOpts[0].includes('in this project') && hostOpts[1].includes('in all projects'),
+);
 const pickHost = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'example.com');
 check('remember host · project', (await pickHost(0)).scope === 'cwd' && (await pickHost(0)).pattern === 'example.com');
 check('remember host · global', (await pickHost(1)).scope === 'global' && (await pickHost(1)).pattern === 'example.com');
 const subdomainOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'api.example.com'));
-check('askRememberHost: 4 options for subdomain (wildcard first)', subdomainOpts.length === 4 && subdomainOpts[0].includes('*.example.com') && subdomainOpts[1].includes('(api.example.com)') && subdomainOpts[1].includes('Scope this project'));
+check(
+	'askRememberHost: 4 options for subdomain, wildcard first',
+	subdomainOpts.length === 4 && subdomainOpts[0].includes('All in group') && subdomainOpts[0].includes('(*.example.com)') && subdomainOpts[0].includes('(recommended)'),
+);
+check(
+	'askRememberHost: wildcard-then-exact pattern across scopes',
+	subdomainOpts[2].includes('All in group') && subdomainOpts[2].includes('in all projects') && subdomainOpts[3] === 'Only api.example.com   in all projects',
+);
 const pickSubdomain = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'api.example.com');
 check('remember wildcard · project', (await pickSubdomain(0)).scope === 'cwd' && (await pickSubdomain(0)).pattern === '*.example.com');
 check('remember exact host · project', (await pickSubdomain(1)).scope === 'cwd' && (await pickSubdomain(1)).pattern === 'api.example.com');
+// --- askRememberHost: untrusted hides cwd rows ---
+const untrustedHostOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'api.example.com', { untrusted: true }));
+check(
+	'askRememberHost untrusted: 2 options, both global',
+	untrustedHostOpts.length === 2 && untrustedHostOpts.every((o) => o.includes('in all projects')),
+);
 
 // --- askExposure (Advanced Secure output gate, ADR-018) ---
 const hit = 'config.env\n12: key=asdfadsdaasdfdsafasdf';
 const expOpts = await optionsOf((ctx) => askExposure(ctx, [hit]));
-check('askExposure: 2 options, keep-private first', expOpts.length === 2 && expOpts[0].startsWith('No, keep private'));
-check('askExposure: allow label', expOpts[1].startsWith('Yes, allow'));
+check('askExposure: 2 options, keep-hidden first', expOpts.length === 2 && expOpts[0].startsWith('No, keep it hidden'));
+check('askExposure: allow label', expOpts[1].startsWith('Yes, show it this once'));
 let expTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
-check('askExposure: header + location + line + question', expTitle.startsWith('⚠ Sensitive information detected') && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Should the AI be allowed to see it?'));
-check('askExposure: no finding-type label', !expTitle.includes('SECRET_ASSIGNMENT'));
+check(
+	'askExposure: icon-prefixed title + location + line + footer',
+	expTitle.startsWith(`${ICON.cred}  This output may contain a secret`) && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Esc or no answer in 10s = No'),
+);
 const multiHit = 'config.env\n12: key=aaa\n20: OPENAI_API_KEY=sk-bbb';
 let multiTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { multiTitle = t; return undefined; } } }, [multiHit]);

@@ -9,9 +9,28 @@ Use it to:
 
 Conventions:
 
-- **`>`** marks the preselected (Enter-applies) option in each screen.
-- **`↑/↓`** notes assume the user is using arrow keys to navigate; today's
-  selector still times out after `ASK_TIMEOUT_MS` (default 10s).
+- **Every prompt is a question, and every answer starts with No or Yes.**
+  The answers always come in the same order — No · Yes, just this once ·
+  Yes, for this session · Yes, always… — so row 2 always means "once".
+  Answers that don't apply to a prompt are removed, not greyed out.
+- **`>`** marks the highlighted answer that Enter picks. It starts on No
+  everywhere except network prompts, where it starts on "Yes, just this
+  once" (ADR-024).
+- **The footer** says what Esc and no answer do. Today's selector times
+  out after `ASK_TIMEOUT_MS` (default 10s).
+- **"…"** at the end of an answer opens a second screen.
+- **Screen 2 ("Yes, always…")** shows the File and Folder (or Site and
+  Group) once at the top. Rows say "All in folder" / "All in group" or
+  "Only <name>", then "in this project" or "in all projects".
+- **Body fields** are always from this set, in this order: File, Folder,
+  Site, Group, Command, Why, Risk, Note. Paths start with `~` for your home
+  folder.
+- **"(recommended)"** appears only where there's a clear recommendation:
+  on screens about credentials or secrets, and on screen 2's preselected
+  row.
+- **Icons:** 🛡 normal ask · ⚠ system change or warning · 🔑 secrets and
+  credentials · 🌐 network · 💾 saving a rule. The title still makes sense
+  without them.
 - Folder / sample values are real-world examples taken from the audit log.
 
 ---
@@ -23,46 +42,64 @@ cache. Layer 1 fences the bash command, the sandbox prints `EROFS:
 read-only file system, open '/home/u/.composio/tool_definitions/x.json'`,
 the write hook takes over.
 
-### Screen 1 — verdict + duration
+### Screen 1 — allow it, and for how long?
 
 ```
-🛡 Write blocked by policy
-   file:   /home/u/.composio/tool_definitions/x.json
-   folder: /home/u/.composio/tool_definitions/   (covers every file under it)
-   why:    not under any allowWrite root
+🛡  Let composio save files in ~/.composio/tool_definitions/?
 
-  > Block (default)
-    Allow once
-    Allow this folder for this session
-    Allow and remember…
+    File     ~/.composio/tool_definitions/x.json
+    Command  composio search googleads
+    Why      outside your project, not on your allowed list
+
+  > No
+    Yes, just this once
+    Yes, for this session
+    Yes, always…
+
+  Esc or no answer in 10s = No
 ```
 
-→ `Allow once` re-runs the command, allows the parent folder only for this
-invocation (ADR-021). Never saved.
+| Answer                | What happens |
+| --------------------- | ------------ |
+| No                    | composio's save fails and the AI is told you said no. Nothing is saved. |
+| Yes, just this once   | composio runs again and can save files in this folder until the command finishes (ADR-021). Nothing is saved. |
+| Yes, for this session | Any command can save files in this folder until you quit pi, with no more prompts for it (ADR-030). Nothing is saved to disk. |
+| Yes, always…          | Opens screen 2 to choose how wide a permanent rule should be. |
 
-→ `Allow this folder for this session` grants `/home/u/.composio/tool_definitions/`
-in memory for the rest of the session — every future file under that
-folder is allowed without re-prompting (ADR-030).
-
-### Screen 2 — only after "Allow and remember…"
+### Screen 2 — only after "Yes, always…"
 
 ```
-Remember this <path>?
-   file:   /home/u/.composio/tool_definitions/x.json
-   folder: /home/u/.composio/tool_definitions/
+💾  Always allow saving — what, and where?
 
-  > Allow for this folder (/home/u/.composio/tool_definitions/) - Scope this project
-    Allow for this file (/home/u/.composio/tool_definitions/x.json) - Scope this project
-    Allow for this folder (/home/u/.composio/tool_definitions/) - Scope global
-    Allow for this file (/home/u/.composio/tool_definitions/x.json) - Scope global
+    File     ~/.composio/tool_definitions/x.json
+    Folder   ~/.composio/tool_definitions/
+    Note     the rule works for any command, not just composio
+
+  > All in folder    in this project    (recommended)
+    Only x.json      in this project
+    All in folder    in all projects
+    Only x.json      in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
 ```
 
-→ Folder is preselected (ADR-030). Enter grants the folder in the current
-project's `.pi/sandbox.json`. Project must be trusted (ADR-013) — otherwise
-the write silently fails and the model sees a refusal. Use ↑ ↓ to narrow
-back to the file or widen to global.
+| Answer                           | Covers                   | Saved to |
+| -------------------------------- | ------------------------ | -------- |
+| All in folder · in this project  | every file in the folder | this project's `.pi/sandbox.json` |
+| Only x.json · in this project    | just this file           | this project's `.pi/sandbox.json` |
+| All in folder · in all projects  | every file in the folder | your global pi settings |
+| Only x.json · in all projects    | just this file           | your global pi settings |
 
-**Audit:**
+The "All in folder" row is preselected (ADR-030). Saving "in this project" needs a
+trusted project (ADR-013). If the project isn't trusted, the two "in this
+project" rows are hidden and the body shows one more line:
+
+```
+    Note     this project isn't trusted — run /security trust to save rules here
+```
+
+**Audit** (first line: "Yes, just this once"; second line: "All in
+folder, in this project"):
 
 ```jsonl
 {"layer":1,"tool":"bash","subject":"/home/u/.composio/tool_definitions/x.json","decision":"once","scope":"invocation","note":"write-once","cwd":"…"}
@@ -71,46 +108,106 @@ back to the file or widen to global.
 
 ---
 
-## 2. Write — multi-file invocation, second file
+## 2. Write — second file in the same folder
 
-Trigger: same `composio search` writes `user_data.json` next. After the
-session grant from §1, this fires **no prompt**.
+Trigger: the same `composio search` saves
+`~/.composio/tool_definitions/googleads.json` next. You answered "Yes, for
+this session" in §1, so this fires **no prompt**. A quiet status line (no
+key press needed) tells you why:
+
+```
+  ✓ composio saved ~/.composio/tool_definitions/googleads.json
+    allowed by your session rule for this folder
+```
 
 **Audit** (silent allow via session grant):
 
 ```jsonl
-{"layer":1,"tool":"bash","subject":"/home/u/.composio/user_data.json","decision":"write-once","cwd":"…"}
+{"layer":1,"tool":"bash","subject":"/home/u/.composio/tool_definitions/googleads.json","decision":"write-once","cwd":"…"}
 ```
 
 This is the win the user wanted: one decision for the whole folder, every
-subsequent file under it is silent.
+later file inside it is silent.
+
+### One level up still asks
+
+The rule covers `~/.composio/tool_definitions/` only. When composio saves
+`~/.composio/user_data.json`, that file is in the parent folder, so you get
+a new prompt. The title names the new folder, so you can see it's a
+different (wider) place:
+
+```
+🛡  Let composio save files in ~/.composio/?
+
+    File     ~/.composio/user_data.json
+    Command  composio search googleads
+    Why      outside your project, not on your allowed list
+
+  > No
+    Yes, just this once
+    Yes, for this session
+    Yes, always…
+
+  Esc or no answer in 10s = No
+```
+
+The answers work the same as §1 screen 1.
 
 ---
 
-## 3. Write — folder is unsafe (e.g. `/etc`)
+## 3. Write — system file, folder can't be allowed (`/etc/foo`)
 
-Trigger: a bad command tries `sudo tee /etc/foo`. `isSafeFolderGrant` rejects
-the parent (`/`), so the session grant falls back to the file.
+Trigger: a bad command tries `sudo tee /etc/foo`. The parent folder `/etc`
+isn't safe to allow as a whole, so every "Yes" answer covers **only this
+file**. The title names the file (not a folder), so the answers can't be
+misread.
 
-### Screen 1 — same shape as §1
+### Screen 1 — warning look
 
 ```
-🛡 Write blocked by policy
-   file:   /etc/foo
-   folder: /              ← suppressed: not a safe grant target
-   why:    not under any allowWrite root
+⚠  Let sudo tee change the system file /etc/foo?
 
-  > Block (default)
-    Allow once
-    Allow this folder for this session       ← still offered, but selecting it falls back to the file
-    Allow and remember…
+    File     /etc/foo
+    Command  sudo tee /etc/foo
+    Risk     /etc holds system settings for the whole machine
+    Note     only this one file can be allowed, not the /etc folder
+
+  > No   (recommended)
+    Yes, just this once
+    Yes, for this session
+    Yes, always…
+
+  Esc or no answer in 10s = No
 ```
 
-### Session grant value when "this folder" is chosen
+| Answer                | What happens |
+| --------------------- | ------------ |
+| No                    | The write fails and the AI is told you said no. Nothing is saved. |
+| Yes, just this once   | The command runs again and can change `/etc/foo` only. Nothing is saved. |
+| Yes, for this session | Any command can change `/etc/foo` (only this file) until you quit pi. |
+| Yes, always…          | Opens screen 2, which offers only "Only foo" rows (no folder). |
 
-`/etc` → `parent = /`, `isSafeFolderGrant('/', home) === false` →
-**sessionGrants.push({ kind: 'allowWrite', value: '/etc/foo' })** (file, not
-folder). The user sees the same fallback in the audit:
+### Screen 2 — only after "Yes, always…"
+
+```
+💾  Always allow changing — what, and where?
+
+    File     /etc/foo
+    Folder   /etc/
+    Note     this folder can't be allowed as a whole, only this file
+
+  > Only foo    in this project    (recommended)
+    Only foo    in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
+
+### Session grant value
+
+For "Yes, for this session", the parent `/etc` fails the safety check
+(`isSafeFolderGrant('/etc', home) === false`), so the session grant is the
+file: **sessionGrants.push({ kind: 'allowWrite', value: '/etc/foo' })**.
+The audit records it:
 
 ```jsonl
 {"layer":1,"tool":"bash","subject":"/etc/foo","decision":"session","grant":"/etc/foo","note":"folder-unsafe","cwd":"…"}
@@ -123,93 +220,137 @@ without the note.)
 
 ## 4. Read — `.env` (`askRead`, ADR-019)
 
-Trigger: `grep -r TOKEN .env` matches an `.env` line. The pre-flight ask
-fires before the command runs.
+Trigger: the AI runs `grep -r TOKEN .env`. The pre-flight ask fires before
+the command runs, so nothing has been read yet.
 
-### Screen 1 (only `once` and `session`; no remember)
+### Screen 1 — no "always" option
 
 ```
-🛡 Sensitive file read
-   file:   /home/u/project/.env
-   why:    it may hold secrets
+🔑  Let pi read your .env file?
 
-  > Block (default)
-    Allow once
-    Allow for this session
+    File     ~/project/.env
+    Command  grep -r TOKEN .env
+    Why      .env files usually hold passwords and API keys
+    Risk     the AI will see any keys in it
+    Note     can't be saved as a permanent rule (it holds secrets)
+
+  > No
+    Yes, just this once
+    Yes, for this session
+
+  Esc or no answer in 10s = No
 ```
 
-The "remember" option is suppressed here — secrets should not be persisted
-to a sandbox.json. `askRead` only ever prompts.
+| Answer                | What happens |
+| --------------------- | ------------ |
+| No                    | The command doesn't run and the AI is told you said no. |
+| Yes, just this once   | The command runs once; the AI sees what it prints from `.env`. |
+| Yes, for this session | Any command can read this `.env` until you quit pi. Nothing is saved to disk. |
+
+There's no "Yes, always…": secrets should never be saved as a rule in a
+`sandbox.json`. `askRead` only ever prompts.
 
 ---
 
 ## 5. Read — outside the project (`outsideProject.read = "ask"`)
 
-Trigger: `cat ~/notes/todo.md` from inside a project. The pre-flight detects
-the outside path before sandbox-exec fences it.
+Trigger: the AI runs `cat ~/notes/todo.md` from inside a project. The
+pre-flight detects the outside path before sandbox-exec fences it.
 
-### Screen 1
-
-```
-🛡 Read outside the project
-   path:   /home/u/notes/todo.md
-   source: this bash command
-
-  > Block (default)
-    Allow once
-    Allow and remember…
-```
-
-(No `Allow for this session` for outside reads — only once and remember.
-Rationale: session grants are for cache writes that recur inside a session,
-not for one-off reads.)
-
-### Screen 2
+### Screen 1 — allow it, and for how long?
 
 ```
-Remember this read?
-   file:   /home/u/notes/todo.md
-   folder: /home/u/notes/        ← only if isSafeFolderGrant
+🛡  Let cat read ~/notes/todo.md? It's outside your project.
 
-  > Allow for this folder (/home/u/notes/) - Scope this project
-    Allow for this file (/home/u/notes/todo.md) - Scope this project
-    Allow for this folder (/home/u/notes/) - Scope global
-    Allow for this file (/home/u/notes/todo.md) - Scope global
+    File     ~/notes/todo.md
+    Command  cat ~/notes/todo.md
+    Why      files outside your project need your OK
+
+  > No
+    Yes, just this once
+    Yes, for this session
+    Yes, always…
+
+  Esc or no answer in 10s = No
 ```
 
-If the path is `~/notes/todo.md` (a file directly in home), `parent =
-/home/u` → `isSafeFolderGrant(/home/u, /home/u) === false` → only the
-exact file is offered.
+| Answer                | What happens |
+| --------------------- | ------------ |
+| No                    | The command doesn't run and the AI is told you said no. |
+| Yes, just this once   | The command runs once and can read this file. Nothing is saved. |
+| Yes, for this session | Any command can read files in `~/notes/` until you quit pi. Nothing is saved to disk. |
+| Yes, always…          | Opens screen 2 to choose how wide a permanent rule should be. |
+
+"Yes, for this session" is the same answer as on write prompts, so the four
+rows mean the same thing everywhere.
+
+### Screen 2 — only after "Yes, always…"
+
+```
+💾  Always allow reading — what, and where?
+
+    File     ~/notes/todo.md
+    Folder   ~/notes/
+    Note     the rule works for any command, not just cat
+
+  > All in folder    in this project    (recommended)
+    Only todo.md     in this project
+    All in folder    in all projects
+    Only todo.md     in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
+
+### When the file sits directly in your home folder
+
+For `~/todo.md`, the parent is your home folder (`/home/u`). That's too wide
+to allow as a whole (`isSafeFolderGrant('/home/u', '/home/u') === false`),
+so "Yes, for this session" covers only the file, and screen 2 shows only
+the file rows:
+
+```
+💾  Always allow reading — what, and where?
+
+    File     ~/todo.md
+    Folder   ~/   (your home folder)
+    Note     this folder can't be allowed as a whole, only this file
+
+  > Only todo.md     in this project    (recommended)
+    Only todo.md     in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
 
 ---
 
 ## 6. Read — `~/.ssh/id_rsa` (absolute deny)
 
-Trigger: `cat ~/.ssh/id_rsa`. Two deliberate steps (ADR-009) — both
-default to block, so Enter-Enter can never approve.
+Trigger: the AI runs `cat ~/.ssh/id_rsa`. One screen that starts on No, so
+pressing Enter never approves. There's no second "are you sure?" screen.
 
-### Screen 1 — credential banner
-
-```
-⚠  Credential access blocked
-   file:  /home/u/.ssh/id_rsa
-   why:   denyRead matched "~/.ssh"
-
-   > Block (default)
-     Allow this one call
-```
-
-### Screen 2 — explicit confirm
+### Screen 1 — credential warning (the only screen)
 
 ```
-Confirm: allow one read of credential material?
+🔑  Let pi read your SSH private key?
 
-   > No — keep blocked (default)
-     Yes — allow once
+    File     ~/.ssh/id_rsa
+    Command  cat ~/.ssh/id_rsa
+    Risk     anyone with this key can log in to your servers as you
+    Note     can only be allowed for one read at a time
+
+  > No   (recommended)
+    Yes, allow this one read
+
+  Esc or no answer in 10s = No
 ```
 
-No "Allow for this session". No "Allow and remember…". The credential tier
-is intentionally a one-shot.
+| Answer                    | What happens |
+| ------------------------- | ------------ |
+| No                        | The command doesn't run and the AI is told you said no. |
+| Yes, allow this one read  | The command runs once; the AI sees the key. Nothing is saved. |
+
+No "for this session" and no "always": credentials are only ever allowed
+one read at a time.
 
 **Audit:**
 
@@ -223,50 +364,67 @@ is intentionally a one-shot.
 
 ## 7. Network — `backend.composio.dev` (3-part host)
 
-Trigger: bash spawns `curl https://backend.composio.dev/v1/...`. The
-sandbox-runtime proxy asks the host before connecting.
+Trigger: `composio search googleads` connects to
+`https://backend.composio.dev/v1/...`. The sandbox-runtime proxy asks
+before connecting.
 
-### Screen 1 — allow-first (ADR-024)
-
-```
-🛡 Network access blocked
-   host:  backend.composio.dev
-   group: *.composio.dev    (covers all subdomains)
-   why:   not in the allowlist
-
-   > Allow (default)
-     Deny
-     Allow this host group for this session
-     Allow and remember…
-```
-
-The preselected option is **Allow** (ADR-024). An unanswered 10s countdown
-still allows the bash command's connection; Esc denies. The session label
-calls out the grant: `*.composio.dev`.
-
-→ `Allow once` covers this command's connections to `backend.composio.dev`.
-Future connections in the same command hit the same `commandGrants` set
-without re-prompting (ADR-023).
-
-→ `Allow this host group for this session` stores `*.composio.dev` in
-memory. Next composio invocation connecting to `api.compos.io`,
-`metrics.compos.io`, etc. all pass without a prompt.
-
-### Screen 2 — wildcard first (ADR-030)
+### Screen 1 — starts on Yes (ADR-024)
 
 ```
-Remember this host?
-   host: backend.composio.dev
+🌐  Let composio connect to backend.composio.dev?
 
-   > Allow *.composio.dev (covers all subdomains) - Scope this project
-     Allow this host (backend.composio.dev) - Scope this project
-     Allow *.composio.dev (covers all subdomains) - Scope global
-     Allow this host (backend.composio.dev) - Scope global
+    Site     backend.composio.dev
+    Group    *.composio.dev   (every composio.dev site)
+    Command  composio search googleads
+    Why      this site isn't on your allowed list yet
+
+    No
+  > Yes, just this once
+    Yes, all in group for this session
+    Yes, always…
+
+  Esc = No · no answer in 10s = Yes, just this once
 ```
 
-`picked.pattern` is the value persisted into `overrides.allowDomains` and
-applied live to the running proxy. Audit shows both the pattern that was
-granted and the host that prompted:
+The rows are in the same order as every other prompt; only the cursor
+starts lower, on "Yes, just this once" (ADR-024). The footer says plainly
+that no answer means Yes.
+
+| Answer                             | What happens |
+| ---------------------------------- | ------------ |
+| No                                 | The connection is refused; the command may fail. |
+| Yes, just this once                | This command can connect to `backend.composio.dev`. Its later connections there don't ask again (ADR-023). Nothing is saved. |
+| Yes, all in group for this session | Any command can connect to any `*.composio.dev` site (`api.composio.dev`, `metrics.composio.dev`, …) until you quit pi. Nothing is saved to disk. |
+| Yes, always…                       | Opens screen 2 to choose how wide a permanent rule should be. |
+
+### Screen 2 — only after "Yes, always…"
+
+```
+💾  Always allow connecting — what, and where?
+
+    Site     backend.composio.dev
+    Group    *.composio.dev   (every composio.dev site)
+    Note     the rule works for any command, not just composio
+
+  > All in group                in this project    (recommended)
+    Only backend.composio.dev   in this project
+    All in group                in all projects
+    Only backend.composio.dev   in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
+
+| Answer                                       | Covers                     | Saved to |
+| -------------------------------------------- | -------------------------- | -------- |
+| All in group · in this project               | every `*.composio.dev` site | this project's `.pi/sandbox.json` |
+| Only backend.composio.dev · in this project  | just this site             | this project's `.pi/sandbox.json` |
+| All in group · in all projects               | every `*.composio.dev` site | your global pi settings |
+| Only backend.composio.dev · in all projects  | just this site             | your global pi settings |
+
+The "All in group" row is preselected (ADR-030). `picked.pattern` is the
+value persisted into `overrides.allowDomains` and applied live to the
+running proxy. Audit shows both the pattern that was granted and the site
+that asked:
 
 ```jsonl
 {"layer":1,"tool":"network","subject":"backend.composio.dev","decision":"always-cwd","scope":"cwd","persisted_to":"…/.pi/sandbox.json","pattern":"*.composio.dev","requested":"backend.composio.dev","cwd":"…"}
@@ -276,8 +434,24 @@ granted and the host that prompted:
 
 ## 8. Network — `us.i.posthog.com` (telemetry)
 
-Same shape as §7. The wildcard is `*.i.posthog.com`, which covers
-`us.i.posthog.com`, `eu.i.posthog.com`, etc.
+Same shape as §7; only the site and group change. The group is
+`*.i.posthog.com`, which covers `us.i.posthog.com`, `eu.i.posthog.com`, etc.
+
+```
+🌐  Let composio connect to us.i.posthog.com?
+
+    Site     us.i.posthog.com
+    Group    *.i.posthog.com   (every i.posthog.com site)
+    Command  composio search googleads
+    Why      this site isn't on your allowed list yet
+
+    No
+  > Yes, just this once
+    Yes, all in group for this session
+    Yes, always…
+
+  Esc = No · no answer in 10s = Yes, just this once
+```
 
 ### Audit (session grant):
 
@@ -285,69 +459,87 @@ Same shape as §7. The wildcard is `*.i.posthog.com`, which covers
 {"layer":1,"tool":"network","subject":"us.i.posthog.com","decision":"session","grant":"*.i.posthog.com","requested":"us.i.posthog.com","cwd":"…"}
 ```
 
-(The `i.posthog.com` wildcard is intentionally narrow — it does NOT cover
-`posthog.com`'s other products like `app.posthog.com` or
-`us.posthog.com`. If the user wants the entire vendor, they pick the exact
-host on screen 2.)
+(The `*.i.posthog.com` group is intentionally narrow — it does NOT cover
+posthog's other sites like `app.posthog.com` or `us.posthog.com`. There's
+no row for all of `posthog.com`.)
 
 ---
 
 ## 9. Network — `example.com` (2-part apex)
 
-Trigger: a curl to `https://example.com/api`. No useful subdomain
-wildcard — `*.example.com` wouldn't match the apex.
+Trigger: a curl to `https://example.com/api`. There's no useful group —
+`*.example.com` wouldn't match `example.com` itself — so every "Yes" covers
+only this site.
 
-### Screen 1
-
-```
-🛡 Network access blocked
-   host:  example.com
-   why:   not in the allowlist
-
-   > Allow (default)
-     Deny
-     Allow this host group for this session
-     Allow and remember…
-```
-
-(No `group:` line in the body — the system detected no useful wildcard.)
-
-### Screen 2 — only 2 (no wildcard option)
+### Screen 1 — no Group line
 
 ```
-Remember this host?
-   host: example.com
+🌐  Let curl connect to example.com?
 
-   > Allow this host (example.com) - Scope this project
-     Allow this host (example.com) - Scope global
+    Site     example.com
+    Command  curl https://example.com/api
+    Why      this site isn't on your allowed list yet
+
+    No
+  > Yes, just this once
+    Yes, for this session
+    Yes, always…
+
+  Esc = No · no answer in 10s = Yes, just this once
 ```
 
-The session grant for `example.com` is the exact host — the wildcard
-generation returns `host` for 2-part hosts.
+With no group, row 3 is plain "Yes, for this session" — it covers only
+`example.com`.
+
+### Screen 2 — only "Only example.com" rows
+
+```
+💾  Always allow connecting — what, and where?
+
+    Site     example.com
+    Note     only this site can be allowed — there's no wider group
+
+  > Only example.com    in this project    (recommended)
+    Only example.com    in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
+
+The session grant for `example.com` is the exact site — the wildcard
+generation returns the host itself for 2-part hosts.
 
 ---
 
 ## 10. Sensitive command — `env | grep COMPOSIO`
 
-Trigger: bash runs `env | grep -i composio`. `commands.ask` lists
+Trigger: the AI runs `env | grep -i composio`. `commands.ask` lists
 `^env$`, `^printenv$`, `/proc/[^/]+/environ` — bare invocation only.
 
-### Screen 1
+### Screen 1 — one run at a time
 
 ```
-🛡 Command may print secrets
-   command: env
-   why:     it can print environment values (API tokens)
+🔑  Let env print your environment variables?
 
-   > Block (default)
-     Allow once
+    Command  env | grep -i composio
+    Risk     environment variables often hold API keys and tokens
+    Note     can only be allowed one run at a time
+
+  > No   (recommended)
+    Yes, just this once
+
+  Esc or no answer in 10s = No
 ```
 
-(No session, no remember — these commands print too much to grant
-broadly.)
+| Answer              | What happens |
+| ------------------- | ------------ |
+| No                  | The command never runs and the AI is told you said no (message below). |
+| Yes, just this once | The command runs once; the AI sees what it prints. Nothing is saved. |
 
-The pre-flight runs before the sandbox-exec child starts. If denied, the
-command never runs:
+No "for this session" and no "always" — these commands print too much to
+allow broadly.
+
+The pre-flight runs before the sandbox-exec child starts. If you answer No,
+the AI sees:
 
 ```
 ❌ pi-sandbox: command blocked — it can print secrets: env. Nothing was run — ask the user.
@@ -357,44 +549,70 @@ command never runs:
 
 ## 11. Advanced Secure — sensitive file (`mcp.json`)
 
-Trigger: Layer 2 reads `~/.pi/agent/mcp.json`. The file is in
-`denyRead` AND `askRead`, AND Advanced Secure flags it as
-`strong`-risk for credential names.
+Trigger: Layer 2 reads `~/.pi/agent/mcp.json`. The file is in `denyRead`
+AND `askRead`, AND Advanced Secure flags it as `strong`-risk for credential
+names. Because it's on the protected list (`denyRead`), it gets the same
+one-read-only screen as the SSH key in §6.
 
 ```
-🛡 Read blocked — sensitive file
-   file: /home/u/.pi/agent/mcp.json
-   why: matches denyRead and contains credential-like content
+🔑  Let pi read your MCP settings file?
 
-  > Block (default)
-    Allow this one call
-    Allow for this session (not saved)
+    File     ~/.pi/agent/mcp.json
+    Command  read ~/.pi/agent/mcp.json
+    Risk     it holds API keys for your MCP servers
+    Note     can only be allowed for one read at a time
+
+  > No   (recommended)
+    Yes, allow this one read
+
+  Esc or no answer in 10s = No
 ```
 
-If the model ignores the read and tries to use the contents from another
-tool (e.g. `grep`), Layer 2's `tool_result` filter drops the matched lines
-before they reach the model.
+| Answer                    | What happens |
+| ------------------------- | ------------ |
+| No                        | The read doesn't happen and the AI is told you said no. |
+| Yes, allow this one read  | The AI sees the file once, API keys included. Nothing is saved. |
+
+If the AI is told No and tries to get the contents another way (e.g.
+`grep`), Layer 2's `tool_result` filter drops the matched lines before they
+reach the AI.
 
 ---
 
 ## 12. Advanced Secure — output gate (redaction prompt)
 
-Trigger: a tool returned output that contains a `JWT_…` token. The output
-filter detected it before the model saw it.
+Trigger: the AI ran `cat deploy.sh`, and the output contains a login token
+(JWT). The output filter caught it before the AI saw it.
 
 ```
-⚠ Sensitive information detected
+🔑  This output may contain a secret — show it to the AI?
 
-   output from: bash
-   matched: JWT_ASSIGNMENT on line 14
-              14: export JWT="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    From     bash: cat deploy.sh
+        ...   
+    14: export JWT="eyJhbGciasdfadfs..." # show full line
+        ...
+    Note     you'll be asked again each time a secret shows up
 
-   > No, keep private
-     Yes, allow
+  > No, keep it hidden   (recommended)
+    Yes, show it this once
+
+  Esc or no answer in 10s = No
 ```
 
-Choosing "Yes, allow" passes the real value through. Choosing "No, keep
-private" withholds the output and the model sees:
+The screen never shows the internal rule name (`JWT_ASSIGNMENT`) — it shows
+a plain name for what was found, plus the start of the line so you can
+recognise it. Each detection rule gets a plain name:
+
+| Rule             | Shown as           |
+| ---------------- | ------------------ |
+| `JWT_ASSIGNMENT` | a login token (JWT) |
+
+| Answer                  | What happens |
+| ----------------------- | ------------ |
+| No, keep it hidden      | The AI gets the message below instead of the output. |
+| Yes, show it this once  | The AI sees the full output, secret included. Nothing is saved. |
+
+When you choose "No, keep it hidden", the AI sees:
 
 ```
 ⚠ Output from `bash` was withheld because it may contain sensitive information.
@@ -411,22 +629,28 @@ detection re-prompts. (Follow-up: scope detection grants to a
 
 ## 13. Project policy — untrusted widening warning
 
-Trigger: a project has a `.pi/sandbox.json` that adds
-`*.composio.dev` to `network.allowedDomains`. The project isn't trusted.
+Trigger: a project has a `.pi/sandbox.json` that adds `*.composio.dev`,
+`*.composio.ai` and `*.composio.com` to `network.allowedDomains`. The
+project isn't trusted.
+
+This is a notice, not a question — there's nothing to pick:
 
 ```
-⚠  This folder has a .pi/sandbox.json that tries to make your security weaker:
-   • Let pi connect to: *.composio.dev, *.composio.ai, *.composio.com.
-   auto-permission-system ignores these changes. Its block rules still apply.
-   Did you write this file? Then type /security trust.
+⚠  This project's settings try to loosen your security
+
+    File     ~/code/my-app/.pi/sandbox.json
+    Wants    let pi connect to *.composio.dev, *.composio.ai,
+             *.composio.com
+    Status   ignored — your normal rules still apply
+
+    Did you write this file? Type /security trust to use it.
 ```
 
-If the user picks "Yes — allow this once" inside a `composio` session, the
-grant is written to the **untrusted** project file. The write does persist,
-and `recordProjectTrust` records the new hash — so the project's widening
-becomes effective *for that specific file change*, but the user is
-surprised because the warning still appears on the next session_start
-since the file was modified again.
+**What goes wrong today:** if you answer "always … in this project" on a
+network prompt while this project is untrusted, the rule is written into
+the untrusted file, and `recordProjectTrust` records the file's new hash.
+That quietly trusts the whole file — including the domains you never
+approved (`*.composio.ai`, `*.composio.com`).
 
 **Audit** of the silent trust-via-write:
 
@@ -434,22 +658,40 @@ since the file was modified again.
 {"layer":2,"tool":"bash","subject":"backend.composio.dev","decision":"always-cwd","scope":"cwd","persisted_to":"…/.pi/sandbox.json","cwd":"…"}
 ```
 
-(Not in this PR. Follow-up: refuse the "always-cwd" option at the menu layer
-when the project is untrusted, redirect to `/security trust` or
-"global scope".)
+**With the new screen 2** (see §1): in an untrusted project, the "in this
+project" rows are hidden and a Note line explains why. Only "in all
+projects" rows remain, so nothing can be written into the untrusted file:
+
+```
+💾  Always allow connecting — what, and where?
+
+    Site     backend.composio.dev
+    Group    *.composio.dev   (every composio.dev site)
+    Note     this project isn't trusted — run /security trust to save rules here
+
+  > All in group                in all projects
+    Only backend.composio.dev   in all projects
+
+  Esc = back to screen 1 · no answer in 10s = No
+```
+
+No row is marked (recommended) here: both remaining rows apply to every
+project, so it's your call. (This replaces the earlier follow-up: refuse
+"always-cwd" at the menu layer when the project is untrusted.)
 
 ---
 
 ## Summary of the wins
 
-| Scenario                                    | Prompts before ADR-030 | Prompts after |
-| ------------------------------------------- | ---------------------- | ------------- |
-| `composio search` (write + 2 networks)      | 4 prompts              | 3 prompts (session covers whole folder + whole vendor) |
-| Second `composio search` in same session    | 4 prompts again        | 0 prompts (session grant active) |
-| `cat .env` (askRead)                        | 1 prompt               | 1 prompt (no change — secrets stay one-shot) |
-| `cat ~/.ssh/id_rsa`                         | 2 prompts              | 2 prompts (no change — absolute deny stays) |
-| `curl https://example.com/api`              | 1 prompt + 1 option pick | 1 prompt, 1 option pick (no change — apex host) |
-| `curl https://api.composio.dev/v1/...`      | 1 prompt, exact host  | 1 prompt, **`*.composio.dev`** (covers the whole vendor for the session) |
+| Scenario                                    | Prompts before ADR-030      | Prompts after |
+| ------------------------------------------- | --------------------------- | ------------- |
+| `composio search` (2 folders + 2 sites)     | 4+ prompts (one per file)   | 4 prompts (one per folder / site group; more files in the same folder add none) |
+| Second `composio search` in same session    | 4+ prompts again            | 0 prompts (session answers still active) |
+| `grep -r TOKEN .env` (askRead)              | 1 prompt                    | 1 prompt (no "always" — secrets are never saved) |
+| `cat ~/.ssh/id_rsa`                         | 2 screens                   | 1 screen (one read at a time) |
+| `cat ~/notes/todo.md` (outside project)     | 1 prompt, no session answer | 1 prompt, now with "Yes, for this session" |
+| `curl https://example.com/api`              | 1 prompt + 1 option pick    | 1 prompt + 1 option pick (no change — no group for a bare domain) |
+| `curl https://api.composio.dev/v1/...`      | 1 prompt, exact host        | 1 prompt; "all in group" covers **`*.composio.dev`** for the session |
 
 **Net cost:** ~2 wasted turns per CLI call → **0–1 wasted turns**.
 
@@ -461,10 +703,12 @@ when the project is untrusted, redirect to `/security trust` or
    ADR-030's `*.i.posthog.com` wildcard helps, but a separate telemetry
    tier ("this is analytics, not core functionality — auto-grant for
    well-known vendors") is a real future ADR.
-2. **Untrusted-project widening is still confusing.** §13 above.
-4. **No activity extension on the timer.** The 10s countdown still
+2. **Untrusted-project widening.** The fix is designed in §13 (screen 2
+   hides the "in this project" rows in an untrusted project) but isn't
+   built yet.
+3. **No activity extension on the timer.** The 10s countdown still
    applies; pressing ↑/↓ doesn't pause it. ADR-030 added the
    `ASK_TIMEOUT_BY_ACTION` constant but didn't yet wire `onTerminalInput`
    to extend. (Follow-up.)
-5. **Advanced Secure re-prompts every detection.** No session grant for
+4. **Advanced Secure re-prompts every detection.** No session grant for
    output yet.

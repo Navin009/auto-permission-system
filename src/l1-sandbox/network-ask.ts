@@ -13,15 +13,19 @@
  *   down the proxy serving the request being approved).
  *
  * Headless (`hasUI === false`) denies, like every other gate.
+ *
+ * v3.3.0 UX revamp (ADR-030): the prompts follow docs/ask-examples.md. Session
+ * grants use the parent-domain wildcard when useful (covers all sibling
+ * subdomains). Screen 2 hides the "in this project" rows in untrusted
+ * projects so the user can't quietly trust a widening file.
  */
 
 import { domainMatches } from "../core/index";
-import { networkWhy } from "../ui/ask";
 import { askMain, askRememberHost, ASK_TIMEOUT_MS, parentDomainWildcard, type AskCtx, type MainChoice } from "../ui/ask-flow";
 
-/** In-memory session grants ("Allow for this session"). Cleared at session_start. */
+/** In-memory session grants ("Yes, for this session"). Cleared at session_start. */
 const sessionGrants: string[] = [];
-/** Hosts allowed for the current bash command ("Allow once" covers its connections). */
+/** Hosts allowed for the current bash command ("Yes, just this once" covers its connections). */
 let commandGrants: Set<string> | null = null;
 let commandDepth = 0;
 /** Single-flight: one prompt per host even when several connections overlap. */
@@ -58,6 +62,10 @@ export interface NetworkAskDeps {
 	/** Make a grant effective in the running sandbox without restarting the proxy. */
 	applyLive: (host: string) => void;
 	audit: (entry: Record<string, unknown>) => void;
+	/** True when the cwd's project sandbox.json isn't trusted (ADR-013). */
+	projectTrusted?: boolean;
+	/** The bash command that triggered the proxy ask (shown in the body as `Command`). */
+	command?: string;
 }
 
 function granted(host: string): "session" | "command" | null {
@@ -71,6 +79,14 @@ function subjectOf(host: string, port: number | undefined): string {
 	return port && port !== 443 && port !== 80 ? `${host}:${port}` : host;
 }
 
+/** First whitespace-separated word of a bash command \u2014 used to name the binary in the title. */
+function firstWord(command: string | undefined): string | null {
+	if (!command) return null;
+	const w = command.trim().split(/\s+/)[0] ?? "";
+	// Strip common prefixes.
+	return w.replace(/^sudo$/, "").replace(/^command$/, "").replace(/^\\\//, "") || null;
+}
+
 async function decide(deps: NetworkAskDeps, host: string, port: number | undefined): Promise<boolean> {
 	const subject = subjectOf(host, port);
 	const base = { layer: 1, tool: "network", subject, cwd: deps.cwd, note: "network-ask" };
@@ -81,30 +97,41 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	}
 
 	const wild = parentDomainWildcard(host);
-	const groupLine = wild === host.toLowerCase()
-		? `  host:  ${host}`
-		: `  host:  ${host}\n  group: ${wild}    (covers all subdomains)`;
-	const body = `${groupLine}\n  why:   ${networkWhy(`domain not in allowlist: ${host}`)}`;
-	const header = "Network access blocked";
+	const verb = firstWord(deps.command) ?? "this command";
+	const header = `Let ${verb} connect to ${host}?`;
+	const bodyParts: string[] = [];
+	bodyParts.push(`Site     ${host}`);
+	if (wild !== host.toLowerCase()) {
+		const bare = wild.replace(/^\*\./, "");
+		bodyParts.push(`Group    ${wild}   (every ${bare} site)`);
+	}
+	if (deps.command) bodyParts.push(`Command  ${deps.command}`);
+	bodyParts.push(`Why      this site isn't on your allowed list yet`);
 
-	let main: MainChoice;
+	let mainChoice: MainChoice;
 	try {
-		main = await askMain(ctx, header, body, { session: true, sessionLabel: "Allow this host group for this session", allowFirst: true, timeoutMs: ASK_TIMEOUT_MS });
+		mainChoice = await askMain(ctx, header, bodyParts.join("\n"), {
+			session: true,
+			sessionLabel: "Yes, all in group for this session",
+			allowFirst: true,
+			icon: "net",
+			timeoutMs: ASK_TIMEOUT_MS,
+		});
 	} catch {
 		deps.audit({ ...base, decision: "no", note: "screen1-threw" });
 		return false;
 	}
 
-	if (main === "block") {
+	if (mainChoice === "block") {
 		deps.audit({ ...base, decision: "no" });
 		return false;
 	}
-	if (main === "once") {
+	if (mainChoice === "once") {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes" });
 		return true;
 	}
-	if (main === "session") {
+	if (mainChoice === "session") {
 		// ADR-030: session grant uses the parent-domain wildcard (e.g. *.composio.dev)
 		// when the host has a useful parent, so any sibling subdomain is also covered
 		// for the rest of the session without re-prompting. Apex hosts (2 parts)
@@ -112,12 +139,23 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		const grant = wild;
 		sessionGrants.push(grant);
 		deps.audit({ ...base, decision: "session", grant, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) → ${grant}`, "info");
+		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) \u2192 ${grant}`, "info");
 		return true;
 	}
 
-	// main === "remember" — screen 2 picks the wildcard or exact host pattern.
-	const picked = await askRememberHost(ctx, "Remember this host?", `  host: ${host}`, host);
+	// mainChoice === "remember" \u2014 screen 2 picks the wildcard or exact host pattern.
+	const title = "Always allow connecting \u2014 what, and where?";
+	const body: string[] = [];
+	body.push(`Site     ${host}`);
+	if (wild !== host.toLowerCase()) {
+		const bare = wild.replace(/^\*\./, "");
+		body.push(`Group    ${wild}   (every ${bare} site)`);
+	}
+	body.push(`Note     the rule works for any command, not just ${verb}`);
+	if (deps.projectTrusted === false) {
+		body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
+	}
+	const picked = await askRememberHost(ctx, title, body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
 	if (!picked) {
 		deps.audit({ ...base, decision: "no", note: "remember-screen-cancelled" });
 		return false;
@@ -128,7 +166,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		const path = await deps.persist(pattern, scope);
 		deps.applyLive(pattern);
 		deps.audit({ ...base, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override → ${path}`, "warning");
+		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override \u2192 ${path}`, "warning");
 	} catch (e) {
 		// Mirror Layer 2: a failed write still allows the call, covering the
 		// whole command so a redirect cannot loop the prompt.

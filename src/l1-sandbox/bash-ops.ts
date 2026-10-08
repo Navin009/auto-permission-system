@@ -12,7 +12,12 @@ import { type BashOperations } from "@earendil-works/pi-coding-agent";
 import { askReadCandidates, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { audit } from "../shared/audit";
 import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
-import { loadConfig } from "./config";
+import { loadConfig, projectTrusted } from "./config";
+
+/** First whitespace-separated token of a bash command — used to name the binary in prompt titles. */
+function firstWord(command: string): string {
+	return command.trim().split(/\s+/)[0] ?? command;
+}
 import { beginNetworkCommand, endNetworkCommand } from "./network-ask";
 
 export interface SandboxedBashOpts {
@@ -43,8 +48,12 @@ async function preflightSensitiveCommands(
 	const matched = matchedAskCommands(command, ask, cwd, homedir());
 	if (!matched.length) return undefined;
 	const ui = opts.ctx as AskCtx;
-	const body = `  command: ${matched.join(", ")}\n  why:     it can print environment values (API tokens)`;
-	const choice = await askMain(ui, "Command may print secrets", body, { once: true, remember: false });
+	const body = [
+		`Command  ${matched.join(", ")}`,
+		`Risk     environment variables often hold API keys and tokens`,
+		`Note     can only be allowed one run at a time`,
+	].join("\n");
+	const choice = await askMain(ui, `Let ${matched[0]} print your environment variables?`, body, { once: true, remember: false, icon: "cred" });
 	const subject = matched.join(", ");
 	if (choice === "once") {
 		auditL1({ subject, decision: "once", note: "sensitive-command", cwd });
@@ -76,7 +85,7 @@ async function preflightAskReads(
 			onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
 			return { exitCode: 1 };
 		}
-		const choice = await askMain(ui, "Sensitive file read", `  file:   ${absPath}\n  why:    it may hold secrets`, { remember: false });
+		const choice = await askMain(ui, "Let this command read your .env file?", [`File     ${absPath}`, `Why      .env files usually hold passwords and API keys`, `Risk     the AI will see any keys in it`, `Note     can't be saved as a permanent rule (it holds secrets)`].join("\n"), { remember: false, icon: "cred" });
 		if (choice === "once" || choice === "session") {
 			auditL1({ subject: absPath, decision: choice, note: "ask-read", cwd });
 			continue;
@@ -101,7 +110,7 @@ async function preflightOutsideReads(
 	const once: string[] = [];
 	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
 		const ui = opts.ctx as AskCtx;
-		const main = await askMain(ui, "Read outside the project", `  path:   ${absPath}\n  source: this bash command`);
+		const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      files outside your project need your OK`].join("\n"), { session: true });
 		if (main === "once") {
 			auditL1({ subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd });
 			once.push(absPath);
@@ -112,7 +121,7 @@ async function preflightOutsideReads(
 		if (main === "remember") {
 			const parent = dirname(absPath);
 			const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
-			const picked = await askRememberFile(ui, "Remember this read?", `  file:   ${absPath}\n  folder: ${parent}`, absPath, folder);
+			const picked = await askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
 			if (picked) {
 				subject = picked.folder ? parent : absPath;
 				scope = picked.scope;
@@ -303,11 +312,11 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							const absPath = offending;
 							try {
 								const ui = opts.ctx as AskCtx;
-								const main = await askMain(ui, "Read blocked by policy", `  path:   ${absPath}\n  why:    outside the project\n  layer:  bash sandbox`, { once: false });
+								const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true });
 								if (main === "remember") {
 									const parent = dirname(absPath);
 									const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
-									const picked = await askRememberFile(ui, "Remember this read?", `  file:   ${absPath}\n  folder: ${parent}`, absPath, folder);
+									const picked = await askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
 									if (picked) {
 										const subject = picked.folder ? parent : absPath;
 										try {
@@ -343,7 +352,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							const alreadyGranted = writeOnce.includes(parentDir);
 							try {
 								const ui = opts.ctx as AskCtx;
-								const main = await askMain(ui, "Write blocked by policy", `  path:   ${absPath}\n  why:    not under any allowWrite root\n  layer:  bash sandbox`, { once: !alreadyGranted });
+								const main = await askMain(ui, `Let ${firstWord(command)} save files in ${parentDir}/?`, [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true, once: !alreadyGranted });
 								if (main === "once") {
 									auditL1({ subject: absPath, granularity: "folder", original: absPath, decision: "once", scope: "invocation", cwd: opts.ctx.cwd, note: "write-once" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${absPath} once — re-running the command`, "warning");
@@ -353,7 +362,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								}
 								if (main === "remember") {
 									const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
-									const picked = await askRememberFile(ui, "Remember this write?", `  file:   ${absPath}\n  folder: ${parentDir}`, absPath, folder);
+									const picked = await askRememberFile(ui, "Always allow saving \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parentDir}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
 									if (picked) {
 										const subject = picked.folder ? parentDir : absPath;
 										try {
