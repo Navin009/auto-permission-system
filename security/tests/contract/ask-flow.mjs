@@ -165,6 +165,21 @@ check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: {
 check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, [hit])) === 'allow');
 check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, [hit])) === 'block');
 
+// --- askExposure with programId: adds "Yes, all <program> output for this session" ---
+const expOptsWithProg = await optionsOf((ctx) => askExposure(ctx, [hit], 'composio'));
+check(
+	'askExposure +programId: 3 options, session-grant row added',
+	expOptsWithProg.length === 3 && expOptsWithProg[2] === 'Yes, all composio output for this session',
+);
+const pickProgramSession = async (idx) => askExposure({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, [hit], 'composio');
+check('askExposure +programId o0 → block', (await pickProgramSession(0)) === 'block');
+check('askExposure +programId o1 → allow', (await pickProgramSession(1)) === 'allow');
+check('askExposure +programId o2 → program-session', (await pickProgramSession(2)) === 'program-session');
+check(
+	'askExposure +programId undefined → block',
+	(await askExposure({ hasUI: true, ui: { select: async () => undefined } }, [hit], 'aws')) === 'block',
+);
+
 const notice = withheldNotice('config.env');
 check('withheldNotice: names the subject', notice.includes('config.env') && notice.includes('withheld'));
 check('withheldNotice: says the tool completed', notice.includes('completed successfully') && notice.includes('output is unavailable'));

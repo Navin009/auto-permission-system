@@ -19,6 +19,8 @@ import { canonicalize, expandHome, isAbsoluteDeny, isAskRead, isDeniedRead, isDe
 import { deniedUrlReason, hostnameOf, isAllowedUrl } from "../src/l2-guard/url";
 import { audit, AUDIT_PATH } from "../src/shared/audit";
 import { askOrBlock, clearSessionGrants, sessionGrantSummary, type UICtx } from "../src/l2-guard/prompts";
+import { grantProgramOutputSession, isProgramOutputGranted, clearProgramOutputSessionGrants, programOutputSessionGrantSummary } from "../src/l2-guard/program-grants";
+import { programIdForToolCall } from "../src/l2-guard/program-id";
 import { denyMessage } from "../src/ui/ask";
 import { emitDomainGrant } from "../src/shared/network-grants";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent";
@@ -35,6 +37,11 @@ function detectionBlock(action: "read" | "tool", why: string): string {
 	if (action === "read") return `Read blocked by policy: ${why}. Nothing was read — ask the user.`;
 	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
 }
+
+/** Maps each in-flight tool call to the program id we'll show in the
+ *  Advanced Secure output gate. Populated at `tool_call`, consumed at
+ *  `tool_result`, cleared at `session_start`. */
+const programIdByCallId = new Map<string, string>();
 
 async function askDetection(
 	ctx: UICtx,
@@ -136,11 +143,19 @@ export default function (pi: ExtensionAPI) {
 		applyActive();
 		clearSessionGrants();
 		detectionGrants.clear();
+		clearProgramOutputSessionGrants();
+		programIdByCallId.clear();
 	});
 
 	pi.on("tool_call", async (event, ctx) => {
 		if (!active) return;
 		const policy = loadPolicy(ctx.cwd);
+
+		// Capture the program id (binary for bash, MCP server for mcp__ tools) so the
+		// Advanced Secure output gate can label the prompt and honor a session grant
+		// keyed by that program. Falls back to the tool name when nothing else fits.
+		const programId = programIdForToolCall(event.toolName, event.input);
+		if (event.toolCallId && programId) programIdByCallId.set(event.toolCallId, programId);
 
 		// --- Path-based gates (with ask-tier prompt) ---
 		// One gate for every read: the read policy first, then the project boundary.
@@ -292,6 +307,11 @@ export default function (pi: ExtensionAPI) {
 		if (!active || event.isError) return;
 		const policy = loadPolicy(ctx.cwd);
 		if (policy.mode !== "advanced-secure") return;
+		const programId = event.toolCallId ? programIdByCallId.get(event.toolCallId) : undefined;
+		if (programId && isProgramOutputGranted(programId)) {
+			audit({ layer: 2, tool: event.toolName, decision: "session-grant", grant: programId, note: "advanced-secure-output", cwd: ctx.cwd });
+			return;
+		}
 		const rawInput = event.input ?? {};
 		const rawPath = rawInput.path ?? rawInput.file_path;
 		const subject = typeof rawPath === "string" && rawPath ? rawPath : event.toolName;
@@ -299,10 +319,16 @@ export default function (pi: ExtensionAPI) {
 		if (!types.length) return;
 		const findings = types;
 		const ui = /* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */ ctx as unknown as UICtx;
-		const allow = ui.hasUI !== false && (await askExposure(ui, hits)) === "allow";
-		if (allow) {
-			audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-			ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
+		const choice = ui.hasUI !== false ? await askExposure(ui, hits, programId) : "block";
+		if (choice === "allow" || choice === "program-session") {
+			if (choice === "program-session" && programId) {
+				grantProgramOutputSession(programId);
+				audit({ layer: 2, tool: event.toolName, decision: "session", grant: programId, note: "advanced-secure-output", findings, cwd: ctx.cwd });
+				ctx.ui.notify(`🛡 Advanced Secure: you allowed all ${programId} output for the rest of this session.`, "info");
+			} else {
+				audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
+				ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
+			}
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });

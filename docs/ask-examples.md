@@ -28,7 +28,7 @@ Conventions:
 - **"(recommended)"** appears only where there's a clear recommendation:
   on screens about credentials or secrets, and on screen 2's preselected
   row.
-- **Icons:** 🛡 normal ask · ⚠ system change or warning · 🔑 secrets and
+- **Icons:** ❓ normal ask · ⚠ system change or warning · 🔑 secrets and
   credentials · 🌐 network · 💾 saving a rule. The title still makes sense
   without them.
 - Folder / sample values are real-world examples taken from the audit log.
@@ -45,7 +45,7 @@ the write hook takes over.
 ### Screen 1 — allow it, and for how long?
 
 ```
-🛡  Let composio save files in ~/.composio/tool_definitions/?
+❓  Let composio save files in ~/.composio/tool_definitions/?
 
     File     ~/.composio/tool_definitions/x.json
     Command  composio search googleads
@@ -137,7 +137,7 @@ a new prompt. The title names the new folder, so you can see it's a
 different (wider) place:
 
 ```
-🛡  Let composio save files in ~/.composio/?
+❓  Let composio save files in ~/.composio/?
 
     File     ~/.composio/user_data.json
     Command  composio search googleads
@@ -260,7 +260,7 @@ pre-flight detects the outside path before sandbox-exec fences it.
 ### Screen 1 — allow it, and for how long?
 
 ```
-🛡  Let cat read ~/notes/todo.md? It's outside your project.
+❓  Let cat read ~/notes/todo.md? It's outside your project.
 
     File     ~/notes/todo.md
     Command  cat ~/notes/todo.md

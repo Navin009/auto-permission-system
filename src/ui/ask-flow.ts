@@ -39,8 +39,8 @@ export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remem
 
 /** Icons per prompt type. Header takes the icon + title. */
 export const ICON = {
-	ask: "🛡",          // normal ask (read, write, outside-project, sensitive)
-	warn: "⚠",          // system change (sudo, untrusted project)
+	ask: "❓",          // normal ask — every prompt is a question
+	warn: "⚠",          // system change (sudo, untrusted project, /etc writes)
 	cred: "🔑",         // secrets and credentials (askRead, denyRead, advanced-secure)
 	net: "🌐",          // network (allowFirst)
 	save: "💾",         // screen 2 — always-remember scope pick
@@ -209,14 +209,18 @@ export async function askRememberHost(
 	return found?.value ?? null;
 }
 
-export type ExposureChoice = "allow" | "block";
+export type ExposureChoice = "allow" | "block" | "program-session";
 
-/** Advanced Secure output gate (ADR-018): show where it was found and ask before the output reaches the model. */
-export async function askExposure(ctx: AskCtx, hits: string[]): Promise<ExposureChoice> {
+/** Advanced Secure output gate (ADR-018): show where it was found and ask before the output reaches the model.
+ *  When `programId` is set, an extra option lets the user grant the rest of the
+ *  session for that program — same pattern as path/host session grants, but for
+ *  tool output (display, not access). */
+export async function askExposure(ctx: AskCtx, hits: string[], programId?: string): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
 		{ label: "No, keep it hidden   (recommended)", value: "block" },
 		{ label: "Yes, show it this once", value: "allow" },
 	];
+	if (programId) choices.push({ label: `Yes, all ${programId} output for this session`, value: "program-session" });
 	const titleParts = [
 		`${ICON.cred}  This output may contain a secret \u2014 show it to the AI?`,
 		"",

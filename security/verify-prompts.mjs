@@ -36,9 +36,9 @@ console.log('═'.repeat(78));
 	await askDecision(c.ctx, k, null);
 	const t = c.titles[0];
 	check('§1 title asks a question',
-		t.startsWith('🛡  Let composio save files in /home/u/.composio/tool_definitions/x.json?'),
+		t.startsWith('❓  Let composio save files in /home/u/.composio/tool_definitions/x.json?'),
 		t.split('\n')[0],
-		'🛡  Let composio save files in /home/u/.composio/tool_definitions/x.json?');
+		'❓  Let composio save files in /home/u/.composio/tool_definitions/x.json?');
 	check('§1 body has File field', t.includes('File     /home/u/.composio/tool_definitions/x.json'), 'see body', 'File     /home/u/.composio/tool_definitions/x.json');
 	check('§1 body has Folder field', t.includes('Folder   /home/u/.composio/tool_definitions/'), 'see body', 'Folder   /home/u/.composio/tool_definitions/');
 	check('§1 body has Command field', t.includes('Command  composio search googleads'), 'see body', 'Command  composio search googleads');
@@ -47,7 +47,7 @@ console.log('═'.repeat(78));
 		t.endsWith('Esc or no answer in 10s = No'),
 		t.split('\n').slice(-1)[0],
 		'Esc or no answer in 10s = No');
-	check('§1 icon prefix is 🛡', t.startsWith('🛡'), t[0], '🛡');
+	check('§1 icon prefix is ❓', t.startsWith('❓'), t[0], '❓');
 }
 
 // ─── §3: unsafe folder /etc/foo ────────────────────────────────────────
@@ -66,7 +66,7 @@ console.log('═'.repeat(78));
 	const c = mkCtx([(o) => o[0]]);
 	await askDecision(c.ctx, k, null);
 	const t = c.titles[0];
-	check('§5 title is a question', t.startsWith('🛡  Let cat read /home/u/notes/todo.md?'), t.split('\n')[0], '🛡  Let cat read /home/u/notes/todo.md?');
+	check('§5 title is a question', t.startsWith('❓  Let cat read /home/u/notes/todo.md?'), t.split('\n')[0], '❓  Let cat read /home/u/notes/todo.md?');
 	check('§5 body has File', t.includes('File     /home/u/notes/todo.md'), 'see body', 'File     /home/u/notes/todo.md');
 	check('§5 body has Folder', t.includes('Folder   /home/u/notes/'), 'see body', 'Folder   /home/u/notes/');
 }
@@ -215,7 +215,7 @@ console.log('═'.repeat(78));
 }
 
 // ─── ICON sanity ──────────────────────────────────────────────────────────
-check('ICON.ask = 🛡', ICON.ask === '🛡', ICON.ask, '🛡');
+check('ICON.ask = ❓', ICON.ask === '❓', ICON.ask, '❓');
 check('ICON.warn = ⚠', ICON.warn === '⚠', ICON.warn, '⚠');
 check('ICON.cred = 🔑', ICON.cred === '🔑', ICON.cred, '🔑');
 check('ICON.net = 🌐', ICON.net === '🌐', ICON.net, '🌐');
