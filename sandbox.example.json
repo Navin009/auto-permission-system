@@ -3,6 +3,9 @@
 
   "enabled": true,
 
+  "mode": "advanced-secure",
+  "_comment_mode": "\"default\" = rules only. \"advanced-secure\" adds secret/credential detection. An untrusted project may move this UP (stricter), never down.",
+
   "network": {
     "_comment_allowedDomains": "Domains that fetch_content / get_search_content may reach. Empty list = allow all.",
     "allowedDomains": [
@@ -29,34 +32,48 @@
   },
 
   "filesystem": {
-    "_comment_denyRead": "Layer 1 (bash) AND Layer 2 (model read tool). Neither subprocesses nor the model read tool may access these.",
-    "_comment_outsideProject": "Reads outside the working directory. read: allow (default) | ask | deny. Never asked: the project, allowWrite roots, ~/.pi/agent, pi's own package, allowRead. Interactive: a read of a full path you named in your own message runs without a prompt. See ADR-012.",
-    "outsideProject": { "read": "ask", "allowRead": [] },
+    "_comment_outsideProject": "Reads outside the working directory. read: allow (default) | ask | deny. allowRead = roots that never ask. IMPORTANT: askRead below is NOT scoped to this block — it applies both inside and outside the project.",
+    "outsideProject": { "read": "allow", "allowRead": [] },
 
-    "denyRead": [
-      "~/.ssh",
-      "~/.gnupg"
-    ],
+    "_comment_denyRead": "Layer 1 (bash) AND Layer 2 (model read tool): hard block, no prompt, no 'always'. Empty by default — secrets ask via askRead instead. Add a path here to hard-deny it.",
+    "denyRead": [],
 
-    "_comment_askRead": "Layer 1 (bash pre-flight) AND Layer 2 (model read tool): ask before reading these instead of hard-denying them. Put a path in denyRead to deny it outright. See ADR-019.",
+    "_comment_askRead": "Layer 1 (bash pre-flight) AND Layer 2 (model read tool): ask before reading these, INSIDE and OUTSIDE the project. An entry without '/' matches the file name anywhere ('.env' matches <cwd>/.env and ~/x/.env); an entry with '/' or '~/' is a path pattern. denyRead wins over askRead. See ADR-019.",
     "askRead": [
       ".env",
-      ".env.*"
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "*.keystore",
+      "*.ppk",
+      "id_rsa",
+      "id_rsa.*",
+      "id_ed25519",
+      "id_ed25519.*",
+      "id_ecdsa",
+      "id_ecdsa.*",
+      ".netrc",
+      ".npmrc",
+      ".pypirc",
+      ".gitconfig",
+      ".git-credentials",
+      "credentials",
+      "*.credentials",
+      "credentials.toml",
+      "hosts.yml",
+      "auth.json",
+      "mcp.json",
+      "mcp-auth.json",
+      "models-store.json",
+      "trust.json",
+      "audit.log",
+      "sessions"
     ],
 
-    "_comment_modelDenyRead": "Layer 2 ONLY. Token/credential files inside dirs that CLI tools (gh, aws, kubectl, docker) need to read. The model's `read` tool is blocked; subprocesses still work. Caveat: the model could `bash cat` these — `denyRead` is the hard block for that.",
-    "modelDenyRead": [
-      "~/.config/gh/hosts.yml",
-      "~/.netrc",
-      "~/.aws/credentials",
-      "~/.aws/config",
-      "~/.kube/config",
-      "~/.docker/config.json",
-      "~/.npmrc",
-      "~/.pypirc",
-      "~/.cargo/credentials.toml",
-      "~/.gitconfig"
-    ],
+    "_comment_modelDenyRead": "Layer 2 ONLY: hard block for the model's read tool while subprocesses (gh, aws, kubectl, docker) still work. Empty by default — the askRead names cover the model too.",
+    "modelDenyRead": [],
 
     "_comment_allowWrite": "Layer 2: the model's write/edit tools may only write inside these roots. '.' = cwd.",
     "allowWrite": [
@@ -64,17 +81,36 @@
       "/tmp"
     ],
 
-    "_comment_denyWrite": "Layer 1 + Layer 2: writes always blocked regardless of allowWrite.",
-    "denyWrite": [
+    "_comment_denyWrite": "Layer 1 + Layer 2: hard block, no prompt. Empty by default — sensitive writes ask via askWrite instead. Add a path here to hard-deny writes to it.",
+    "denyWrite": [],
+
+    "_comment_askWrite": "Layer 1 + Layer 2: ask before writing these, inside and outside allowWrite. Same matching as askRead: no '/' means file name anywhere. denyWrite wins over askWrite.",
+    "askWrite": [
       ".env",
       ".env.*",
       "*.pem",
       "*.key",
       "*.p12",
       "*.pfx",
+      "auth.json",
+      "mcp.json",
+      "mcp-auth.json",
       "~/.gnupg",
       "~/.ssh/**",
-      "~/.pi/agent/extensions/**"
+      "~/.pi/agent/extensions",
+      "~/.pi/agent/extensions/**",
+      "~/.pi/agent/auth.json",
+      "~/.pi/agent/mcp.json",
+      "~/.pi/agent/mcp-auth.json",
+      "~/.pi/agent/trust.json",
+      "~/.pi/agent/models-store.json",
+      "~/.pi/agent/audit.log",
+      "~/.pi/agent/sessions",
+      "~/.pi/sessions",
+      "~/.bashrc",
+      "~/.zshrc",
+      "~/.profile",
+      "~/.bash_profile"
     ]
   },
 

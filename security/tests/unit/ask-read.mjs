@@ -21,7 +21,8 @@ check('an empty askRead list is a no-op', askReadCandidates('cat .env', cwd, hom
 const d = loadDefaultPolicy()?.filesystem ?? {};
 check('default: .env is in askRead', (d.askRead ?? []).includes('.env'));
 check('default: .env is NOT in denyRead', !(d.denyRead ?? []).includes('.env'));
-check('default: .env stays in denyWrite', (d.denyWrite ?? []).includes('.env'));
+check('default: .env is in askWrite', (d.askWrite ?? []).includes('.env'));
+check('default: nothing is hard-denied on write', (d.denyWrite ?? []).length === 0);
 
 const sandboxFs = sandboxFilesystem({ denyRead: ['~/.ssh'], allowWrite: ['.'], denyWrite: ['.env'], askRead: ['.env'] }, { cwd, home });
 check('sandbox-runtime never sees askRead', !JSON.stringify(sandboxFs).includes('askRead'));

@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "mode": "default",
+  "mode": "advanced-secure",
   "network": {
     "allowedDomains": [
       "registry.npmjs.org",
@@ -29,75 +29,58 @@
   },
   "filesystem": {
     "outsideProject": {
-      "read": "ask",
-      "allowRead": [
-        "~/.pi/agent/install",
-        "~/.pi/agent/npm",
-        "~/.pi/agent/git",
-        "~/Capture",
-        "~/.nvm",
-        "~/.pyenv",
-        "~/.cargo/registry",
-        "~/go/pkg",
-        "~/.rustup",
-        "~/.pnpm-store",
-        "~/.local/share/pnpm",
-        "~/.bun",
-        "~/.cache/pip"
-      ]
+      "read": "allow",
+      "allowRead": []
     },
-    "denyRead": [
-      "~/.ssh",
-      "~/.gnupg",
-      "~/.aws",
-      "~/.kube",
-      "~/.docker",
-      "~/.claude",
-      "~/.codex",
-      "~/.gemini",
-      "~/.composio",
-      "~/.pi/agent/auth.json",
-      "~/.pi/agent/mcp.json",
-      "~/.pi/agent/mcp-auth.json",
-      "~/.pi/agent/trust.json",
-      "~/.pi/agent/models-store.json",
-      "~/.pi/agent/audit.log",
-      "~/.pi/agent/sessions",
-      "~/.pi/sessions",
-      "~/Downloads",
-      "~/Desktop",
-      "~/Documents",
-      "~/.bash_history",
-      "~/.zsh_history",
-      "~/.history"
-    ],
+    "denyRead": [],
     "askRead": [
-      ".env",
-      ".env.*"
-    ],
-    "modelDenyRead": [
-      "~/.config/gh/hosts.yml",
-      "~/.netrc",
-      "~/.aws/credentials",
-      "~/.aws/config",
-      "~/.kube/config",
-      "~/.docker/config.json",
-      "~/.npmrc",
-      "~/.pypirc",
-      "~/.cargo/credentials.toml",
-      "~/.gitconfig"
-    ],
-    "allowWrite": [
-      ".",
-      "/tmp"
-    ],
-    "denyWrite": [
       ".env",
       ".env.*",
       "*.pem",
       "*.key",
       "*.p12",
       "*.pfx",
+      "*.keystore",
+      "*.ppk",
+      "id_rsa",
+      "id_rsa.*",
+      "id_ed25519",
+      "id_ed25519.*",
+      "id_ecdsa",
+      "id_ecdsa.*",
+      ".netrc",
+      ".npmrc",
+      ".pypirc",
+      ".gitconfig",
+      ".git-credentials",
+      "credentials",
+      "*.credentials",
+      "credentials.toml",
+      "hosts.yml",
+      "auth.json",
+      "mcp.json",
+      "mcp-auth.json",
+      "models-store.json",
+      "trust.json",
+      "audit.log",
+      "sessions"
+    ],
+    "modelDenyRead": [],
+    "allowWrite": [
+      ".",
+      "/tmp"
+    ],
+    "denyWrite": [],
+    "askWrite": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "auth.json",
+      "mcp.json",
+      "mcp-auth.json",
       "~/.gnupg",
       "~/.ssh/**",
       "~/.pi/agent/extensions",
@@ -120,7 +103,11 @@
     "network": "allow"
   },
   "commands": {
-    "ask": ["printenv", "env", "/proc/*/environ"]
+    "ask": [
+      "printenv",
+      "env",
+      "/proc/*/environ"
+    ]
   },
   "overrides": {
     "allowRead": [],

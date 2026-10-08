@@ -8,10 +8,13 @@ const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FA
 const d = loadDefaultPolicy();
 check('sandbox.default.json is found', d !== null && typeof d === 'object');
 const fs = d?.filesystem ?? {};
-check('default: outsideProject.read = ask', fs.outsideProject?.read === 'ask');
-check('default: denyRead blocks ~/.ssh', Array.isArray(fs.denyRead) && fs.denyRead.includes('~/.ssh'));
-check('default: denyRead blocks agent secrets', (fs.denyRead ?? []).some((p) => p.startsWith('~/.pi/agent/') || p === '~/.pi/agent'));
-check('default: modelDenyRead lists credentials', Array.isArray(fs.modelDenyRead) && fs.modelDenyRead.length >= 5);
+check('default: outsideProject.read = allow', fs.outsideProject?.read === 'allow');
+check('default: nothing is hard-denied on read', (fs.denyRead ?? []).length === 0);
+check('default: nothing is hard-denied on write', (fs.denyWrite ?? []).length === 0);
+check('default: modelDenyRead is empty', (fs.modelDenyRead ?? []).length === 0);
+check('default: credential filenames ask on read', ['id_rsa', '*.pem', '*.key'].every((p) => (fs.askRead ?? []).includes(p)));
+check('default: agent secrets ask on read', ['auth.json', 'mcp.json', 'mcp-auth.json'].every((p) => (fs.askRead ?? []).includes(p)));
+check('default: write asks cover .env and shell rc', (fs.askWrite ?? []).includes('.env') && (fs.askWrite ?? []).includes('~/.bashrc'));
 check('default: allowWrite is project + /tmp', Array.isArray(fs.allowWrite) && fs.allowWrite.includes('.') && fs.allowWrite.includes('/tmp'));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
 
