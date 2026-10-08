@@ -17,7 +17,7 @@ Conventions:
   everywhere except network prompts, where it starts on "Yes, just this
   once" (ADR-024).
 - **The footer** says what Esc and no answer do. Today's selector times
-  out after `ASK_TIMEOUT_MS` (default 10s).
+  out after `ASK_TIMEOUT_MS` (default 15s).
 - **"…"** at the end of an answer opens a second screen.
 - **Screen 2 ("Yes, always…")** shows the File and Folder (or Site and
   Group) once at the top. Rows say "All in folder" / "All in group" or
@@ -56,7 +56,7 @@ the write hook takes over.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                | What happens |
@@ -80,7 +80,7 @@ the write hook takes over.
     All in folder    in all projects
     Only x.json      in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 | Answer                           | Covers                   | Saved to |
@@ -148,7 +148,7 @@ different (wider) place:
     Yes, for this session
     Yes, always…
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 The answers work the same as §1 screen 1.
@@ -177,7 +177,7 @@ misread.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                | What happens |
@@ -199,7 +199,7 @@ misread.
   > Only foo    in this project    (recommended)
     Only foo    in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 ### Session grant value
@@ -238,7 +238,7 @@ the command runs, so nothing has been read yet.
     Yes, just this once
     Yes, for this session
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                | What happens |
@@ -271,7 +271,7 @@ pre-flight detects the outside path before sandbox-exec fences it.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                | What happens |
@@ -298,7 +298,7 @@ rows mean the same thing everywhere.
     All in folder    in all projects
     Only todo.md     in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 ### When the file sits directly in your home folder
@@ -318,7 +318,7 @@ the file rows:
   > Only todo.md     in this project    (recommended)
     Only todo.md     in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 ---
@@ -341,7 +341,7 @@ pressing Enter never approves. There's no second "are you sure?" screen.
   > No   (recommended)
     Yes, allow this one read
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                    | What happens |
@@ -383,7 +383,7 @@ before connecting.
     Yes, all in group for this session
     Yes, always…
 
-  Esc = No · no answer in 10s = Yes, just this once
+  Esc = No · 15s timeout → Yes, just once
 ```
 
 The rows are in the same order as every other prompt; only the cursor
@@ -411,7 +411,7 @@ that no answer means Yes.
     All in group                in all projects
     Only backend.composio.dev   in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 | Answer                                       | Covers                     | Saved to |
@@ -450,7 +450,7 @@ Same shape as §7; only the site and group change. The group is
     Yes, all in group for this session
     Yes, always…
 
-  Esc = No · no answer in 10s = Yes, just this once
+  Esc = No · 15s timeout → Yes, just once
 ```
 
 ### Audit (session grant):
@@ -485,7 +485,7 @@ only this site.
     Yes, for this session
     Yes, always…
 
-  Esc = No · no answer in 10s = Yes, just this once
+  Esc = No · 15s timeout → Yes, just once
 ```
 
 With no group, row 3 is plain "Yes, for this session" — it covers only
@@ -502,7 +502,7 @@ With no group, row 3 is plain "Yes, for this session" — it covers only
   > Only example.com    in this project    (recommended)
     Only example.com    in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 The session grant for `example.com` is the exact site — the wildcard
@@ -527,7 +527,7 @@ Trigger: the AI runs `env | grep -i composio`. `commands.ask` lists
   > No   (recommended)
     Yes, just this once
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer              | What happens |
@@ -565,7 +565,7 @@ one-read-only screen as the SSH key in §6.
   > No   (recommended)
     Yes, allow this one read
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 | Answer                    | What happens |
@@ -596,7 +596,7 @@ Trigger: the AI ran `cat deploy.sh`, and the output contains a login token
   > No, keep it hidden   (recommended)
     Yes, show it this once
 
-  Esc or no answer in 10s = No
+  Esc or no answer (15s) = No
 ```
 
 The screen never shows the internal rule name (`JWT_ASSIGNMENT`) — it shows
@@ -672,7 +672,7 @@ projects" rows remain, so nothing can be written into the untrusted file:
   > All in group                in all projects
     Only backend.composio.dev   in all projects
 
-  Esc = back to screen 1 · no answer in 10s = No
+  Esc = back to screen 1 (15s) = No
 ```
 
 No row is marked (recommended) here: both remaining rows apply to every
@@ -706,9 +706,3 @@ project, so it's your call. (This replaces the earlier follow-up: refuse
 2. **Untrusted-project widening.** The fix is designed in §13 (screen 2
    hides the "in this project" rows in an untrusted project) but isn't
    built yet.
-3. **No activity extension on the timer.** The 10s countdown still
-   applies; pressing ↑/↓ doesn't pause it. ADR-030 added the
-   `ASK_TIMEOUT_BY_ACTION` constant but didn't yet wire `onTerminalInput`
-   to extend. (Follow-up.)
-4. **Advanced Secure re-prompts every detection.** No session grant for
-   output yet.

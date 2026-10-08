@@ -44,9 +44,9 @@ console.log('═'.repeat(78));
 	check('§1 body has Command field', t.includes('Command  composio search googleads'), 'see body', 'Command  composio search googleads');
 	check('§1 body has Why field', t.includes('Why      ') && t.includes('allowWrite root'), 'see body', 'Why      not under any allowWrite root');
 	check('§1 footer: file default blocks on Esc/timeout',
-		t.endsWith('Esc or no answer in 10s = No'),
+		t.endsWith('Esc or no answer (15s) = No'),
 		t.split('\n').slice(-1)[0],
-		'Esc or no answer in 10s = No');
+		'Esc or no answer (15s) = No');
 	check('§1 icon prefix is ❓', t.startsWith('❓'), t[0], '❓');
 }
 
@@ -57,7 +57,7 @@ console.log('═'.repeat(78));
 	await askDecision(c.ctx, k, null);
 	const t = c.titles[0];
 	check('§3 title: ⚠ for unsafe-folder writes', t.startsWith('⚠  Let sudo tee save files in /etc/foo?'), t.split('\n')[0], '⚠  Let sudo tee save files in /etc/foo?');
-	check('§3 footer: file default', t.endsWith('Esc or no answer in 10s = No'), 'see footer', 'Esc or no answer in 10s = No');
+	check('§3 footer: file default', t.endsWith('Esc or no answer (15s) = No'), 'see footer', 'Esc or no answer (15s) = No');
 }
 
 // ─── §5: read outside the project ───────────────────────────────────────
@@ -111,7 +111,7 @@ console.log('═'.repeat(78));
 	check('§7 body has Site', t.includes('Site     backend.composio.dev'), 'see body', 'Site     backend.composio.dev');
 	check('§7 body has Group with wildcard', t.includes('Group    *.composio.dev') && t.includes('every composio.dev site'), 'see body', 'Group    *.composio.dev   (every composio.dev site)');
 	check('§7 body has Command', t.includes('Command  composio search googleads'), 'see body', 'Command  composio search googleads');
-	check('§7 footer: network default is allow once', t.endsWith('Esc = No · no answer in 10s = Yes, just this once'), t.split('\n').slice(-1)[0], 'Esc = No · no answer in 10s = Yes, just this once');
+	check('§7 footer: network default is allow once', t.endsWith('Esc = No · 15s timeout → Yes, just once'), t.split('\n').slice(-1)[0], 'Esc = No · 15s timeout → Yes, just once');
 }
 
 // ─── §9: network example.com (2-part apex, no wildcard) ────────────────
@@ -146,7 +146,7 @@ console.log('═'.repeat(78));
 	const t = ctx.titles[0];
 	check('§12 title: 🔑 icon', t.startsWith('🔑  This output may contain a secret'), t.split('\n')[0], '🔑  This output may contain a secret — show it to the AI?');
 	check('§12 body shows hit line', t.includes('14: export JWT='), 'see body', '14: export JWT=…');
-	check('§12 footer: block-default', t.endsWith('Esc or no answer in 10s = No'), t.split('\n').slice(-1)[0], 'Esc or no answer in 10s = No');
+	check('§12 footer: block-default', t.endsWith('Esc or no answer (15s) = No'), t.split('\n').slice(-1)[0], 'Esc or no answer (15s) = No');
 	check('§12 options: No (recommended) / Yes, show it this once', true, '(options)', 'No, keep it hidden   (recommended) / Yes, show it this once');
 }
 
