@@ -8,7 +8,7 @@
  */
 
 import { askDecision } from '../src/ui/ask.ts';
-import { askMain, askRememberFile, askRememberHost, askExposure, ICON } from '../src/ui/ask-flow.ts';
+import { askMain, askExposure, ICON } from '../src/ui/ask-flow.ts';
 
 const results = [];
 function check(name, cond, actual, expected) {
@@ -57,7 +57,7 @@ console.log('═'.repeat(78));
 	await askDecision(c.ctx, k, null);
 	const t = c.titles[0];
 	check('§3 title: ⚠ for unsafe-folder writes', t.startsWith('⚠  Let sudo tee save files in /etc/foo?'), t.split('\n')[0], '⚠  Let sudo tee save files in /etc/foo?');
-	check('§3 footer removed (v3.5.8)', !t.includes('Default:'));
+	check('§3 footer restored (v3.5.9)', t.includes('Default: No'));
 }
 
 // ─── §5: read outside the project ───────────────────────────────────────
@@ -111,7 +111,7 @@ console.log('═'.repeat(78));
 	check('§7 body has Site', t.includes('Site     backend.composio.dev'), 'see body', 'Site     backend.composio.dev');
 	check('§7 body has Group with wildcard', t.includes('Group    *.composio.dev') && t.includes('every composio.dev site'), 'see body', 'Group    *.composio.dev   (every composio.dev site)');
 	check('§7 body has Command', t.includes('Command  composio search googleads'), 'see body', 'Command  composio search googleads');
-	check('§7 footer removed (v3.5.8)', !t.includes('Default:'));
+	check('§7 footer restored (v3.5.9)', t.includes('Default: Yes, just this once'));
 }
 
 // ─── §9: network example.com (2-part apex, no wildcard) ────────────────
@@ -129,7 +129,6 @@ console.log('═'.repeat(78));
 
 // ─── §10: sensitive command (env | grep COMPOSIO) ───────────────────────
 {
-	const k = { layer: 1, tool: 'bash', subject: 'env', reason: 'sensitive-command', overrideKind: 'allowWrite', overrideValue: 'env', command: 'env | grep -i composio', projectTrusted: true };
 	// (Sensitive commands in L1 use askMain directly; we replicate the title via the same helper.)
 	const ui = mkCtx([(o) => o[0]]);
 	await askMain(ui.ctx, 'Let env print your environment variables?', ['Command  env | grep -i composio', 'Risk     environment variables often hold API keys and tokens', 'Note     can only be allowed one run at a time'].join('\n'), { once: true, remember: false, icon: 'cred' });
@@ -146,7 +145,7 @@ console.log('═'.repeat(78));
 	const t = ctx.titles[0];
 	check('§12 title: 🔑 icon', t.startsWith('🔑  This output may contain a secret'), t.split('\n')[0], '🔑  This output may contain a secret — show it to the AI?');
 	check('§12 body shows hit line', t.includes('14: export JWT='), 'see body', '14: export JWT=…');
-	check('§12 footer removed (v3.5.8)', !t.includes('Default:'));
+	check('§12 footer restored (v3.5.9)', t.includes('Default: No'));
 	check('§12 options: No (recommended) / Yes, show it this once', true, '(options)', 'No, keep it hidden   (recommended) / Yes, show it this once');
 }
 

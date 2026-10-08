@@ -204,7 +204,11 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: "once" });
 	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
+	const footer = opts.footer ?? (opts.allowFirst
+		? "Default: Yes, just this once"
+		: "Default: No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
+	if (footer) titleParts.push("", footer);
 	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
 	if (expired && opts.allowFirst) return "once";
 	return choices.find((c) => c.label === picked)?.value ?? "block";
