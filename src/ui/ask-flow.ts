@@ -205,8 +205,8 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
 	const footer = opts.footer ?? (opts.allowFirst
-		? "Esc = No \u00b7 no answer = Yes, just once"
-		: "Esc or no answer = No");
+		? "Default: Yes, just this once"
+		: "Default: No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -238,7 +238,7 @@ export async function askRememberFile(
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
-	const footer = opts.footer ?? "Esc = back to screen 1 = No";
+	const footer = opts.footer ?? "Default: All in folder \u00b7 in this project";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -281,7 +281,7 @@ export async function askRememberHost(
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
-	const footer = opts.footer ?? "Esc = back to screen 1 = No";
+	const footer = opts.footer ?? "Default: All in group \u00b7 in this project";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -311,7 +311,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		"",
 		"Note     you'll be asked again each time a secret shows up",
 		"",
-		"Esc or no answer = No",
+		"Default: No",
 	];
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
 	return choices.find((c) => c.label === picked)?.value ?? "block";
