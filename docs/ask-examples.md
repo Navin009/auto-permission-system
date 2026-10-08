@@ -56,7 +56,7 @@ the write hook takes over.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                | What happens |
@@ -80,7 +80,7 @@ the write hook takes over.
     All in folder    in all projects
     Only x.json      in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 | Answer                           | Covers                   | Saved to |
@@ -148,7 +148,7 @@ different (wider) place:
     Yes, for this session
     Yes, always…
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 The answers work the same as §1 screen 1.
@@ -177,7 +177,7 @@ misread.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                | What happens |
@@ -199,7 +199,7 @@ misread.
   > Only foo    in this project    (recommended)
     Only foo    in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 ### Session grant value
@@ -238,7 +238,7 @@ the command runs, so nothing has been read yet.
     Yes, just this once
     Yes, for this session
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                | What happens |
@@ -271,7 +271,7 @@ pre-flight detects the outside path before sandbox-exec fences it.
     Yes, for this session
     Yes, always…
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                | What happens |
@@ -298,7 +298,7 @@ rows mean the same thing everywhere.
     All in folder    in all projects
     Only todo.md     in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 ### When the file sits directly in your home folder
@@ -318,7 +318,7 @@ the file rows:
   > Only todo.md     in this project    (recommended)
     Only todo.md     in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 ---
@@ -341,7 +341,7 @@ pressing Enter never approves. There's no second "are you sure?" screen.
   > No   (recommended)
     Yes, allow this one read
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                    | What happens |
@@ -383,7 +383,7 @@ before connecting.
     Yes, all in group for this session
     Yes, always…
 
-  Esc = No · 15s timeout → Yes, just once
+  Default: Yes, just this once
 ```
 
 The rows are in the same order as every other prompt; only the cursor
@@ -411,7 +411,7 @@ that no answer means Yes.
     All in group                in all projects
     Only backend.composio.dev   in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 | Answer                                       | Covers                     | Saved to |
@@ -450,7 +450,7 @@ Same shape as §7; only the site and group change. The group is
     Yes, all in group for this session
     Yes, always…
 
-  Esc = No · 15s timeout → Yes, just once
+  Default: Yes, just this once
 ```
 
 ### Audit (session grant):
@@ -485,7 +485,7 @@ only this site.
     Yes, for this session
     Yes, always…
 
-  Esc = No · 15s timeout → Yes, just once
+  Default: Yes, just this once
 ```
 
 With no group, row 3 is plain "Yes, for this session" — it covers only
@@ -502,7 +502,7 @@ With no group, row 3 is plain "Yes, for this session" — it covers only
   > Only example.com    in this project    (recommended)
     Only example.com    in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 The session grant for `example.com` is the exact site — the wildcard
@@ -527,7 +527,7 @@ Trigger: the AI runs `env | grep -i composio`. `commands.ask` lists
   > No   (recommended)
     Yes, just this once
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer              | What happens |
@@ -565,7 +565,7 @@ one-read-only screen as the SSH key in §6.
   > No   (recommended)
     Yes, allow this one read
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 | Answer                    | What happens |
@@ -596,7 +596,7 @@ Trigger: the AI ran `cat deploy.sh`, and the output contains a login token
   > No, keep it hidden   (recommended)
     Yes, show it this once
 
-  Esc or no answer (15s) = No
+  Default: No
 ```
 
 The screen never shows the internal rule name (`JWT_ASSIGNMENT`) — it shows
@@ -672,7 +672,7 @@ projects" rows remain, so nothing can be written into the untrusted file:
   > All in group                in all projects
     Only backend.composio.dev   in all projects
 
-  Esc = back to screen 1 (15s) = No
+  Default: All in folder · in this project
 ```
 
 No row is marked (recommended) here: both remaining rows apply to every
