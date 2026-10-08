@@ -18,7 +18,7 @@
 export type AskCtx = {
 	hasUI?: boolean;
 	ui: {
-		select: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>;
+		select: (t: string, o: string[], op?: { timeout?: number; signal?: AbortSignal }) => Promise<string | undefined>;
 		/** Optional — only present in interactive TUI mode. Tests/scripts use a stub. */
 		onTerminalInput?: (handler: (data: string) => void) => () => void;
 	};
@@ -115,8 +115,11 @@ export async function askSelect(
  * Implementation: a per-prompt `onTerminalInput` listener that clears and
  * resets the local `setTimeout` whenever navigation input arrives. The
  * listener is removed when the prompt resolves. The single-flight queue in
- * `queueTail` still applies \u2014 this only extends the timer, it does not
- * parallelize prompts.
+ * `queueTail` still applies — this only extends the timer, it does not
+ * parallelize prompts. v3.5.4: do not pass `timeout` to pi (its "(Ns)"
+ * countdown is distracting while reading); auto-dismiss is driven by our
+ * outer timer instead. `timeoutMs === 0` falls back to the no-countdown
+ * path with no auto-dismiss (prompt stays open until pick or Esc).
  */
 async function askSelectWithActivity(
 	ctx: AskCtx,
@@ -124,6 +127,8 @@ async function askSelectWithActivity(
 	options: string[],
 	timeoutMs: number,
 ): Promise<string | undefined> {
+	if (timeoutMs === 0) return ctx.ui.select(title, options);
+
 	const offInput = ctx.ui.onTerminalInput?.((data: string) => {
 		if (settled) return;
 		// ESC sequences (arrow keys, Home/End, PgUp/PgDn), Tab, and Enter are
@@ -136,18 +141,22 @@ async function askSelectWithActivity(
 
 	let settled = false;
 	let currentTimer: ReturnType<typeof setTimeout> | null = null;
+	const ctrl = new AbortController();
 
 	const finish = (): undefined => {
 		if (settled) return undefined;
 		settled = true;
 		if (currentTimer) clearTimeout(currentTimer);
+		if (!ctrl.signal.aborted) ctrl.abort();
 		offInput();
 		return undefined;
 	};
 
 	currentTimer = setTimeout(finish, timeoutMs);
 
-	const picked = await ctx.ui.select(title, options, { timeout: timeoutMs });
+	// No `timeout` passed to pi → no countdown display. Our outer timer owns
+	// auto-dismiss; the listener above resets it on any keystroke.
+	const picked = await ctx.ui.select(title, options, { signal: ctrl.signal });
 	if (settled) return undefined;
 	settled = true;
 	if (currentTimer) clearTimeout(currentTimer);
@@ -196,8 +205,8 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
 	const footer = opts.footer ?? (opts.allowFirst
-		? "Esc = No \u00b7 15s timeout \u2192 Yes, just once"
-		: "Esc or no answer (15s) = No");
+		? "Esc = No \u00b7 no answer = Yes, just once"
+		: "Esc or no answer = No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -229,7 +238,7 @@ export async function askRememberFile(
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
-	const footer = opts.footer ?? "Esc = back to screen 1 (15s) = No";
+	const footer = opts.footer ?? "Esc = back to screen 1 = No";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -272,7 +281,7 @@ export async function askRememberHost(
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
-	const footer = opts.footer ?? "Esc = back to screen 1 (15s) = No";
+	const footer = opts.footer ?? "Esc = back to screen 1 = No";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
 	if (footer) {
 		titleParts.push(""); // blank line above the footer
@@ -302,7 +311,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		"",
 		"Note     you'll be asked again each time a secret shows up",
 		"",
-		"Esc or no answer (15s) = No",
+		"Esc or no answer = No",
 	];
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
 	return choices.find((c) => c.label === picked)?.value ?? "block";
