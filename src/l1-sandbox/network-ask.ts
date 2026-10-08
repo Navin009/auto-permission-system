@@ -14,8 +14,7 @@
  *
  * Headless (`hasUI === false`) denies, like every other gate.
  *
- * v3.3.0 UX revamp (ADR-030): the prompts follow docs/ask-examples.md. Session
- * grants use the parent-domain wildcard when useful (covers all sibling
+ * Session grants use the parent-domain wildcard when useful (covers all sibling
  * subdomains). Screen 2 hides the "in this project" rows in untrusted
  * projects so the user can't quietly trust a widening file.
  */

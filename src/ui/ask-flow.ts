@@ -2,14 +2,13 @@
  * Shared ask-tier UI primitives for both layers. Pure: no pi, no OS, no fs —
  * it only calls the caller's `ctx.ui.select`, so the contract tests can script it.
  *
- * v3.3.0 (ADR-030 / UX revamp): every prompt is a question. Answers are
- * uniformly `No` / `Yes, just this once` / `Yes, for this session` /
- * `Yes, always…` so row 2 is always "once". Screen 2 collapses to "All in
- * folder · in this project" / "Only <name> · in this project" /
- * "All in folder · in all projects" / "Only <name> · in all projects" —
- * folder/wildcard is preselected (the wider grant is the right answer
- * almost every time). Every screen ends with a footer that says plainly
- * what Esc and no answer do (ADR-024: network default is allow once).
+ * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
+ * `Yes, for this session` / `Yes, always…` so row 2 is always "once". Screen 2
+ * collapses to "All in folder · in this project" / "Only <name> · in this project" /
+ * "All in folder · in all projects" / "Only <name> · in all projects" — folder /
+ * wildcard is preselected (the wider grant is the right answer almost every time).
+ * Every screen ends with a footer that says plainly what Esc and no answer do
+ * (ADR-024: network default is allow once).
  *
  * Every select is serialized: a second overlapping `ui.select` replaces the
  * first on screen, and the first one's countdown later disposes the newer
@@ -38,7 +37,7 @@ export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remem
 	remember: 60_000,
 };
 
-/** Icons per prompt type (v3.3 UX revamp). Header takes the icon + title. */
+/** Icons per prompt type. Header takes the icon + title. */
 export const ICON = {
 	ask: "🛡",          // normal ask (read, write, outside-project, sensitive)
 	warn: "⚠",          // system change (sudo, untrusted project)
@@ -102,7 +101,7 @@ export type MainOpts = {
 	/** Offer `Yes, for this session` (opt-in). */
 	session?: boolean;
 	/** Override the session label so the caller can name what the session grant covers
-	 * (v3.3 UX revamp: `Yes, for this session` for files, `Yes, all in group for this session` for networks). */
+	 * (`Yes, for this session` for files, `Yes, all in group for this session` for networks). */
 	sessionLabel?: string;
 	/** Offer `Yes, always…` (default on). */
 	remember?: boolean;
@@ -114,15 +113,14 @@ export type MainOpts = {
 	allowFirst?: boolean;
 	/** Per-screen footer; defaults to a sensible choice from `allowFirst`. Pass `null` to suppress. */
 	footer?: string | null;
-	/** Prefix the title with an icon (v3.3 UX revamp). */
+	/** Prefix the title with an icon. */
 	icon?: IconKey;
 	/** Test seam; defaults to {@link ASK_TIMEOUT_MS}. */
 	timeoutMs?: number;
 };
 
 /** Compose header + icon + body + options for screen 1. ADR-024 puts Yes first for network
- * (allowFirst), so `No` is still in the list but unhighlighted. v3.3 UX revamp renames
- * every option to start with `No` / `Yes`. */
+ * (allowFirst), so `No` is still in the list but unhighlighted. */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
 	const sessionLabel = opts.sessionLabel ?? "Yes, for this session";
 	const choices: Array<{ label: string; value: MainChoice }> = [];
@@ -144,7 +142,7 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 
 export type ScopeChoice = { scope: "cwd" | "global"; folder: boolean };
 
-/** Screen 2 options for a file. v3.3 UX revamp: `All in folder / Only <name>`
+/** Screen 2 options for a file: `All in folder / Only <name>`
  * \u00d7 `in this project / in all projects`. Folder is preselected. */
 export async function askRememberFile(
 	ctx: AskCtx,
@@ -185,8 +183,7 @@ export function parentDomainWildcard(host: string): string {
 
 /** Screen 2 for a domain subject. ADR-030: wildcard subdomain is offered FIRST when the host
  * has a useful parent domain, so the default grant covers siblings without re-prompting.
- * `pattern` is the actual pattern written to the allowlist. v3.3 UX revamp uses
- * `All in group` / `Only <host>` rows. */
+ * `pattern` is the actual pattern written to the allowlist. */
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,

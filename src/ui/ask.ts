@@ -3,17 +3,11 @@
  * sandbox proxy) and Layer 2 (in-process tool guards). ADR-009, ADR-010,
  * ADR-030.
  *
- * v3.3.0 UX revamp (per docs/ask-examples.md):
- *   - Prompts are questions; answers are uniformly `No` / `Yes, just this once` /
- *     `Yes, for this session` / `Yes, always…`.
- *   - Body uses the canonical field set File / Folder / Site / Group / Command
- *     / Why / Risk / Note.
- *   - Absolute-deny (credentials, ADR-009) collapses to ONE screen with
- *     `No` preselected; the second "are you sure?" step is gone. The risk
- *     line on the body is what keeps Enter safe — pressing Enter without
- *     navigating still blocks.
- *   - Untrusted project: screen 2 hides the `in this project` rows and adds
- *     a Note explaining why (closes the silent-trust-via-write bug).
+ * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
+ * `Yes, for this session` / `Yes, always…`. Body uses the canonical field set
+ * File / Folder / Site / Group / Command / Why / Risk / Note. Absolute-deny
+ * (credentials) collapses to ONE screen with `No` preselected. Untrusted
+ * project: screen 2 hides the `in this project` rows and adds a Note.
  *
  * Pure UI→decision logic: no pi, no fs, no audit. The caller supplies a
  * `ctx.ui.select`; this module only decides which option string means what.
@@ -21,6 +15,8 @@
  */
 
 import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { isSafeFolderGrant } from "../core/index";
 import { askMain, askRememberFile, askRememberHost, parentDomainWildcard, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
@@ -73,7 +69,7 @@ export function denyMessage(overrideKind: OverrideKind, reason: string): string 
 }
 
 /** Render the canonical body fields (File / Folder / Site / Group / Command / Why / Risk / Note).
- * v3.3 UX revamp: align with two-space gaps so the body reads like a table. */
+ * Aligns with two-space gaps so the body reads like a table. */
 function detailLines(k: AskKind, action: Action, note?: string): string {
 	const parts: string[] = [];
 	if (action === "network") {
@@ -94,19 +90,49 @@ function detailLines(k: AskKind, action: Action, note?: string): string {
 	return parts.join("\n");
 }
 
-/** The header text per action type (no icon; caller prepends the icon). */
+/** The header text per action type (no icon; caller prepends the icon).
+ *  Titles name the binary in the bash command (`Let composio save files in X?`,
+ *  `Let cat read X?`) and fall back to "this command" / "this tool" when no command is set. */
 function headerFor(action: Action, subject: string, k: AskKind): string {
 	if (action === "network") {
-		// "Let <verb> connect to <site>?" — keep it short.
 		const verb = k.command ? firstWord(k.command) : "this command";
-		return `Let ${verb} connect to ${subject}?`;
+		// k.overrideValue is the bare host (no port); k.subject may include ":443".
+		return `Let ${verb} connect to ${k.overrideValue}?`;
 	}
 	const verb = action === "write" ? "save files in" : "read";
-	return `Let this ${action === "write" ? "command" : "tool"} ${verb} ${subject}?`;
+	const who = k.command ? firstWord(k.command) : `this ${action === "write" ? "command" : "tool"}`;
+	return `Let ${who} ${verb} ${subject}?`;
 }
 
+
+
+/** Whether the parent folder of the path is unsafe to grant as a whole.
+ *  True for /, home, parents of home, and the system roots (etc, var, usr, ...).
+ *  Used to pick the ⚠ icon for screen 1 of unsafe writes. */
+function unsafeFolder(k: AskKind): boolean {
+	if (k.overrideKind === "allowDomains") return false;
+	const parent = dirname(k.overrideValue);
+	const norm = parent.replace(/\/$/, "");
+	if (SYSTEM_DIRS.has(norm)) return true;
+	return !isSafeFolderGrant(parent, homedir());
+}
+
+const SYSTEM_DIRS = new Set(["/etc", "/var", "/usr", "/bin", "/sbin", "/boot", "/lib", "/lib64", "/opt", "/srv", "/proc", "/sys", "/dev"]);
+
+/** The binary name in a bash command. Strips the `sudo` prefix and returns the first
+ *  one or two words so titles read naturally (`Let sudo tee save files in X?`,
+ *  `Let composio connect to X?`, `Let cat read X?`). */
 function firstWord(s: string): string {
-	return s.trim().split(/\s+/)[0] ?? s;
+	const parts = s.trim().split(/\s+/);
+	if (parts[0] === "sudo" && parts[1]) return `${parts[0]} ${parts[1]}`;
+	return parts[0] ?? s.trim();
+}
+
+/** Pick the icon for screen 1: 🌐 for network, ⚠ for unsafe-folder writes, 🛡 for the rest. */
+function pickIcon(action: Action, k: AskKind): "net" | "warn" | "ask" {
+	if (action === "network") return "net";
+	if (unsafeFolder(k)) return "warn";
+	return "ask";
 }
 
 /** Body for the absolute-deny credential screen (one-shot). */
@@ -123,9 +149,9 @@ function credentialBody(k: AskKind, action: Action, risk: string, note: string):
 	return parts.join("\n");
 }
 
-/** Single-screen credential ask (v3.3 collapse of ADR-009's two-step). The "No" option is
- * preselected on Enter so the default action stays block; the Risk line in the body is what
- * makes the decision reversible — the user has to ↓ then Enter to approve. */
+/** Single-screen credential ask. The "No" option is preselected on Enter so the default
+ * action stays block; the Risk line in the body is what makes the decision reversible —
+ * the user has to ↓ then Enter to approve. */
 export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
 	if (ctx.hasUI === false) return "no"; // subagents, -p, JSON mode
 	const action = actionOf(k);
@@ -150,7 +176,7 @@ export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: 
 		session: true,
 		sessionLabel,
 		allowFirst: action === "network",
-		icon: action === "network" ? "net" : "ask",
+		icon: pickIcon(action, k),
 	});
 	if (main === "block") return "no";
 	if (main === "once") return "yes";

@@ -68,9 +68,9 @@ export default function (pi: ExtensionAPI) {
 		persist: (host, scope) => writeNetworkOverride(cwd, host, scope),
 		applyLive: applyNetworkGrant,
 		audit,
-		// v3.3: lazy getters so each proxy ask reads the live trust state and the
-		// most recent bash command. Without these, the values captured at
-		// initSandbox() would be stale.
+		// Lazy getters so each proxy ask reads the live trust state and the most
+		// recent bash command. Without these, the values captured at initSandbox()
+		// would be stale.
 		get projectTrusted() { return latestCtx?.isProjectTrusted?.(); },
 		get command() { return latestBashCommand; },
 	});
@@ -162,7 +162,7 @@ export default function (pi: ExtensionAPI) {
 		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
 	});
 
-	// v3.3: capture the latest bash command so the network ask body can show it.
+	// Capture the latest bash command so the network ask body can show it.
 	pi.on("tool_call", (event, _ctx) => {
 		if (event.toolName === "bash") {
 			const input = event.input as { command?: string };
