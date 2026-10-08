@@ -19,6 +19,8 @@ export type AskCtx = {
 	hasUI?: boolean;
 	ui: {
 		select: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>;
+		/** Optional — only present in interactive TUI mode. Tests/scripts use a stub. */
+		onTerminalInput?: (handler: (data: string) => void) => () => void;
 	};
 };
 
@@ -27,12 +29,12 @@ export type MainChoice = "block" | "once" | "session" | "remember";
 /** How long a pending permission prompt waits before it resolves to its default.
  * ADR-030: per-action overrides below — the user picks a wider scope (folder / wildcard) and
  * needs more time on screen 2 than on the fast yes/no of screen 1. */
-export const ASK_TIMEOUT_MS = 10_000;
+export const ASK_TIMEOUT_MS = 15_000;
 
 /** Per-action overrides; `0` means no countdown (the prompt stays open until Esc/select). */
 export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remember", number> = {
 	read:     15_000,
-	write:    10_000,
+	write:    15_000,
 	network:  30_000,
 	remember: 60_000,
 };
@@ -73,6 +75,11 @@ function queueTail(): Promise<unknown> {
  * from an early Esc: both resolve `undefined` in pi, only the countdown is
  * the prompt's default. Measured inside the lock, so time spent queued
  * behind another prompt never counts.
+ *
+ * Activity extension (v3.5.3): when the user presses ↑/↓/Tab/Home/End/PgUp/PgDn
+ * while the prompt is open, the timeout is reset. They aren't being idle —
+ * they're reading options and deciding. Setting `timeoutMs` to `0` disables
+ * the countdown entirely (the prompt stays open until pick or Esc).
  */
 export async function askSelect(
 	ctx: AskCtx,
@@ -81,13 +88,71 @@ export async function askSelect(
 	timeoutMs: number = ASK_TIMEOUT_MS,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const run = async (): Promise<{ picked: string | undefined; expired: boolean }> => {
+		if (timeoutMs === 0) {
+			// No countdown — the prompt stays open until pick or Esc.
+			const queued = queueTail().then(
+				() => ctx.ui.select(title, options),
+				() => ctx.ui.select(title, options),
+			);
+			(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
+			const picked = await queued;
+			return { picked, expired: false };
+		}
 		const started = Date.now();
-		const picked = await ctx.ui.select(title, options, { timeout: timeoutMs });
+		const picked = await askSelectWithActivity(ctx, title, options, timeoutMs);
 		return { picked, expired: picked === undefined && Date.now() - started >= timeoutMs };
 	};
 	const queued = queueTail().then(run, run);
 	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
 	return queued;
+}
+
+/**
+ * `ui.select` with activity-based timer extension. While the prompt is open,
+ * ↑/↓/Tab/Home/End/PgUp/PgDn (and any other escape sequence) refresh the
+ * countdown back to the full timeout. The user is reading options, not idle.
+ *
+ * Implementation: a per-prompt `onTerminalInput` listener that clears and
+ * resets the local `setTimeout` whenever navigation input arrives. The
+ * listener is removed when the prompt resolves. The single-flight queue in
+ * `queueTail` still applies \u2014 this only extends the timer, it does not
+ * parallelize prompts.
+ */
+async function askSelectWithActivity(
+	ctx: AskCtx,
+	title: string,
+	options: string[],
+	timeoutMs: number,
+): Promise<string | undefined> {
+	const offInput = ctx.ui.onTerminalInput?.((data: string) => {
+		if (settled) return;
+		// ESC sequences (arrow keys, Home/End, PgUp/PgDn), Tab, and Enter are
+		// all "the user is engaging the prompt" signals. Refresh the timer.
+		if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
+			if (currentTimer) clearTimeout(currentTimer);
+			currentTimer = setTimeout(finish, timeoutMs);
+		}
+	}) ?? (() => {});
+
+	let settled = false;
+	let currentTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const finish = (): undefined => {
+		if (settled) return undefined;
+		settled = true;
+		if (currentTimer) clearTimeout(currentTimer);
+		offInput();
+		return undefined;
+	};
+
+	currentTimer = setTimeout(finish, timeoutMs);
+
+	const picked = await ctx.ui.select(title, options, { timeout: timeoutMs });
+	if (settled) return undefined;
+	settled = true;
+	if (currentTimer) clearTimeout(currentTimer);
+	offInput();
+	return picked;
 }
 
 /** Join `header` + optional `icon` (e.g. `🔑  Let pi read your key?`). The icon gets a double space. */
@@ -131,10 +196,13 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
 	const footer = opts.footer ?? (opts.allowFirst
-		? "Esc = No \u00b7 no answer in 10s = Yes, just this once"
-		: "Esc or no answer in 10s = No");
+		? "Esc = No \u00b7 no answer in 15s = Yes, just this once"
+		: "Esc or no answer in 15s = No");
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body];
-	if (footer) titleParts.push(footer);
+	if (footer) {
+		titleParts.push(""); // blank line above the footer
+		titleParts.push(footer);
+	}
 	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), opts.timeoutMs);
 	if (expired && opts.allowFirst) return "once";
 	return choices.find((c) => c.label === picked)?.value ?? "block";
@@ -161,9 +229,12 @@ export async function askRememberFile(
 	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
 	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
-	const footer = opts.footer ?? "Esc = back to screen 1 \u00b7 no answer in 10s = No";
+	const footer = opts.footer ?? "Esc = back to screen 1 \u00b7 no answer in 15s = No";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) titleParts.push(footer);
+	if (footer) {
+		titleParts.push(""); // blank line above the footer
+		titleParts.push(footer);
+	}
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
@@ -201,9 +272,12 @@ export async function askRememberHost(
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
 	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
-	const footer = opts.footer ?? "Esc = back to screen 1 \u00b7 no answer in 10s = No";
+	const footer = opts.footer ?? "Esc = back to screen 1 \u00b7 no answer in 15s = No";
 	const titleParts = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body];
-	if (footer) titleParts.push(footer);
+	if (footer) {
+		titleParts.push(""); // blank line above the footer
+		titleParts.push(footer);
+	}
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
@@ -228,7 +302,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		"",
 		"Note     you'll be asked again each time a secret shows up",
 		"",
-		"Esc or no answer in 10s = No",
+		"Esc or no answer in 15s = No",
 	];
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label));
 	return choices.find((c) => c.label === picked)?.value ?? "block";
