@@ -89,6 +89,14 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   "subagent": {
     "network": "allow"                  // "allow" | "deny" | "research-only"
   },
+  "mcp": {                              // Advanced Secure MCP gate tuning (ADR-032)
+    "allowTools": ["mcp__diffusion_studio__context"],  // exact names that never ask
+    "allowPrefixes": ["mcp__ticktick__get_"],          // name prefixes that never ask
+    "askTools": [],                    // exact names that always ask
+    "trustAnnotations": false,         // true = a server's readOnlyHint allows without asking
+    "allowSimpleUpdates": true,        // narrow field updates skip the ask
+    "askThreshold": 30                 // risk score at which a call asks (lower = stricter)
+  },
   "commands": {
     "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
   }
@@ -139,7 +147,7 @@ An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (La
 - **`default`** (shipped) — rules only: sandbox.json paths, domains, and commands. Nothing inspects file contents.
 - **`advanced-secure`** (recommended) — adds secret/credential detection:
   - **File reads:** a filename that looks like a credential store asks before the read.
-  - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky (mutating/destructive) call asks before it runs.
+  - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky call asks before it runs. The gate ignores the server namespace, reads the operation from the head verb of the tool name (or the first verb of the description), and asks for destructive names, mutating names (`update_*`, `create_*`, `run_*`, `evaluate_*`), and destructive arguments (SQL `DELETE`, `rm -rf`, `*` targets, HTTP `DELETE`, production targets). A documented tool with an unclassified name (`context`, `capture`, `logs`) does not ask; a tool with no description counts as opaque and does. Tune it under `mcp` in `sandbox.json` — `allowTools` / `allowPrefixes` skip asks, `askTools` forces them, `trustAnnotations` trusts a server's `readOnlyHint`, `askThreshold` moves the score line (ADR-032).
   - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows `⚠ Sensitive information detected`, the file, and each detected line as `lineNo: text`, and the question **Should the AI be allowed to see it?** with two choices — **No, keep private** or **Yes, allow**. A bare `key` counts only when the value looks machine-generated: `key=<random>` asks, while `key=value`, `key=subagent.network`, and code such as `const key = x` stay clean. No, keep private withholds the output and tells the model plainly that the output was withheld because it may contain sensitive information, so the model does not mistake it for a failure or an empty result. Esc or timeout keeps it private.
 
 Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.

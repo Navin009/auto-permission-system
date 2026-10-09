@@ -119,6 +119,16 @@
     "network": "allow"
   },
 
+  "_comment_mcp": "Advanced Secure only. Tune the MCP tool-call gate (ADR-032). allowTools = exact tool names that never ask; allowPrefixes = name prefixes that never ask (e.g. 'mcp__ticktick__get_'); askTools = tool names that always ask; trustAnnotations = a server's readOnlyHint allows the call without asking; allowSimpleUpdates = narrow field updates skip the ask (default true); askThreshold = risk score at which calls ask (default 30, lower = stricter). Detected destructive calls always ask, unless an allowTools/allowPrefixes entry covers them (an explicit override). Unclassified names with a real description start at 25; a tool with no description counts as opaque and still asks. An untrusted project file may only tighten: it may add askTools, lower askThreshold, and turn allowSimpleUpdates/trustAnnotations off; allow lists need /security trust.",
+  "mcp": {
+    "allowTools": [],
+    "allowPrefixes": [],
+    "askTools": [],
+    "trustAnnotations": false,
+    "allowSimpleUpdates": true,
+    "askThreshold": 30
+  },
+
   "_comment_overrides": "Additive overrides written by ask-tier prompts. You can also edit by hand. These are merged on top of the main policy.",
   "overrides": {
     "allowRead": [],

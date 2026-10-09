@@ -14,7 +14,7 @@
  * policy explicitly opts in AND no destructive evidence exists.
  */
 
-import { MCP_DEFAULT_ASK_THRESHOLD } from "./constants";
+import { MCP_DEFAULT_ASK_THRESHOLD, MCP_OPAQUE_TOOL_SCORE, MCP_UNKNOWN_BASE_SCORE } from "./constants";
 import {
   addFinding,
   analyzeSchema,
@@ -33,8 +33,8 @@ import type {
 import {
   CLASSIFICATION_RANK,
   classifyDescription,
-  collectVerbHits,
-  strongestHit,
+  classifyName,
+  stripServerPrefix,
   tokenize,
 } from "./verbs";
 
@@ -62,6 +62,17 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
   });
 
   // Layer 0: explicit policy.
+  if (policy.askTools?.includes(toolName)) {
+    return baseResult(
+      "ask",
+      "unknown",
+      100,
+      "POLICY_ASK",
+      [],
+      `${toolName} is explicitly ask-listed by policy`
+    );
+  }
+
   if (
     policy.allowTools?.includes(toolName) ||
     policy.allowPrefixes?.some((prefix) =>
@@ -78,23 +89,13 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
     );
   }
 
-  if (policy.askTools?.includes(toolName)) {
-    return baseResult(
-      "ask",
-      "unknown",
-      100,
-      "POLICY_ASK",
-      [],
-      `${toolName} is explicitly ask-listed by policy`
-    );
-  }
-
   // Layer 1: name/title classification.
-  const nameTokens = tokenize(`${input.tool.title ?? ""} ${input.tool.name}`);
-  const nameHit = strongestHit(collectVerbHits(nameTokens));
+  const operationName = stripServerPrefix(toolName);
+  const nameTokens = tokenize(`${input.tool.title ?? ""} ${operationName}`);
+  const nameHit = classifyName(nameTokens);
 
   let classification: McpClassification = nameHit?.classification ?? "unknown";
-  let baseScore = nameHit?.score ?? 45;
+  let baseScore = nameHit?.score ?? MCP_UNKNOWN_BASE_SCORE;
 
   const descriptionHit = classifyDescription(input.tool.description);
 
@@ -111,7 +112,16 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
   // Layer 2+3: schema and arguments.
   const state = createState();
 
-  if (containsProduction(`${input.tool.title ?? ""} ${input.tool.name}`)) {
+  if (!input.tool.description?.trim()) {
+    addFinding(
+      state,
+      "opaque-tool",
+      "no description; the operation cannot be classified",
+      MCP_OPAQUE_TOOL_SCORE
+    );
+  }
+
+  if (containsProduction(`${input.tool.title ?? ""} ${operationName}`)) {
     state.production = true;
     addFinding(state, "production-target", "tool name references production/live", 15);
   }
@@ -120,6 +130,14 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
 
   if (input.call?.arguments) {
     walkArguments(input.call.arguments, "arguments", state, 0);
+  }
+
+  if (
+    state.destructiveArg &&
+    CLASSIFICATION_RANK[classification] < CLASSIFICATION_RANK.destructive
+  ) {
+    classification = "destructive";
+    baseScore = Math.max(baseScore, 45);
   }
 
   // Layer 4: annotations (untrusted hints by default).

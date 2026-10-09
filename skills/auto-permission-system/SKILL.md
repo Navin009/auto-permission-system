@@ -50,6 +50,14 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "denyWrite": [".env", "*.pem"]   // Layer 1 + 2: always blocked
   },
   "subagent": { "network": "allow" },
+  "mcp": {                           // Advanced Secure MCP gate tuning (ADR-032)
+    "allowTools": ["mcp__diffusion_studio__context"],  // exact names that never ask
+    "allowPrefixes": ["mcp__ticktick__get_"],          // name prefixes that never ask
+    "askTools": [],                   // exact names that always ask
+    "trustAnnotations": false,        // true = a server's readOnlyHint allows without asking
+    "allowSimpleUpdates": true,       // narrow field updates skip the ask
+    "askThreshold": 30                // risk score at which a call asks (lower = stricter)
+  },
   "commands": {
     "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
   },
@@ -103,7 +111,7 @@ The same options apply to a bash command whose network request reaches a host ou
 - **`default`** (shipped) — rules only. No content inspection.
 - **`advanced-secure`** (recommended) — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
   - file reads whose name looks like a credential store ask before the read;
-  - risky `mcp__<server>__<tool>` calls ask before they run;
+  - risky `mcp__<server>__<tool>` calls ask before they run. The gate ignores the `mcp__<server>__` namespace, takes the operation from the head verb of the name (or the first verb of the description), and asks for destructive names, mutating names (`update_*`, `create_*`, `run_*`, `evaluate_*`), and destructive arguments (SQL `DELETE`/`UPDATE` without `WHERE`, `rm -rf`, `*` targets, HTTP `DELETE`, production targets). A documented tool with an unclassified name (`context`, `capture`, `logs`) does not ask; a tool with **no description** counts as opaque and does. Tune it under `mcp` in `sandbox.json` (ADR-032): `allowTools` / `allowPrefixes` skip asks, `askTools` forces them, `trustAnnotations` lets a server's `readOnlyHint` allow the call, `askThreshold` moves the score line (default 30). An untrusted project file may only tighten it (add `askTools`, lower `askThreshold`, turn `allowSimpleUpdates`/`trustAnnotations` off).
   - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
 Switch with `/permission-mode`; all three modes are saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: 🧠 N domains, M paths` for advanced-secure, `Sandbox: 🔒 …` for default). An untrusted project may move the mode **up** (toward stricter), never down: it cannot turn on YOLO or turn off Advanced Secure. The third choice, **YOLO**, disables every layer; the chip reads `⚠️ YOLO — all security layers disabled` until you pick another mode (ADR-020).
@@ -142,6 +150,13 @@ Without restarting, `/permission-mode` → **YOLO** turns every layer off in one
 ```
 
 **Allow writes to a new path** — same pattern with `allowWrite`.
+
+**Allow an MCP tool** — in Advanced Secure mode, a `mcp__<server>__<tool>` call that keeps asking can be allowed without weakening anything else:
+```json
+// ~/.pi/agent/extensions/sandbox.json  (global)
+{ "mcp": { "allowPrefixes": ["mcp__ticktick__get_"], "allowTools": ["mcp__diffusion_studio__export"] } }
+```
+`allowTools` matches exact names, `allowPrefixes` matches the start (case-insensitive). Detected destructive calls still ask unless an exact `allowTools` entry names them. `"trustAnnotations": true` lets servers that mark a tool `readOnlyHint` skip the ask, and a project's `mcp` file may only tighten (add `askTools`, lower `askThreshold`, turn `allowSimpleUpdates`/`trustAnnotations` off) until you trust it.
 
 **View recent blocks** — run `/security` and read the audit section, or:
 ```bash

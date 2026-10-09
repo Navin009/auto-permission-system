@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-08T15:34:45.379Z
+Generated: 2026-10-09T18:03:54.187Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -34,7 +34,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-08
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `src/shared/` — dir, mtime 2026-10-08
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-08
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-09
 
 **Tests**
 
@@ -57,11 +57,11 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model.
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032.
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 431 lines, mtime 2026-10-08
+- ✓ `extensions/guard.ts` — 446 lines, mtime 2026-10-09
 - ✓ `extensions/permission-mode.ts` — 123 lines, mtime 2026-10-07
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-08
 - ✓ `src/detect/` — dir, mtime 2026-10-07
@@ -76,7 +76,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-symlink` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=15, FAIL=0
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
-- `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=41, FAIL=0
+- `L2-mcp-gate` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/mcp-gate.mjs` → expects PASS=39, FAIL=0
+- `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=57, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=55, FAIL=0
 - `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=20 FAIL=0
@@ -94,6 +95,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - web_search itself is not domain-checked (only its follow-on fetch_content is)
 - find and ls still print names (not contents) of denied files beneath an allowed root (ADR-008, accepted)
 - The grep output filter parses pi's grep line format; a format change leaves lines unfiltered until grep-filter.mjs is updated
+- MCP gate heuristics read tool names and description heads; a server that only states its operation in prose deeper in the description (or that omits descriptions entirely) may still ask — tune it with the `mcp` policy lists (ADR-032)
 
 ### L3 — Subagent posture  🟢 shipped-opt-in
 
@@ -129,7 +131,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-08
+- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-09
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 

@@ -7,5 +7,7 @@ export {
   MCP_DEFAULT_ASK_THRESHOLD,
   MCP_MAX_DEPTH,
   MCP_MAX_NODES,
+  MCP_OPAQUE_TOOL_SCORE,
+  MCP_UNKNOWN_BASE_SCORE,
 } from "./constants";
 export { evaluateMcpCall } from "./evaluate";

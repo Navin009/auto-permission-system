@@ -11,7 +11,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput, policyFileError, forgetProjectTrust, isProjectFileDeclined, recordProjectDeclined, recordProjectTrust } from "../src/core/index";
-import { classifyFilename, evaluateMcpCall, type JsonSchemaLike, type McpToolAnnotations } from "../src/detect/index";
+import { classifyFilename, evaluateMcpCall, type JsonSchemaLike, type McpPolicy, type McpToolAnnotations } from "../src/detect/index";
 import { collectExposure } from "../src/l2-guard/exposure";
 import { askExposure, askMain, withheldNotice } from "../src/ui/ask-flow";
 import { loadPolicy, projectPolicyPath, projectTrusted, setPiDeclinedTrust, untrustedProjectChanges, bullets, TRUST_STORE } from "../src/l2-guard/policy";
@@ -77,6 +77,7 @@ async function detectMcpAsk(
 	toolName: string,
 	input: Record<string, unknown>,
 	ctx: UICtx,
+	mcpPolicy?: McpPolicy,
 ): Promise<{ block: true; reason: string } | null> {
 	const info = pi.getAllTools().find((t) => t.name === toolName);
 	const result = evaluateMcpCall({
@@ -87,6 +88,7 @@ async function detectMcpAsk(
 			annotations: /* SAFETY: pi's ToolAnnotations mirrors the MCP hints McpToolAnnotations names. */ info?.annotations as McpToolAnnotations | undefined,
 		},
 		call: { name: toolName, arguments: input },
+		policy: mcpPolicy,
 	});
 	if (result.decision !== "ask") return null;
 	return askDetection(ctx, "tool", toolName, result.summary);
@@ -262,7 +264,7 @@ export default function (pi: ExtensionAPI) {
 
 		// Advanced Secure (ADR-018): classify MCP tool calls before they run.
 		if (policy.mode === "advanced-secure" && event.toolName.startsWith("mcp__")) {
-			const det = await detectMcpAsk(pi, event.toolName, (event.input ?? {}) as Record<string, unknown>, /* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx);
+			const det = await detectMcpAsk(pi, event.toolName, (event.input ?? {}) as Record<string, unknown>, /* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, policy.mcp);
 			if (det) return det;
 		}
 	});
@@ -415,6 +417,19 @@ export default function (pi: ExtensionAPI) {
 				`  allowWrite:   ${(overrides.allowWrite ?? []).join(", ") || "(none)"}`,
 				`  allowDomains: ${(overrides.allowDomains ?? []).join(", ") || "(none)"}`,
 			];
+			if (policy.mode === "advanced-secure") {
+				const mcp = policy.mcp ?? {};
+				lines.push(
+					"",
+					"Advanced Secure (MCP gate, ADR-032):",
+					`  allowTools:       ${(mcp.allowTools ?? []).join(", ") || "(none)"}`,
+					`  allowPrefixes:    ${(mcp.allowPrefixes ?? []).join(", ") || "(none)"}`,
+					`  askTools:         ${(mcp.askTools ?? []).join(", ") || "(none)"}`,
+					`  trustAnnotations: ${mcp.trustAnnotations === true}`,
+					`  allowSimpleUpdates: ${mcp.allowSimpleUpdates !== false}`,
+					`  askThreshold:     ${mcp.askThreshold ?? 30}`,
+				);
+			}
 			try {
 				const tail = readFileSync(AUDIT_PATH, "utf-8").trim().split("\n").slice(-10);
 				if (tail.length && tail[0]) {

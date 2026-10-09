@@ -50,6 +50,7 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("validate", "read", 0, "validate"),
   verb("lint", "read", 0, "lint"),
   verb("plan", "read", 0, "plan"),
+  verb("discover", "read", 0, "discover"),
 
   // Additive
   verb("create", "additive", 30, "create"),
@@ -84,6 +85,7 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("unmute", "operational", 20, "unmute"),
   verb("activate", "operational", 25, "activate"),
   verb("deactivate", "operational", 30, "deactivate"),
+  verb("cancel", "operational", 25, "cancel"),
   verb("scale", "operational", 30, "scale"),
   verb("drain", "operational", 35, "drain"),
   verb("cordon", "operational", 30, "cordon"),
@@ -117,6 +119,9 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("detach", "mutating", 35, "detach"),
   verb("link", "mutating", 30, "link"),
   verb("sync", "mutating", 35, "sync"),
+  verb("run", "mutating", 30, "run"),
+  verb("execute", "mutating", 30, "execute"),
+  verb("evaluate", "mutating", 30, "evaluate"),
   verb("refresh", "mutating", 25, "refresh"),
   verb("merge", "mutating", 40, "merge"),
   verb("commit", "mutating", 35, "commit"),
@@ -229,8 +234,30 @@ export function strongestHit(hits: VerbHit[]): VerbHit | null {
   return best;
 }
 
+const NAME_HEAD_WINDOW = 3;
+
+export function classifyName(tokens: string[]): VerbHit | null {
+  const hits = collectVerbHits(tokens);
+  const destructive = strongestHit(
+    hits.filter((hit) => hit.classification === "destructive")
+  );
+
+  if (destructive) {
+    return destructive;
+  }
+
+  return hits.find((hit) => hit.index <= NAME_HEAD_WINDOW) ?? null;
+}
+
 const NEGATED_READ_ONLY =
   /read[- ]?only|non[- ]?destructive|does\s*(?:not|n't)\s*(?:modify|delete|change|write)|no\s+side\s*effects|without\s+modifying|never\s+(?:deletes|modifies)/i;
+
+export function stripServerPrefix(name: string): string {
+  const match = /^mcp__(.+?)__(.+)$/.exec(name);
+  return match ? match[2] : name;
+}
+
+const DESCRIPTION_HEAD_WINDOW = 5;
 
 export function classifyDescription(
   description: string | undefined
@@ -239,9 +266,11 @@ export function classifyDescription(
     return null;
   }
 
-  const hit = strongestHit(collectVerbHits(tokenize(description)));
+  const hit = collectVerbHits(tokenize(description)).find(
+    (candidate) => candidate.index <= DESCRIPTION_HEAD_WINDOW
+  );
 
-  if (!hit || hit.classification === "read") {
+  if (!hit) {
     return null;
   }
 

@@ -144,6 +144,18 @@ export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { m
 				else ignored.push(`subagent.${sk}`);
 			}
 			merged.subagent = sa;
+		} else if (key === "mcp" && isObj(value)) {
+			const mcp = { ...(isObj(merged.mcp) ? merged.mcp : {}) } as Obj;
+			const currentThreshold = typeof mcp.askThreshold === "number" ? mcp.askThreshold : 30;
+			for (const [mk, mv] of Object.entries(value)) {
+				if (mk.startsWith("_")) continue;
+				if (mk === "askTools") mcp.askTools = union(mcp.askTools, mv);
+				else if (mk === "allowSimpleUpdates" && mv === false) mcp.allowSimpleUpdates = false;
+				else if (mk === "trustAnnotations" && mv === false) mcp.trustAnnotations = false;
+				else if (mk === "askThreshold" && typeof mv === "number" && mv <= currentThreshold) mcp.askThreshold = mv;
+				else ignored.push(`mcp.${mk}`);
+			}
+			merged.mcp = mcp;
 		} else if (key === "mode") {
 			// An untrusted project may move UP the ladder (toward strict), never down:
 			// a project cannot turn on YOLO, and cannot drop Advanced Secure.
@@ -173,6 +185,7 @@ export function describeLoosening(project: Obj): string[] {
 	const net = isObj(project.network) ? project.network : {};
 	const ov = isObj(project.overrides) ? project.overrides : {};
 	const op = isObj(fs.outsideProject) ? fs.outsideProject : {};
+	const mcp = isObj(project.mcp) ? project.mcp : {};
 	const { ignored } = applyUntrustedProject({}, project);
 	// `mode` may not land in `ignored` when the base has no mode, so describe it
 	// directly: any value below `advanced-secure` is a loosening.
@@ -205,6 +218,19 @@ export function describeLoosening(project: Obj): string[] {
 				break;
 			case "network.allowedDomains":
 				out.push(`Replace your list of allowed websites with: ${listOf(net.allowedDomains)}.`);
+				break;
+			case "mcp.allowTools":
+			case "mcp.allowPrefixes":
+				out.push(`Let more MCP tools run without asking: ${listOf(mcp.allowTools ?? mcp.allowPrefixes)}.`);
+				break;
+			case "mcp.trustAnnotations":
+				out.push("Trust MCP server annotations (read-only hints) to skip asks.");
+				break;
+			case "mcp.allowSimpleUpdates":
+				out.push("Let narrow MCP field updates run without asking.");
+				break;
+			case "mcp.askThreshold":
+				out.push("Raise the MCP risk score at which it asks.");
 				break;
 			default:
 				out.push(`Change the setting "${key}".`);

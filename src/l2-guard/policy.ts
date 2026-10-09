@@ -7,6 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_MODE, type PermissionMode } from "../core/index";
+import type { McpPolicy } from "../detect";
 
 export interface Policy {
 	enabled: boolean;
@@ -29,6 +30,7 @@ export interface Policy {
 		 */
 		outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
 	};
+	mcp?: McpPolicy;
 	/**
 	 * Additive project-local overrides written by the "always for this cwd"
 	 * branch of the ask-tier prompt. Never written from a global config.

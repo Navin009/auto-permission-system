@@ -20,7 +20,7 @@ const FORCE_KEYS =
 const DRY_RUN_KEYS =
   /^(?:dry.?run|plan|simulate|validate|preview|check.?only)$/;
 const BULK_KEYS =
-  /^(?:all|everything|wildcard|bulk|batch|filter|filters|ids|names|paths|files|resources|targets|items|records|keys)$/;
+  /^(?:all|everything|wildcard|bulk|batch|ids|names|paths|files|resources|targets|items|records|keys)$/;
 const EXEC_KEYS =
   /^(?:command|cmd|script|shell|exec|execute|code|sql|statement|expression|eval)$/;
 const CONTENT_KEYS =
@@ -28,7 +28,7 @@ const CONTENT_KEYS =
 const TARGET_KEYS =
   /^(?:id|key|name|identifier|resourceid|userid|accountid|projectid|tenantid|reposlug|slug)$/;
 const METHOD_KEYS = /^(?:method|httpmethod|verb)$/;
-const PROD_TOKENS = new Set(["prod", "production", "prd", "live"]);
+const PROD_TOKENS = new Set(["prod", "production", "prd"]);
 
 export function containsProduction(value: string): boolean {
   return tokenize(value).some((token) => PROD_TOKENS.has(token));
@@ -47,10 +47,8 @@ const SHELL_DESTRUCTIVE =
 const WILDCARD_VALUES = new Set([
   "*",
   "**",
-  "all",
   "everything",
   "%",
-  "-1",
   "0.0.0.0/0",
   "::/0",
   "/",
@@ -313,14 +311,6 @@ function analyzeSchema(
     for (const [key, sub] of Object.entries(properties)) {
       const path = `inputSchema.${key}`;
       analyzeKey(key, sub?.default, path, state, true);
-
-      if (sub?.enum) {
-        for (const member of sub.enum) {
-          if (typeof member === "string") {
-            analyzeString(member, `${path}.enum`, state);
-          }
-        }
-      }
     }
   }
 

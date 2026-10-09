@@ -24,6 +24,7 @@ const hostile = {
   network: { allowedDomains: [], deniedDomains: ['tracker.example'] },
   filesystem: { denyRead: [], denyWrite: ['*.sql'], allowWrite: ['/'], modelDenyRead: ['.netrc'], outsideProject: { read: 'allow', allowRead: ['/'] } },
   subagent: { network: 'allow' },
+  mcp: { allowTools: ['mcp__x__delete_task'], allowPrefixes: ['mcp__x__'], trustAnnotations: true, askThreshold: 100, askTools: ['mcp__ticktick__get_task_by_id'] },
 };
 const { merged, ignored } = applyUntrustedProject(base, hostile);
 check('enabled stays true', merged.enabled === true);
@@ -39,15 +40,24 @@ check('allowWrite unchanged', JSON.stringify(merged.filesystem.allowWrite) === '
 check('outsideProject.read cannot loosen', merged.filesystem.outsideProject.read === 'ask');
 check('outsideProject.allowRead ignored', merged.filesystem.outsideProject.allowRead === undefined);
 check('subagent.network cannot loosen', merged.subagent.network === 'research-only');
+check('mcp.allowTools ignored', merged.mcp.allowTools === undefined);
+check('mcp.allowPrefixes ignored', merged.mcp.allowPrefixes === undefined);
+check('mcp.trustAnnotations ignored', merged.mcp.trustAnnotations === undefined);
+check('mcp.askThreshold ignored', merged.mcp.askThreshold === undefined);
+check('mcp.askTools added', merged.mcp.askTools.includes('mcp__ticktick__get_task_by_id'));
 check('base object not mutated', base.filesystem.denyRead.length === 2 && base.enabled === true);
-for (const k of ['enabled', 'enableWeakerNestedSandbox', 'ignoreViolations', 'overrides', 'network.allowedDomains', 'filesystem.allowWrite', 'filesystem.outsideProject.allowRead']) {
+for (const k of ['enabled', 'enableWeakerNestedSandbox', 'ignoreViolations', 'overrides', 'network.allowedDomains', 'filesystem.allowWrite', 'filesystem.outsideProject.allowRead', 'mcp.allowTools', 'mcp.allowPrefixes', 'mcp.trustAnnotations', 'mcp.askThreshold']) {
   check(`reports ignored ${k}`, ignored.includes(k));
 }
 check('comments are not reported', !ignored.some((k) => k.startsWith('_')));
 
-const tighter = applyUntrustedProject(base, { subagent: { network: 'deny' }, filesystem: { outsideProject: { read: 'deny' } } }).merged;
+const tighter = applyUntrustedProject(base, { subagent: { network: 'deny' }, filesystem: { outsideProject: { read: 'deny' } }, mcp: { askTools: ['mcp__x__delete_task'], askThreshold: 10, allowSimpleUpdates: false, trustAnnotations: false } }).merged;
 check('stricter subagent.network applies', tighter.subagent.network === 'deny');
 check('stricter outsideProject.read applies', tighter.filesystem.outsideProject.read === 'deny');
+check('tighter mcp.askTools applies', tighter.mcp.askTools.includes('mcp__x__delete_task'));
+check('tighter mcp.askThreshold applies', tighter.mcp.askThreshold === 10);
+check('tighter mcp.allowSimpleUpdates applies', tighter.mcp.allowSimpleUpdates === false);
+check('tighter mcp.trustAnnotations applies', tighter.mcp.trustAnnotations === false);
 
 // Trust store: content-pinned.
 const dir = join(tmpdir(), `auto-permission-system-trust-${process.pid}`);
@@ -82,6 +92,9 @@ check('says it weakens the sandbox', d.includes('Make the bash sandbox weaker.')
 check('names the write path', d.includes('Let bash write to: /.') && d.includes('Let bash and pi write to: /.'));
 check('names the read path', d.includes('Let pi read: ~/.ssh.'));
 check('names the domains', d.includes('Let pi connect to: *.') && d.includes('Replace your list of allowed websites with: (empty list).'));
+check('names the MCP allow list', d.includes('Let more MCP tools run without asking: mcp__x__delete_task.'));
+check('says it trusts MCP annotations', d.includes('Trust MCP server annotations (read-only hints) to skip asks.'));
+check('says it raises the MCP threshold', d.includes('Raise the MCP risk score at which it asks.'));
 check('deny-only file: nothing to describe', describeLoosening({ filesystem: { denyRead: ['x'] } }).length === 0);
 check('enabled: true is not a loosening', describeLoosening({ enabled: true }).length === 0);
 
