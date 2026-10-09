@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-09T18:03:54.187Z
+Generated: 2026-10-09T20:30:06.812Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-outside-fence`, `L1-ask-commands`, `L1-session-grants`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L2-exposure`, `L1-L2-ask-read` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -26,11 +26,11 @@ Generated: 2026-10-09T18:03:54.187Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. A host in neither allowedDomains nor deniedDomains asks through the shared ask-tier prompt (ADR-023, ADR-024) — `Allow (default)` / `Deny` / `Allow for this session` / `Allow and remember…`; an unanswered countdown counts as Allow once, Esc denies; prompts are serialized so pi never shows two at once (overlapping selects orphan each other and hang the awaited proxy request). "once" covers the bash command, "remember" writes overrides.allowDomains (applied live, without restarting the proxy); headless denies. `deniedDomains` is a hard deny the prompt cannot override. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022).
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. A host in neither allowedDomains nor deniedDomains asks through the shared ask-tier prompt (ADR-023, ADR-024) — `Allow (default)` / `Deny` / `Allow for this session` / `Allow and remember…`; an unanswered countdown counts as Allow once, Esc denies; prompts are serialized so pi never shows two at once (overlapping selects orphan each other and hang the awaited proxy request). "once" covers the bash command, "remember" writes overrides.allowDomains (applied live, without restarting the proxy); headless denies. `deniedDomains` is a hard deny the prompt cannot override. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022). Filesystem asks offer once / session / remember: a session grant lives in memory, covers the folder (the exact path when the parent is unsafe to grant) and is cleared at session_start.
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 240 lines, mtime 2026-10-08
+- ✓ `extensions/sandbox.ts` — 242 lines, mtime 2026-10-09
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-08
 - ✓ `src/core/` — dir, mtime 2026-10-06
 - ✓ `src/shared/` — dir, mtime 2026-10-08
@@ -41,6 +41,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=41, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=11, FAIL=0
+- `L1-session-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs` → expects PASS=16, FAIL=0
 - `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=41, FAIL=0
 - `L1-L2-network-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs` → expects PASS=6, FAIL=0
 - `L1-e2e` — `APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
@@ -62,7 +63,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `extensions/guard.ts` — 446 lines, mtime 2026-10-09
-- ✓ `extensions/permission-mode.ts` — 123 lines, mtime 2026-10-07
+- ✓ `extensions/permission-mode.ts` — 134 lines, mtime 2026-10-09
 - ✓ `src/l2-guard/` — dir, mtime 2026-10-08
 - ✓ `src/detect/` — dir, mtime 2026-10-07
 - ✓ `src/core/` — dir, mtime 2026-10-06
@@ -84,6 +85,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
+- `L1-L2-permission-mode-sync` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode-yolo-sync.mjs` → expects PASS=4, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=15, FAIL=0
 - `L1-L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=13, FAIL=0

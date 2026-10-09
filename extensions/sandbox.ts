@@ -30,7 +30,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
-import { createSandboxedBashOps } from "../src/l1-sandbox/bash-ops";
+import { clearFilesystemSessionGrants, createSandboxedBashOps, filesystemSessionGrantSummary } from "../src/l1-sandbox/bash-ops";
 import { applyNetworkGrant, initSandbox, persistLayer1Override, reloadSandbox, resetSandbox, writeNetworkOverride } from "../src/l1-sandbox/manager";
 import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask";
 import { loadConfig, setPiDeclinedTrust } from "../src/l1-sandbox/config";
@@ -174,6 +174,7 @@ export default function (pi: ExtensionAPI) {
 		latestCtx = ctx;
 		activeCtx = /* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */ ctx as unknown as typeof activeCtx;
 		clearNetworkSessionGrants();
+		clearFilesystemSessionGrants();
 		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
 		runtimeYolo = yoloFromFlags(pi) || loadConfig(ctx.cwd).mode === "yolo";
 		// Broadcast before any await: guard.ts consumes this on the same bus to
@@ -232,6 +233,7 @@ export default function (pi: ExtensionAPI) {
 				`  Allow Write: ${config.filesystem?.allowWrite?.join(", ") || "(none)"}`,
 				`  Deny Write: ${config.filesystem?.denyWrite?.join(", ") || "(none)"}`,
 				`  Outside project reads: ${config.filesystem?.outsideProject?.read ?? "allow"}`,
+				`  Session grants: ${filesystemSessionGrantSummary() || "(none)"}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

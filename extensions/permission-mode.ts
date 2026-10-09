@@ -87,6 +87,17 @@ async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active:
 	if (picked === undefined) return; // Esc / timeout → keep the current mode
 	const next = MODES.find((m) => m.label === picked)?.value ?? current;
 	if (next === current) {
+		// The persisted mode can match while this session's runtime state does not:
+		// another session may have written mode=yolo after this one started. Picking
+		// YOLO must still turn the running session's layers off.
+		if (next === "yolo" && !yolo.active) {
+			yolo.active = true;
+			emitYolo(pi.events, true);
+			audit({ layer: 0, event: "permission-mode", mode: "yolo", cwd: ctx.cwd, note: "runtime-sync" });
+			renderSandboxChip(ctx);
+			ctx.ui.notify("⚠️  YOLO — all security layers disabled for this session.", "warning");
+			return;
+		}
 		ctx.ui.notify(`Permission mode is already ${modeLabel(next)}.`, "info");
 		return;
 	}

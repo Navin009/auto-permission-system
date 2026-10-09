@@ -34,6 +34,28 @@ function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "w
 const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
 
 /**
+ * In-memory filesystem grants from "Yes, for this session" (ADR-010, ADR-012).
+ * A read grant is the absolute path; a write grant is the parent directory (a
+ * whole path would not let a new file be created — ADR-021), falling back to the
+ * exact path when the parent is an unsafe folder to grant (root, home, …).
+ * Cleared at session_start, never written to sandbox.json.
+ */
+const sessionReadGrants: string[] = [];
+const sessionWriteGrants: string[] = [];
+/** askRead (.env) session grants, kept apart so they never leak into allowRead (ADR-019). */
+const sessionAskReadGrants: string[] = [];
+
+export function clearFilesystemSessionGrants(): void {
+	sessionReadGrants.length = 0;
+	sessionWriteGrants.length = 0;
+	sessionAskReadGrants.length = 0;
+}
+
+export function filesystemSessionGrantSummary(): string {
+	return [...sessionWriteGrants.map((p) => `write:${p}`), ...sessionReadGrants.map((p) => `read:${p}`), ...sessionAskReadGrants.map((p) => `askRead:${p}`)].join(", ");
+}
+
+/**
  * Gate commands that can print secrets (`printenv`, `env`, a read of the proc
  * environ file). Asks once per call; deny means the command does not run.
  */
@@ -80,13 +102,16 @@ async function preflightAskReads(
 	if (!paths.length) return undefined;
 	const ui = opts?.ctx as AskCtx | undefined;
 	for (const absPath of paths) {
+		// A session grant from an earlier command covers this path (ADR-010).
+		if (sessionAskReadGrants.includes(absPath)) continue;
 		if (!ui?.hasUI || !ui.ui?.select) {
 			auditL1({ subject: absPath, decision: "no", note: "ask-read-headless", cwd });
 			onData(Buffer.from(`\n❌ pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
 			return { exitCode: 1 };
 		}
-		const choice = await askMain(ui, "Let this command read your .env file?", [`File     ${absPath}`, `Why      .env files usually hold passwords and API keys`, `Risk     the AI will see any keys in it`, `Note     can't be saved as a permanent rule (it holds secrets)`].join("\n"), { remember: false, icon: "cred" });
+		const choice = await askMain(ui, "Let this command read your .env file?", [`File     ${absPath}`, `Why      .env files usually hold passwords and API keys`, `Risk     the AI will see any keys in it`, `Note     can't be saved as a permanent rule (it holds secrets)`].join("\n"), { session: true, remember: false, icon: "cred" });
 		if (choice === "once" || choice === "session") {
+			if (choice === "session") sessionAskReadGrants.push(absPath);
 			auditL1({ subject: absPath, decision: choice, note: "ask-read", cwd });
 			continue;
 		}
@@ -109,11 +134,20 @@ async function preflightOutsideReads(
 	}
 	const once: string[] = [];
 	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
+		// A session grant from an earlier command already covers this path: the
+		// sandbox config re-exposes it, so run without asking again.
+		if (sessionReadGrants.includes(absPath)) continue;
 		const ui = opts.ctx as AskCtx;
 		const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      files outside your project need your OK`].join("\n"), { session: true });
 		if (main === "once") {
 			auditL1({ subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd });
 			once.push(absPath);
+			continue;
+		}
+		if (main === "session") {
+			sessionReadGrants.push(absPath);
+			auditL1({ subject: absPath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd });
+			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} for this session (not saved)`, "info");
 			continue;
 		}
 		let subject: string | null = null;
@@ -167,13 +201,15 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			// "this once" grants apply to this one invocation only: hand them to
 			// wrapWithSandbox as a customConfig, so nothing is persisted and the
 			// session-wide sandbox is not re-initialised.
-			const readOnce = pre?.once ?? [];
+			const readOnce = [...(pre?.once ?? [])];
 			const buildCustom = (writeOnce: string[]): Partial<SandboxRuntimeConfig> | undefined => {
-				if (!readOnce.length && !writeOnce.length) return undefined;
+				const readRoots = [...readOnce, ...sessionReadGrants];
+				const writeRoots = [...writeOnce, ...sessionWriteGrants];
+				if (!readRoots.length && !writeRoots.length) return undefined;
 				const fresh = loadConfig(cwd).filesystem ?? { denyRead: [], allowWrite: [], denyWrite: [] };
 				return {
 					filesystem: sandboxFilesystem(
-						{ ...fresh, allowRead: [...(fresh.allowRead ?? []), ...readOnce], allowWrite: [...fresh.allowWrite, ...writeOnce] },
+						{ ...fresh, allowRead: [...(fresh.allowRead ?? []), ...readRoots], allowWrite: [...fresh.allowWrite, ...writeRoots] },
 						{ cwd, home: homedir() },
 					),
 				};
@@ -313,6 +349,15 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							try {
 								const ui = opts.ctx as AskCtx;
 								const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true });
+								if (main === "once" || main === "session") {
+									if (main === "once") readOnce.push(absPath);
+									else sessionReadGrants.push(absPath);
+									auditL1({ subject: absPath, decision: main, scope: main === "once" ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${main === "once" ? "once" : "for this session"} — re-running the command`, "warning");
+									onData(Buffer.from(`\n✅ pi-sandbox: allowed read of ${absPath} ${main === "once" ? "once" : "for this session"} — re-running the command.\n`));
+									resolve(attempt([]));
+									return;
+								}
 								if (main === "remember") {
 									const parent = dirname(absPath);
 									const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
@@ -349,7 +394,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
 							const absPath = offending;
 							const parentDir = dirname(absPath);
-							const alreadyGranted = writeOnce.includes(parentDir);
+							const alreadyGranted = writeOnce.includes(parentDir) || sessionWriteGrants.includes(parentDir);
 							try {
 								const ui = opts.ctx as AskCtx;
 								const main = await askMain(ui, `Let ${firstWord(command)} save files in ${parentDir}/?`, [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true, once: !alreadyGranted });
@@ -358,6 +403,18 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${absPath} once — re-running the command`, "warning");
 									onData(Buffer.from(`\n✅ pi-sandbox: allowed ${absPath} once — re-running the command.\n`));
 									resolve(attempt([...writeOnce, parentDir]));
+									return;
+								}
+								if (main === "session") {
+									// ADR-030 shape: the grant covers the folder when safe to grant as a
+									// whole, otherwise just the exact path. buildCustom merges it in, so
+									// the re-run (and every later command this session) can write.
+									const value = isSafeFolderGrant(parentDir, homedir()) ? parentDir : absPath;
+									sessionWriteGrants.push(value);
+									auditL1({ subject: value, granularity: value === parentDir ? "folder" : "file", original: absPath, decision: "session", scope: "session", cwd: opts.ctx.cwd, note: "write-session" });
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${value} for this session (not saved) — re-running the command`, "info");
+									onData(Buffer.from(`\n✅ pi-sandbox: allowed ${value} for this session (not saved) — re-running the command.\n`));
+									resolve(attempt([]));
 									return;
 								}
 								if (main === "remember") {
