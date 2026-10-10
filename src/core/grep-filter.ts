@@ -3,7 +3,7 @@
  * `path-N- text` for a context line. The separator is the same on both sides
  * of the line number, which keeps paths containing `-` or `:` parseable.
  */
-const GREP_LINE = /^(.+?)([:-])(\d+)\2 /;
+const GREP_LINE_RE = /^(.+?)([:-])(\d+)\2 /;
 
 export interface GrepFilterResult {
 	text: string;
@@ -20,26 +20,26 @@ export interface GrepFilterResult {
  * per path.
  */
 export function filterGrepOutput(text: string, isDenied: (printedPath: string) => boolean): GrepFilterResult {
-	const cache = new Map<string, boolean>();
+	const deniedByPath = new Map<string, boolean>();
 	const removedFiles = new Set<string>();
 	let removedLines = 0;
-	const kept: string[] = [];
+	const keptLines: string[] = [];
 	for (const line of text.split("\n")) {
-		const m = GREP_LINE.exec(line);
-		if (m) {
-			const file = m[1];
-			let denied = cache.get(file);
+		const match = GREP_LINE_RE.exec(line);
+		if (match) {
+			const printedPath = match[1];
+			let denied = deniedByPath.get(printedPath);
 			if (denied === undefined) {
-				denied = isDenied(file);
-				cache.set(file, denied);
+				denied = isDenied(printedPath);
+				deniedByPath.set(printedPath, denied);
 			}
 			if (denied) {
 				removedLines++;
-				removedFiles.add(file);
+				removedFiles.add(printedPath);
 				continue;
 			}
 		}
-		kept.push(line);
+		keptLines.push(line);
 	}
-	return { text: kept.join("\n"), removedLines, removedFiles: [...removedFiles] };
+	return { text: keptLines.join("\n"), removedLines, removedFiles: [...removedFiles] };
 }

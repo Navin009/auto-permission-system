@@ -15,44 +15,50 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { MODE_ORDER } from "./policy/mode";
+import { MODE_ORDER, PermissionMode } from "./policy/mode";
 import { projectPolicyPath } from "./policy/paths";
+import { ReadPosture } from "./policy/classify";
+import { SubagentNetwork } from "./policy/subagent";
 
 /** `trusted`: path → hash the user trusted. `declined`: path → hash the user said "no" to (no more warnings for it). */
-type Store = { trusted: Record<string, string>; declined: Record<string, string> };
+interface TrustStore {
+	trusted: Record<string, string>;
+	declined: Record<string, string>;
+}
 
+/** SHA-256 of a file's bytes, or null when the file does not exist. */
 export function fileHash(path: string): string | null {
 	if (!existsSync(path)) return null;
 	return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-function readStore(storePath: string): Store {
-	const empty = (): Store => ({ trusted: {}, declined: {} });
+function readStore(storePath: string): TrustStore {
+	const empty = (): TrustStore => ({ trusted: {}, declined: {} });
 	if (!existsSync(storePath)) return empty();
 	try {
-		const o = JSON.parse(readFileSync(storePath, "utf-8")) as Partial<Store>;
-		return { trusted: { ...(o?.trusted ?? {}) }, declined: { ...(o?.declined ?? {}) } };
+		const parsed = JSON.parse(readFileSync(storePath, "utf-8")) as Partial<TrustStore>;
+		return { trusted: { ...(parsed?.trusted ?? {}) }, declined: { ...(parsed?.declined ?? {}) } };
 	} catch {
 		return empty();
 	}
 }
 
-function writeStore(storePath: string, store: Store): void {
+function writeStore(storePath: string, store: TrustStore): void {
 	mkdirSync(dirname(storePath), { recursive: true });
 	writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
 }
 
 /** Trusted when the file's current hash is the one recorded for its path. An absent file is trivially trusted. */
 export function isProjectFileTrusted(projectPath: string, storePath: string): boolean {
-	const h = fileHash(projectPath);
-	if (h === null) return true;
-	return readStore(storePath).trusted[projectPath] === h;
+	const hash = fileHash(projectPath);
+	if (hash === null) return true;
+	return readStore(storePath).trusted[projectPath] === hash;
 }
 
 /** The user said "no" to this exact content: do not warn again until the file changes. */
 export function isProjectFileDeclined(projectPath: string, storePath: string): boolean {
-	const h = fileHash(projectPath);
-	return h !== null && readStore(storePath).declined[projectPath] === h;
+	const hash = fileHash(projectPath);
+	return hash !== null && readStore(storePath).declined[projectPath] === hash;
 }
 
 /**
@@ -81,9 +87,9 @@ export function createProjectTrust(storePath: string): ProjectTrust {
 
 export function recordProjectDeclined(projectPath: string, storePath: string): void {
 	const store = readStore(storePath);
-	const h = fileHash(projectPath);
-	if (h === null) return;
-	store.declined[projectPath] = h;
+	const hash = fileHash(projectPath);
+	if (hash === null) return;
+	store.declined[projectPath] = hash;
 	delete store.trusted[projectPath];
 	writeStore(storePath, store);
 }
@@ -91,9 +97,9 @@ export function recordProjectDeclined(projectPath: string, storePath: string): v
 /** Record the file's current content as trusted (or forget it when the file is gone). */
 export function recordProjectTrust(projectPath: string, storePath: string): void {
 	const store = readStore(storePath);
-	const h = fileHash(projectPath);
-	if (h === null) delete store.trusted[projectPath];
-	else store.trusted[projectPath] = h;
+	const hash = fileHash(projectPath);
+	if (hash === null) delete store.trusted[projectPath];
+	else store.trusted[projectPath] = hash;
 	delete store.declined[projectPath];
 	writeStore(storePath, store);
 }
@@ -105,88 +111,92 @@ export function forgetProjectTrust(projectPath: string, storePath: string): void
 	writeStore(storePath, store);
 }
 
-type Obj = Record<string, unknown>;
-const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-const union = (a: unknown, b: unknown): string[] => [...new Set([...strings(a), ...strings(b)])];
+type JsonObject = Record<string, unknown>;
 
-const SUBAGENT_ORDER = ["allow", "research-only", "deny"];
-const OUTSIDE_ORDER = ["allow", "ask", "deny"];
+const isJsonObject = (value: unknown): value is JsonObject => !!value && typeof value === "object" && !Array.isArray(value);
+const stringList = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+const unionStrings = (first: unknown, second: unknown): string[] => [...new Set([...stringList(first), ...stringList(second)])];
+
+const SUBAGENT_ORDER = [SubagentNetwork.Allow, SubagentNetwork.ResearchOnly, SubagentNetwork.Deny];
+const OUTSIDE_PROJECT_ORDER = [ReadPosture.Allow, ReadPosture.Ask, ReadPosture.Deny];
+
 /** One tier of an ordered policy ladder (`allow` < `ask` < `deny`, etc.). */
-type Tier = string;
+type PolicyTier = string;
 
 /**
- * Pick whichever of `base`/`project` ranks strictly later in `order`; an input
- * that is not a string is ignored (never returned as `unknown`).
+ * Pick whichever of `current`/`incoming` ranks strictly later in `order`; an
+ * input that is not a string is ignored (never returned as `unknown`).
  */
-function stricter(order: readonly string[], base: unknown, project: unknown): Tier | undefined {
-	const b = order.indexOf(String(base ?? order[0]));
-	const p = order.indexOf(String(project));
-	if (p > b && typeof project === "string") return project;
-	return typeof base === "string" ? base : undefined;
+function stricter(order: readonly string[], current: unknown, incoming: unknown): PolicyTier | undefined {
+	const currentRank = order.indexOf(String(current ?? order[0]));
+	const incomingRank = order.indexOf(String(incoming));
+	if (incomingRank > currentRank && typeof incoming === "string") return incoming;
+	return typeof current === "string" ? current : undefined;
 }
 
 /** Lists an untrusted file may add to (additive: deny lists and the ask list). */
-const DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite", "askRead"] as const;
+const ADDITIVE_DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite", "askRead"] as const;
 
 /**
  * Merge an untrusted project policy into `base` so it can only tighten.
  * Returns the merged policy and the keys that were ignored (for the warning).
+ *
+ * `_`-prefixed keys are comments and skipped everywhere. `mode` may only move
+ * UP the ladder (toward strict), never down: a project cannot turn on YOLO,
+ * and cannot drop Advanced Secure.
  */
-export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { merged: T; ignored: string[] } {
+export function applyUntrustedProject<T extends JsonObject>(base: T, project: JsonObject): { merged: T; ignored: string[] } {
 	const ignored: string[] = [];
-	const merged = structuredClone(base) as Obj;
+	const merged = structuredClone(base) as JsonObject;
 
 	for (const [key, value] of Object.entries(project)) {
-		if (key.startsWith("_")) continue; // comments
-		if (key === "filesystem" && isObj(value)) {
-			const fs = { ...(isObj(merged.filesystem) ? merged.filesystem : {}) } as Obj;
-			for (const [fk, fv] of Object.entries(value)) {
-				if (fk.startsWith("_")) continue;
-				if ((DENY_KEYS as readonly string[]).includes(fk)) fs[fk] = union(fs[fk], fv);
-				else if (fk === "outsideProject" && isObj(fv)) {
-					const op = { ...(isObj(fs.outsideProject) ? fs.outsideProject : {}) } as Obj;
-					for (const [ok, ov] of Object.entries(fv)) {
-						if (ok === "read") op.read = stricter(OUTSIDE_ORDER, op.read, ov);
-						else ignored.push(`filesystem.outsideProject.${ok}`);
+		if (key.startsWith("_")) continue;
+		if (key === "filesystem" && isJsonObject(value)) {
+			const filesystem = { ...(isJsonObject(merged.filesystem) ? merged.filesystem : {}) } as JsonObject;
+			for (const [fieldKey, fieldValue] of Object.entries(value)) {
+				if (fieldKey.startsWith("_")) continue;
+				if ((ADDITIVE_DENY_KEYS as readonly string[]).includes(fieldKey)) filesystem[fieldKey] = unionStrings(filesystem[fieldKey], fieldValue);
+				else if (fieldKey === "outsideProject" && isJsonObject(fieldValue)) {
+					const outsideProject = { ...(isJsonObject(filesystem.outsideProject) ? filesystem.outsideProject : {}) } as JsonObject;
+					for (const [optionKey, optionValue] of Object.entries(fieldValue)) {
+						if (optionKey === "read") outsideProject.read = stricter(OUTSIDE_PROJECT_ORDER, outsideProject.read, optionValue);
+						else ignored.push(`filesystem.outsideProject.${optionKey}`);
 					}
-					fs.outsideProject = op;
-				} else ignored.push(`filesystem.${fk}`);
+					filesystem.outsideProject = outsideProject;
+				} else ignored.push(`filesystem.${fieldKey}`);
 			}
-			merged.filesystem = fs;
-		} else if (key === "network" && isObj(value)) {
-			const net = { ...(isObj(merged.network) ? merged.network : {}) } as Obj;
-			for (const [nk, nv] of Object.entries(value)) {
-				if (nk.startsWith("_")) continue;
-				if (nk === "deniedDomains") net.deniedDomains = union(net.deniedDomains, nv);
-				else ignored.push(`network.${nk}`);
+			merged.filesystem = filesystem;
+		} else if (key === "network" && isJsonObject(value)) {
+			const network = { ...(isJsonObject(merged.network) ? merged.network : {}) } as JsonObject;
+			for (const [networkKey, networkValue] of Object.entries(value)) {
+				if (networkKey.startsWith("_")) continue;
+				if (networkKey === "deniedDomains") network.deniedDomains = unionStrings(network.deniedDomains, networkValue);
+				else ignored.push(`network.${networkKey}`);
 			}
-			merged.network = net;
-		} else if (key === "subagent" && isObj(value)) {
-			const sa = { ...(isObj(merged.subagent) ? merged.subagent : {}) } as Obj;
-			for (const [sk, sv] of Object.entries(value)) {
-				if (sk === "network") sa.network = stricter(SUBAGENT_ORDER, sa.network, sv);
-				else ignored.push(`subagent.${sk}`);
+			merged.network = network;
+		} else if (key === "subagent" && isJsonObject(value)) {
+			const subagent = { ...(isJsonObject(merged.subagent) ? merged.subagent : {}) } as JsonObject;
+			for (const [subagentKey, subagentValue] of Object.entries(value)) {
+				if (subagentKey === "network") subagent.network = stricter(SUBAGENT_ORDER, subagent.network, subagentValue);
+				else ignored.push(`subagent.${subagentKey}`);
 			}
-			merged.subagent = sa;
-		} else if (key === "mcp" && isObj(value)) {
-			const mcp = { ...(isObj(merged.mcp) ? merged.mcp : {}) } as Obj;
+			merged.subagent = subagent;
+		} else if (key === "mcp" && isJsonObject(value)) {
+			const mcp = { ...(isJsonObject(merged.mcp) ? merged.mcp : {}) } as JsonObject;
 			const currentThreshold = typeof mcp.askThreshold === "number" ? mcp.askThreshold : 30;
-			for (const [mk, mv] of Object.entries(value)) {
-				if (mk.startsWith("_")) continue;
-				if (mk === "askTools") mcp.askTools = union(mcp.askTools, mv);
-				else if (mk === "allowSimpleUpdates" && mv === false) mcp.allowSimpleUpdates = false;
-				else if (mk === "trustAnnotations" && mv === false) mcp.trustAnnotations = false;
-				else if (mk === "askThreshold" && typeof mv === "number" && mv <= currentThreshold) mcp.askThreshold = mv;
-				else ignored.push(`mcp.${mk}`);
+			for (const [mcpKey, mcpValue] of Object.entries(value)) {
+				if (mcpKey.startsWith("_")) continue;
+				if (mcpKey === "askTools") mcp.askTools = unionStrings(mcp.askTools, mcpValue);
+				else if (mcpKey === "allowSimpleUpdates" && mcpValue === false) mcp.allowSimpleUpdates = false;
+				else if (mcpKey === "trustAnnotations" && mcpValue === false) mcp.trustAnnotations = false;
+				else if (mcpKey === "askThreshold" && typeof mcpValue === "number" && mcpValue <= currentThreshold) mcp.askThreshold = mcpValue;
+				else ignored.push(`mcp.${mcpKey}`);
 			}
 			merged.mcp = mcp;
 		} else if (key === "mode") {
-			// An untrusted project may move UP the ladder (toward strict), never down:
-			// a project cannot turn on YOLO, and cannot drop Advanced Secure.
-			const next = stricter(MODE_ORDER, merged.mode, value);
-			if (next !== undefined && value !== merged.mode && next === merged.mode) ignored.push("mode");
-			if (next !== undefined) merged.mode = next;
+			const stricterMode = stricter(MODE_ORDER, merged.mode, value);
+			if (stricterMode !== undefined && value !== merged.mode && stricterMode === merged.mode) ignored.push("mode");
+			if (stricterMode !== undefined) merged.mode = stricterMode;
 		} else {
 			ignored.push(key);
 		}
@@ -194,72 +204,74 @@ export function applyUntrustedProject<T extends Obj>(base: T, project: Obj): { m
 	return { merged: merged as T, ignored };
 }
 
-const listOf = (v: unknown): string => {
-	const xs = strings(v);
-	return xs.length ? xs.join(", ") : "(empty list)";
+/** Render a string list for the warning text, or `(empty list)` when it has no entries. */
+const describeList = (value: unknown): string => {
+	const items = stringList(value);
+	return items.length ? items.join(", ") : "(empty list)";
 };
 
 /**
  * What an untrusted project file tries to change, in short plain sentences
  * (ASD-STE100 style), for the warning and the trust question. Only changes
  * that make the policy weaker are listed.
+ *
+ * `mode` may not land in `ignored` when the base has no mode, so it is
+ * described directly: any value below `advanced-secure` is a loosening.
  */
-export function describeLoosening(project: Obj): string[] {
-	const out: string[] = [];
-	const fs = isObj(project.filesystem) ? project.filesystem : {};
-	const net = isObj(project.network) ? project.network : {};
-	const ov = isObj(project.overrides) ? project.overrides : {};
-	const op = isObj(fs.outsideProject) ? fs.outsideProject : {};
-	const mcp = isObj(project.mcp) ? project.mcp : {};
+export function describeLoosening(project: JsonObject): string[] {
+	const changes: string[] = [];
+	const filesystem = isJsonObject(project.filesystem) ? project.filesystem : {};
+	const network = isJsonObject(project.network) ? project.network : {};
+	const overrides = isJsonObject(project.overrides) ? project.overrides : {};
+	const outsideProject = isJsonObject(filesystem.outsideProject) ? filesystem.outsideProject : {};
+	const mcp = isJsonObject(project.mcp) ? project.mcp : {};
 	const { ignored } = applyUntrustedProject({}, project);
-	// `mode` may not land in `ignored` when the base has no mode, so describe it
-	// directly: any value below `advanced-secure` is a loosening.
-	if (typeof project.mode === "string" && project.mode !== "advanced-secure") {
-		out.push(project.mode === "yolo" ? "Turn off all security layers (YOLO)." : "Turn off Advanced Secure mode.");
+	if (typeof project.mode === "string" && project.mode !== PermissionMode.AdvancedSecure) {
+		changes.push(project.mode === PermissionMode.Yolo ? "Turn off all security layers (YOLO)." : "Turn off Advanced Secure mode.");
 	}
 	for (const key of ignored) {
 		switch (key) {
 			case "enabled":
-				if (project.enabled === false) out.push("Turn off auto-permission-system.");
+				if (project.enabled === false) changes.push("Turn off auto-permission-system.");
 				break;
 			case "enableWeakerNestedSandbox":
-				if (project.enableWeakerNestedSandbox) out.push("Make the bash sandbox weaker.");
+				if (project.enableWeakerNestedSandbox) changes.push("Make the bash sandbox weaker.");
 				break;
 			case "ignoreViolations":
-				out.push("Hide some sandbox blocks.");
+				changes.push("Hide some sandbox blocks.");
 				break;
 			case "overrides":
-				if (strings(ov.allowWrite).length) out.push(`Let bash write to: ${listOf(ov.allowWrite)}.`);
-				if (strings(ov.allowRead).length) out.push(`Let pi read: ${listOf(ov.allowRead)}.`);
-				if (strings(ov.allowDomains).length) out.push(`Let pi connect to: ${listOf(ov.allowDomains)}.`);
+				if (stringList(overrides.allowWrite).length) changes.push(`Let bash write to: ${describeList(overrides.allowWrite)}.`);
+				if (stringList(overrides.allowRead).length) changes.push(`Let pi read: ${describeList(overrides.allowRead)}.`);
+				if (stringList(overrides.allowDomains).length) changes.push(`Let pi connect to: ${describeList(overrides.allowDomains)}.`);
 				break;
 			case "mode":
-				break; // handled above
+				break;
 			case "filesystem.allowWrite":
-				out.push(`Let bash and pi write to: ${listOf(fs.allowWrite)}.`);
+				changes.push(`Let bash and pi write to: ${describeList(filesystem.allowWrite)}.`);
 				break;
 			case "filesystem.outsideProject.allowRead":
-				out.push(`Let pi read outside the project: ${listOf(op.allowRead)}.`);
+				changes.push(`Let pi read outside the project: ${describeList(outsideProject.allowRead)}.`);
 				break;
 			case "network.allowedDomains":
-				out.push(`Replace your list of allowed websites with: ${listOf(net.allowedDomains)}.`);
+				changes.push(`Replace your list of allowed websites with: ${describeList(network.allowedDomains)}.`);
 				break;
 			case "mcp.allowTools":
 			case "mcp.allowPrefixes":
-				out.push(`Let more MCP tools run without asking: ${listOf(mcp.allowTools ?? mcp.allowPrefixes)}.`);
+				changes.push(`Let more MCP tools run without asking: ${describeList(mcp.allowTools ?? mcp.allowPrefixes)}.`);
 				break;
 			case "mcp.trustAnnotations":
-				out.push("Trust MCP server annotations (read-only hints) to skip asks.");
+				changes.push("Trust MCP server annotations (read-only hints) to skip asks.");
 				break;
 			case "mcp.allowSimpleUpdates":
-				out.push("Let narrow MCP field updates run without asking.");
+				changes.push("Let narrow MCP field updates run without asking.");
 				break;
 			case "mcp.askThreshold":
-				out.push("Raise the MCP risk score at which it asks.");
+				changes.push("Raise the MCP risk score at which it asks.");
 				break;
 			default:
-				out.push(`Change the setting "${key}".`);
+				changes.push(`Change the setting "${key}".`);
 		}
 	}
-	return out;
+	return changes;
 }

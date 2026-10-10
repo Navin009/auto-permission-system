@@ -15,6 +15,8 @@
  * selector, whose promise never settles (ADR-024).
  */
 
+import { GrantScope } from "../core/index";
+
 /** Structural view of a pi-tui component (`ctx.ui.custom` result) — enough for
  * the ask selector. `render` must return lines that fit the given width. */
 export type AskComponent = {
@@ -58,7 +60,13 @@ export type AskCtx = {
 	};
 };
 
-export type MainChoice = "block" | "once" | "session" | "remember";
+export const MainChoice = {
+	Block: "block",
+	Once: "once",
+	Session: "session",
+	Remember: "remember",
+} as const;
+export type MainChoice = (typeof MainChoice)[keyof typeof MainChoice];
 
 /** How long a pending permission prompt waits before it resolves to its default.
  * ADR-030: per-action overrides below — the user picks a wider scope (folder / wildcard) and
@@ -234,8 +242,6 @@ async function askSelectWithActivity(
 
 	currentTimer = setTimeout(finish, timeoutMs);
 
-	// No timeout passed to pi → no '(Ns)' countdown display.
-	// Outer timer owns auto-dismiss; activity listener resets it.
 	const picked = await ctx.ui.select(title, options, { signal: ctrl.signal });
 	if (settled) return undefined;
 	settled = true;
@@ -273,30 +279,36 @@ export type MainOpts = {
 	timeoutMs?: number;
 };
 
-/** Compose header + icon + body + options for screen 1. ADR-024 puts Yes first for network
- * (allowFirst), so `No` is still in the list but unhighlighted. */
+/**
+ * Compose header + icon + body + options for screen 1. Option order is always
+ * No / Yes (just this once) / session / remember; ADR-024 preselects "Yes, just
+ * this once" for network (allowFirst), so `No` stays in the list but is not
+ * highlighted.
+ */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
 	const sessionLabel = opts.sessionLabel ?? "Yes, for this session";
 	const choices: Array<{ label: string; value: MainChoice }> = [];
-	// Order is always: No, Yes (just this once), session, remember. With
-	// allowFirst=true, Enter picks "Yes, just this once" (the second row).
-	choices.push({ label: "No", value: "block" });
-	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: "once" });
-	if (opts.session) choices.push({ label: sessionLabel, value: "session" });
-	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: "remember" });
+	choices.push({ label: "No", value: MainChoice.Block });
+	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: MainChoice.Once });
+	if (opts.session) choices.push({ label: sessionLabel, value: MainChoice.Session });
+	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: MainChoice.Remember });
 	const footer = opts.footer ?? (opts.allowFirst
 		? "Default: Yes, just this once"
 		: "Default: No");
 	const title = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body].join("\n");
 	const { picked, expired } = await askSelect(ctx, title, choices.map((c) => c.label), opts.timeoutMs, { footer });
-	if (expired && opts.allowFirst) return "once";
-	return choices.find((c) => c.label === picked)?.value ?? "block";
+	if (expired && opts.allowFirst) return MainChoice.Once;
+	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
 }
 
-export type ScopeChoice = { scope: "cwd" | "global"; folder: boolean };
+export type ScopeChoice = { scope: GrantScope; folder: boolean };
 
-/** Screen 2 options for a file: `All in folder / Only <name>`
- * \u00d7 `in this project / in all projects`. Folder is preselected. */
+/**
+ * Screen 2 options for a file: `All in folder / Only <name>` × `in this project
+ * / in all projects`. Folder is preselected. The cwd rows are hidden when the
+ * project isn't trusted, so the user cannot pick a grant that persistOverride
+ * would reject.
+ */
 export async function askRememberFile(
 	ctx: AskCtx,
 	title: string,
@@ -308,12 +320,11 @@ export async function askRememberFile(
 	const basename = filePath.slice(filePath.lastIndexOf("/") + 1);
 	const folderLabel = folderPath ? `All in folder   in this project   (recommended)` : null;
 	const choices: Array<{ label: string; value: ScopeChoice }> = [];
-	// The cwd rows are hidden when the project isn't trusted (v3.4 follow-up).
 	const showCwd = !opts.untrusted;
-	if (showCwd && folderLabel) choices.push({ label: folderLabel, value: { scope: "cwd", folder: true } });
-	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: "cwd", folder: false } });
-	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: "global", folder: true } });
-	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: "global", folder: false } });
+	if (showCwd && folderLabel) choices.push({ label: folderLabel, value: { scope: GrantScope.Cwd, folder: true } });
+	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: GrantScope.Cwd, folder: false } });
+	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: GrantScope.Global, folder: true } });
+	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: GrantScope.Global, folder: false } });
 	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
 	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
@@ -324,7 +335,7 @@ export async function askRememberFile(
  * For 3+ part hosts (`backend.composio.dev`) the default is the parent-domain wildcard
  * (`*.composio.dev`) so one click covers every subdomain; for 2-part hosts (`example.com`)
  * the only sensible pattern is the host. ADR-030. */
-export type HostGrant = { scope: "cwd" | "global"; pattern: string };
+export type HostGrant = { scope: GrantScope; pattern: string };
 
 /** `*.composio.dev` from `backend.composio.dev`; `example.com` from `example.com`. */
 export function parentDomainWildcard(host: string): string {
@@ -351,10 +362,10 @@ export async function askRememberHost(
 	const showCwd = !opts.untrusted;
 	const groupLabel = `All in group   ${hasWildcard ? `(${wildcard})   ` : ""}in this project   (recommended)`;
 	const exactLabel = `Only ${host}   in this project`;
-	if (showCwd && hasWildcard) choices.push({ label: groupLabel, value: { scope: "cwd", pattern: wildcard } });
-	if (showCwd) choices.push({ label: exactLabel, value: { scope: "cwd", pattern: host } });
-	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: "global", pattern: wildcard } });
-	choices.push({ label: `Only ${host}   in all projects`, value: { scope: "global", pattern: host } });
+	if (showCwd && hasWildcard) choices.push({ label: groupLabel, value: { scope: GrantScope.Cwd, pattern: wildcard } });
+	if (showCwd) choices.push({ label: exactLabel, value: { scope: GrantScope.Cwd, pattern: host } });
+	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: GrantScope.Global, pattern: wildcard } });
+	choices.push({ label: `Only ${host}   in all projects`, value: { scope: GrantScope.Global, pattern: host } });
 	const footer = opts.footer ?? `Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
 	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
@@ -362,7 +373,12 @@ export async function askRememberHost(
 	return found?.value ?? null;
 }
 
-export type ExposureChoice = "allow" | "block" | "program-session";
+export const ExposureChoice = {
+	Block: "block",
+	Allow: "allow",
+	ProgramSession: "program-session",
+} as const;
+export type ExposureChoice = (typeof ExposureChoice)[keyof typeof ExposureChoice];
 
 /** Advanced Secure output gate (ADR-018): show where it was found and ask before the output reaches the model.
  *  When `programId` is set, an extra option lets the user grant the rest of the
@@ -370,10 +386,10 @@ export type ExposureChoice = "allow" | "block" | "program-session";
  *  tool output (display, not access). */
 export async function askExposure(ctx: AskCtx, hits: string[], programId?: string): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
-		{ label: "No, keep it hidden   (recommended)", value: "block" },
-		{ label: "Yes, show it this once", value: "allow" },
+		{ label: "No, keep it hidden   (recommended)", value: ExposureChoice.Block },
+		{ label: "Yes, show it this once", value: ExposureChoice.Allow },
 	];
-	if (programId) choices.push({ label: `Yes, all ${programId} output for this session`, value: "program-session" });
+	if (programId) choices.push({ label: `Yes, all ${programId} output for this session`, value: ExposureChoice.ProgramSession });
 	const titleParts = [
 		`${ICON.cred}  This output may contain a secret \u2014 show it to the AI?`,
 		"",
@@ -382,7 +398,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		"Note     you'll be asked again each time a secret shows up",
 	];
 	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { footer: "Default: No" });
-	return choices.find((c) => c.label === picked)?.value ?? "block";
+	return choices.find((c) => c.label === picked)?.value ?? ExposureChoice.Block;
 }
 
 /**

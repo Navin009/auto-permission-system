@@ -4,8 +4,8 @@
  * global/project files tune it on top.
  *
  * Robust by design: if the file is missing or unparseable the caller falls back
- * to the constants in `defaults.ts`, so a broken package layout never leaves the
- * sandbox wide open.
+ * to the constants in `defaults.ts`, so a broken package layout never leaves
+ * the sandbox wide open.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -14,13 +14,13 @@ import { fileURLToPath } from "node:url";
 
 /** Walk up from this module looking for the file the package ships. */
 function findDefaultFile(): string | null {
-	let dir = dirname(fileURLToPath(import.meta.url));
-	for (let i = 0; i < 6; i++) {
-		const candidate = join(dir, "sandbox.default.json");
+	let directory = dirname(fileURLToPath(import.meta.url));
+	for (let depth = 0; depth < 6; depth++) {
+		const candidate = join(directory, "sandbox.default.json");
 		if (existsSync(candidate)) return candidate;
-		const parent = dirname(dir);
-		if (parent === dir) break;
-		dir = parent;
+		const parent = dirname(directory);
+		if (parent === directory) break;
+		directory = parent;
 	}
 	return null;
 }

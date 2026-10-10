@@ -17,10 +17,10 @@ export function hostnameOf(url: string): string | null {
 }
 
 export function domainMatches(host: string, pattern: string): boolean {
-	const p = pattern.toLowerCase();
-	if (p.startsWith("*.")) {
-		const suffix = p.slice(1); // ".npmjs.org"
-		return host === p.slice(2) || host.endsWith(suffix);
+	const normalizedPattern = pattern.toLowerCase();
+	if (normalizedPattern.startsWith("*.")) {
+		const suffix = normalizedPattern.slice(1);
+		return host === normalizedPattern.slice(2) || host.endsWith(suffix);
 	}
-	return host === p;
+	return host === normalizedPattern;
 }

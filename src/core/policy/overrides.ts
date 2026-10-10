@@ -11,8 +11,20 @@ import { dirname } from "node:path";
 import { readPolicyForUpdate } from "./files";
 import { recordProjectTrust } from "../trust";
 
-/** The three additive grant lists in `overrides`. */
-export type OverrideKind = "allowRead" | "allowWrite" | "allowDomains";
+/** Erasable enum for the three additive grant lists in `overrides`. */
+export const OverrideKind = {
+	AllowRead: "allowRead",
+	AllowWrite: "allowWrite",
+	AllowDomains: "allowDomains",
+} as const;
+export type OverrideKind = (typeof OverrideKind)[keyof typeof OverrideKind];
+
+/** Erasable enum for where a grant is written. */
+export const GrantScope = {
+	Cwd: "cwd",
+	Global: "global",
+} as const;
+export type GrantScope = (typeof GrantScope)[keyof typeof GrantScope];
 
 type OverrideLists = Partial<Record<OverrideKind, string[]>>;
 

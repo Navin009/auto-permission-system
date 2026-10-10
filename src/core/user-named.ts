@@ -13,42 +13,47 @@ import { basename, isAbsolute, relative } from "node:path";
 
 const MAX_USER_MESSAGES = 20;
 
-type Entry = { type?: string; message?: { role?: string; content?: unknown } };
+interface SessionEntry {
+	type?: string;
+	message?: { role?: string; content?: unknown };
+}
 
 /** The user's own messages, oldest first. Only "message" entries with role "user"; image parts dropped. */
 export function extractUserMessages(entries: readonly unknown[], max = MAX_USER_MESSAGES): string[] {
-	const out: string[] = [];
+	const messages: string[] = [];
 	for (const raw of entries) {
-		const e = raw as Entry;
-		if (e?.type !== "message" || e.message?.role !== "user") continue;
-		const c = e.message.content;
+		const entry = raw as SessionEntry;
+		if (entry?.type !== "message" || entry.message?.role !== "user") continue;
+		const content = entry.message.content;
 		let text = "";
-		if (typeof c === "string") text = c;
-		else if (Array.isArray(c)) {
-			text = c
-				.filter((p): p is { type: "text"; text: string } => !!p && (p as { type?: string }).type === "text" && typeof (p as { text?: unknown }).text === "string")
-				.map((p) => p.text)
+		if (typeof content === "string") text = content;
+		else if (Array.isArray(content)) {
+			text = content
+				.filter((part): part is { type: "text"; text: string } => !!part && (part as { type?: string }).type === "text" && typeof (part as { text?: unknown }).text === "string")
+				.map((part) => part.text)
 				.join("\n");
 		}
-		if (text.trim()) out.push(text);
+		if (text.trim()) messages.push(text);
 	}
-	return out.slice(-max);
+	return messages.slice(-max);
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (source: string): string => source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// A name is a whole token: not glued to other path or word characters. A
-// trailing "." counts as sentence punctuation only before whitespace or the
-// end, so ".env" does not match ".env.example" but does match "read .env."
-const BEFORE = String.raw`(?<=^|[\s"'\`(\[<{,;=])`;
-const AFTER = String.raw`(?=$|[\s"'\`)\]>},;:!?]|\.(?:$|\s))`;
+/**
+ * A name is a whole token: not glued to other path or word characters. A
+ * trailing "." counts as sentence punctuation only before whitespace or the
+ * end, so ".env" does not match ".env.example" but does match "read .env."
+ */
+const TOKEN_BEFORE = String.raw`(?<=^|[\s"'\`(\[<{,;=])`;
+const TOKEN_AFTER = String.raw`(?=$|[\s"'\`)\]>},;:!?]|\.(?:$|\s))`;
 
 function containsToken(text: string, token: string, caseInsensitive: boolean): boolean {
-	return new RegExp(`${BEFORE}${escapeRe(token)}${AFTER}`, caseInsensitive ? "i" : "").test(text);
+	return new RegExp(`${TOKEN_BEFORE}${escapeRegExp(token)}${TOKEN_AFTER}`, caseInsensitive ? "i" : "").test(text);
 }
 
 /** Basenames shorter than this are too ambiguous to count as "named" ("a", "go"). */
-const MIN_BASENAME = 3;
+const MIN_BASENAME_LENGTH = 3;
 
 export interface FileTarget {
 	/** Canonical absolute path (symlinks resolved). */
@@ -67,20 +72,19 @@ export interface FileTarget {
  * Outside the project: only its full path, absolute or `~/…`. A bare basename
  * is not enough there, so "check .env" cannot open some other repo's `.env`.
  */
-export function userNamedFile(messages: string[], t: FileTarget, caseInsensitive = process.platform === "darwin"): string | null {
+export function userNamedFile(messages: string[], target: FileTarget, caseInsensitive = process.platform === "darwin"): string | null {
 	const forms = new Set<string>();
-	for (const abs of [t.canonical, t.spelled].filter((p): p is string => !!p && isAbsolute(p))) {
-		forms.add(abs);
-		if (abs === t.home || abs.startsWith(`${t.home}/`)) forms.add(`~${abs.slice(t.home.length)}`);
+	for (const absolute of [target.canonical, target.spelled].filter((path): path is string => !!path && isAbsolute(path))) {
+		forms.add(absolute);
+		if (absolute === target.home || absolute.startsWith(`${target.home}/`)) forms.add(`~${absolute.slice(target.home.length)}`);
 	}
-	const rel = relative(t.cwd, t.canonical);
-	if (rel && !rel.startsWith("..") && !isAbsolute(rel)) {
-		// A top-level file's relative path is its basename: same length rule.
-		if (rel.includes("/") || rel.length >= MIN_BASENAME) forms.add(rel);
-		forms.add(`./${rel}`);
-		const base = basename(t.canonical);
-		if (base.length >= MIN_BASENAME) forms.add(base);
+	const relativePath = relative(target.cwd, target.canonical);
+	if (relativePath && !relativePath.startsWith("..") && !isAbsolute(relativePath)) {
+		if (relativePath.includes("/") || relativePath.length >= MIN_BASENAME_LENGTH) forms.add(relativePath);
+		forms.add(`./${relativePath}`);
+		const basenameOfPath = basename(target.canonical);
+		if (basenameOfPath.length >= MIN_BASENAME_LENGTH) forms.add(basenameOfPath);
 	}
-	for (const m of messages) for (const f of forms) if (containsToken(m, f, caseInsensitive)) return f;
+	for (const message of messages) for (const form of forms) if (containsToken(message, form, caseInsensitive)) return form;
 	return null;
 }

@@ -1,3 +1,8 @@
+/**
+ * Reading and updating a policy file in place. Shared by both layers so the
+ * parse guard and the mode write cannot drift.
+ */
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { normalizeMode, type PermissionMode } from "./mode";
@@ -16,8 +21,8 @@ export function policyFileError(path: string): string | null {
 	try {
 		JSON.parse(readFileSync(path, "utf-8"));
 		return null;
-	} catch (e) {
-		return e instanceof Error ? e.message : String(e);
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
 	}
 }
 
@@ -30,15 +35,15 @@ export function readPolicyForUpdate(path: string): Record<string, unknown> {
 	if (!existsSync(path)) return {};
 	try {
 		return JSON.parse(readFileSync(path, "utf-8"));
-	} catch (e) {
-		throw new Error(`refusing to overwrite ${path}: it does not parse as JSON (${e instanceof Error ? e.message : e})`);
+	} catch (error) {
+		throw new Error(`refusing to overwrite ${path}: it does not parse as JSON (${error instanceof Error ? error.message : error})`);
 	}
 }
 
 /**
  * Set `mode` in a policy file in place, preserving its other fields (ADR-018).
- * Used by `/permission-mode` and the Shift+S shortcut. Creates the file when it
- * is absent; refuses to overwrite one that does not parse.
+ * Used by `/permission-mode` and the Shift+S shortcut. Creates the file when
+ * it is absent; refuses to overwrite one that does not parse.
  */
 export function setPolicyMode(path: string, mode: PermissionMode): void {
 	const policy = readPolicyForUpdate(path);

@@ -1,9 +1,12 @@
+/**
+ * Layer 1's pre-flight path scan (ADR-015) and the `filesystem` block handed
+ * to sandbox-runtime. Pure: no pi, no OS side effects.
+ */
+
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { matchesPolicyPattern, normalizeAbs, toSandboxPatterns } from "./patterns";
-import { type FilesystemPolicy, outsideProjectMode, outsideProjectReadDenied } from "./classify";
-
-// ---------- Layer 1 pre-flight ask (ADR-015) ----------
+import { ReadPosture, outsideProjectMode, outsideProjectReadDenied, type FilesystemPolicy } from "./classify";
 
 /**
  * Commands whose positional arguments are read targets. Layer 1's pre-flight
@@ -19,16 +22,16 @@ const READ_COMMANDS = new Set([
 
 /** Split a shell command on the operators that start a new simple command. */
 export function shellSegments(command: string): string[] {
-	return command.split(/\s*(?:;|&&|\|\||\||\n)\s*/).map((s) => s.trim()).filter(Boolean);
+	return command.split(/\s*(?:;|&&|\|\||\||\n)\s*/).map((segment) => segment.trim()).filter(Boolean);
 }
 
 /** Tokenize one segment, dropping the quotes around fully quoted words. */
 export function shellTokens(segment: string): string[] {
-	const out: string[] = [];
-	const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-	let m: RegExpExecArray | null;
-	while ((m = re.exec(segment))) out.push(m[1] ?? m[2] ?? m[3] ?? "");
-	return out;
+	const tokens: string[] = [];
+	const tokenPattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
+	let match: RegExpExecArray | null;
+	while ((match = tokenPattern.exec(segment))) tokens.push(match[1] ?? match[2] ?? match[3] ?? "");
+	return tokens;
 }
 
 /** Expand a leading `~`; other tokens are returned as-is. */
@@ -40,9 +43,9 @@ function expandHomeToken(token: string, home: string): string {
 
 /**
  * Absolute paths named by read-like segments of a bash command. Best-effort:
- * only read-like heads, only tokens that exist on disk. Bare names count (`.env`
- * has no slash); the caller's pattern match decides. Obfuscated reads are not
- * returned — the OS fence covers those.
+ * only read-like heads, only tokens that exist on disk. Bare names count
+ * (`.env` has no slash); the caller's pattern match decides. Obfuscated reads
+ * are not returned — the OS fence covers those.
  */
 function readPathCandidates(
 	command: string,
@@ -56,21 +59,21 @@ function readPathCandidates(
 		const head = (tokens[0] ?? "").split("/").pop() ?? "";
 		if (!READ_COMMANDS.has(head)) continue;
 		for (const raw of tokens.slice(1)) {
-			const t = raw.trim();
-			if (!t || t.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(t)) continue;
-			const expanded = expandHomeToken(t, home);
-			const abs = expanded.startsWith("/")
+			const token = raw.trim();
+			if (!token || token.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(token)) continue;
+			const expanded = expandHomeToken(token, home);
+			const absolute = expanded.startsWith("/")
 				? normalizeAbs(expanded)
 				: normalizeAbs(`${cwd.replace(/\/+$/, "")}/${expanded}`);
-			if (exists(abs)) found.add(abs);
+			if (exists(absolute)) found.add(absolute);
 		}
 	}
 	return [...found];
 }
 
 /** Never a hard `denyRead` match, whatever the caller asks about. */
-function notDenied(abs: string, cwd: string, home: string, fs: FilesystemPolicy): boolean {
-	return !fs.denyRead.some((pat) => matchesPolicyPattern(abs, pat, cwd, home));
+function notDenied(absPath: string, cwd: string, home: string, filesystem: FilesystemPolicy): boolean {
+	return !filesystem.denyRead.some((pattern) => matchesPolicyPattern(absPath, pattern, cwd, home));
 }
 
 /**
@@ -81,11 +84,11 @@ export function outsideProjectReadCandidates(
 	command: string,
 	cwd: string,
 	home: string,
-	fs: FilesystemPolicy,
+	filesystem: FilesystemPolicy,
 	exists: (path: string) => boolean = existsSync,
 ): string[] {
 	return readPathCandidates(command, cwd, home, exists).filter(
-		(abs) => notDenied(abs, cwd, home, fs) && outsideProjectReadDenied(abs, cwd, home, fs),
+		(absPath) => notDenied(absPath, cwd, home, filesystem) && outsideProjectReadDenied(absPath, cwd, home, filesystem),
 	);
 }
 
@@ -94,13 +97,13 @@ export function askReadCandidates(
 	command: string,
 	cwd: string,
 	home: string,
-	fs: FilesystemPolicy,
+	filesystem: FilesystemPolicy,
 	exists: (path: string) => boolean = existsSync,
 ): string[] {
-	const ask = fs.askRead ?? [];
-	if (!ask.length) return [];
+	const askReadPatterns = filesystem.askRead ?? [];
+	if (!askReadPatterns.length) return [];
 	return readPathCandidates(command, cwd, home, exists).filter(
-		(abs) => notDenied(abs, cwd, home, fs) && ask.some((pat) => matchesPolicyPattern(abs, pat, cwd, home)),
+		(absPath) => notDenied(absPath, cwd, home, filesystem) && askReadPatterns.some((pattern) => matchesPolicyPattern(absPath, pattern, cwd, home)),
 	);
 }
 
@@ -117,20 +120,20 @@ export function askReadCandidates(
  * `outsideProject` never reached Layer 1 at all and `bash` read anything.
  */
 export function sandboxFilesystem(
-	fs: FilesystemPolicy,
-	opts: { cwd: string; home: string },
+	filesystem: FilesystemPolicy,
+	options: { cwd: string; home: string },
 ): { denyRead: string[]; allowRead: string[]; allowWrite: string[]; denyWrite: string[] } {
-	const denyRead = toSandboxPatterns(fs.denyRead);
-	const allowRead = toSandboxPatterns(fs.allowRead ?? []);
-	if (outsideProjectMode(fs) !== "allow") {
-		for (const fence of [opts.home, dirname(opts.cwd)]) {
+	const denyRead = toSandboxPatterns(filesystem.denyRead);
+	const allowRead = toSandboxPatterns(filesystem.allowRead ?? []);
+	if (outsideProjectMode(filesystem) !== ReadPosture.Allow) {
+		for (const fence of [options.home, dirname(options.cwd)]) {
 			if (fence && fence !== "/" && !denyRead.includes(fence)) denyRead.push(fence);
 		}
-		const grants = [opts.cwd, ...fs.allowWrite, ...(fs.outsideProject?.allowRead ?? [])];
+		const grants = [options.cwd, ...filesystem.allowWrite, ...(filesystem.outsideProject?.allowRead ?? [])];
 		for (const grant of grants) {
-			const p = toSandboxPatterns([grant])[0];
-			if (!allowRead.includes(p)) allowRead.push(p);
+			const pattern = toSandboxPatterns([grant])[0];
+			if (!allowRead.includes(pattern)) allowRead.push(pattern);
 		}
 	}
-	return { denyRead, allowRead, allowWrite: [...fs.allowWrite], denyWrite: toSandboxPatterns(fs.denyWrite) };
+	return { denyRead, allowRead, allowWrite: [...filesystem.allowWrite], denyWrite: toSandboxPatterns(filesystem.denyWrite) };
 }

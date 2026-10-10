@@ -10,17 +10,18 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { ReadPosture } from "../core/index";
 import type { Policy } from "./policy";
 
-export function expandHome(p: string): string {
-	if (p === "~") return homedir();
-	if (p.startsWith("~/")) return `${homedir()}/${p.slice(2)}`;
-	return p;
+export function expandHome(path: string): string {
+	if (path === "~") return homedir();
+	if (path.startsWith("~/")) return `${homedir()}/${path.slice(2)}`;
+	return path;
 }
 
 /** Convert glob to RegExp. Supports `*`, `**`, `?`. */
 function globToRegex(pattern: string): RegExp {
-	const re =
+	const source =
 		"^" +
 		pattern
 			.replace(/[.+^${}()|[\]\\]/g, "\\$&")
@@ -29,7 +30,7 @@ function globToRegex(pattern: string): RegExp {
 			.replace(/\x00/g, ".*")
 			.replace(/\?/g, "[^/]") +
 		"$";
-	return new RegExp(re, process.platform === "darwin" ? "i" : "");
+	return new RegExp(source, process.platform === "darwin" ? "i" : "");
 }
 
 /**
@@ -42,19 +43,19 @@ function globToRegex(pattern: string): RegExp {
  *   `cwd/symlink-to-ssh/anything` escape regardless of whether `anything`
  *   exists.
  */
-export function canonicalize(p: string, cwd: string): string {
-	const abs = isAbsolute(p) ? p : resolve(cwd, p);
-	const trail: string[] = [];
-	let cur = abs;
+export function canonicalize(path: string, cwd: string): string {
+	const absolute = isAbsolute(path) ? path : resolve(cwd, path);
+	const suffix: string[] = [];
+	let current = absolute;
 	while (true) {
 		try {
-			const real = realpathSync(cur);
-			return trail.length ? `${real}/${trail.slice().reverse().join("/")}` : real;
+			const resolved = realpathSync(current);
+			return suffix.length ? `${resolved}/${suffix.slice().reverse().join("/")}` : resolved;
 		} catch {
-			const parent = dirname(cur);
-			if (parent === cur) return abs; // reached root; give up
-			trail.push(basename(cur));
-			cur = parent;
+			const parent = dirname(current);
+			if (parent === current) return absolute;
+			suffix.push(basename(current));
+			current = parent;
 		}
 	}
 }
@@ -67,19 +68,18 @@ export function canonicalize(p: string, cwd: string): string {
  *   - Other (`.env`, `*.pem`) → basename match against the file's basename.
  */
 export function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
-	const p = expandHome(pattern);
-	if (p === ".") {
-		const cwdReal = canonicalize(cwd, cwd);
-		return absPath === cwdReal || absPath.startsWith(`${cwdReal}/`);
+	const expandedPattern = expandHome(pattern);
+	if (expandedPattern === ".") {
+		const resolvedCwd = canonicalize(cwd, cwd);
+		return absPath === resolvedCwd || absPath.startsWith(`${resolvedCwd}/`);
 	}
-	if (p.startsWith("/")) {
-		if (p.includes("*")) return globToRegex(p).test(absPath);
-		return absPath === p || absPath.startsWith(`${p}/`);
+	if (expandedPattern.startsWith("/")) {
+		if (expandedPattern.includes("*")) return globToRegex(expandedPattern).test(absPath);
+		return absPath === expandedPattern || absPath.startsWith(`${expandedPattern}/`);
 	}
-	// basename pattern
-	const base = basename(absPath);
-	if (p.includes("*")) return globToRegex(p).test(base);
-	return base === p;
+	const basenameOfPath = basename(absPath);
+	if (expandedPattern.includes("*")) return globToRegex(expandedPattern).test(basenameOfPath);
+	return basenameOfPath === expandedPattern;
 }
 
 // Hardcoded absolute-deny tier (per PLAN-ask-tier-ux.md OQ#5).
@@ -88,55 +88,58 @@ export function matchPattern(absPath: string, pattern: string, cwd: string): boo
 const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key", `${getAgentDir()}/auth.json`];
 
 export function isAbsoluteDeny(absPath: string, cwd: string): string | null {
-	for (const pat of ABSOLUTE_DENY_PATTERNS) {
-		if (matchPattern(absPath, pat, cwd)) return pat;
+	for (const pattern of ABSOLUTE_DENY_PATTERNS) {
+		if (matchPattern(absPath, pattern, cwd)) return pattern;
 	}
 	return null;
 }
 
-export function isOverridden(absPath: string, cwd: string, list: string[] | undefined): boolean {
-	if (!list || list.length === 0) return false;
-	return list.some((pat) => matchPattern(absPath, pat, cwd));
+export function isOverridden(absPath: string, cwd: string, patterns: string[] | undefined): boolean {
+	if (!patterns || patterns.length === 0) return false;
+	return patterns.some((pattern) => matchPattern(absPath, pattern, cwd));
 }
 
-// The absolute-deny tier denies on its own. Before, it only chose the prompt
-// shown after denyRead/denyWrite had already matched, so `*.pem`, `*.key`,
-// `~/.aws` and auth.json stayed readable under any policy that did not list
-// them. Checked before overrides: "always" is never offered for this tier.
+/**
+ * The absolute-deny tier denies on its own, and it is checked before the
+ * overrides: "always" is never offered for credentials. Before this, the tier
+ * only chose the prompt shown after denyRead/denyWrite had already matched, so
+ * `*.pem`, `*.key`, `~/.aws` and auth.json stayed readable under any policy
+ * that did not list them.
+ */
 export function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | null {
-	const abs = canonicalize(rawPath, cwd);
-	const absolute = isAbsoluteDeny(abs, cwd);
-	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
-	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
-	for (const pat of policy.filesystem.modelDenyRead ?? []) {
-		if (matchPattern(abs, pat, cwd)) return `modelDenyRead matched "${pat}" → ${abs}`;
+	const absolute = canonicalize(rawPath, cwd);
+	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
+	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
+	if (isOverridden(absolute, cwd, policy.overrides?.allowRead)) return null;
+	for (const pattern of policy.filesystem.modelDenyRead ?? []) {
+		if (matchPattern(absolute, pattern, cwd)) return `modelDenyRead matched "${pattern}" → ${absolute}`;
 	}
-	for (const pat of policy.filesystem.denyRead) {
-		if (matchPattern(abs, pat, cwd)) return `denyRead matched "${pat}" → ${abs}`;
+	for (const pattern of policy.filesystem.denyRead) {
+		if (matchPattern(absolute, pattern, cwd)) return `denyRead matched "${pattern}" → ${absolute}`;
 	}
 	return null;
 }
 
 /** A path the user chose to be asked about, not hard-denied (ADR-019). */
 export function isAskRead(rawPath: string, cwd: string, policy: Policy): string | null {
-	const abs = canonicalize(rawPath, cwd);
-	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
-	for (const pat of policy.filesystem.askRead ?? []) {
-		if (matchPattern(abs, pat, cwd)) return `askRead matched "${pat}" → ${abs}`;
+	const absolute = canonicalize(rawPath, cwd);
+	if (isOverridden(absolute, cwd, policy.overrides?.allowRead)) return null;
+	for (const pattern of policy.filesystem.askRead ?? []) {
+		if (matchPattern(absolute, pattern, cwd)) return `askRead matched "${pattern}" → ${absolute}`;
 	}
 	return null;
 }
 
 export function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | null {
-	const abs = canonicalize(rawPath, cwd);
-	const absolute = isAbsoluteDeny(abs, cwd);
-	if (absolute) return `absolute-deny matched "${absolute}" → ${abs}`;
-	if (isOverridden(abs, cwd, policy.overrides?.allowWrite)) return null;
-	for (const pat of policy.filesystem.denyWrite) {
-		if (matchPattern(abs, pat, cwd)) return `denyWrite matched "${pat}" → ${abs}`;
+	const absolute = canonicalize(rawPath, cwd);
+	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
+	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
+	if (isOverridden(absolute, cwd, policy.overrides?.allowWrite)) return null;
+	for (const pattern of policy.filesystem.denyWrite) {
+		if (matchPattern(absolute, pattern, cwd)) return `denyWrite matched "${pattern}" → ${absolute}`;
 	}
-	const allowed = policy.filesystem.allowWrite.some((pat) => matchPattern(abs, pat, cwd));
-	if (!allowed) return `not under any allowWrite root → ${abs}`;
+	const allowed = policy.filesystem.allowWrite.some((pattern) => matchPattern(absolute, pattern, cwd));
+	if (!allowed) return `not under any allowWrite root → ${absolute}`;
 	return null;
 }
 
@@ -147,14 +150,14 @@ export function piPackageRoot(): string | null {
 	if (piRootCache !== undefined) return piRootCache;
 	piRootCache = null;
 	try {
-		let d = dirname(realpathSync(process.argv[1] ?? ""));
-		for (let i = 0; i < 6; i++) {
-			const pj = join(d, "package.json");
-			if (existsSync(pj) && JSON.parse(readFileSync(pj, "utf-8")).name === "@earendil-works/pi-coding-agent") {
-				piRootCache = d;
+		let directory = dirname(realpathSync(process.argv[1] ?? ""));
+		for (let depth = 0; depth < 6; depth++) {
+			const packageJsonPath = join(directory, "package.json");
+			if (existsSync(packageJsonPath) && JSON.parse(readFileSync(packageJsonPath, "utf-8")).name === "@earendil-works/pi-coding-agent") {
+				piRootCache = directory;
 				break;
 			}
-			d = dirname(d);
+			directory = dirname(directory);
 		}
 	} catch {
 		/* not found: no built-in root */
@@ -163,17 +166,17 @@ export function piPackageRoot(): string | null {
 }
 
 export function outsideProjectReason(abs: string, cwd: string, policy: Policy): string | null {
-	const mode = policy.filesystem.outsideProject?.read ?? "allow";
-	if (mode === "allow") return null;
-	const root = canonicalize(cwd, cwd);
-	if (abs === root || abs.startsWith(`${root}/`)) return null;
+	const mode = policy.filesystem.outsideProject?.read ?? ReadPosture.Allow;
+	if (mode === ReadPosture.Allow) return null;
+	const projectRoot = canonicalize(cwd, cwd);
+	if (abs === projectRoot || abs.startsWith(`${projectRoot}/`)) return null;
 	// The pi agent dir is deliberately NOT here: it holds mcp.json (API keys),
 	// sessions and caches, so it must go through the outside-project gate. It is
 	// in DEFAULT_DENY_READ as well, which also covers bash (ADR-014).
-	const roots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), piPackageRoot()]
-		.filter((p): p is string => !!p)
-		.map((p) => (p.startsWith("/") ? canonicalize(p, cwd) : p));
-	if (roots.some((p) => matchPattern(abs, p, cwd))) return null;
+	const allowedRoots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), piPackageRoot()]
+		.filter((root): root is string => !!root)
+		.map((root) => (root.startsWith("/") ? canonicalize(root, cwd) : root));
+	if (allowedRoots.some((root) => matchPattern(abs, root, cwd))) return null;
 	if (isOverridden(abs, cwd, policy.overrides?.allowRead)) return null;
 	return `outside the project (filesystem.outsideProject.read: ${mode}) → ${abs}`;
 }

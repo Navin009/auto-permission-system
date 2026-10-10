@@ -14,6 +14,7 @@ export * from "./policy/patterns";
 export * from "./policy/classify";
 export * from "./policy/commands";
 export * from "./policy/fence";
+export * from "./policy/subagent";
 export * from "./grep-filter";
 export * from "./trust";
 export * from "./user-named";

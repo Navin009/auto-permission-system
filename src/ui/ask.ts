@@ -16,12 +16,32 @@
 
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { isSafeFolderGrant, type OverrideKind } from "../core/index";
+import { isSafeFolderGrant, GrantScope, type OverrideKind } from "../core/index";
 import { askMain, askRememberFile, askRememberHost, parentDomainWildcard, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
-
 export type { OverrideKind };
+
+/** Erasable enum for what the user picked on screen 1 and screen 2. */
+export const Decision = {
+	Yes: "yes",
+	No: "no",
+	Session: "session",
+	SessionFolder: "session-folder",
+	AlwaysCwd: "always-cwd",
+	AlwaysGlobal: "always-global",
+	AlwaysCwdFolder: "always-cwd-folder",
+	AlwaysGlobalFolder: "always-global-folder",
+} as const;
+export type Decision = (typeof Decision)[keyof typeof Decision];
+
+/** Erasable enum for which policy list an ask is about. */
+export const AskAction = {
+	Read: "read",
+	Write: "write",
+	Network: "network",
+} as const;
+export type AskAction = (typeof AskAction)[keyof typeof AskAction];
 
 export type AskKind = {
 	layer: 1 | 2;
@@ -41,14 +61,10 @@ export type AskKind = {
 	projectTrusted?: boolean;
 };
 
-export type Decision = "yes" | "no" | "session" | "session-folder" | "always-cwd" | "always-global" | "always-cwd-folder" | "always-global-folder";
-
-type Action = "read" | "write" | "network";
-
-function actionOf(k: AskKind): Action {
-	if (k.overrideKind === "allowDomains") return "network";
-	if (k.overrideKind === "allowWrite") return "write";
-	return "read";
+function actionOf(ask: AskKind): AskAction {
+	if (ask.overrideKind === "allowDomains") return AskAction.Network;
+	if (ask.overrideKind === "allowWrite") return AskAction.Write;
+	return AskAction.Read;
 }
 
 /** The reason without the trailing `→ /abs/path` (the body already shows the path). */
@@ -68,160 +84,170 @@ export function denyMessage(overrideKind: OverrideKind, reason: string): string 
 	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read \u2014 ask the user.`;
 }
 
-/** Render the canonical body fields (File / Folder / Site / Group / Command / Why / Risk / Note).
- * Aligns with two-space gaps so the body reads like a table. */
-function detailLines(k: AskKind, action: Action, note?: string): string {
-	const parts: string[] = [];
-	if (action === "network") {
-		const wild = parentDomainWildcard(k.overrideValue);
-		parts.push(`Site     ${k.overrideValue}`);
-		if (wild !== k.overrideValue.toLowerCase()) {
-			const bare = wild.replace(/^\*\./, "");
-			parts.push(`Group    ${wild}   (every ${bare} site)`);
+/**
+ * Render the canonical body fields (File / Folder / Site / Group / Command /
+ * Why / Risk / Note). Aligns with two-space gaps so the body reads like a table.
+ */
+function detailLines(ask: AskKind, action: AskAction, note?: string): string {
+	const lines: string[] = [];
+	if (action === AskAction.Network) {
+		const wildcard = parentDomainWildcard(ask.overrideValue);
+		lines.push(`Site     ${ask.overrideValue}`);
+		if (wildcard !== ask.overrideValue.toLowerCase()) {
+			const bare = wildcard.replace(/^\*\./, "");
+			lines.push(`Group    ${wildcard}   (every ${bare} site)`);
 		}
 	} else {
-		const folder = dirname(k.subject);
-		parts.push(`File     ${k.subject}`);
-		if (folder !== k.subject) parts.push(`Folder   ${folder}/`);
+		const folder = dirname(ask.subject);
+		lines.push(`File     ${ask.subject}`);
+		if (folder !== ask.subject) lines.push(`Folder   ${folder}/`);
 	}
-	if (k.command) parts.push(`Command  ${k.command}`);
-	parts.push(`Why      ${action === "network" ? networkWhy(k.reason) : displayWhy(k.reason)}`);
-	if (note) parts.push(`Note     ${note}`);
-	return parts.join("\n");
+	if (ask.command) lines.push(`Command  ${ask.command}`);
+	lines.push(`Why      ${action === AskAction.Network ? networkWhy(ask.reason) : displayWhy(ask.reason)}`);
+	if (note) lines.push(`Note     ${note}`);
+	return lines.join("\n");
 }
 
-/** The header text per action type (no icon; caller prepends the icon).
- *  Titles name the binary in the bash command (`Let composio save files in X?`,
- *  `Let cat read X?`) and fall back to "this command" / "this tool" when no command is set. */
-function headerFor(action: Action, subject: string, k: AskKind): string {
-	if (action === "network") {
-		const verb = k.command ? firstWord(k.command) : "this command";
-		// k.overrideValue is the bare host (no port); k.subject may include ":443".
-		return `Let ${verb} connect to ${k.overrideValue}?`;
+/**
+ * The header text per action type (no icon; caller prepends the icon).
+ * Titles name the binary in the bash command (`Let composio save files in X?`,
+ * `Let cat read X?`) and fall back to "this command" / "this tool" when no
+ * command is set.
+ */
+function headerFor(action: AskAction, subject: string, ask: AskKind): string {
+	if (action === AskAction.Network) {
+		const verb = ask.command ? firstWord(ask.command) : "this command";
+		return `Let ${verb} connect to ${ask.overrideValue}?`;
 	}
-	const verb = action === "write" ? "save files in" : "read";
-	const who = k.command ? firstWord(k.command) : `this ${action === "write" ? "command" : "tool"}`;
+	const verb = action === AskAction.Write ? "save files in" : "read";
+	const who = ask.command ? firstWord(ask.command) : `this ${action === AskAction.Write ? "command" : "tool"}`;
 	return `Let ${who} ${verb} ${subject}?`;
 }
 
-
-
-/** Whether the parent folder of the path is unsafe to grant as a whole.
- *  True for /, home, parents of home, and the system roots (etc, var, usr, ...).
- *  Used to pick the ⚠ icon for screen 1 of unsafe writes. */
-function unsafeFolder(k: AskKind): boolean {
-	if (k.overrideKind === "allowDomains") return false;
-	const parent = dirname(k.overrideValue);
-	const norm = parent.replace(/\/$/, "");
-	if (SYSTEM_DIRS.has(norm)) return true;
+/**
+ * Whether the parent folder of the path is unsafe to grant as a whole.
+ * True for /, home, parents of home, and the system roots (etc, var, usr, ...).
+ * Used to pick the ⚠ icon for screen 1 of unsafe writes.
+ */
+function unsafeFolder(ask: AskKind): boolean {
+	if (ask.overrideKind === "allowDomains") return false;
+	const parent = dirname(ask.overrideValue);
+	const normalized = parent.replace(/\/$/, "");
+	if (SYSTEM_DIRS.has(normalized)) return true;
 	return !isSafeFolderGrant(parent, homedir());
 }
 
 const SYSTEM_DIRS = new Set(["/etc", "/var", "/usr", "/bin", "/sbin", "/boot", "/lib", "/lib64", "/opt", "/srv", "/proc", "/sys", "/dev"]);
 
-/** The binary name in a bash command. Strips the `sudo` prefix and returns the first
- *  one or two words so titles read naturally (`Let sudo tee save files in X?`,
- *  `Let composio connect to X?`, `Let cat read X?`). */
-function firstWord(s: string): string {
-	const parts = s.trim().split(/\s+/);
-	if (parts[0] === "sudo" && parts[1]) return `${parts[0]} ${parts[1]}`;
-	return parts[0] ?? s.trim();
+/**
+ * The binary name in a bash command. Strips the `sudo` prefix and returns the
+ * first one or two words so titles read naturally (`Let sudo tee save files in
+ * X?`, `Let composio connect to X?`, `Let cat read X?`).
+ */
+function firstWord(command: string): string {
+	const words = command.trim().split(/\s+/);
+	if (words[0] === "sudo" && words[1]) return `${words[0]} ${words[1]}`;
+	return words[0] ?? command.trim();
 }
 
 /** Pick the icon for screen 1: 🌐 for network, ⚠ for unsafe-folder writes, 🛡 for the rest. */
-function pickIcon(action: Action, k: AskKind): "net" | "warn" | "ask" {
-	if (action === "network") return "net";
-	if (unsafeFolder(k)) return "warn";
+function pickIcon(action: AskAction, ask: AskKind): "net" | "warn" | "ask" {
+	if (action === AskAction.Network) return "net";
+	if (unsafeFolder(ask)) return "warn";
 	return "ask";
 }
 
 /** Body for the absolute-deny credential screen (one-shot). */
-function credentialBody(k: AskKind, action: Action, risk: string, note: string): string {
-	const parts: string[] = [];
-	if (action !== "network") {
-		const folder = action === "write" ? dirname(k.subject) : null;
-		parts.push(`File     ${k.subject}`);
-		if (folder && folder !== k.subject) parts.push(`Folder   ${folder}/`);
-		if (k.command) parts.push(`Command  ${k.command}`);
+function credentialBody(ask: AskKind, action: AskAction, risk: string, note: string): string {
+	const lines: string[] = [];
+	if (action !== AskAction.Network) {
+		const folder = action === AskAction.Write ? dirname(ask.subject) : null;
+		lines.push(`File     ${ask.subject}`);
+		if (folder && folder !== ask.subject) lines.push(`Folder   ${folder}/`);
+		if (ask.command) lines.push(`Command  ${ask.command}`);
 	}
-	parts.push(`Risk     ${risk}`);
-	parts.push(`Note     ${note}`);
-	return parts.join("\n");
+	lines.push(`Risk     ${risk}`);
+	lines.push(`Note     ${note}`);
+	return lines.join("\n");
 }
 
-/** Single-screen credential ask. The "No" option is preselected on Enter so the default
- * action stays block; the Risk line in the body is what makes the decision reversible —
- * the user has to ↓ then Enter to approve. */
-export async function askDecision(ctx: AskCtx, k: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
-	if (ctx.hasUI === false) return "no"; // subagents, -p, JSON mode
-	const action = actionOf(k);
+/**
+ * Single-screen credential ask. The "No" option is preselected on Enter so the
+ * default action stays block; the Risk line in the body is what makes the
+ * decision reversible — the user has to ↓ then Enter to approve.
+ */
+export async function askDecision(ctx: AskCtx, ask: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
+	if (ctx.hasUI === false) return Decision.No;
+	const action = actionOf(ask);
 
 	if (absoluteDenyPattern) {
-		const subject = credentialLabel(k.subject);
-		const risk = credentialRisk(k.subject, action);
+		const subject = credentialLabel(ask.subject);
+		const risk = credentialRisk(ask.subject, action);
 		const note = "can only be allowed for one read at a time";
 		const header = `Let this ${action} read your ${subject}?`;
-		const body = credentialBody(k, action, risk, note);
+		const body = credentialBody(ask, action, risk, note);
 		const options = ["No   (recommended)", "Yes, allow this one read"];
 		const { picked } = await askSelectSafe(ctx, header, body, options, { icon: "cred" });
-		return picked === options[1] ? "yes" : "no";
+		return picked === options[1] ? Decision.Yes : Decision.No;
 	}
 
-	// Screen 1 — verdict + duration.
-	const header = headerFor(action, k.subject, k);
-	const sessionLabel = action === "network"
-		? "Yes, all in group for this session"
-		: "Yes, for this session";
-	const main = await askMain(ctx, header, detailLines(k, action), {
+	const header = headerFor(action, ask.subject, ask);
+	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this session" : "Yes, for this session";
+	const main = await askMain(ctx, header, detailLines(ask, action), {
 		session: true,
 		sessionLabel,
-		allowFirst: action === "network",
-		icon: pickIcon(action, k),
+		allowFirst: action === AskAction.Network,
+		icon: pickIcon(action, ask),
 	});
-	if (main === "block") return "no";
-	if (main === "once") return "yes";
-	if (main === "session") return "session";
+	if (main === "block") return Decision.No;
+	if (main === "once") return Decision.Yes;
+	if (main === "session") return Decision.Session;
 
 	// Screen 2 — scope + what to allow. The wider option is preselected; the
-	// caller just learns the decision and the actual pattern/wildcard is applied
-	// by the layer that performs the persistence.
-	const untrusted = k.projectTrusted === false;
-	if (action === "network") {
-		const host = k.overrideValue;
-		const wild = parentDomainWildcard(host);
-		const title = "Always allow connecting \u2014 what, and where?";
+	// caller learns the decision and the layer that persists applies the
+	// actual pattern/wildcard.
+	const untrusted = ask.projectTrusted === false;
+	if (action === AskAction.Network) {
+		const host = ask.overrideValue;
+		const wildcard = parentDomainWildcard(host);
 		const body: string[] = [];
 		body.push(`Site     ${host}`);
-		if (wild !== host.toLowerCase()) {
-			const bare = wild.replace(/^\*\./, "");
-			body.push(`Group    ${wild}   (every ${bare} site)`);
+		if (wildcard !== host.toLowerCase()) {
+			const bare = wildcard.replace(/^\*\./, "");
+			body.push(`Group    ${wildcard}   (every ${bare} site)`);
 		}
-		body.push(`Note     the rule works for any command, not just ${firstWord(k.command ?? "this one")}`);
+		body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
 		if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-		const picked = await askRememberHost(ctx, title, body.join("\n"), host, { icon: "save", untrusted });
-		if (!picked) return "no";
-		return picked.scope === "cwd" ? "always-cwd" : "always-global";
+		const picked = await askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted });
+		if (!picked) return Decision.No;
+		return picked.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
 	}
-	const parent = dirname(k.subject);
-	const title = `Always allow ${action === "write" ? "saving" : "reading"} \u2014 what, and where?`;
+	const parent = dirname(ask.subject);
+	const title = `Always allow ${action === AskAction.Write ? "saving" : "reading"} \u2014 what, and where?`;
 	const body: string[] = [];
-	body.push(`File     ${k.subject}`);
-	if (parent !== k.subject) body.push(`Folder   ${parent}/`);
-	body.push(`Note     the rule works for any command, not just ${firstWord(k.command ?? "this one")}`);
+	body.push(`File     ${ask.subject}`);
+	if (parent !== ask.subject) body.push(`Folder   ${parent}/`);
+	body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
 	if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-	const picked = await askRememberFile(ctx, title, body.join("\n"), k.subject, parent, { icon: "save", untrusted });
-	if (!picked) return "no";
-	if (picked.scope === "cwd") return picked.folder ? "always-cwd-folder" : "always-cwd";
-	return picked.folder ? "always-global-folder" : "always-global";
+	const picked = await askRememberFile(ctx, title, body.join("\n"), ask.subject, parent, { icon: "save", untrusted });
+	if (!picked) return Decision.No;
+	if (picked.scope === GrantScope.Cwd) return picked.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;
+	return picked.folder ? Decision.AlwaysGlobalFolder : Decision.AlwaysGlobal;
 }
 
 /** Wraps askSelect with the icon prefix and footer — used by the single-screen credential flow. */
-async function askSelectSafe(ctx: AskCtx, header: string, body: string, options: string[], opts: { icon?: "ask" | "warn" | "cred" | "net" | "save" }) {
+async function askSelectSafe(
+	ctx: AskCtx,
+	header: string,
+	body: string,
+	labels: string[],
+	options: { icon?: "ask" | "warn" | "cred" | "net" | "save" },
+): Promise<{ picked: string | undefined; expired: boolean }> {
 	const { askSelect, ICON } = await import("./ask-flow");
-	const icon = opts.icon ? ICON[opts.icon] : undefined;
+	const icon = options.icon ? ICON[options.icon] : undefined;
 	const iconPrefix = icon ? `${icon}  ` : "";
 	const title = [iconPrefix + header, body].filter(Boolean).join("\n");
-	return askSelect(ctx, title, options, undefined, { footer: "Default: No" });
+	return askSelect(ctx, title, labels, undefined, { footer: "Default: No" });
 }
 
 /** A short, recognizable name for a credential path so the title stays readable. */
@@ -238,12 +264,12 @@ function credentialLabel(subject: string): string {
 }
 
 /** A risk sentence per credential type — used in the body of the credential prompt. */
-function credentialRisk(subject: string, action: Action): string {
+function credentialRisk(subject: string, action: AskAction): string {
 	if (subject.includes("/.ssh/")) return "anyone with this key can log in to your servers as you";
 	if (subject.includes("/.aws/")) return "AWS keys let you act as that IAM user";
 	if (subject.includes("/.gnupg/")) return "GPG keys let you sign or decrypt as that identity";
 	if (subject.includes("/mcp.json")) return "it holds API keys for your MCP servers";
 	if (subject.includes("/.netrc")) return "it holds plaintext credentials for git, ftp, curl";
 	if (subject.endsWith(".pem") || subject.endsWith(".key")) return "this is a private key in PEM format";
-	return action === "write" ? "writing here can change credential material" : "reading here exposes credential material";
+	return action === AskAction.Write ? "writing here can change credential material" : "reading here exposes credential material";
 }

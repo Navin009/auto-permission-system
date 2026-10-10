@@ -3,6 +3,7 @@
  * (`ctx.hasUI === false`).
  */
 
+import { SubagentNetwork } from "../core/index";
 import type { Policy } from "./policy";
 
 const RESEARCH_AGENTS = new Set(["librarian", "scout", "researcher"]);
@@ -17,20 +18,19 @@ const RESEARCH_AGENTS = new Set(["librarian", "scout", "researcher"]);
  * identity through `ctx`.
  */
 export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: unknown }, policy: Policy): string | null {
-	if (ctx.hasUI !== false) return null; // only applies headless
-	const mode = policy.subagent?.network ?? "allow";
-	if (mode === "allow") return null;
-	if (mode === "deny") return "Network blocked by policy: subagent.network=deny. Nothing was fetched — ask the user.";
-	if (mode === "research-only") {
-		// Best-effort: scan recent session for a known research-agent name.
-		const sm = ctx.sessionManager as { getBranch?: () => Array<{ type: string; text?: string }> } | undefined;
-		const branch = sm?.getBranch?.() ?? [];
-		const joined = branch
+	if (ctx.hasUI !== false) return null;
+	const mode = policy.subagent?.network ?? SubagentNetwork.Allow;
+	if (mode === SubagentNetwork.Allow) return null;
+	if (mode === SubagentNetwork.Deny) return "Network blocked by policy: subagent.network=deny. Nothing was fetched — ask the user.";
+	if (mode === SubagentNetwork.ResearchOnly) {
+		const sessionManager = ctx.sessionManager as { getBranch?: () => Array<{ type: string; text?: string }> } | undefined;
+		const branch = sessionManager?.getBranch?.() ?? [];
+		const recentText = branch
 			.slice(-10)
-			.map((e) => (typeof e.text === "string" ? e.text : ""))
+			.map((entry) => (typeof entry.text === "string" ? entry.text : ""))
 			.join(" ")
 			.toLowerCase();
-		for (const a of RESEARCH_AGENTS) if (joined.includes(a)) return null;
+		for (const agent of RESEARCH_AGENTS) if (recentText.includes(agent)) return null;
 		return "Network blocked by policy: subagent.network=research-only. Nothing was fetched — ask the user.";
 	}
 	return null;
