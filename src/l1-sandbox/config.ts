@@ -7,10 +7,9 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, type PermissionMode } from "../core/index";
+import { applyUntrustedProject, createProjectTrust, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -45,18 +44,7 @@ const BUILTIN_CONFIG: SandboxConfig = {
 	enabled: true,
 	mode: DEFAULT_MODE,
 	network: {
-		allowedDomains: [
-			"npmjs.org",
-			"*.npmjs.org",
-			"registry.npmjs.org",
-			"registry.yarnpkg.com",
-			"pypi.org",
-			"*.pypi.org",
-			"github.com",
-			"*.github.com",
-			"api.github.com",
-			"raw.githubusercontent.com",
-		],
+		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
 		deniedDomains: [],
 	},
 	filesystem: {
@@ -69,23 +57,23 @@ const BUILTIN_CONFIG: SandboxConfig = {
 /** Baseline = the shipped sandbox.default.json layered over the built-in constants. */
 const DEFAULT_CONFIG: SandboxConfig = overlayPolicy(BUILTIN_CONFIG, (loadDefaultPolicy() ?? {}) as Partial<SandboxConfig>);
 
-export const TRUST_STORE = join(getAgentDir(), "extensions", "sandbox.trust.json");
+export const TRUST_STORE = trustStorePath(getAgentDir());
+
+const projectTrust = createProjectTrust(TRUST_STORE);
 
 /** Set at session_start: the user declined pi's own project-trust prompt. */
-let piDeclinedTrust = false;
-
 export function setPiDeclinedTrust(declined: boolean): void {
-	piDeclinedTrust = declined;
+	projectTrust.setDeclined(declined);
 }
 
 /** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
 export function projectTrusted(cwd: string): boolean {
-	return !piDeclinedTrust && isProjectFileTrusted(join(cwd, ".pi", "sandbox.json"), TRUST_STORE);
+	return projectTrust.isTrusted(cwd);
 }
 
 export function loadConfig(cwd: string): SandboxConfig {
-	const projectConfigPath = join(cwd, ".pi", "sandbox.json");
-	const globalConfigPath = join(getAgentDir(), "extensions", "sandbox.json");
+	const projectConfigPath = projectPolicyPath(cwd);
+	const globalConfigPath = globalPolicyPath(getAgentDir());
 
 	let globalConfig: Partial<SandboxConfig> = {};
 	let projectConfig: Partial<SandboxConfig> = {};

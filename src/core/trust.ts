@@ -16,6 +16,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { MODE_ORDER } from "./policy/mode";
+import { projectPolicyPath } from "./policy/paths";
 
 /** `trusted`: path → hash the user trusted. `declined`: path → hash the user said "no" to (no more warnings for it). */
 type Store = { trusted: Record<string, string>; declined: Record<string, string> };
@@ -52,6 +53,30 @@ export function isProjectFileTrusted(projectPath: string, storePath: string): bo
 export function isProjectFileDeclined(projectPath: string, storePath: string): boolean {
 	const h = fileHash(projectPath);
 	return h !== null && readStore(storePath).declined[projectPath] === h;
+}
+
+/**
+ * One layer's project-policy trust decision, bound to a trust store. Each
+ * extension creates its own instance: the entrypoints load as separate modules
+ * and share only the store file (ADR-018/ADR-020).
+ */
+export interface ProjectTrust {
+	/** Record pi's own project-trust answer for this session. Declined is never trusted. */
+	setDeclined(value: boolean): void;
+	/** The project file applies in full only when its current hash is recorded and pi did not decline. */
+	isTrusted(cwd: string): boolean;
+}
+
+export function createProjectTrust(storePath: string): ProjectTrust {
+	let declined = false;
+	return {
+		setDeclined(value: boolean): void {
+			declined = value;
+		},
+		isTrusted(cwd: string): boolean {
+			return !declined && isProjectFileTrusted(projectPolicyPath(cwd), storePath);
+		},
+	};
 }
 
 export function recordProjectDeclined(projectPath: string, storePath: string): void {

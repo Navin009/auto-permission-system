@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, describeLoosening, isProjectFileTrusted, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_MODE, type PermissionMode } from "../core/index";
+import { applyUntrustedProject, createProjectTrust, describeLoosening, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
 import type { McpPolicy } from "../detect";
 
 export interface Policy {
@@ -49,18 +49,11 @@ export interface Policy {
 	subagent?: { network?: "allow" | "deny" | "research-only" };
 }
 
-// Keep in sync with sandbox/index.ts DEFAULT_CONFIG.
 const BUILTIN_POLICY: Policy = {
 	enabled: true,
 	mode: DEFAULT_MODE,
 	network: {
-		allowedDomains: [
-			"npmjs.org", "*.npmjs.org",
-			"registry.npmjs.org", "registry.yarnpkg.com",
-			"pypi.org", "*.pypi.org",
-			"github.com", "*.github.com",
-			"api.github.com", "raw.githubusercontent.com",
-		],
+		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
 		deniedDomains: [],
 	},
 	filesystem: {
@@ -77,17 +70,17 @@ const DEFAULT_POLICY: Policy = overlayPolicy(BUILTIN_POLICY, (loadDefaultPolicy(
 export const TRUST_STORE = `${getAgentDir()}/extensions/sandbox.trust.json`;
 
 /** Set at session_start: the user declined pi's own project-trust prompt. */
-let piDeclinedTrust = false;
+const projectTrust = createProjectTrust(TRUST_STORE);
 
 export function setPiDeclinedTrust(declined: boolean): void {
-	piDeclinedTrust = declined;
+	projectTrust.setDeclined(declined);
 }
 
-export const projectPolicyPath = (cwd: string) => `${cwd}/.pi/sandbox.json`;
+export { projectPolicyPath };
 
 /** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
 export function projectTrusted(cwd: string): boolean {
-	return !piDeclinedTrust && isProjectFileTrusted(projectPolicyPath(cwd), TRUST_STORE);
+	return projectTrust.isTrusted(cwd);
 }
 
 /** What an untrusted project file tries to make weaker, in plain sentences. Empty when trusted or deny-only. */

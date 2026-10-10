@@ -16,12 +16,12 @@
 
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { isSafeFolderGrant } from "../core/index";
+import { isSafeFolderGrant, type OverrideKind } from "../core/index";
 import { askMain, askRememberFile, askRememberHost, parentDomainWildcard, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
 
-export type OverrideKind = "allowRead" | "allowWrite" | "allowDomains";
+export type { OverrideKind };
 
 export type AskKind = {
 	layer: 1 | 2;

@@ -4,11 +4,10 @@
  * matching.ts.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { extractUserMessages, isSafeFolderGrant, readPolicyForUpdate, recordProjectTrust, userNamedFile } from "../core/index";
+import { addOverride, addProjectOverride, extractUserMessages, globalPolicyPath, isSafeFolderGrant, projectPolicyPath, userNamedFile } from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
@@ -19,26 +18,13 @@ export type { AskKind, Decision, OverrideKind } from "../ui/ask";
 export type Scope = "cwd" | "global";
 
 export function persistOverride(scope: Scope, cwd: string, kind: OverrideKind, value: string): string {
-	const { dir, path } =
-		scope === "cwd"
-			? { dir: join(cwd, ".pi"), path: join(cwd, ".pi", "sandbox.json") }
-			: { dir: join(getAgentDir(), "extensions"), path: join(getAgentDir(), "extensions", "sandbox.json") };
+	const path = scope === "cwd" ? projectPolicyPath(cwd) : globalPolicyPath(getAgentDir());
 	// Never write a grant into a project file whose current content the user has
 	// not trusted: recording the new hash would trust whatever else is in it.
 	if (scope === "cwd" && !projectTrusted(cwd)) {
 		throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);
 	}
-	// Throws on an unparseable file: never overwrite a hand-written policy we could not read.
-	const existing = readPolicyForUpdate(path) as Record<string, unknown> & { overrides?: Record<OverrideKind, string[]> };
-	const overrides = (existing.overrides ?? {}) as Record<OverrideKind, string[]>;
-	const list = (overrides[kind] ?? []) as string[];
-	if (!list.includes(value)) list.push(value);
-	overrides[kind] = list;
-	existing.overrides = overrides;
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`);
-	if (scope === "cwd") recordProjectTrust(path, TRUST_STORE);
-	return path;
+	return scope === "cwd" ? addProjectOverride(path, TRUST_STORE, kind, value) : addOverride(path, kind, value);
 }
 
 /**

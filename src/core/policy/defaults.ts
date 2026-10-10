@@ -8,3 +8,12 @@
 export const DEFAULT_DENY_READ = ["~/.ssh", "~/.aws", "~/.gnupg", "~/.pi/agent"];
 export const DEFAULT_ALLOW_WRITE = [".", "/tmp"];
 export const DEFAULT_DENY_WRITE = [".env", ".env.*", "*.pem", "*.key"];
+
+/** Domains every install may reach without a prompt; the shipped baseline adds more. */
+export const BUILTIN_NETWORK_ALLOWED = [
+	"npmjs.org", "*.npmjs.org",
+	"registry.npmjs.org", "registry.yarnpkg.com",
+	"pypi.org", "*.pypi.org",
+	"github.com", "*.github.com",
+	"api.github.com", "raw.githubusercontent.com",
+];

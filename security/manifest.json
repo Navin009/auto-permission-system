@@ -59,6 +59,7 @@
         { "id": "L2-user-named", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs", "expected": "PASS=16, FAIL=0" },
         { "id": "L2-mcp-gate", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/mcp-gate.mjs", "expected": "PASS=39, FAIL=0" },
         { "id": "L1-L2-project-trust", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs", "expected": "PASS=57, FAIL=0" },
+        { "id": "L1-L2-override-store", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs", "expected": "PASS=18, FAIL=0" },
         { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=31, FAIL=0" },
         { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=55, FAIL=0" },
         { "id": "L1-L2-ask-selector", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs", "expected": "PASS=20 FAIL=0" },
