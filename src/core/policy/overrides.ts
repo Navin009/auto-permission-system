@@ -8,7 +8,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { readPolicyForUpdate } from "./files";
+import { readPolicyForUpdate } from "./policy-file";
 import { recordProjectTrust } from "../trust";
 
 /** Erasable enum for the three additive grant lists in `overrides`. */

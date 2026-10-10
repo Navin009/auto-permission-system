@@ -19,8 +19,8 @@
  * projects so the user can't quietly trust a widening file.
  */
 
-import { domainMatches } from "../core/index";
-import { askMain, askRememberHost, ASK_TIMEOUT_MS, parentDomainWildcard, type AskCtx, type MainChoice } from "../ui/ask-flow";
+import { domainMatches, GrantScope, OverrideKind } from "../core/index";
+import { askMain, askRememberHost, ASK_TIMEOUT_MS, MainChoice, parentDomainWildcard, type AskCtx } from "../ui/ask-flow";
 
 /** In-memory session grants ("Yes, for this session"). Cleared at session_start. */
 const sessionGrants: string[] = [];
@@ -57,7 +57,7 @@ export interface NetworkAskDeps {
 	cwd: string;
 	getCtx: () => NetworkAskCtx | undefined;
 	/** Write the host into `overrides.allowDomains` (file only); returns the path written. */
-	persist: (host: string, scope: "cwd" | "global") => Promise<string>;
+	persist: (host: string, scope: GrantScope) => Promise<string>;
 	/** Make a grant effective in the running sandbox without restarting the proxy. */
 	applyLive: (host: string) => void;
 	audit: (entry: Record<string, unknown>) => void;
@@ -68,7 +68,7 @@ export interface NetworkAskDeps {
 }
 
 function granted(host: string): "session" | "command" | null {
-	if (sessionGrants.some((g) => domainMatches(host, g))) return "session";
+	if (sessionGrants.some((grant) => domainMatches(host, grant))) return "session";
 	if (commandGrants?.has(host)) return "command";
 	return null;
 }
@@ -78,14 +78,23 @@ function subjectOf(host: string, port: number | undefined): string {
 	return port && port !== 443 && port !== 80 ? `${host}:${port}` : host;
 }
 
-/** First whitespace-separated word of a bash command \u2014 used to name the binary in the title. */
+/** First whitespace-separated word of a bash command — used to name the binary in the title. */
 function firstWord(command: string | undefined): string | null {
 	if (!command) return null;
-	const w = command.trim().split(/\s+/)[0] ?? "";
-	// Strip common prefixes.
-	return w.replace(/^sudo$/, "").replace(/^command$/, "").replace(/^\\\//, "") || null;
+	const word = command.trim().split(/\s+/)[0] ?? "";
+	return word.replace(/^sudo$/, "").replace(/^command$/, "").replace(/^\\\//, "") || null;
 }
 
+/**
+ * Screen 1 (once / session / remember) plus, for remember, screen 2 (scope and
+ * pattern). A session grant uses the parent-domain wildcard when the host has
+ * a useful parent, so any sibling subdomain is covered for the rest of the
+ * session; apex hosts (2 parts) fall back to the exact host because
+ * `*.example.com` would not match `example.com`.
+ *
+ * A failed persist still allows the call, covering the whole command so a
+ * redirect cannot loop the prompt (mirrors Layer 2).
+ */
 async function decide(deps: NetworkAskDeps, host: string, port: number | undefined): Promise<boolean> {
 	const subject = subjectOf(host, port);
 	const base = { layer: 1, tool: "network", subject, cwd: deps.cwd, note: "network-ask" };
@@ -95,14 +104,14 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		return false;
 	}
 
-	const wild = parentDomainWildcard(host);
+	const wildcard = parentDomainWildcard(host);
 	const verb = firstWord(deps.command) ?? "this command";
 	const header = `Let ${verb} connect to ${host}?`;
 	const bodyParts: string[] = [];
 	bodyParts.push(`Site     ${host}`);
-	if (wild !== host.toLowerCase()) {
-		const bare = wild.replace(/^\*\./, "");
-		bodyParts.push(`Group    ${wild}   (every ${bare} site)`);
+	if (wildcard !== host.toLowerCase()) {
+		const bare = wildcard.replace(/^\*\./, "");
+		bodyParts.push(`Group    ${wildcard}   (every ${bare} site)`);
 	}
 	if (deps.command) bodyParts.push(`Command  ${deps.command}`);
 	bodyParts.push(`Why      this site isn't on your allowed list yet`);
@@ -121,40 +130,33 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		return false;
 	}
 
-	if (mainChoice === "block") {
+	if (mainChoice === MainChoice.Block) {
 		deps.audit({ ...base, decision: "no" });
 		return false;
 	}
-	if (mainChoice === "once") {
+	if (mainChoice === MainChoice.Once) {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes" });
 		return true;
 	}
-	if (mainChoice === "session") {
-		// ADR-030: session grant uses the parent-domain wildcard (e.g. *.composio.dev)
-		// when the host has a useful parent, so any sibling subdomain is also covered
-		// for the rest of the session without re-prompting. Apex hosts (2 parts)
-		// fall back to the exact host since `*.example.com` would not match `example.com`.
-		const grant = wild;
-		sessionGrants.push(grant);
-		deps.audit({ ...base, decision: "session", grant, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) \u2192 ${grant}`, "info");
+	if (mainChoice === MainChoice.Session) {
+		sessionGrants.push(wildcard);
+		deps.audit({ ...base, decision: "session", grant: wildcard, requested: host });
+		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) → ${wildcard}`, "info");
 		return true;
 	}
 
-	// mainChoice === "remember" \u2014 screen 2 picks the wildcard or exact host pattern.
-	const title = "Always allow connecting \u2014 what, and where?";
 	const body: string[] = [];
 	body.push(`Site     ${host}`);
-	if (wild !== host.toLowerCase()) {
-		const bare = wild.replace(/^\*\./, "");
-		body.push(`Group    ${wild}   (every ${bare} site)`);
+	if (wildcard !== host.toLowerCase()) {
+		const bare = wildcard.replace(/^\*\./, "");
+		body.push(`Group    ${wildcard}   (every ${bare} site)`);
 	}
 	body.push(`Note     the rule works for any command, not just ${verb}`);
 	if (deps.projectTrusted === false) {
-		body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
+		body.push(`Note     this project isn't trusted — run /security trust to save rules here`);
 	}
-	const picked = await askRememberHost(ctx, title, body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
+	const picked = await askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
 	if (!picked) {
 		deps.audit({ ...base, decision: "no", note: "remember-screen-cancelled" });
 		return false;
@@ -164,14 +166,12 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	try {
 		const path = await deps.persist(pattern, scope);
 		deps.applyLive(pattern);
-		deps.audit({ ...base, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override \u2192 ${path}`, "warning");
-	} catch (e) {
-		// Mirror Layer 2: a failed write still allows the call, covering the
-		// whole command so a redirect cannot loop the prompt.
+		deps.audit({ ...base, decision: scope === GrantScope.Cwd ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
+		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override → ${path}`, "warning");
+	} catch (error) {
 		commandGrants?.add(host);
-		deps.audit({ ...base, decision: "yes", note: `always-persist-failed: ${e}`, scope });
-		ctx.ui.notify?.(`pi-sandbox: could not persist ${scope} override (${e}); allowing this command only`, "warning");
+		deps.audit({ ...base, decision: "yes", note: `always-persist-failed: ${error}`, scope });
+		ctx.ui.notify?.(`pi-sandbox: could not persist ${scope} override (${error}); allowing this command only`, "warning");
 	}
 	return true;
 }

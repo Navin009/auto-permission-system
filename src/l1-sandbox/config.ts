@@ -4,12 +4,14 @@
  * into a flat sandbox-runtime config.
  *
  * Adapter module: uses pi (`getAgentDir`) but no UI and no sandbox process.
+ * Policy layering itself lives in src/core/policy/merge.ts so both layers
+ * share it.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, createProjectTrust, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
+import { applyUntrustedProject, createProjectTrust, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, ReadPosture, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -17,7 +19,7 @@ export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["fil
 	/** Paths that prompt on read instead of being hard-denied (ADR-019). Layer 1 asks in the bash pre-flight. */
 	askRead?: string[];
 	/** Reads outside the project (ADR-012). Layer 1 enforces it via sandboxFilesystem(). */
-	outsideProject?: { read?: "allow" | "ask" | "deny"; allowRead?: string[] };
+	outsideProject?: { read?: ReadPosture; allowRead?: string[] };
 }
 
 export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> {
@@ -71,6 +73,15 @@ export function projectTrusted(cwd: string): boolean {
 	return projectTrust.isTrusted(cwd);
 }
 
+/**
+ * Load the global config, then the project config on top.
+ *
+ * An untrusted project file may only tighten the sandbox: no `enabled:false`,
+ * no allowWrite / allowedDomains / overrides, no `ignoreViolations` or
+ * `enableWeakerNestedSandbox`, and its deny lists are added, not substituted.
+ * The casts below are only to hand the parsed JSON to the generic
+ * tighten-only merge, which returns the shape it was given.
+ */
 export function loadConfig(cwd: string): SandboxConfig {
 	const projectConfigPath = projectPolicyPath(cwd);
 	const globalConfigPath = globalPolicyPath(getAgentDir());
@@ -81,28 +92,25 @@ export function loadConfig(cwd: string): SandboxConfig {
 	if (existsSync(globalConfigPath)) {
 		try {
 			globalConfig = JSON.parse(readFileSync(globalConfigPath, "utf-8"));
-		} catch (e) {
-			console.error(`Warning: Could not parse ${globalConfigPath}: ${e}`);
+		} catch (error) {
+			console.error(`Warning: Could not parse ${globalConfigPath}: ${error}`);
 		}
 	}
 
 	if (existsSync(projectConfigPath)) {
 		try {
 			projectConfig = JSON.parse(readFileSync(projectConfigPath, "utf-8"));
-		} catch (e) {
-			console.error(`Warning: Could not parse ${projectConfigPath}: ${e}`);
+		} catch (error) {
+			console.error(`Warning: Could not parse ${projectConfigPath}: ${error}`);
 		}
 	}
 
 	const base = overlayPolicy(DEFAULT_CONFIG, globalConfig);
-	// An untrusted project file may only tighten the sandbox: no enabled:false,
-	// no allowWrite / allowedDomains / overrides, no ignoreViolations or
-	// enableWeakerNestedSandbox, and its deny lists are added, not substituted.
 	let merged: SandboxConfig;
 	if (existsSync(projectConfigPath) && !projectTrusted(cwd)) {
-		const baseRec = /* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<string, unknown>;
-		const projectRec = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<string, unknown>;
-		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(baseRec, projectRec).merged as unknown as SandboxConfig;
+		const baseRecord = /* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<string, unknown>;
+		const projectRecord = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<string, unknown>;
+		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(baseRecord, projectRecord).merged as unknown as SandboxConfig;
 	} else {
 		merged = overlayPolicy(base, projectConfig);
 	}
@@ -110,45 +118,23 @@ export function loadConfig(cwd: string): SandboxConfig {
 }
 
 /**
- * Fold an additive `overrides` section into the regular allowWrite /
- * allowedDomains arrays so SandboxManager (which doesn't know about
+ * Fold an additive `overrides` section into the regular allowWrite / allowRead
+ * / allowedDomains arrays, so SandboxManager (which doesn't know about
  * `overrides`) sees a flat config. Idempotent.
+ *
+ * Read grants are folded too: an ask-tier "always" for an outside bash read
+ * re-exposes it via filesystem.allowRead (ADR-014). This cannot unmask a
+ * secret: the absolute-deny tier refuses "always" for credentials, and
+ * sandbox-runtime keeps explicit file denies winning over a directory
+ * allowRead.
  */
 function foldOverrides(config: SandboxConfig): SandboxConfig {
 	const overrides = config.overrides;
 	if (!overrides) return config;
-	const out: SandboxConfig = {
-		...config,
-		filesystem: config.filesystem
-			? { ...config.filesystem }
-			: { denyRead: [], allowWrite: [], denyWrite: [] },
-		network: config.network ? { ...config.network } : { allowedDomains: [], deniedDomains: [] },
-	};
-	if (overrides.allowWrite?.length) {
-		out.filesystem!.allowWrite = [
-			...(out.filesystem!.allowWrite ?? []),
-			...overrides.allowWrite,
-		];
-	}
-	// Fold read grants too: an ask-tier "always" for an outside bash read
-	// re-exposes it via filesystem.allowRead (ADR-014). This cannot unmask a
-	// secret: the absolute-deny tier refuses "always" for credentials, and
-	// sandbox-runtime keeps explicit file denies winning over a directory
-	// allowRead.
-	if (overrides.allowRead?.length) {
-		out.filesystem!.allowRead = [
-			...(out.filesystem!.allowRead ?? []),
-			...overrides.allowRead,
-		];
-	}
-	if (overrides.allowDomains?.length) {
-		out.network!.allowedDomains = [
-			...(out.network!.allowedDomains ?? []),
-			...overrides.allowDomains,
-		];
-	}
-	return out;
+	const filesystem = config.filesystem ? { ...config.filesystem } : { denyRead: [], allowWrite: [], denyWrite: [] };
+	const network = config.network ? { ...config.network } : { allowedDomains: [], deniedDomains: [] };
+	if (overrides.allowWrite?.length) filesystem.allowWrite = [...(filesystem.allowWrite ?? []), ...overrides.allowWrite];
+	if (overrides.allowRead?.length) filesystem.allowRead = [...(filesystem.allowRead ?? []), ...overrides.allowRead];
+	if (overrides.allowDomains?.length) network.allowedDomains = [...(network.allowedDomains ?? []), ...overrides.allowDomains];
+	return { ...config, filesystem, network };
 }
-
-// Layering lives in src/core/policy/merge.ts (overlayPolicy) so both layers share it.
-
