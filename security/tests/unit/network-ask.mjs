@@ -239,5 +239,17 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('binary in title', c.seenTitles[0].includes('composio') && c.seenTitles[0].includes('connect'));
 }
 
+// --- untrusted project: screen 2 offers only "in all projects" --------------
+{
+	reset();
+	const c = mkCtx([(o) => o[3], (o) => o[0]]);
+	const { deps, persisted, audits } = mkDeps(c.ctx, { projectTrusted: false });
+	check('untrusted remember → allow', (await createNetworkAsk(deps)({ host: 'api.example.com', port: 443 })) === true);
+	const screen2 = c.seen[1];
+	check('untrusted screen 2 hides in-this-project rows', !!screen2 && screen2.length > 0 && !screen2.some((o) => o.includes('in this project')), JSON.stringify(screen2));
+	check('untrusted remember persists global scope', JSON.stringify(persisted) === '[["*.example.com","global"]]', JSON.stringify(persisted));
+	check('untrusted remember audited always-global', audits.some((e) => e.decision === 'always-global' && e.scope === 'global'));
+}
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

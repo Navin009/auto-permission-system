@@ -5,7 +5,7 @@
 //
 // Runs `createSandboxedBashOps().exec` with a stubbed SandboxManager so the
 // block/re-run/prompt flow is exercised without bubblewrap.
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -29,6 +29,7 @@ const check = (name, cond, extra = "") => {
 
 const cwd = mkdtempSync(join(tmpdir(), "aps-session-cwd-"));
 const outside = mkdtempSync(join(tmpdir(), "aps-session-out-"));
+const freshDir = mkdtempSync(join(tmpdir(), "aps-session-fresh-"));
 const target = join(outside, "blocked.txt");
 const envFile = join(cwd, ".env");
 writeFileSync(envFile, "SECRET=1\n");
@@ -37,10 +38,10 @@ writeFileSync(envFile, "SECRET=1\n");
 // shape bubblewrap prints), later ones succeed and record the customConfig.
 const customConfigs = [];
 let callCount = 0;
-SandboxManager.wrapWithSandbox = async (_command, _argv, custom) => {
+SandboxManager.wrapWithSandbox = async (command, _argv, custom) => {
 	callCount++;
 	customConfigs.push(custom);
-	if (callCount === 1) return `printf '%s\\n' "touch: cannot touch '${target}': Read-only file system" >&2; exit 1`;
+	if (callCount === 1 || String(command).includes("FORCE-FENCE")) return `printf '%s\\n' "touch: cannot touch '${target}': Read-only file system" >&2; exit 1`;
 	return "printf 'RERUN-OK\\n'";
 };
 SandboxManager.cleanupAfterCommand = () => {};
@@ -98,12 +99,33 @@ const auditLog = readFileSync(join(agentDir, "audit.log"), "utf8");
 check("write session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"write-session"'), auditLog);
 check("askRead session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"ask-read"'), auditLog);
 
+// --- a policy write from the other layer is visible on the next command -----
+{
+	const globalDir = join(agentDir, "extensions");
+	mkdirSync(globalDir, { recursive: true });
+	writeFileSync(join(globalDir, "sandbox.json"), JSON.stringify({ overrides: { allowWrite: [freshDir] } }));
+	const before = customConfigs.length;
+	r = await run("true");
+	const fresh = customConfigs[before];
+	check("next command re-reads a policy written after init", allowWriteOf(fresh).some((p) => p.includes(freshDir)), JSON.stringify(fresh));
+}
+
+// --- an explicit No is audited with a note, never a bare "no" --------------
+{
+	const noCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options[0], notify: () => {} } };
+	const execNo = createSandboxedBashOps({ ctx: noCtx, onAlways, onAlwaysRead: onAlways });
+	r = await execNo.exec("touch FORCE-FENCE", cwd, { onData: () => {}, signal: undefined, timeout: 10 });
+	const auditAfterNo = readFileSync(join(agentDir, "audit.log"), "utf8");
+	check("explicit No audited with a note", auditAfterNo.includes('"decision":"no"') && auditAfterNo.includes('"note":"user-denied"'), auditAfterNo);
+}
+
 // --- session_start clears the grants -------------------------------------
 clearFilesystemSessionGrants();
 check("clearFilesystemSessionGrants clears the summary", filesystemSessionGrantSummary() === "", filesystemSessionGrantSummary());
 
 rmSync(cwd, { recursive: true, force: true });
 rmSync(outside, { recursive: true, force: true });
+rmSync(freshDir, { recursive: true, force: true });
 rmSync(agentDir, { recursive: true, force: true });
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

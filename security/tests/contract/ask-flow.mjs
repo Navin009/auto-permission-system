@@ -188,6 +188,8 @@ check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 // --- custom TUI selector (ADR-031): ctx.mode === "tui" routes to ui.custom ---
 {
 	let component;
+	let signalFactory;
+	const factoryCalled = new Promise((resolve) => { signalFactory = resolve; });
 	const ctx = {
 		mode: 'tui',
 		hasUI: true,
@@ -201,15 +203,24 @@ check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 						{ matches: () => false },
 						resolve,
 					);
+					signalFactory();
 				}),
 		},
 	};
 	const main = askMain(ctx, 'H', 'b', { allowFirst: true });
-	for (let i = 0; i < 100 && !component; i++) await new Promise((r) => setTimeout(r, 5));
-	check('askMain tui: renders through ui.custom, not ui.select', !!component);
-	check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: Yes, just this once (15s)'));
-	component.handleInput('\r'); // Enter on the preselected "No"
-	check('askMain tui: custom pick maps to a decision', (await main) === 'block');
+	const ready = await Promise.race([
+		factoryCalled.then(() => true),
+		new Promise((r) => setTimeout(() => r(false), 10_000)),
+	]);
+	check('askMain tui: renders through ui.custom, not ui.select', ready && !!component);
+	if (component) {
+		check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: Yes, just this once (15s)'));
+		component.handleInput('\r'); // Enter on the preselected "No"
+		check('askMain tui: custom pick maps to a decision', (await main) === 'block');
+	} else {
+		check('askMain tui: footer carries the live countdown', false);
+		check('askMain tui: custom pick maps to a decision', false);
+	}
 }
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

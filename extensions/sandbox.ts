@@ -33,7 +33,7 @@ import { createBashTool } from "@earendil-works/pi-coding-agent";
 import { clearFilesystemSessionGrants, createSandboxedBashOps, filesystemSessionGrantSummary } from "../src/l1-sandbox/bash-ops";
 import { applyNetworkGrant, initSandbox, persistLayer1Override, reloadSandbox, resetSandbox, writeNetworkOverride } from "../src/l1-sandbox/manager";
 import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask";
-import { loadConfig, setPiDeclinedTrust } from "../src/l1-sandbox/config";
+import { loadConfig, projectTrusted, setPiDeclinedTrust } from "../src/l1-sandbox/config";
 import { audit } from "../src/shared/audit";
 import { onDomainGrant } from "../src/shared/network-grants";
 import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo";
@@ -71,7 +71,7 @@ export default function (pi: ExtensionAPI) {
 		// Lazy getters so each proxy ask reads the live trust state and the most
 		// recent bash command. Without these, the values captured at initSandbox()
 		// would be stale.
-		get projectTrusted() { return latestCtx?.isProjectTrusted?.(); },
+		get projectTrusted() { return projectTrusted(cwd); },
 		get command() { return latestBashCommand; },
 	});
 

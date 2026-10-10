@@ -202,10 +202,9 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			// wrapWithSandbox as a customConfig, so nothing is persisted and the
 			// session-wide sandbox is not re-initialised.
 			const readOnce = [...(pre?.once ?? [])];
-			const buildCustom = (writeOnce: string[]): Partial<SandboxRuntimeConfig> | undefined => {
+			const buildCustom = (writeOnce: string[]): Partial<SandboxRuntimeConfig> => {
 				const readRoots = [...readOnce, ...sessionReadGrants];
 				const writeRoots = [...writeOnce, ...sessionWriteGrants];
-				if (!readRoots.length && !writeRoots.length) return undefined;
 				const fresh = loadConfig(cwd).filesystem ?? { denyRead: [], allowWrite: [], denyWrite: [] };
 				return {
 					filesystem: sandboxFilesystem(
@@ -346,6 +345,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
 							// ask-tier read grant for a path outside the project (ADR-014).
 							const absPath = offending;
+							let askError: unknown;
 							try {
 								const ui = opts.ctx as AskCtx;
 								const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true });
@@ -375,11 +375,17 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 										}
 									}
 								}
-							} catch {
-								/* prompt failure shouldn't crash bash */
+							} catch (e) {
+								askError = e;
 							}
 							if (!decisionHint) {
-								auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd, note: "outside-project-read" });
+								auditL1({
+									subject: absPath,
+									decision: "no",
+									note: askError ? "ask-error" : "outside-project-read-denied",
+									...(askError ? { error: String(askError) } : {}),
+									cwd: opts.ctx.cwd,
+								});
 								decisionHint = `\n${blockedLine("Read", "outside the project", "read")}\n`;
 							}
 							onData(Buffer.from(decisionHint));
@@ -395,6 +401,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							const absPath = offending;
 							const parentDir = dirname(absPath);
 							const alreadyGranted = writeOnce.includes(parentDir) || sessionWriteGrants.includes(parentDir);
+							let askError: unknown;
 							try {
 								const ui = opts.ctx as AskCtx;
 								const main = await askMain(ui, `Let ${firstWord(command)} save files in ${parentDir}/?`, [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true, once: !alreadyGranted });
@@ -434,12 +441,18 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 										}
 									}
 								}
-							} catch {
-								/* prompt failure shouldn't crash bash */
+							} catch (e) {
+								askError = e;
 							}
 							if (!decisionHint) {
-								auditL1({ subject: absPath, decision: "no", cwd: opts.ctx.cwd });
-								decisionHint = `\n${blockedLine("Write", "user denied", "written")}\n`;
+								auditL1({
+									subject: absPath,
+									decision: "no",
+									note: askError ? "ask-error" : "user-denied",
+									...(askError ? { error: String(askError) } : {}),
+									cwd: opts.ctx.cwd,
+								});
+								decisionHint = `\n${blockedLine("Write", askError ? "the permission prompt failed" : "user denied", "written")}\n`;
 							}
 							onData(Buffer.from(decisionHint));
 						} else if (offending && writeDenied) {
