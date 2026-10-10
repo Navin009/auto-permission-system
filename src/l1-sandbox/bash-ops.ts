@@ -289,6 +289,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						let hardWhy = "";
 						let outsideDenied = false;
 						let outsideMode: "allow" | "ask" | "deny" = "allow";
+						let blockedHint = "";
 						if (isBlockedAccessError(outputTail)) {
 							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
 							offending = extractBlockedPath(outputTail, cwd, homedir());
@@ -309,17 +310,17 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							}
 							const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
 
-							let hint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
+							blockedHint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
 							if (offending) {
 								let why = "";
 								if (writeDenied && !hardDenied) why = " (not under an allowWrite root: writes outside it are read-only)";
 								else if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
 								else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
-								hint += `   Path: ${offending}${why}\n`;
+								blockedHint += `   Path: ${offending}${why}\n`;
 							}
-							hint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
+							blockedHint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
 							if (configDirHint) {
-								hint +=
+								blockedHint +=
 									`   Looks like a tool's own config dir. To allow this tool in the\n` +
 									`   current project, add a project-local policy:\n` +
 									`     mkdir -p ${cwd}/.pi && cat > ${cwd}/.pi/sandbox.json <<'JSON'\n` +
@@ -327,16 +328,22 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									`     JSON\n` +
 									`   Or run pi with --yolo for one-off elevated access (disables ALL layers).\n`;
 							} else {
-								hint +=
+								blockedHint +=
 									`   Use $TMPDIR (= ${piTmp}/) for scratch files,\n` +
 									`   or write inside the project directory (${cwd}).\n`;
 							}
-							hint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
-							if (opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways && !readDenied) {
-								hint += `   → Waiting for your decision in the prompt above before this bash call returns to the model.\n`;
-							}
-							onData(Buffer.from(hint));
+							blockedHint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
 						}
+						/**
+						 * Emit the block explanation only when the command is not re-run with a
+						 * grant. After an allow the model must not read a stale "blocked /
+						 * waiting for your decision" message and try the command again.
+						 */
+						const emitBlockedHint = (): void => {
+							if (!blockedHint) return;
+							onData(Buffer.from(blockedHint));
+							blockedHint = "";
+						};
 
 						// Ask-tier prompt: BEFORE resolve so the agent loop pauses while the
 						// user decides. Otherwise the model gets the EPERM hint immediately,
@@ -354,7 +361,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									else sessionReadGrants.push(absPath);
 									auditL1({ subject: absPath, decision: main, scope: main === "once" ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${main === "once" ? "once" : "for this session"} — re-running the command`, "warning");
-									onData(Buffer.from(`\n✅ pi-sandbox: allowed read of ${absPath} ${main === "once" ? "once" : "for this session"} — re-running the command.\n`));
+									onData(Buffer.from(`\n✅ pi-sandbox: read of ${absPath} allowed ${main === "once" ? "once" : "for this session"}. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
@@ -368,7 +375,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 											const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
 											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
 											opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
-											onData(Buffer.from(`\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command.\n`));
+											onData(Buffer.from(`\n✅ pi-sandbox: read of ${subject} allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
 											resolve(attempt([]));
 											return;
 										} catch (e) {
@@ -410,7 +417,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								if (main === "once") {
 									auditL1({ subject: absPath, granularity: "folder", original: absPath, decision: "once", scope: "invocation", cwd: opts.ctx.cwd, note: "write-once" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${absPath} once — re-running the command`, "warning");
-									onData(Buffer.from(`\n✅ pi-sandbox: allowed ${absPath} once — re-running the command.\n`));
+									onData(Buffer.from(`\n✅ pi-sandbox: write to ${absPath} allowed once. Command output with the new permission follows.\n`));
 									resolve(attempt([...writeOnce, parentDir]));
 									return;
 								}
@@ -422,7 +429,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									sessionWriteGrants.push(value);
 									auditL1({ subject: value, granularity: value === parentDir ? "folder" : "file", original: absPath, decision: "session", scope: "session", cwd: opts.ctx.cwd, note: "write-session" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${value} for this session (not saved) — re-running the command`, "info");
-									onData(Buffer.from(`\n✅ pi-sandbox: allowed ${value} for this session (not saved) — re-running the command.\n`));
+									onData(Buffer.from(`\n✅ pi-sandbox: write to ${value} allowed for this session. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
@@ -435,7 +442,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 											const persistedTo = await opts.onAlways(subject, picked.scope);
 											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
 											opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
-											onData(Buffer.from(`\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command.\n`));
+											onData(Buffer.from(`\n✅ pi-sandbox: write to ${subject} allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
 											resolve(attempt([]));
 											return;
 										} catch (e) {
@@ -466,6 +473,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							onData(Buffer.from(`\n${blockedLine("Write", "not under any allowWrite root", "written")}\n`));
 						}
 
+						emitBlockedHint();
 						if (signal?.aborted) {
 							reject(new Error("aborted"));
 						} else if (timedOut) {

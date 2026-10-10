@@ -22,7 +22,7 @@
         { "id": "L1-attribution", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs", "expected": "PASS=41, FAIL=0" },
         { "id": "L1-outside-fence", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs", "expected": "PASS=38, FAIL=0" },
         { "id": "L1-ask-commands", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs", "expected": "PASS=11, FAIL=0" },
-        { "id": "L1-session-grants", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs", "expected": "PASS=21, FAIL=0" },
+        { "id": "L1-session-grants", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs", "expected": "PASS=25, FAIL=0" },
         { "id": "L1-network-ask", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs", "expected": "PASS=45, FAIL=0" },
         { "id": "L1-L2-network-grants", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs", "expected": "PASS=6, FAIL=0" },
         { "id": "L1-e2e", "command": "APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs", "expected": "manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)" }

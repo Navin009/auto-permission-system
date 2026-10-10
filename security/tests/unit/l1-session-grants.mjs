@@ -79,6 +79,8 @@ check("session write re-runs the command", r.exitCode === 0, `exit=${r.exitCode}
 check("write prompt offered the session option", prompts[0]?.includes("Yes, for this session"));
 check("no 'user denied' line on a session pick", !out1.join("").includes("user denied"), out1.join(""));
 check("session grant announced", out1.join("").includes("for this session"), out1.join(""));
+check("session pick hides the stale block hint", !out1.join("").includes("filesystem access blocked") && !out1.join("").includes("Waiting for your decision"), out1.join(""));
+check("session pick states the outcome, not a retry", out1.join("").includes("Command output with the new permission follows") && !/retry the bash command|re-running the command/i.test(out1.join("")), out1.join(""));
 check("write grant is the parent folder", filesystemSessionGrantSummary().includes(`write:${outside}`), filesystemSessionGrantSummary());
 check("re-run exposes the granted folder to allowWrite", allowWriteOf(customConfigs[1]).some((p) => p.includes(outside)), JSON.stringify(customConfigs[1]));
 
@@ -118,10 +120,12 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 // --- an explicit No is audited with a note, never a bare "no" --------------
 {
 	const noCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options[0], notify: () => {} } };
+	const noOutput = [];
 	const execNo = createSandboxedBashOps({ ctx: noCtx, onAlways, onAlwaysRead: onAlways });
-	r = await execNo.exec("touch FORCE-FENCE", cwd, { onData: () => {}, signal: undefined, timeout: 10 });
+	r = await execNo.exec("touch FORCE-FENCE", cwd, { onData: (chunk) => noOutput.push(chunk.toString()), signal: undefined, timeout: 10 });
 	const auditAfterNo = readFileSync(join(agentDir, "audit.log"), "utf8");
 	check("explicit No audited with a note", auditAfterNo.includes('"decision":"no"') && auditAfterNo.includes('"note":"user-denied"'), auditAfterNo);
+	check("denied command still explains the block", noOutput.join("").includes("filesystem access blocked"), noOutput.join(""));
 }
 
 // --- remember: persist and re-run, like once and session -------------------
@@ -143,7 +147,8 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	r = await execRemember.exec("touch REMEMBER-PROBE", cwd, { onData: (chunk) => output.push(chunk.toString()), signal: undefined, timeout: 10 });
 	check("remember re-runs the command", r.exitCode === 0, `exit=${r.exitCode}`);
 	check("remember persisted one grant", persisted.length === 1, JSON.stringify(persisted));
-	check("remember announces the re-run", output.join("").includes("re-running the command"), output.join(""));
+	check("remember announces the outcome, not a retry", output.join("").includes("Command output with the new permission follows") && !/retry the bash command|re-running the command/i.test(output.join("")), output.join(""));
+	check("remember hides the stale block hint", !output.join("").includes("filesystem access blocked"), output.join(""));
 }
 
 // --- session_start clears the grants -------------------------------------
