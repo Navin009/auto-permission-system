@@ -367,8 +367,10 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 										try {
 											const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
 											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
-											opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
-											decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
+											opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
+											onData(Buffer.from(`\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command.\n`));
+											resolve(attempt([]));
+											return;
 										} catch (e) {
 											auditL1({ subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
 											decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
@@ -432,8 +434,10 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 										try {
 											const persistedTo = await opts.onAlways(subject, picked.scope);
 											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
-											opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — retry the bash command`, "warning");
-											decisionHint = `\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Retry the bash command.\n`;
+											opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
+											onData(Buffer.from(`\n✅ pi-sandbox: ${subject} now allowed (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command.\n`));
+											resolve(attempt([]));
+											return;
 										} catch (e) {
 											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) });
 											opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");

@@ -38,10 +38,15 @@ writeFileSync(envFile, "SECRET=1\n");
 // shape bubblewrap prints), later ones succeed and record the customConfig.
 const customConfigs = [];
 let callCount = 0;
+let rememberProbeFenced = false;
 SandboxManager.wrapWithSandbox = async (command, _argv, custom) => {
 	callCount++;
 	customConfigs.push(custom);
-	if (callCount === 1 || String(command).includes("FORCE-FENCE")) return `printf '%s\\n' "touch: cannot touch '${target}': Read-only file system" >&2; exit 1`;
+	const text = String(command);
+	if (callCount === 1 || text.includes("FORCE-FENCE") || (text.includes("REMEMBER-PROBE") && !rememberProbeFenced)) {
+		if (text.includes("REMEMBER-PROBE")) rememberProbeFenced = true;
+		return `printf '%s\\n' "touch: cannot touch '${target}': Read-only file system" >&2; exit 1`;
+	}
 	return "printf 'RERUN-OK\\n'";
 };
 SandboxManager.cleanupAfterCommand = () => {};
@@ -117,6 +122,28 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	r = await execNo.exec("touch FORCE-FENCE", cwd, { onData: () => {}, signal: undefined, timeout: 10 });
 	const auditAfterNo = readFileSync(join(agentDir, "audit.log"), "utf8");
 	check("explicit No audited with a note", auditAfterNo.includes('"decision":"no"') && auditAfterNo.includes('"note":"user-denied"'), auditAfterNo);
+}
+
+// --- remember: persist and re-run, like once and session -------------------
+{
+	const rememberCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((option) => option === "Yes, always\u2026") ?? options[0], notify: () => {} } };
+	const persisted = [];
+	const execRemember = createSandboxedBashOps({
+		ctx: rememberCtx,
+		onAlways: async (absPath, scope) => {
+			persisted.push([absPath, scope]);
+			return "/tmp/sandbox.json";
+		},
+		onAlwaysRead: async (absPath, scope) => {
+			persisted.push([absPath, scope]);
+			return "/tmp/sandbox.json";
+		},
+	});
+	const output = [];
+	r = await execRemember.exec("touch REMEMBER-PROBE", cwd, { onData: (chunk) => output.push(chunk.toString()), signal: undefined, timeout: 10 });
+	check("remember re-runs the command", r.exitCode === 0, `exit=${r.exitCode}`);
+	check("remember persisted one grant", persisted.length === 1, JSON.stringify(persisted));
+	check("remember announces the re-run", output.join("").includes("re-running the command"), output.join(""));
 }
 
 // --- session_start clears the grants -------------------------------------
