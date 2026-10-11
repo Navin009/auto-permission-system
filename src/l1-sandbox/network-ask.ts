@@ -20,7 +20,7 @@
  */
 
 import { domainMatches, GrantScope, OverrideKind } from "../core/index";
-import { askMain, askRememberHost, ASK_TIMEOUT_MS, MainChoice, parentDomainWildcard, type AskCtx } from "../ui/ask-flow";
+import { askMainWithRemember, askRememberHost, ASK_TIMEOUT_MS, MainChoice, parentDomainWildcard, type AskCtx, type HostGrant } from "../ui/ask-flow";
 
 /** In-memory session grants ("Yes, for this session"). Cleared at session_start. */
 const sessionGrants: string[] = [];
@@ -116,20 +116,40 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	if (deps.command) bodyParts.push(`Command  ${deps.command}`);
 	bodyParts.push(`Why      this site isn't on your allowed list yet`);
 
-	let mainChoice: MainChoice;
+	let outcome: { choice: MainChoice; grant: HostGrant | null };
 	try {
-		mainChoice = await askMain(ctx, header, bodyParts.join("\n"), {
-			session: true,
-			sessionLabel: "Yes, all in group for this session",
-			allowFirst: true,
-			icon: "net",
-			timeoutMs: ASK_TIMEOUT_MS,
-		});
+		outcome = await askMainWithRemember(
+			ctx,
+			header,
+			bodyParts.join("\n"),
+			{
+				session: true,
+				sessionLabel: "Yes, all in group for this session",
+				allowFirst: true,
+				icon: "net",
+				timeoutMs: ASK_TIMEOUT_MS,
+			},
+			// Screen 2 runs in the same queue slot as screen 1 (ADR-034).
+			() => {
+				const body: string[] = [];
+				body.push(`Site     ${host}`);
+				if (wildcard !== host.toLowerCase()) {
+					const bare = wildcard.replace(/^\*\./, "");
+					body.push(`Group    ${wildcard}   (every ${bare} site)`);
+				}
+				body.push(`Note     the rule works for any command, not just ${verb}`);
+				if (deps.projectTrusted === false) {
+					body.push(`Note     this project isn't trusted — run /security trust to save rules here`);
+				}
+				return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
+			},
+		);
 	} catch {
 		deps.audit({ ...base, decision: "no", note: "screen1-threw" });
 		return false;
 	}
 
+	const mainChoice = outcome.choice;
 	if (mainChoice === MainChoice.Block) {
 		deps.audit({ ...base, decision: "no" });
 		return false;
@@ -146,17 +166,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		return true;
 	}
 
-	const body: string[] = [];
-	body.push(`Site     ${host}`);
-	if (wildcard !== host.toLowerCase()) {
-		const bare = wildcard.replace(/^\*\./, "");
-		body.push(`Group    ${wildcard}   (every ${bare} site)`);
-	}
-	body.push(`Note     the rule works for any command, not just ${verb}`);
-	if (deps.projectTrusted === false) {
-		body.push(`Note     this project isn't trusted — run /security trust to save rules here`);
-	}
-	const picked = await askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
+	const picked = outcome.grant;
 	if (!picked) {
 		deps.audit({ ...base, decision: "no", note: "remember-screen-cancelled" });
 		return false;

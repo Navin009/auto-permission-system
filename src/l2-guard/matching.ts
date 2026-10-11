@@ -8,9 +8,10 @@
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { ReadPosture } from "../core/index";
+import { canonicalize } from "../shared/canonicalize";
 import type { Policy } from "./policy";
 
 export function expandHome(path: string): string {
@@ -33,32 +34,9 @@ function globToRegex(pattern: string): RegExp {
 	return new RegExp(source, process.platform === "darwin" ? "i" : "");
 }
 
-/**
- * Canonicalize a path for matching.
- *
- * - Resolved against cwd if relative.
- * - Walks up to the deepest existing ancestor and realpaths *that*, so
- *   symlinks in the path prefix are followed even when the leaf (or any
- *   intermediate) doesn't exist yet. Defeats the
- *   `cwd/symlink-to-ssh/anything` escape regardless of whether `anything`
- *   exists.
- */
-export function canonicalize(path: string, cwd: string): string {
-	const absolute = isAbsolute(path) ? path : resolve(cwd, path);
-	const suffix: string[] = [];
-	let current = absolute;
-	while (true) {
-		try {
-			const resolved = realpathSync(current);
-			return suffix.length ? `${resolved}/${suffix.slice().reverse().join("/")}` : resolved;
-		} catch {
-			const parent = dirname(current);
-			if (parent === current) return absolute;
-			suffix.push(basename(current));
-			current = parent;
-		}
-	}
-}
+// Canonicalization lives in src/shared/canonicalize.ts (ADR-006) so Layer 1's
+// bash grant path and Layer 2's tool path share one implementation.
+export { canonicalize } from "../shared/canonicalize";
 
 /**
  * Match an absolute path against a policy pattern.

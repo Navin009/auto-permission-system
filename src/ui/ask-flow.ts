@@ -113,6 +113,31 @@ function queueTail(): Promise<unknown> {
 }
 
 /**
+ * True while a queued task is running in this module instance. Nested asks run
+ * inline so they keep the slot instead of enqueuing behind themselves — the
+ * basis of the atomic two-screen flow (ADR-034). Module-local on purpose: pi
+ * gives each extension bundle its own copy, and the shared chain above already
+ * serializes across bundles.
+ */
+let holdingQueue = false;
+
+/** Run `fn` in the shared FIFO ask slot; a call made while a slot is held runs inline in that slot. */
+async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+	if (holdingQueue) return fn();
+	const run = async (): Promise<T> => {
+		holdingQueue = true;
+		try {
+			return await fn();
+		} finally {
+			holdingQueue = false;
+		}
+	};
+	const queued = queueTail().then(run, run);
+	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
+	return queued;
+}
+
+/**
  * One serialized ask. `expired` separates the countdown running out from an
  * early Esc: both resolve `undefined`, only the countdown is the prompt's
  * default. Measured inside the lock, so time spent queued behind another
@@ -123,33 +148,29 @@ function queueTail(): Promise<unknown> {
  * they're reading options and deciding. Setting `timeoutMs` to `0` disables
  * the countdown entirely (the prompt stays open until pick or Esc).
  *
- * v3.5.7: `skipQueue` runs the ask immediately, bypassing the FIFO queue.
- * The screen-2 helpers (askRememberFile/AskRememberHost) use this so
- * screen 2 always runs immediately after screen 1's pick — no other queued
- * prompt can interleave between them.
- *
  * v3.5.12 (ADR-031): in TUI mode the footer is rendered separately, with a
  * live countdown, and disappears on the first selection change. RPC and the
  * tests keep `ui.select` with the footer as the last title line.
+ *
+ * v3.6.0 (ADR-034): every select goes through the re-entrant `enqueue`; there
+ * is no bypass. A select made while a slot is held (screen 2, a nested ask)
+ * runs inline, so a two-screen ask never races the next queued ask for pi's
+ * singleton selector.
  */
 export async function askSelect(
 	ctx: AskCtx,
 	title: string,
 	options: string[],
 	timeoutMs: number = ASK_TIMEOUT_MS,
-	opts: { skipQueue?: boolean; footer?: string | null } = {},
+	opts: { footer?: string | null } = {},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const footer = opts.footer ?? null;
-	const run = async (): Promise<{ picked: string | undefined; expired: boolean }> => {
+	return enqueue(async () => {
 		if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
 			return askWithCustom(ctx, title, options, timeoutMs, footer);
 		}
 		return askWithSelect(ctx, title, options, timeoutMs, footer);
-	};
-	if (opts.skipQueue) return run();
-	const queued = queueTail().then(run, run);
-	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
-	return queued;
+	});
 }
 
 /**
@@ -301,6 +322,33 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
 }
 
+/**
+ * The two-screen ask as one queue slot (ADR-034). Screen 1 runs, and when the
+ * user picks `Yes, always…` the caller's screen-2 continuation runs in the
+ * same slot, before the next queued ask can start. The continuation returns
+ * the grant it collected, or `null` when the user cancelled screen 2.
+ *
+ * This is the only safe shape for a two-screen ask: running screen 2 outside
+ * the slot races the next queued ask for pi's singleton selector (the loser is
+ * dropped unsent → the awaited promise hangs and its countdown later wipes the
+ * visible prompt), and queuing it normally shows an unrelated prompt between
+ * the two screens.
+ */
+export async function askMainWithRemember<T>(
+	ctx: AskCtx,
+	header: string,
+	body: string,
+	opts: MainOpts,
+	onRemember: () => Promise<T | null>,
+): Promise<{ choice: MainChoice; grant: T | null }> {
+	return enqueue(async () => {
+		const choice = await askMain(ctx, header, body, opts);
+		if (choice !== MainChoice.Remember) return { choice, grant: null };
+		const grant = await onRemember();
+		return { choice, grant };
+	});
+}
+
 export type ScopeChoice = { scope: GrantScope; folder: boolean };
 
 /**
@@ -327,7 +375,9 @@ export async function askRememberFile(
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: GrantScope.Global, folder: false } });
 	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
+	// Plain `askSelect`: atomic with screen 1 when called from askMainWithRemember's
+	// continuation (the queue slot is held), serialized normally when called alone.
+	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { footer });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -346,9 +396,8 @@ export function parentDomainWildcard(host: string): string {
 
 /** Screen 2 for a domain subject. ADR-030: wildcard subdomain is offered FIRST when the host
  * has a useful parent domain, so the default grant covers siblings without re-prompting.
- * `pattern` is the actual pattern written to the allowlist. v3.5.7: skipQueue=true so
- * screen 2 runs immediately after screen 1's pick — no other queued prompt can
- * interleave between them. */
+ * `pattern` is the actual pattern written to the allowlist. Atomic with screen 1 under
+ * askMainWithRemember (ADR-034). */
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,
@@ -368,7 +417,7 @@ export async function askRememberHost(
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: GrantScope.Global, pattern: host } });
 	const footer = opts.footer ?? `Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { skipQueue: true, footer });
+	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { footer });
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
 }

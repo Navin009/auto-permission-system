@@ -121,6 +121,26 @@ const text = (comp) => comp.render(80).join('\n');
 	check('dispose() stops the countdown', s.expired === false);
 }
 
+// --- dispose settles the promise (ADR-034): pi drops a displaced prompt without
+// calling `done`, and an unsettled ask wedges the shared queue for every later
+// prompt. dispose must resolve it exactly once, without counting as expiry. ---
+{
+	let settles = 0;
+	const s = mk({ done: () => { settles++; } });
+	s.comp.dispose();
+	check('dispose() settles the pending prompt', settles === 1);
+	s.comp.dispose();
+	check('dispose() is idempotent', settles === 1);
+}
+{
+	let settles = 0;
+	const s = mk({ done: () => { settles++; } });
+	s.comp.handleInput('\r');
+	check('pick settles once', settles === 1);
+	s.comp.dispose();
+	check('dispose() after a pick does not settle again', settles === 1);
+}
+
 // --- timeoutMs 0: footer without a countdown, no auto-dismiss ---
 {
 	const s = mk({ timeoutMs: 0 });

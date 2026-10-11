@@ -17,7 +17,7 @@
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { isSafeFolderGrant, GrantScope, type OverrideKind } from "../core/index";
-import { askMain, askRememberFile, askRememberHost, parentDomainWildcard, type AskCtx } from "./ask-flow";
+import { askMainWithRemember, askRememberFile, askRememberHost, MainChoice, parentDomainWildcard, type AskCtx } from "./ask-flow";
 
 export type { AskCtx } from "./ask-flow";
 export type { OverrideKind };
@@ -193,46 +193,52 @@ export async function askDecision(ctx: AskCtx, ask: AskKind, absoluteDenyPattern
 
 	const header = headerFor(action, ask.subject, ask);
 	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this session" : "Yes, for this session";
-	const main = await askMain(ctx, header, detailLines(ask, action), {
+	const untrusted = ask.projectTrusted === false;
+	const mainOpts = {
 		session: true,
 		sessionLabel,
 		allowFirst: action === AskAction.Network,
 		icon: pickIcon(action, ask),
-	});
-	if (main === "block") return Decision.No;
-	if (main === "once") return Decision.Yes;
-	if (main === "session") return Decision.Session;
+	};
 
-	// Screen 2 — scope + what to allow. The wider option is preselected; the
-	// caller learns the decision and the layer that persists applies the
-	// actual pattern/wildcard.
-	const untrusted = ask.projectTrusted === false;
+	// Screen 1 and, on "Yes, always…", screen 2 run in one queue slot (ADR-034).
 	if (action === AskAction.Network) {
 		const host = ask.overrideValue;
 		const wildcard = parentDomainWildcard(host);
+		const { choice, grant } = await askMainWithRemember(ctx, header, detailLines(ask, action), mainOpts, async () => {
+			const body: string[] = [];
+			body.push(`Site     ${host}`);
+			if (wildcard !== host.toLowerCase()) {
+				const bare = wildcard.replace(/^\*\./, "");
+				body.push(`Group    ${wildcard}   (every ${bare} site)`);
+			}
+			body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
+			if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
+			return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted });
+		});
+		if (choice === MainChoice.Block) return Decision.No;
+		if (choice === MainChoice.Once) return Decision.Yes;
+		if (choice === MainChoice.Session) return Decision.Session;
+		if (!grant) return Decision.No;
+		return grant.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
+	}
+
+	const parent = dirname(ask.subject);
+	const { choice, grant } = await askMainWithRemember(ctx, header, detailLines(ask, action), mainOpts, async () => {
 		const body: string[] = [];
-		body.push(`Site     ${host}`);
-		if (wildcard !== host.toLowerCase()) {
-			const bare = wildcard.replace(/^\*\./, "");
-			body.push(`Group    ${wildcard}   (every ${bare} site)`);
-		}
+		body.push(`File     ${ask.subject}`);
+		if (parent !== ask.subject) body.push(`Folder   ${parent}/`);
 		body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
 		if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-		const picked = await askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted });
-		if (!picked) return Decision.No;
-		return picked.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
-	}
-	const parent = dirname(ask.subject);
-	const title = `Always allow ${action === AskAction.Write ? "saving" : "reading"} \u2014 what, and where?`;
-	const body: string[] = [];
-	body.push(`File     ${ask.subject}`);
-	if (parent !== ask.subject) body.push(`Folder   ${parent}/`);
-	body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
-	if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-	const picked = await askRememberFile(ctx, title, body.join("\n"), ask.subject, parent, { icon: "save", untrusted });
-	if (!picked) return Decision.No;
-	if (picked.scope === GrantScope.Cwd) return picked.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;
-	return picked.folder ? Decision.AlwaysGlobalFolder : Decision.AlwaysGlobal;
+		const title = `Always allow ${action === AskAction.Write ? "saving" : "reading"} \u2014 what, and where?`;
+		return askRememberFile(ctx, title, body.join("\n"), ask.subject, parent, { icon: "save", untrusted });
+	});
+	if (choice === MainChoice.Block) return Decision.No;
+	if (choice === MainChoice.Once) return Decision.Yes;
+	if (choice === MainChoice.Session) return Decision.Session;
+	if (!grant) return Decision.No;
+	if (grant.scope === GrantScope.Cwd) return grant.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;
+	return grant.folder ? Decision.AlwaysGlobalFolder : Decision.AlwaysGlobal;
 }
 
 /** Wraps askSelect with the icon prefix and footer — used by the single-screen credential flow. */

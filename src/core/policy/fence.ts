@@ -86,8 +86,10 @@ export function outsideProjectReadCandidates(
 	home: string,
 	filesystem: FilesystemPolicy,
 	exists: (path: string) => boolean = existsSync,
+	resolvePath: (absPath: string) => string = (absPath) => absPath,
 ): string[] {
-	return readPathCandidates(command, cwd, home, exists).filter(
+	const candidates = new Set(readPathCandidates(command, cwd, home, exists).map(resolvePath));
+	return [...candidates].filter(
 		(absPath) => notDenied(absPath, cwd, home, filesystem) && outsideProjectReadDenied(absPath, cwd, home, filesystem),
 	);
 }
@@ -99,10 +101,12 @@ export function askReadCandidates(
 	home: string,
 	filesystem: FilesystemPolicy,
 	exists: (path: string) => boolean = existsSync,
+	resolvePath: (absPath: string) => string = (absPath) => absPath,
 ): string[] {
 	const askReadPatterns = filesystem.askRead ?? [];
 	if (!askReadPatterns.length) return [];
-	return readPathCandidates(command, cwd, home, exists).filter(
+	const candidates = new Set(readPathCandidates(command, cwd, home, exists).map(resolvePath));
+	return [...candidates].filter(
 		(absPath) => notDenied(absPath, cwd, home, filesystem) && askReadPatterns.some((pattern) => matchesPolicyPattern(absPath, pattern, cwd, home)),
 	);
 }

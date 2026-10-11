@@ -1,6 +1,6 @@
 // Shared ask-flow contract (src/ui/ask-flow.ts) — the reusable two-screen UI.
 // Drives each helper with a scripted ctx.ui.select; no pi, no fs.
-import { askMain, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS, ICON } from '../../../src/ui/ask-flow.ts';
+import { askMain, askMainWithRemember, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS, ICON } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -80,6 +80,64 @@ const serialized = {
 };
 await Promise.all([askMain(serialized, 'A', 'b'), askMain(serialized, 'B', 'b')]);
 check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 && starts.join('|') === 'No|No');
+
+// --- two-screen asks hold one queue slot (ADR-034): screen 2 must run before
+// the next queued ask, and no two prompts may ever be active together. ---
+{
+	const order = [];
+	let active = 0;
+	let maxActive = 0;
+	const ui = {
+		select: async (t, o) => {
+			active++;
+			maxActive = Math.max(maxActive, active);
+			order.push(t.startsWith('A screen 1') ? 'A1' : t.startsWith('B screen 1') ? 'B1' : 'A2');
+			if (t.startsWith('A screen 1')) {
+				active--;
+				return 'Yes, always\u2026';
+			}
+			if (t.startsWith('B screen 1')) {
+				active--;
+				return 'No';
+			}
+			await new Promise((r) => setTimeout(r, 15));
+			active--;
+			return o[0];
+		},
+	};
+	const ctx = { hasUI: true, ui };
+	const withRemember = askMainWithRemember(ctx, 'A screen 1', 'b', { session: true }, () =>
+		askRememberFile(ctx, 'Always allow reading', 'b', '/f/x', '/f'),
+	);
+	const next = askMain(ctx, 'B screen 1', 'b', { session: true });
+	const [a, b] = await Promise.all([withRemember, next]);
+	check('askMainWithRemember: screen 2 runs before the next queued ask', order.join('|') === 'A1|A2|B1');
+	check('askMainWithRemember: only one prompt is ever active', maxActive === 1);
+	check('askMainWithRemember: returns the screen-2 grant', JSON.stringify(a) === '{"choice":"remember","grant":{"scope":"cwd","folder":true}}');
+	check('askMainWithRemember: the next ask still gets its own slot', b === 'block');
+}
+{
+	const order = [];
+	let active = 0;
+	let maxActive = 0;
+	const ui = {
+		select: async (t, o) => {
+			active++;
+			maxActive = Math.max(maxActive, active);
+			order.push(t.startsWith('Help M') ? 'M' : 'R');
+			await new Promise((r) => setTimeout(r, 15));
+			active--;
+			return o[0];
+		},
+	};
+	const ctx = { hasUI: true, ui };
+	await Promise.all([
+		askMain(ctx, 'Help M', 'b', { session: true }),
+		// A standalone screen-2 helper must serialize through the same queue too.
+		askRememberFile(ctx, 'Remember R', 'b', '/f/x', '/f'),
+	]);
+	check('a standalone screen-2 helper does not bypass the queue', maxActive === 1 && order.join('|') === 'M|R');
+}
 
 // --- askMain: mapping ---
 const pickMain = async (pick) => askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });

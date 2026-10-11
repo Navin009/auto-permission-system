@@ -11,7 +11,8 @@ import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
 import { askReadCandidates, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { audit } from "../shared/audit";
-import { askMain, askRememberFile, type AskCtx } from "../ui/ask-flow";
+import { canonicalize } from "../shared/canonicalize";
+import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow";
 import { loadConfig, projectTrusted } from "./config";
 
 /** First whitespace-separated token of a bash command — used to name the binary in prompt titles. */
@@ -29,6 +30,11 @@ export interface SandboxedBashOpts {
 /** One denial shape for Layer 1, mirroring denyMessage() in Layer 2. */
 function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "written" | "run"): string {
 	return `❌ pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome} — ask the user.`;
+}
+
+/** `Link` body row for a symlinked block path; empty when the spellings agree (ADR-035). */
+function linkRow(absPath: string, spelled: string | undefined): string[] {
+	return spelled && spelled !== absPath ? [`Link     ${spelled}`] : [];
 }
 
 const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
@@ -98,7 +104,9 @@ async function preflightAskReads(
 ): Promise<{ exitCode: number } | undefined> {
 	const cfg = loadConfig(cwd).filesystem;
 	if (!cfg?.askRead?.length) return undefined;
-	const paths = askReadCandidates(command, cwd, homedir(), cfg);
+	// Grant and match the canonical path (ADR-006/ADR-035): a symlink spelling is
+	// never bound by sandbox-runtime, so a spelled grant would silently no-op.
+	const paths = askReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd));
 	if (!paths.length) return undefined;
 	const ui = opts?.ctx as AskCtx | undefined;
 	for (const absPath of paths) {
@@ -133,39 +141,38 @@ async function preflightOutsideReads(
 		return undefined;
 	}
 	const once: string[] = [];
-	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg)) {
+	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd))) {
 		// A session grant from an earlier command already covers this path: the
 		// sandbox config re-exposes it, so run without asking again.
 		if (sessionReadGrants.includes(absPath)) continue;
 		const ui = opts.ctx as AskCtx;
-		const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      files outside your project need your OK`].join("\n"), { session: true });
-		if (main === "once") {
+		const parent = dirname(absPath);
+		const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
+		const { choice, grant } = await askMainWithRemember(
+			ui,
+			"Let this command read a file outside your project?",
+			[`File     ${absPath}`, `Command  ${command}`, `Why      files outside your project need your OK`].join("\n"),
+			{ session: true },
+			() => askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) }),
+		);
+		if (choice === MainChoice.Once) {
 			auditL1({ subject: absPath, decision: "once", reason: "outside-project-read", note: "preflight", cwd });
 			once.push(absPath);
 			continue;
 		}
-		if (main === "session") {
+		if (choice === MainChoice.Session) {
 			sessionReadGrants.push(absPath);
 			auditL1({ subject: absPath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd });
 			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} for this session (not saved)`, "info");
 			continue;
 		}
-		let subject: string | null = null;
-		let scope: "cwd" | "global" = "cwd";
-		if (main === "remember") {
-			const parent = dirname(absPath);
-			const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
-			const picked = await askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
-			if (picked) {
-				subject = picked.folder ? parent : absPath;
-				scope = picked.scope;
-			}
-		}
-		if (!subject) {
+		if (choice !== MainChoice.Remember || !grant) {
 			auditL1({ subject: absPath, decision: "no", reason: "outside-project-read", note: "preflight", cwd });
 			onData(Buffer.from(`\n${blockedLine("Read", "outside the project", "run")}\n`));
 			return { blocked: { exitCode: 1 } };
 		}
+		const subject = grant.folder ? parent : absPath;
+		const scope = grant.scope;
 		try {
 			const persistedTo = await opts.onAlwaysRead(subject, scope);
 			auditL1({ subject, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" });
@@ -223,6 +230,14 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			// added to allowWrite, never persisted (mirrors the read pre-flight's
 			// customConfig). A path already granted is not offered again, so a command
 			// that keeps hitting the same fence cannot loop.
+			// Write grants already issued for this invocation: whole folders ("once"
+			// always grants the parent; "session"/"remember" the parent when it is safe to
+			// grant) and exact files (when the parent is unsafe). If the re-run hits the
+			// fence under a granted root again the grant cannot help — denyWrite wins over
+			// allowWrite, and sandbox-runtime silently skips a root it cannot bind — so the
+			// prompt must not loop (ADR-035).
+			const grantedWriteFolders = new Set<string>();
+			const grantedWriteFiles = new Set<string>();
 			const attempt = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
 				const wrappedCommand = await SandboxManager.wrapWithSandbox(command, undefined, buildCustom(writeOnce));
 
@@ -283,6 +298,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						SandboxManager.cleanupAfterCommand();
 
 						let offending: string | undefined;
+						let spelledOffending: string | undefined;
 						let readDenied = false;
 						let writeDenied = false;
 						let hardDenied = false;
@@ -292,17 +308,23 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						let blockedHint = "";
 						if (isBlockedAccessError(outputTail)) {
 							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
-							offending = extractBlockedPath(outputTail, cwd, homedir());
+							spelledOffending = extractBlockedPath(outputTail, cwd, homedir());
+							// ADR-006/ADR-035: match and grant the canonical path. sandbox-runtime
+							// silently skips a write root whose realpath escapes the spelling
+							// (`cwd/node_modules` -> a checkout elsewhere), so a grant on the spelled
+							// path no-ops and the re-run hits the very same fence.
+							offending = spelledOffending ? canonicalize(spelledOffending, cwd) : undefined;
 							writeDenied = isWriteBlockError(outputTail);
-							// A hard denyRead path (secret material): a write grant would not help,
-							// and "always" is not offered. The outside-project fence (ADR-014) is
-							// ask-able, so keep the two reasons apart.
+							// A hard deny path (denyRead secret material and denyWrite, which wins over
+							// allowWrite): a grant cannot help, so "always" is not offered. The
+							// outside-project fence (ADR-014) is ask-able, so keep the reasons apart.
 							if (offending) {
 								const fsCfg = loadConfig(cwd).filesystem;
 								if (fsCfg) {
-									const hardPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
-									hardDenied = hardPat !== undefined;
-									hardWhy = hardPat ? `denyRead matched "${hardPat}"` : "denyRead";
+									const denyReadPat = fsCfg.denyRead.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir()));
+									const denyWritePat = writeDenied ? fsCfg.denyWrite.find((pat) => matchesPolicyPattern(offending as string, pat, cwd, homedir())) : undefined;
+									hardDenied = denyReadPat !== undefined || denyWritePat !== undefined;
+									hardWhy = denyReadPat ? `denyRead matched "${denyReadPat}"` : denyWritePat ? `denyWrite matched "${denyWritePat}"` : "";
 									outsideDenied = !writeDenied && outsideProjectReadDenied(offending, cwd, homedir(), fsCfg);
 									outsideMode = outsideProjectMode(fsCfg);
 								}
@@ -314,9 +336,10 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							if (offending) {
 								let why = "";
 								if (writeDenied && !hardDenied) why = " (not under an allowWrite root: writes outside it are read-only)";
-								else if (hardDenied) why = " (denyRead: reading it is blocked by policy)";
+								else if (hardDenied) why = ` (${hardWhy})`;
 								else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
 								blockedHint += `   Path: ${offending}${why}\n`;
+								if (spelledOffending && spelledOffending !== offending) blockedHint += `   Link: ${spelledOffending} (symlink target shown as Path)\n`;
 							}
 							blockedHint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
 							if (configDirHint) {
@@ -345,6 +368,11 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							blockedHint = "";
 						};
 
+						// The folder a write grant was already issued for in this invocation, if any.
+						// A repeated fence under a granted root means the grant did not take effect.
+						const writeGrantParent = offending ? dirname(offending) : undefined;
+						const writeGrantRepeated = offending !== undefined && (grantedWriteFolders.has(dirname(offending)) || grantedWriteFiles.has(offending));
+
 						// Ask-tier prompt: BEFORE resolve so the agent loop pauses while the
 						// user decides. Otherwise the model gets the EPERM hint immediately,
 						// tries an alternative, and the prompt sits orphaned in the UI.
@@ -355,33 +383,36 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							let askError: unknown;
 							try {
 								const ui = opts.ctx as AskCtx;
-								const main = await askMain(ui, "Let this command read a file outside your project?", [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true });
-								if (main === "once" || main === "session") {
-									if (main === "once") readOnce.push(absPath);
+								const parent = dirname(absPath);
+								const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
+								const { choice, grant } = await askMainWithRemember(
+									ui,
+									"Let this command read a file outside your project?",
+									[`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"),
+									{ session: true },
+									() => askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) }),
+								);
+								if (choice === MainChoice.Once || choice === MainChoice.Session) {
+									if (choice === MainChoice.Once) readOnce.push(absPath);
 									else sessionReadGrants.push(absPath);
-									auditL1({ subject: absPath, decision: main, scope: main === "once" ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${main === "once" ? "once" : "for this session"} — re-running the command`, "warning");
-									onData(Buffer.from(`\n✅ pi-sandbox: read of ${absPath} allowed ${main === "once" ? "once" : "for this session"}. Command output with the new permission follows.\n`));
+									auditL1({ subject: absPath, decision: choice, scope: choice === MainChoice.Once ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${choice === MainChoice.Once ? "once" : "for this session"} — re-running the command`, "warning");
+									onData(Buffer.from(`\n✅ pi-sandbox: read of ${absPath} allowed ${choice === MainChoice.Once ? "once" : "for this session"}. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
-								if (main === "remember") {
-									const parent = dirname(absPath);
-									const folder = isSafeFolderGrant(parent, homedir()) ? parent : null;
-									const picked = await askRememberFile(ui, "Always allow reading \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parent}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
-									if (picked) {
-										const subject = picked.folder ? parent : absPath;
-										try {
-											const persistedTo = await opts.onAlwaysRead(subject, picked.scope);
-											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
-											opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
-											onData(Buffer.from(`\n✅ pi-sandbox: read of ${subject} allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
-											resolve(attempt([]));
-											return;
-										} catch (e) {
-											auditL1({ subject, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
-											decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
-										}
+								if (choice === MainChoice.Remember && grant) {
+									const subject = grant.folder ? parent : absPath;
+									try {
+										const persistedTo = await opts.onAlwaysRead(subject, grant.scope);
+										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, decision: grant.scope === "cwd" ? "always-cwd" : "always-global", scope: grant.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
+										opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${grant.scope}${grant.folder ? ", folder" : ""}) — re-running the command`, "warning");
+										onData(Buffer.from(`\n✅ pi-sandbox: read of ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
+										resolve(attempt([]));
+										return;
+									} catch (e) {
+										auditL1({ subject, scope: grant.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
+										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
 								}
 							} catch (e) {
@@ -406,6 +437,14 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a ${action.toLowerCase()} of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
 							decisionHint = `\n${blockedLine(action, why, outcome)}\n`;
 							onData(Buffer.from(decisionHint));
+						} else if (offending && writeGrantRepeated && writeGrantParent) {
+							// The grant was issued this invocation and the re-run still hit the fence:
+							// asking again cannot help (denyWrite wins over allowWrite; a root the
+							// runtime cannot bind is skipped). Report the block instead of looping.
+							auditL1({ subject: offending, decision: "write-denied", reason: `grant for ${writeGrantParent} did not take effect`, cwd: opts?.ctx?.cwd, note: "grant-ineffective" });
+							opts?.ctx?.ui?.notify?.(`pi-sandbox: the write grant for ${writeGrantParent} did not take effect — the sandbox still refuses ${offending}.`, "warning");
+							decisionHint = `\n${blockedLine("Write", `the grant for ${writeGrantParent} did not take effect`, "written")}\n`;
+							onData(Buffer.from(decisionHint));
 						} else if (offending && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlways) {
 							const absPath = offending;
 							const parentDir = dirname(absPath);
@@ -413,43 +452,49 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							let askError: unknown;
 							try {
 								const ui = opts.ctx as AskCtx;
-								const main = await askMain(ui, `Let ${firstWord(command)} save files in ${parentDir}/?`, [`File     ${absPath}`, `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"), { session: true, once: !alreadyGranted });
-								if (main === "once") {
+								const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
+								const { choice, grant } = await askMainWithRemember(
+									ui,
+									`Let ${firstWord(command)} save files in ${parentDir}/?`,
+									[`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"),
+									{ session: true, once: !alreadyGranted },
+									() => askRememberFile(ui, "Always allow saving \u2014 what, and where?", [`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Folder   ${parentDir}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) }),
+								);
+								if (choice === MainChoice.Once) {
+									grantedWriteFolders.add(parentDir);
 									auditL1({ subject: absPath, granularity: "folder", original: absPath, decision: "once", scope: "invocation", cwd: opts.ctx.cwd, note: "write-once" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${absPath} once — re-running the command`, "warning");
 									onData(Buffer.from(`\n✅ pi-sandbox: write to ${absPath} allowed once. Command output with the new permission follows.\n`));
 									resolve(attempt([...writeOnce, parentDir]));
 									return;
 								}
-								if (main === "session") {
+								if (choice === MainChoice.Session) {
 									// ADR-030 shape: the grant covers the folder when safe to grant as a
 									// whole, otherwise just the exact path. buildCustom merges it in, so
 									// the re-run (and every later command this session) can write.
 									const value = isSafeFolderGrant(parentDir, homedir()) ? parentDir : absPath;
 									sessionWriteGrants.push(value);
+									(value === parentDir ? grantedWriteFolders : grantedWriteFiles).add(value);
 									auditL1({ subject: value, granularity: value === parentDir ? "folder" : "file", original: absPath, decision: "session", scope: "session", cwd: opts.ctx.cwd, note: "write-session" });
 									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${value} for this session (not saved) — re-running the command`, "info");
 									onData(Buffer.from(`\n✅ pi-sandbox: write to ${value} allowed for this session. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
-								if (main === "remember") {
-									const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
-									const picked = await askRememberFile(ui, "Always allow saving \u2014 what, and where?", [`File     ${absPath}`, `Folder   ${parentDir}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) });
-									if (picked) {
-										const subject = picked.folder ? parentDir : absPath;
-										try {
-											const persistedTo = await opts.onAlways(subject, picked.scope);
-											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, decision: picked.scope === "cwd" ? "always-cwd" : "always-global", scope: picked.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
-											opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${picked.scope}${picked.folder ? ", folder" : ""}) — re-running the command`, "warning");
-											onData(Buffer.from(`\n✅ pi-sandbox: write to ${subject} allowed (${picked.scope}${picked.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
-											resolve(attempt([]));
-											return;
-										} catch (e) {
-											auditL1({ subject, granularity: picked.folder ? "folder" : "file", original: absPath, scope: picked.scope, cwd: opts.ctx.cwd, error: String(e) });
-											opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
-											decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
-										}
+								if (choice === MainChoice.Remember && grant) {
+									const subject = grant.folder ? parentDir : absPath;
+									try {
+										const persistedTo = await opts.onAlways(subject, grant.scope);
+										(grant.folder ? grantedWriteFolders : grantedWriteFiles).add(subject);
+										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, decision: grant.scope === "cwd" ? "always-cwd" : "always-global", scope: grant.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
+										opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${subject} (${grant.scope}${grant.folder ? ", folder" : ""}) — re-running the command`, "warning");
+										onData(Buffer.from(`\n✅ pi-sandbox: write to ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
+										resolve(attempt([]));
+										return;
+									} catch (e) {
+										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, scope: grant.scope, cwd: opts.ctx.cwd, error: String(e) });
+										opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
+										decisionHint = `\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
 								}
 							} catch (e) {

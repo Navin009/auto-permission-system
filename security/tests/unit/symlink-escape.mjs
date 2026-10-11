@@ -1,17 +1,8 @@
-import { realpathSync, symlinkSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { symlinkSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, resolve, basename } from 'node:path';
+import { canonicalize } from '../../../src/shared/canonicalize.ts';
 
 function expandHome(p){ if(p==='~') return homedir(); if(p.startsWith('~/')) return homedir()+'/'+p.slice(2); return p; }
-function canonicalize(p,cwd){
-  const abs = isAbsolute(p)?p:resolve(cwd,p);
-  const trail = [];
-  let cur = abs;
-  while (true){
-    try { const real = realpathSync(cur); return trail.length ? real+'/'+trail.slice().reverse().join('/') : real; }
-    catch { const parent = dirname(cur); if (parent===cur) return abs; trail.push(basename(cur)); cur = parent; }
-  }
-}
 function matchPrefix(absPath, pattern){
   const p = expandHome(pattern);
   return absPath===p || absPath.startsWith(p+'/');

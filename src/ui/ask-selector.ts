@@ -164,8 +164,13 @@ export class AskSelector extends Container {
 	dispose(): void {
 		if (this.timer) {
 			clearInterval(this.timer);
-			this.timer = null;
+			timer: this.timer = null;
 		}
+		// A disposed component must still settle its promise: pi drops a displaced
+		// prompt without calling `done`, and an unsettled ask wedges the shared
+		// queue for every later prompt (ADR-034). `finish` is idempotent, so the
+		// normal close path (done → dispose) does not double-resolve.
+		this.finish(undefined);
 	}
 
 	/** The `Default: …` line, with the live `(Ns)` suffix while counting down. */

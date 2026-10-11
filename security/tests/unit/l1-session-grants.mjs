@@ -5,7 +5,7 @@
 //
 // Runs `createSandboxedBashOps().exec` with a stubbed SandboxManager so the
 // block/re-run/prompt flow is exercised without bubblewrap.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,13 +39,28 @@ writeFileSync(envFile, "SECRET=1\n");
 const customConfigs = [];
 let callCount = 0;
 let rememberProbeFenced = false;
+let symlinkProbeFenced = false;
+// Paths the probe commands report as fenced; set by the tests that use them.
+let symlinkFencePath = "";
+let denyFencePath = "";
+let stubbornFencePath = "";
+const fence = (p) => `printf '%s\\n' "touch: cannot touch '${p}': Read-only file system" >&2; exit 1`;
 SandboxManager.wrapWithSandbox = async (command, _argv, custom) => {
 	callCount++;
 	customConfigs.push(custom);
 	const text = String(command);
+	if (text.includes("STUBBORN-PROBE")) return fence(stubbornFencePath);
+	if (text.includes("DENY-PROBE")) return fence(denyFencePath);
+	if (text.includes("SYMLINK-PROBE")) {
+		if (!symlinkProbeFenced) {
+			symlinkProbeFenced = true;
+			return fence(symlinkFencePath);
+		}
+		return "printf 'RERUN-OK\\n'";
+	}
 	if (callCount === 1 || text.includes("FORCE-FENCE") || (text.includes("REMEMBER-PROBE") && !rememberProbeFenced)) {
 		if (text.includes("REMEMBER-PROBE")) rememberProbeFenced = true;
-		return `printf '%s\\n' "touch: cannot touch '${target}': Read-only file system" >&2; exit 1`;
+		return fence(target);
 	}
 	return "printf 'RERUN-OK\\n'";
 };
@@ -149,6 +164,59 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("remember persisted one grant", persisted.length === 1, JSON.stringify(persisted));
 	check("remember announces the outcome, not a retry", output.join("").includes("Command output with the new permission follows") && !/retry the bash command|re-running the command/i.test(output.join("")), output.join(""));
 	check("remember hides the stale block hint", !output.join("").includes("filesystem access blocked"), output.join(""));
+}
+
+// --- a path the OS reports through a symlink is granted at its canonical
+// target (ADR-035): sandbox-runtime silently skips a write root whose realpath
+// escapes the spelling, so a spelled grant re-runs into the same fence. ---
+{
+	const real = mkdtempSync(join(tmpdir(), "aps-session-real-"));
+	const link = join(cwd, "linked");
+	try { rmSync(link, { force: true }); } catch { /* absent */ }
+	symlinkSync(real, link);
+	symlinkFencePath = join(link, "file.txt");
+	const symlinkCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((o) => o === "Yes, for this session"), notify: () => {} } };
+	const execSymlink = createSandboxedBashOps({ ctx: symlinkCtx, onAlways, onAlwaysRead: onAlways });
+	const before = customConfigs.length;
+	const symlinkOut = [];
+	r = await execSymlink.exec("touch SYMLINK-PROBE", cwd, { onData: (chunk) => symlinkOut.push(chunk.toString()), signal: undefined, timeout: 10 });
+	check("symlinked write re-runs after the session grant", r.exitCode === 0, `exit=${r.exitCode}`);
+	const granted = allowWriteOf(customConfigs[before + 1]);
+	check("symlinked write grant is the canonical target", granted.includes(real), JSON.stringify(granted));
+	check("symlinked write grant is not the link spelling", !granted.includes(link), JSON.stringify(granted));
+	check("symlinked write prompt shows Path + Link", symlinkOut.join("").includes("Command output with the new permission follows"), symlinkOut.join(""));
+	rmSync(link, { force: true });
+	rmSync(real, { recursive: true, force: true });
+}
+
+// --- denyWrite beats allowWrite, so it must be hard-denied, never offered as a
+// grant (ADR-035): otherwise once/session/remember all re-run into the fence. ---
+{
+	denyFencePath = join(outside, "secret.pem");
+	// The shipped default has no denyWrite; add one so the hard tier is exercised.
+	writeFileSync(join(agentDir, "extensions", "sandbox.json"), JSON.stringify({ filesystem: { denyWrite: ["*.pem"] } }));
+	let prompted = 0;
+	const denyCtx = { cwd, hasUI: true, ui: { select: async () => { prompted++; return undefined; }, notify: () => {} } };
+	const denyOut = [];
+	const execDeny = createSandboxedBashOps({ ctx: denyCtx, onAlways, onAlwaysRead: onAlways });
+	r = await execDeny.exec("touch DENY-PROBE", cwd, { onData: (chunk) => denyOut.push(chunk.toString()), signal: undefined, timeout: 10 });
+	check("denyWrite path is not offered a grant", prompted === 0, `prompts=${prompted}`);
+	check("denyWrite path reports the policy reason", denyOut.join("").includes('denyWrite matched "*.pem"'), denyOut.join(""));
+	check("denyWrite path is audited as write-denied", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"decision":"write-denied"'));
+}
+
+// --- a grant that does not take effect is not re-prompted (ADR-035): the
+// re-run hits the same fence, so asking again can only loop. ---
+{
+	stubbornFencePath = join(outside, "stubborn.txt");
+	let prompted = 0;
+	const stubbornCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => { prompted++; return options.find((o) => o === "Yes, for this session"); }, notify: () => {} } };
+	const stubbornOut = [];
+	const execStubborn = createSandboxedBashOps({ ctx: stubbornCtx, onAlways, onAlwaysRead: onAlways });
+	r = await execStubborn.exec("touch STUBBORN-PROBE", cwd, { onData: (chunk) => stubbornOut.push(chunk.toString()), signal: undefined, timeout: 10 });
+	check("an ineffective grant prompts exactly once", prompted === 1, `prompts=${prompted}`);
+	check("an ineffective grant reports the block instead of looping", stubbornOut.join("").includes("did not take effect"), stubbornOut.join(""));
+	check("an ineffective grant is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"grant-ineffective"'));
 }
 
 // --- session_start clears the grants -------------------------------------
