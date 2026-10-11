@@ -20,6 +20,9 @@ Conventions:
   (`Default: Yes, just this once (15s)`) and disappears as soon as you press
   ↑/↓, so the hint never competes with an active choice (ADR-031). The
   timeout is `ASK_TIMEOUT_MS` (default 15s).
+- **Keyboard only (ADR-036):** ↑/↓ move the highlight, Enter picks, Esc
+  cancels. A mouse click or wheel over the prompt does nothing — it cannot
+  move the highlight or pick a row.
 - **"…"** at the end of an answer opens a second screen.
 - **Screen 2 ("Yes, always…")** shows the File and Folder (or Site and
   Group) once at the top. Rows say "All in folder" / "All in group" or

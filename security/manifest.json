@@ -42,7 +42,7 @@
       "id": "L2",
       "name": "In-process tool guard",
       "status": "shipped",
-      "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032.",
+      "purpose": "Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032. Ask prompts are keyboard-only (ADR-036): mouse clicks and wheel are inert, so only ↑/↓ moves the highlight and only Enter picks.",
       "sourceFiles": [
         "extensions/guard.ts",
         "extensions/permission-mode.ts",
@@ -63,7 +63,7 @@
         { "id": "L1-L2-override-store", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs", "expected": "PASS=18, FAIL=0" },
         { "id": "L2-ask-contract", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs", "expected": "PASS=31, FAIL=0" },
         { "id": "L1-L2-ask-flow", "command": "node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs", "expected": "PASS=60, FAIL=0" },
-        { "id": "L1-L2-ask-selector", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs", "expected": "PASS=24 FAIL=0" },
+        { "id": "L1-L2-ask-selector", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs", "expected": "PASS=34 FAIL=0" },
         { "id": "L1-L2-defaults", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs", "expected": "PASS=16, FAIL=0" },
         { "id": "L2-detect-smoke", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs", "expected": "PASS=26, FAIL=0" },
         { "id": "L1-L2-permission-mode", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs", "expected": "PASS=23, FAIL=0" },

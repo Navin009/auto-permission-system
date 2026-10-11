@@ -16,6 +16,11 @@
  *     Yes, all in group for this session
  *     Yes, always…
  *
+ * Keyboard only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels.
+ * Mouse events are swallowed before they reach the list — pi's SelectList picks
+ * the clicked row and moves the highlight on wheel, which could approve a row
+ * the user never read.
+ *
  * `askSelect` loads this module lazily and only in TUI mode
  * (`ctx.mode === "tui"`), so `src/ui/ask-flow.ts` and the contract tests stay
  * free of pi-tui imports. RPC keeps `ui.select`: RPC's `ui.custom` is a no-op
@@ -140,8 +145,8 @@ export class AskSelector extends Container {
 
 	handleInput(data: string): void {
 		// Intercept ↑/↓: pi's SelectList wraps at the ends, the ask prompts have
-		// always clamped. Everything else (Enter, Esc, page keys, mouse) is the
-		// list's own behavior.
+		// always clamped. Everything else (Enter, Esc, page keys) is the list's
+		// own behavior; mouse events never reach it (ADR-036).
 		if (this.keybindings.matches(data, "tui.select.up")) {
 			this.move(-1);
 			return;
@@ -151,6 +156,18 @@ export class AskSelector extends Container {
 			return;
 		}
 		this.list.handleInput(data);
+	}
+
+	/**
+	 * Keyboard-only prompt (ADR-036). Deliberately does not call the inherited
+	 * Container dispatch: that would forward the event to the SelectList, which
+	 * picks the row a left click lands on and moves the highlight on wheel — a
+	 * stray click on the terminal could allow a call the user never chose.
+	 * Returning `undefined` means "not handled here"; the renderer may still use
+	 * the gesture for its own text selection, which cannot pick an answer.
+	 */
+	handleMouse(): undefined {
+		return undefined;
 	}
 
 	private move(delta: number): void {
@@ -164,7 +181,7 @@ export class AskSelector extends Container {
 	dispose(): void {
 		if (this.timer) {
 			clearInterval(this.timer);
-			timer: this.timer = null;
+			this.timer = null;
 		}
 		// A disposed component must still settle its promise: pi drops a displaced
 		// prompt without calling `done`, and an unsettled ask wedges the shared

@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-11T10:26:00.038Z
+Generated: 2026-10-11T18:39:09.338Z
 
 ## At a glance
 
@@ -59,7 +59,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032.
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032. Ask prompts are keyboard-only (ADR-036): mouse clicks and wheel are inert, so only ↑/↓ moves the highlight and only Enter picks.
 
 **Source files**
 
@@ -83,7 +83,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=60, FAIL=0
-- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=24 FAIL=0
+- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=34 FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0

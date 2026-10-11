@@ -1,6 +1,7 @@
 // Custom TUI ask selector (src/ui/ask-selector.ts, ADR-031).
 // The footer shows a live countdown, disappears the moment the user moves the
 // selection, and expiry is exact (Esc is never mistaken for the countdown).
+// Keyboard only (ADR-036): mouse events are inert, only Enter picks a row.
 import { getKeybindings } from '@earendil-works/pi-tui';
 import { AskSelector } from '../../../src/ui/ask-selector.ts';
 
@@ -75,6 +76,45 @@ const text = (comp) => comp.render(80).join('\n');
 	const s = mk();
 	s.comp.handleInput('\r');
 	check('Enter without navigation returns the default row (No)', s.result === 'No');
+}
+
+// --- mouse is inert (ADR-036): pi's SelectList picks the row a left click
+// lands on and moves the highlight on wheel, so the selector must never
+// forward mouse events to it. Only Enter may pick a row. ---
+const mouse = (overrides = {}) => ({
+	type: 'click', button: 'left', x: 0, y: 0, screenX: 0, screenY: 0,
+	width: 80, height: 17, shift: false, alt: false, ctrl: false, ...overrides,
+});
+{
+	const s = mk();
+	const lines = s.comp.render(80);
+	const yesRow = lines.findIndex((l) => l.includes('Yes, just this once'));
+	check('mouse: option row found to aim a click at', yesRow > 0);
+	s.comp.handleMouse(mouse({ y: yesRow, screenY: yesRow }));
+	check('mouse: click does not settle the prompt', s.result === undefined);
+	check('mouse: click does not move the highlight', text(s.comp).includes('→ No'));
+	check('mouse: click does not hide the footer', text(s.comp).includes('Default: Yes, just this once (15s)'));
+	s.comp.handleInput('\r');
+	check('mouse: Enter still picks the keyboard-highlighted row (No)', s.result === 'No');
+}
+{
+	const s = mk();
+	const before = text(s.comp);
+	s.comp.handleMouse(mouse({ type: 'wheel', button: 'none', wheelDelta: 1 }));
+	s.comp.handleMouse(mouse({ type: 'wheel', button: 'none', wheelDelta: 1 }));
+	check('mouse: wheel does not move the highlight', text(s.comp) === before);
+	check('mouse: wheel does not hide the footer', text(s.comp).includes('Default: Yes, just this once (15s)'));
+	check('mouse: wheel does not settle the prompt', s.result === undefined);
+}
+{
+	const s = mk();
+	s.comp.handleMouse(mouse({ type: 'press', y: 3, screenY: 3 }));
+	s.comp.handleMouse(mouse({ type: 'release', y: 3, screenY: 3 }));
+	s.comp.handleMouse(mouse({ type: 'click', y: 3, screenY: 3 }));
+	check('mouse: press/release/click leave the prompt unsettled', s.result === undefined);
+	s.comp.handleInput('\x1b[B');
+	s.comp.handleInput('\r');
+	check('mouse: keyboard still works after a stray click', s.result === 'Yes, just this once');
 }
 
 // --- ↑/↓ clamp at the ends (the previous selector never wrapped) ---
