@@ -9,8 +9,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Point pi's agent dir at a scratch dir BEFORE importing the sources: audit.ts
-// captures AUDIT_PATH at import time, so the test never touches the real log.
 const agentDir = mkdtempSync(join(tmpdir(), "aps-session-agent-"));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 
@@ -34,13 +32,10 @@ const target = join(outside, "blocked.txt");
 const envFile = join(cwd, ".env");
 writeFileSync(envFile, "SECRET=1\n");
 
-// Stub the sandbox: the first wrapped command reports the OS write fence (the
-// shape bubblewrap prints), later ones succeed and record the customConfig.
 const customConfigs = [];
 let callCount = 0;
 let rememberProbeFenced = false;
 let symlinkProbeFenced = false;
-// Paths the probe commands report as fenced; set by the tests that use them.
 let symlinkFencePath = "";
 let denyFencePath = "";
 let stubbornFencePath = "";
@@ -88,7 +83,6 @@ const run = (command) => exec.exec(command, cwd, { onData: () => {}, signal: und
 const allowWriteOf = (custom) => custom?.filesystem?.allowWrite ?? [];
 const allowReadOf = (custom) => custom?.filesystem?.allowRead ?? [];
 
-// --- write: session pick re-runs and the grant survives the next command ---
 const out1 = [];
 const execOut = createSandboxedBashOps({ ctx, onAlways, onAlwaysRead: onAlways });
 let r = await execOut.exec(`touch '${target}'`, cwd, { onData: (c) => out1.push(c.toString()), signal: undefined, timeout: 10 });
@@ -108,7 +102,6 @@ check("later command does not re-prompt", prompts.length === promptsBefore, `${p
 check("later command carries the session grant", allowWriteOf(customConfigs[configsBefore]).some((p) => p.includes(outside)), JSON.stringify(customConfigs[configsBefore]));
 check("later command succeeds", r.exitCode === 0, `exit=${r.exitCode}`);
 
-// --- askRead: session pick is remembered (not re-asked) -------------------
 const promptsBeforeAsk = prompts.length;
 r = await run("cat .env");
 check("askRead prompt offered the session option", prompts[promptsBeforeAsk]?.includes("Yes, for this session"));
@@ -118,12 +111,10 @@ r = await run("cat .env");
 check("askRead is not re-asked in the session", prompts.length === promptsBeforeAsk2, `${prompts.length} vs ${promptsBeforeAsk2}`);
 check("askRead session grant never leaks into allowRead", !allowReadOf(customConfigs[customConfigs.length - 1]).includes(envFile));
 
-// --- audit log carries the decision, not a silent "no" --------------------
 const auditLog = readFileSync(join(agentDir, "audit.log"), "utf8");
 check("write session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"write-session"'), auditLog);
 check("askRead session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"ask-read"'), auditLog);
 
-// --- a policy write from the other layer is visible on the next command -----
 {
 	const globalDir = join(agentDir, "extensions");
 	mkdirSync(globalDir, { recursive: true });
@@ -134,7 +125,6 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("next command re-reads a policy written after init", allowWriteOf(fresh).some((p) => p.includes(freshDir)), JSON.stringify(fresh));
 }
 
-// --- an explicit No is audited with a note, never a bare "no" --------------
 {
 	const noCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options[0], notify: () => {} } };
 	const noOutput = [];
@@ -145,7 +135,6 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("denied command still explains the block", noOutput.join("").includes("filesystem access blocked"), noOutput.join(""));
 }
 
-// --- remember: persist and re-run, like once and session -------------------
 {
 	const rememberCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((option) => option === "Yes, always\u2026") ?? options[0], notify: () => {} } };
 	const persisted = [];
@@ -168,13 +157,10 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("remember hides the stale block hint", !output.join("").includes("filesystem access blocked"), output.join(""));
 }
 
-// --- a path the OS reports through a symlink is granted at its canonical
-// target (ADR-035): sandbox-runtime silently skips a write root whose realpath
-// escapes the spelling, so a spelled grant re-runs into the same fence. ---
 {
 	const real = mkdtempSync(join(tmpdir(), "aps-session-real-"));
 	const link = join(cwd, "linked");
-	try { rmSync(link, { force: true }); } catch { /* absent */ }
+	try { rmSync(link, { force: true }); } catch { }
 	symlinkSync(real, link);
 	symlinkFencePath = join(link, "file.txt");
 	const symlinkCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((o) => o === "Yes, for this session"), notify: () => {} } };
@@ -191,11 +177,8 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	rmSync(real, { recursive: true, force: true });
 }
 
-// --- denyWrite beats allowWrite, so it must be hard-denied, never offered as a
-// grant (ADR-035): otherwise once/session/remember all re-run into the fence. ---
 {
 	denyFencePath = join(outside, "secret.pem");
-	// The shipped default has no denyWrite; add one so the hard tier is exercised.
 	writeFileSync(join(agentDir, "extensions", "sandbox.json"), JSON.stringify({ filesystem: { denyWrite: ["*.pem"] } }));
 	let prompted = 0;
 	const denyCtx = { cwd, hasUI: true, ui: { select: async () => { prompted++; return undefined; }, notify: () => {} } };
@@ -207,8 +190,6 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("denyWrite path is audited as write-denied", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"decision":"write-denied"'));
 }
 
-// --- a grant that does not take effect is not re-prompted (ADR-035): the
-// re-run hits the same fence, so asking again can only loop. ---
 {
 	stubbornFencePath = join(outside, "stubborn.txt");
 	let prompted = 0;
@@ -221,9 +202,6 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("an ineffective grant is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"grant-ineffective"'));
 }
 
-// --- a bwrap mount-setup failure is not a policy denial: the path is INSIDE
-// the project, so no allowWrite grant can help. It must not prompt with a
-// misleading reason ("outside your project" / "not under an allowWrite root").
 {
 	bwrapFencePath = join(cwd, ".claude", "agents");
 	let prompted = 0;
@@ -237,7 +215,6 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("bwrap setup failure is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"sandbox-setup-error"'));
 }
 
-// --- session_start clears the grants -------------------------------------
 clearFilesystemSessionGrants();
 check("clearFilesystemSessionGrants clears the summary", filesystemSessionGrantSummary() === "", filesystemSessionGrantSummary());
 

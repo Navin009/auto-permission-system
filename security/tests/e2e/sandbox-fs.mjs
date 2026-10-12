@@ -64,18 +64,12 @@ try {
 		TIMEOUT_MS,
 	);
 
-	// A denied file is masked: its content must never reach the output.
 	const denied = run(await SandboxManager.wrapWithSandbox(`cat '${secret}'`));
 	check("denied file content is not leaked", !denied.includes("TOPSECRET"), `out=${JSON.stringify(denied)}`);
 
-	// An allowed file still works, so the sandbox isn't just blocking everything.
 	const allowed = run(await SandboxManager.wrapWithSandbox(`cat '${visible}'`));
 	check("allowed file is readable", allowed.includes("VISIBLE-OK"), `out=${JSON.stringify(allowed)}`);
 
-	// A write outside allowWrite is refused by the OS (read-only mount), and the
-	// output must be attributable: this is what Layer 1's write ask fires on.
-	// Linux reports EROFS ("Read-only file system"); macOS reports EPERM, which is
-	// direction-ambiguous and must not be treated as write evidence.
 	const target = join(roDir, "blocked.txt");
 	const deniedWrite = run(await SandboxManager.wrapWithSandbox(`touch '${target}'`));
 	check("write outside allowWrite is refused", isBlockedAccessError(deniedWrite), `out=${JSON.stringify(deniedWrite)}`);

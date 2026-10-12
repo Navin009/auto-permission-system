@@ -46,7 +46,6 @@ export async function resetSandbox(): Promise<void> {
 	try {
 		await SandboxManager.reset();
 	} catch {
-		/* ignore cleanup errors */
 	}
 }
 

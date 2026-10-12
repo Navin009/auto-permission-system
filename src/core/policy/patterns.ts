@@ -91,8 +91,6 @@ export function extractBlockedPath(output: string, cwd: string, home: string): s
 		const quotedTokens = [...line.matchAll(/['"“‘`]([^'"”’`]+)['"”’`]/g)].map((quote) => quote[1] as string);
 		const quotedPath = toAbsolutePath(quotedTokens.at(-1) ?? "", cwd, home);
 		if (quotedPath) return quotedPath;
-		// Keep the whole operand, spaces included, instead of its last
-		// whitespace-delimited token: `Crash Reports/new/x.dmp` is one path.
 		const beforeError = line.slice(0, match.index).replace(/[\s:]+$/, "");
 		const candidate = stripErrnoLeadIn(beforeError.split(/:\s+/).pop() ?? "");
 		if (!looksLikePath(candidate)) continue;

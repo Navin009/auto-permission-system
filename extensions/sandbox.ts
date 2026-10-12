@@ -39,12 +39,8 @@ import { onDomainGrant } from "../src/shared/network-grants";
 import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo";
 
 export default function (pi: ExtensionAPI) {
-	// pi scopes flags per extension (ADR-020); registering here makes
-	// `yoloFromFlags(pi)` below read the real CLI value.
 	registerYoloFlags(pi);
 
-	// A domain remembered from the Layer 2 guard prompt is written to
-	// sandbox.json by the guard; apply it to the running proxy here (ADR-023).
 	onDomainGrant(pi.events, applyNetworkGrant);
 
 	const localCwd = process.cwd();
@@ -68,9 +64,6 @@ export default function (pi: ExtensionAPI) {
 		persist: (host, scope) => writeNetworkOverride(cwd, host, scope),
 		applyLive: applyNetworkGrant,
 		audit,
-		// Lazy getters so each proxy ask reads the live trust state and the most
-		// recent bash command. Without these, the values captured at initSandbox()
-		// would be stale.
 		get projectTrusted() { return projectTrusted(cwd); },
 		get command() { return latestBashCommand; },
 	});
@@ -119,17 +112,12 @@ export default function (pi: ExtensionAPI) {
 		}
 	};
 
-	// Runtime YOLO from `/permission-mode` (ADR-020): stop or restart the
-	// sandbox in place, without a session restart.
 	onYolo(pi.events, (enabled) => {
-		// The startup broadcast originates here; ignore our own echo.
 		if (enabled === runtimeYolo) return;
 		runtimeYolo = enabled;
 		const ctx = latestCtx;
 		if (!ctx) return;
 		if (!enabled) {
-			// Gate bash until the sandbox is back up, so turning YOLO off cannot
-			// leave a window where a command runs unfenced (ADR-020 follow-up).
 			sandboxStarting = startSandbox(ctx).finally(() => {
 				sandboxStarting = null;
 			});
@@ -162,7 +150,6 @@ export default function (pi: ExtensionAPI) {
 		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
 	});
 
-	// Capture the latest bash command so the network ask body can show it.
 	pi.on("tool_call", (event, _ctx) => {
 		if (event.toolName === "bash") {
 			const input = event.input as { command?: string };
@@ -177,8 +164,6 @@ export default function (pi: ExtensionAPI) {
 		clearFilesystemSessionGrants();
 		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
 		runtimeYolo = yoloFromFlags(pi) || loadConfig(ctx.cwd).mode === "yolo";
-		// Broadcast before any await: guard.ts consumes this on the same bus to
-		// learn YOLO is on (ADR-020).
 		emitYolo(pi.events, runtimeYolo);
 
 		if (runtimeYolo) {

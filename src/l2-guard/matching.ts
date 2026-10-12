@@ -34,8 +34,6 @@ function globToRegex(pattern: string): RegExp {
 	return new RegExp(source, process.platform === "darwin" ? "i" : "");
 }
 
-// Canonicalization lives in src/shared/canonicalize.ts (ADR-006) so Layer 1's
-// bash grant path and Layer 2's tool path share one implementation.
 export { canonicalize } from "../shared/canonicalize";
 
 /**
@@ -60,9 +58,6 @@ export function matchPattern(absPath: string, pattern: string, cwd: string): boo
 	return basenameOfPath === expandedPattern;
 }
 
-// Hardcoded absolute-deny tier (per PLAN-ask-tier-ux.md OQ#5).
-// Allowing one call takes two select steps that default to block (ADR-009); "always" is forbidden.
-// pi's own auth.json holds the provider OAuth tokens and API keys pi runs on.
 const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key", `${getAgentDir()}/auth.json`];
 
 export function isAbsoluteDeny(absPath: string, cwd: string): string | null {
@@ -138,7 +133,6 @@ export function piPackageRoot(): string | null {
 			directory = dirname(directory);
 		}
 	} catch {
-		/* not found: no built-in root */
 	}
 	return piRootCache;
 }
@@ -148,9 +142,6 @@ export function outsideProjectReason(abs: string, cwd: string, policy: Policy): 
 	if (mode === ReadPosture.Allow) return null;
 	const projectRoot = canonicalize(cwd, cwd);
 	if (abs === projectRoot || abs.startsWith(`${projectRoot}/`)) return null;
-	// The pi agent dir is deliberately NOT here: it holds mcp.json (API keys),
-	// sessions and caches, so it must go through the outside-project gate. It is
-	// in DEFAULT_DENY_READ as well, which also covers bash (ADR-014).
 	const allowedRoots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), piPackageRoot()]
 		.filter((root): root is string => !!root)
 		.map((root) => (root.startsWith("/") ? canonicalize(root, cwd) : root));

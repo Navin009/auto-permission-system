@@ -47,7 +47,6 @@ export function redactText(content: string): RedactedText {
   let text = content;
   let redactions = 0;
 
-  // 1. key/value assignments (covers generic secrets without a format).
   const lines = text.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i++) {
@@ -72,7 +71,6 @@ export function redactText(content: string): RedactedText {
 
   text = lines.join("\n");
 
-  // 2. JWT (linear token scan).
   text = text.replace(TOKEN_REGEX, (token) => {
     if (!isJwtToken(token)) {
       return token;
@@ -82,7 +80,6 @@ export function redactText(content: string): RedactedText {
     return "[REDACTED:JWT]";
   });
 
-  // 3. PEM private keys.
   const pemBody =
     /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----[\s\S]{0,200000}?-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----/g;
   const pemMatches = text.match(pemBody);
@@ -100,7 +97,6 @@ export function redactText(content: string): RedactedText {
     text = text.replace(pemBegin, "[REDACTED:PRIVATE_KEY_BEGIN]");
   }
 
-  // 4. Bearer tokens.
   const bearer = /\bBearer[ \t]+[A-Za-z0-9._~+/=-]{20,}/gi;
   const bearerMatches = text.match(bearer);
 
@@ -109,7 +105,6 @@ export function redactText(content: string): RedactedText {
     text = text.replace(bearer, "Bearer [REDACTED]");
   }
 
-  // 5. URL / connection-string passwords.
   const urlCredentials =
     /(\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mssql|redis|rediss|amqp|https?|ftp|sftp|ssh):\/\/[^:@\s/]{1,256}):[^@\s/]{1,256}@/gi;
 
@@ -118,7 +113,6 @@ export function redactText(content: string): RedactedText {
     return `${prefix}:***REDACTED***@`;
   });
 
-  // 6. Known token formats.
   for (const format of KNOWN_SECRET_FORMATS) {
     const flags = format.regex.flags.includes("g")
       ? format.regex.flags

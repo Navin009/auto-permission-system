@@ -73,21 +73,18 @@ export function classifyFilename(filePath: string): NameVerdict {
   const lower = base.toLowerCase();
   const ext = path.extname(lower);
 
-  // 1. Exact strong basenames.
   for (const [pattern, reason] of STRONG_NAME_REGEXES) {
     if (pattern.test(lower)) {
       return verdictOf("strong", reason);
     }
   }
 
-  // 2. Strong path patterns.
   for (const [pattern, reason] of STRONG_PATH_REGEXES) {
     if (pattern.test(normalized)) {
       return verdictOf("strong", reason);
     }
   }
 
-  // 3. Key/certificate extensions and credential stems. These always ask.
   if (KEY_EXTENSIONS.has(ext)) {
     return verdictOf("strong", `key/certificate file (${ext})`);
   }
@@ -102,23 +99,18 @@ export function classifyFilename(filePath: string): NameVerdict {
     return verdictOf("config", "terraform vars/state");
   }
 
-  // 4. Application config names: weak prior, content decides.
   for (const [pattern, reason] of CONFIG_NAME_REGEXES) {
     if (pattern.test(lower) || pattern.test(normalized)) {
       return verdictOf("weak", reason);
     }
   }
 
-  // 5. Weak candidates (content decides).
   for (const [pattern, reason] of WEAK_NAME_REGEXES) {
     if (pattern.test(lower)) {
       return verdictOf("weak", reason);
     }
   }
 
-  // 6. Source files: only exact value-keyword basenames match. Compound
-  //    module names such as TokenService.java or authentication.ts stay
-  //    excluded, as do concept names such as auth.ts or token.go.
   const tokens = tokensOf(stem);
 
   if (isSourceExtension(ext)) {
@@ -128,7 +120,6 @@ export function classifyFilename(filePath: string): NameVerdict {
 
     return NOT_A_CANDIDATE;
   }
-  // 7. Generic keyword for config-like names.
   const configLike =
     CONFIG_EXTENSIONS.has(ext) || lower.startsWith(".") || ext === "";
 

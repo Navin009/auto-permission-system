@@ -83,11 +83,11 @@ export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remem
 
 /** Icons per prompt type. Header takes the icon + title. */
 export const ICON = {
-	ask: "❓",          // normal ask — every prompt is a question
-	warn: "⚠",          // system change (sudo, untrusted project, /etc writes)
-	cred: "🔑",         // secrets and credentials (askRead, denyRead, advanced-secure)
-	net: "🌐",          // network (allowFirst)
-	save: "💾",         // screen 2 — always-remember scope pick
+	ask: "❓",
+	warn: "⚠",
+	cred: "🔑",
+	net: "🌐",
+	save: "💾",
 } as const;
 export type IconKey = keyof typeof ICON;
 
@@ -375,8 +375,6 @@ export async function askRememberFile(
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: GrantScope.Global, folder: false } });
 	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	// Plain `askSelect`: atomic with screen 1 when called from askMainWithRemember's
-	// continuation (the queue slot is held), serialized normally when called alone.
 	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { footer });
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }

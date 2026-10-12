@@ -104,13 +104,10 @@ async function preflightAskReads(
 ): Promise<{ exitCode: number } | undefined> {
 	const cfg = loadConfig(cwd).filesystem;
 	if (!cfg?.askRead?.length) return undefined;
-	// Grant and match the canonical path (ADR-006/ADR-035): a symlink spelling is
-	// never bound by sandbox-runtime, so a spelled grant would silently no-op.
 	const paths = askReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd));
 	if (!paths.length) return undefined;
 	const ui = opts?.ctx as AskCtx | undefined;
 	for (const absPath of paths) {
-		// A session grant from an earlier command covers this path (ADR-010).
 		if (sessionAskReadGrants.includes(absPath)) continue;
 		if (!ui?.hasUI || !ui.ui?.select) {
 			auditL1({ subject: absPath, decision: "no", note: "ask-read-headless", cwd });
@@ -142,8 +139,6 @@ async function preflightOutsideReads(
 	}
 	const once: string[] = [];
 	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd))) {
-		// A session grant from an earlier command already covers this path: the
-		// sandbox config re-exposes it, so run without asking again.
 		if (sessionReadGrants.includes(absPath)) continue;
 		const ui = opts.ctx as AskCtx;
 		const parent = dirname(absPath);
@@ -193,21 +188,14 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 				throw new Error(`Working directory does not exist: ${cwd}`);
 			}
 
-			// Commands that can print secrets (tokens in the environment) ask first.
 			const sensitive = await preflightSensitiveCommands(command, cwd, opts, onData);
 			if (sensitive) return sensitive;
 
 			const askRead = await preflightAskReads(command, cwd, opts, onData);
 			if (askRead) return askRead;
 
-			// ADR-015: sandbox-runtime masks a gated directory with an empty tmpfs,
-			// so an outside read would otherwise succeed with silently trimmed output
-			// and never reach the EPERM post-block hook. Ask before running.
 			const pre = await preflightOutsideReads(command, cwd, opts, onData);
 			if (pre && "blocked" in pre) return pre.blocked;
-			// "this once" grants apply to this one invocation only: hand them to
-			// wrapWithSandbox as a customConfig, so nothing is persisted and the
-			// session-wide sandbox is not re-initialised.
 			const readOnce = [...(pre?.once ?? [])];
 			const buildCustom = (writeOnce: string[]): Partial<SandboxRuntimeConfig> => {
 				const readRoots = [...readOnce, ...sessionReadGrants];
@@ -222,20 +210,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			};
 
 			const uid = process.getuid?.() ?? 0;
-			// macOS has /private/tmp; Linux only /tmp. Either sits in the default
-			// allowWrite list, so the sandboxed command can write its scratch files.
 			const piTmp = `${existsSync("/private/tmp") ? "/private/tmp" : "/tmp"}/pi-${uid}`;
 
-			// One one-time write grant = one re-run of the same command with that path
-			// added to allowWrite, never persisted (mirrors the read pre-flight's
-			// customConfig). A path already granted is not offered again, so a command
-			// that keeps hitting the same fence cannot loop.
-			// Write grants already issued for this invocation: whole folders ("once"
-			// always grants the parent; "session"/"remember" the parent when it is safe to
-			// grant) and exact files (when the parent is unsafe). If the re-run hits the
-			// fence under a granted root again the grant cannot help — denyWrite wins over
-			// allowWrite, and sandbox-runtime silently skips a root it cannot bind — so the
-			// prompt must not loop (ADR-035).
 			const grantedWriteFolders = new Set<string>();
 			const grantedWriteFiles = new Set<string>();
 			const attempt = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
@@ -308,21 +284,10 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						let blockedHint = "";
 						let sandboxSetupError = false;
 						if (isBlockedAccessError(outputTail)) {
-							// bwrap's own mount-setup failure (e.g. the mandatory `.claude/agents`
-							// deny in a project that has no `.claude`) is not the command being
-							// refused a write — no allowWrite grant can change it.
 							sandboxSetupError = /(^|\n)\s*bwrap:/i.test(outputTail);
-							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
 							spelledOffending = extractBlockedPath(outputTail, cwd, homedir());
-							// ADR-006/ADR-035: match and grant the canonical path. sandbox-runtime
-							// silently skips a write root whose realpath escapes the spelling
-							// (`cwd/node_modules` -> a checkout elsewhere), so a grant on the spelled
-							// path no-ops and the re-run hits the very same fence.
 							offending = spelledOffending ? canonicalize(spelledOffending, cwd) : undefined;
 							writeDenied = isWriteBlockError(outputTail);
-							// A hard deny path (denyRead secret material and denyWrite, which wins over
-							// allowWrite): a grant cannot help, so "always" is not offered. The
-							// outside-project fence (ADR-014) is ask-able, so keep the reasons apart.
 							if (offending) {
 								const fsCfg = loadConfig(cwd).filesystem;
 								if (fsCfg) {
@@ -373,27 +338,17 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							blockedHint = "";
 						};
 
-						// The folder a write grant was already issued for in this invocation, if any.
-						// A repeated fence under a granted root means the grant did not take effect.
 						const writeGrantParent = offending ? dirname(offending) : undefined;
 						const writeGrantRepeated = offending !== undefined && (grantedWriteFolders.has(dirname(offending)) || grantedWriteFiles.has(offending));
 
-						// Ask-tier prompt: BEFORE resolve so the agent loop pauses while the
-						// user decides. Otherwise the model gets the EPERM hint immediately,
-						// tries an alternative, and the prompt sits orphaned in the UI.
 						let decisionHint = "";
 						if (sandboxSetupError && !hardDenied && !outsideDenied && (!offending || offending === cwd || offending.startsWith(`${cwd}/`))) {
-							// bwrap could not build its own mount mask (e.g. the mandatory
-							// `.claude/agents` deny inside a project that has no `.claude`). The
-							// command was refused by sandbox setup, not by the write policy, so a grant
-							// cannot help and asking would mislabel an in-project path.
 							blockedHint = "";
 							auditL1({ subject: offending ?? spelledOffending, decision: "write-denied", reason: "the OS sandbox could not start (bwrap mount setup)", cwd: opts?.ctx?.cwd, note: "sandbox-setup-error" });
 							opts?.ctx?.ui?.notify?.(`pi-sandbox: the OS sandbox could not start (bwrap could not create ${offending ?? spelledOffending ?? "a protected mount point"}). This is a sandbox setup problem, not a policy denial.`, "warning");
 							decisionHint = `\n❌ pi-sandbox: the OS sandbox could not start (bwrap could not create a protected mount point), so nothing was permission-prompted. This is a sandbox setup problem, not a policy denial.\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
-							// ask-tier read grant for a path outside the project (ADR-014).
 							const absPath = offending;
 							let askError: unknown;
 							try {
@@ -453,9 +408,6 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							decisionHint = `\n${blockedLine(action, why, outcome)}\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && writeGrantRepeated && writeGrantParent) {
-							// The grant was issued this invocation and the re-run still hit the fence:
-							// asking again cannot help (denyWrite wins over allowWrite; a root the
-							// runtime cannot bind is skipped). Report the block instead of looping.
 							auditL1({ subject: offending, decision: "write-denied", reason: `grant for ${writeGrantParent} did not take effect`, cwd: opts?.ctx?.cwd, note: "grant-ineffective" });
 							opts?.ctx?.ui?.notify?.(`pi-sandbox: the write grant for ${writeGrantParent} did not take effect — the sandbox still refuses ${offending}.`, "warning");
 							decisionHint = `\n${blockedLine("Write", `the grant for ${writeGrantParent} did not take effect`, "written")}\n`;
@@ -485,9 +437,6 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									return;
 								}
 								if (choice === MainChoice.Session) {
-									// ADR-030 shape: the grant covers the folder when safe to grant as a
-									// whole, otherwise just the exact path. buildCustom merges it in, so
-									// the re-run (and every later command this session) can write.
 									const value = isSafeFolderGrant(parentDir, homedir()) ? parentDir : absPath;
 									sessionWriteGrants.push(value);
 									(value === parentDir ? grantedWriteFolders : grantedWriteFiles).add(value);
@@ -528,7 +477,6 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							}
 							onData(Buffer.from(decisionHint));
 						} else if (offending && writeDenied) {
-							// No UI to prompt with: report the fence and the path to the model.
 							auditL1({ subject: offending, decision: "write-denied", reason: "not under any allowWrite root", cwd });
 							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a write of ${offending} (not under any allowWrite root).`, "warning");
 							onData(Buffer.from(`\n${blockedLine("Write", "not under any allowWrite root", "written")}\n`));
@@ -546,8 +494,6 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 				});
 			};
 
-			// "Allow once" network grants cover this command's connections to a host;
-			// the finally releases them however the command ends (abort/timeout too).
 			beginNetworkCommand();
 			try {
 				return await attempt([]);

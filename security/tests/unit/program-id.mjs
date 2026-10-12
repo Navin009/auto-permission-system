@@ -5,7 +5,6 @@ import { bashBinary, programIdForToolCall } from '../../../src/l2-guard/program-
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-// --- bashBinary ---
 check('bashBinary: simple command', bashBinary('composio search googleads') === 'composio');
 check('bashBinary: cat', bashBinary('cat /etc/foo') === 'cat');
 check('bashBinary: full path', bashBinary('/usr/local/bin/composio search') === '/usr/local/bin/composio');
@@ -19,11 +18,7 @@ check('bashBinary: empty returns undefined', bashBinary(undefined) === undefined
 check('bashBinary: whitespace-only returns undefined', bashBinary('   ') === undefined);
 check('bashBinary: env-only returns undefined', bashBinary('FOO=bar') === undefined);
 
-// --- mcpServer was removed: MCP tools don't get the per-program session grant ---
-// (Program id detection is bash-only. MCP and other tools return undefined so the
-// Advanced Secure output gate doesn't offer them a per-program row.)
 
-// --- programIdForToolCall ---
 check('programId: bash + composio', programIdForToolCall('bash', { command: 'composio search googleads' }) === 'composio');
 check('programId: bash + sudo gcloud', programIdForToolCall('bash', { command: 'sudo gcloud auth print-access-token' }) === 'gcloud');
 check('programId: bash + env-prefixed aws', programIdForToolCall('bash', { command: 'AWS_PROFILE=prod aws s3 ls' }) === 'aws');

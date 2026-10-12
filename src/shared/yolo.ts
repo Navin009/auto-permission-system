@@ -55,7 +55,6 @@ export function registerYoloFlags(pi: YoloFlagPI): void {
 		type: "boolean",
 		default: false,
 	});
-	// Backwards compat alias
 	pi.registerFlag("no-sandbox", {
 		description: "(Deprecated) alias for --yolo. Use --yolo instead.",
 		type: "boolean",

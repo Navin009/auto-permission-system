@@ -11,7 +11,6 @@ function matchPrefix(absPath, pattern){
 const cwd = homedir() + '/.pi-tmp';
 mkdirSync(cwd, { recursive: true });
 
-// Create a real, sandbox-readable target dir to act as the "secret"
 const target = cwd + '/secret-target';
 mkdirSync(target, { recursive: true });
 writeFileSync(target + '/marker', 'secret');
@@ -21,7 +20,6 @@ try { rmSync(linkPath, { force:true }); } catch {}
 symlinkSync(target, linkPath);
 
 const cases = [
-  // canonicalize must follow the symlink so that the deny rule on `target` catches the indirect access
   [linkPath + '/marker', target, true, 'symlink → target, leaf exists'],
   [linkPath + '/nonexistent.txt', target, true, 'symlink → target, leaf nonexistent'],
   [linkPath + '/sub/deep/leaf', target, true, 'symlink → target, deep nonexistent'],

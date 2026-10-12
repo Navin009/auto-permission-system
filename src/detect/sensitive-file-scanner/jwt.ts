@@ -8,10 +8,10 @@
 
 function isWordCharCode(code: number): boolean {
   return (
-    (code >= 0x30 && code <= 0x39) || // 0-9
-    (code >= 0x41 && code <= 0x5a) || // A-Z
-    (code >= 0x61 && code <= 0x7a) || // a-z
-    code === 0x5f // _
+    (code >= 0x30 && code <= 0x39) ||
+    (code >= 0x41 && code <= 0x5a) ||
+    (code >= 0x61 && code <= 0x7a) ||
+    code === 0x5f
   );
 }
 
@@ -28,7 +28,6 @@ export function isJwtToken(token: string): boolean {
     return false;
   }
 
-  // Header may be prefixed by a non-word character (e.g. "x-eyJ...").
   const headerStart = findBoundaryEyJ(segments[0]);
 
   if (headerStart < 0 || segments[0].length - (headerStart + 3) < 10) {

@@ -5,8 +5,6 @@ import { registerYoloFlags, yoloFromFlags, emitYolo, onYolo, YOLO_CHANNEL, YOLO_
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };
 
-// --- Flags are extension-scoped, exactly like pi's loader -------------------
-// pi's getFlag returns undefined unless THIS extension registered the name.
 const makePi = (initial = {}) => {
 	const flags = new Set();
 	const values = new Map(Object.entries(initial));
@@ -47,7 +45,6 @@ const empty = { registerFlag: () => {}, getFlag: () => undefined };
 registerYoloFlags(empty);
 check('registerYoloFlags works through a minimal pi shim', true);
 
-// --- Runtime channel --------------------------------------------------------
 const makeBus = () => {
 	const handlers = new Map();
 	return {

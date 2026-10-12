@@ -39,7 +39,6 @@ function mk(overrides = {}) {
 }
 const text = (comp) => comp.render(80).join('\n');
 
-// --- initial render: footer with countdown, title unindented, No selected ---
 {
 	const s = mk();
 	const lines = s.comp.render(80);
@@ -50,7 +49,6 @@ const text = (comp) => comp.render(80).join('\n');
 	check('initial: other rows are indented two spaces', t.includes('\n  Yes, just this once'));
 }
 
-// --- the first ↓ hides the footer and moves the selection ---
 {
 	const s = mk();
 	s.comp.handleInput('\x1b[B');
@@ -64,7 +62,6 @@ const text = (comp) => comp.render(80).join('\n');
 	})());
 }
 
-// --- Enter returns the highlighted label ---
 {
 	const s = mk();
 	s.comp.handleInput('\x1b[B');
@@ -78,9 +75,6 @@ const text = (comp) => comp.render(80).join('\n');
 	check('Enter without navigation returns the default row (No)', s.result === 'No');
 }
 
-// --- mouse is inert (ADR-036): pi's SelectList picks the row a left click
-// lands on and moves the highlight on wheel, so the selector must never
-// forward mouse events to it. Only Enter may pick a row. ---
 const mouse = (overrides = {}) => ({
 	type: 'click', button: 'left', x: 0, y: 0, screenX: 0, screenY: 0,
 	width: 80, height: 17, shift: false, alt: false, ctrl: false, ...overrides,
@@ -117,7 +111,6 @@ const mouse = (overrides = {}) => ({
 	check('mouse: keyboard still works after a stray click', s.result === 'Yes, just this once');
 }
 
-// --- ↑/↓ clamp at the ends (the previous selector never wrapped) ---
 {
 	const s = mk();
 	s.comp.handleInput('\x1b[A');
@@ -137,7 +130,6 @@ const mouse = (overrides = {}) => ({
 	check('↓ at the last row stays on Yes, always…', s.result === 'Yes, always…');
 }
 
-// --- Esc returns undefined and is not an expiry ---
 {
 	const s = mk();
 	s.comp.handleInput('\x1b');
@@ -145,7 +137,6 @@ const mouse = (overrides = {}) => ({
 	check('Esc is not an expiry', s.expired === false);
 }
 
-// --- countdown expiry calls onExpire and resolves undefined ---
 {
 	const s = mk({ timeoutMs: 50, tickMs: 5 });
 	await sleep(40);
@@ -153,10 +144,6 @@ const mouse = (overrides = {}) => ({
 	check('expiry resolves undefined (caller maps the default)', s.result === undefined);
 }
 
-// --- navigating restarts the FULL timeout (ADR-031, v3.7.5 regression): the
-// counter used to be left where it was, so a prompt expired seconds early and
-// auto-answered even though the user was still reading. timeoutMs is in
-// seconds (ceil), so give it several ticks to make the restart observable. ---
 {
 	let result; let expired = false;
 	const comp = new AskSelector({
@@ -171,17 +158,15 @@ const mouse = (overrides = {}) => ({
 		done: (r) => { result = r; },
 		onExpire: () => { expired = true; },
 	});
-	await sleep(450); // ~2 of 5 ticks elapsed
+	await sleep(450);
 	comp.handleInput('\x1b[B');
 	const restarted = text(comp);
 	check('activity: footer is hidden on navigation', !restarted.includes('Default:'));
-	// Without the reset this would expire at ~1050ms; with it, at ~1450ms.
-	await sleep(750); // t ~= 1200ms
+	await sleep(750);
 	check('activity: full timeout restarts (not expired mid-way)', expired === false && result === undefined);
 	comp.dispose();
 }
 
-// --- disposing after navigation still stops the restarted countdown ---
 {
 	let expired = false;
 	const comp = new AskSelector({
@@ -203,7 +188,6 @@ const mouse = (overrides = {}) => ({
 	check('activity: dispose stops the restarted countdown', expired === false);
 }
 
-// --- dispose stops the countdown (component replaced before it fires) ---
 {
 	const s = mk({ timeoutMs: 50, tickMs: 5 });
 	s.comp.dispose();
@@ -211,9 +195,6 @@ const mouse = (overrides = {}) => ({
 	check('dispose() stops the countdown', s.expired === false);
 }
 
-// --- dispose settles the promise (ADR-034): pi drops a displaced prompt without
-// calling `done`, and an unsettled ask wedges the shared queue for every later
-// prompt. dispose must resolve it exactly once, without counting as expiry. ---
 {
 	let settles = 0;
 	const s = mk({ done: () => { settles++; } });
@@ -231,7 +212,6 @@ const mouse = (overrides = {}) => ({
 	check('dispose() after a pick does not settle again', settles === 1);
 }
 
-// --- timeoutMs 0: footer without a countdown, no auto-dismiss ---
 {
 	const s = mk({ timeoutMs: 0 });
 	const t = text(s.comp);
@@ -240,7 +220,6 @@ const mouse = (overrides = {}) => ({
 	check('timeout 0: no expiry', s.expired === false && s.result === undefined);
 }
 
-// --- no footer: options only, no stray Default line ---
 {
 	const s = mk({ footer: null });
 	check('footer null: no Default line', !text(s.comp).includes('Default:'));

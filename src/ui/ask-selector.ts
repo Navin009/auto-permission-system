@@ -62,7 +62,6 @@ class Border implements Component {
 		this.color = color;
 	}
 	invalidate(): void {
-		/* stateless */
 	}
 	render(width: number): string[] {
 		return [this.color("─".repeat(Math.max(1, width)))];
@@ -144,9 +143,6 @@ export class AskSelector extends Container {
 	}
 
 	handleInput(data: string): void {
-		// Intercept ↑/↓: pi's SelectList wraps at the ends, the ask prompts have
-		// always clamped. Everything else (Enter, Esc, page keys) is the list's
-		// own behavior; mouse events never reach it (ADR-036).
 		if (this.keybindings.matches(data, "tui.select.up")) {
 			this.move(-1);
 			return;
@@ -183,10 +179,6 @@ export class AskSelector extends Container {
 			clearInterval(this.timer);
 			this.timer = null;
 		}
-		// A disposed component must still settle its promise: pi drops a displaced
-		// prompt without calling `done`, and an unsettled ask wedges the shared
-		// queue for every later prompt (ADR-034). `finish` is idempotent, so the
-		// normal close path (done → dispose) does not double-resolve.
 		this.finish(undefined);
 	}
 
@@ -216,8 +208,6 @@ export class AskSelector extends Container {
 		if (this.timeoutMs > 0) {
 			if (this.timer) clearInterval(this.timer);
 			this.timer = null;
-			// Reset the counter, not just the interval: navigating restarts the
-			// full timeout (ADR-031), so reading the options never runs it out.
 			this.remaining = Math.ceil(this.timeoutMs / 1000);
 			this.startCountdown();
 		}

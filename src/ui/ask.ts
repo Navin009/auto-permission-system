@@ -201,7 +201,6 @@ export async function askDecision(ctx: AskCtx, ask: AskKind, absoluteDenyPattern
 		icon: pickIcon(action, ask),
 	};
 
-	// Screen 1 and, on "Yes, always…", screen 2 run in one queue slot (ADR-034).
 	if (action === AskAction.Network) {
 		const host = ask.overrideValue;
 		const wildcard = parentDomainWildcard(host);

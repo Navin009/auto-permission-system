@@ -133,7 +133,6 @@ function analyzeKey(
     (typeof value === "string" && value.length > 0) ||
     (Array.isArray(value) && value.length > 0);
 
-  // A schema property without a default still declares the capability.
   const capability = fromSchema && value === undefined;
 
   if (FORCE_KEYS.test(key) && (truthy || capability)) {

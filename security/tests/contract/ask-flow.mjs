@@ -13,7 +13,6 @@ const optionsOf = async (fn) => {
 	return seen;
 };
 
-// --- askMain: option set (v3.3 UX revamp) ---
 const base = await optionsOf((ctx) => askMain(ctx, 'H', '  body'));
 check(
 	'askMain base = No / Yes, just this once / remember',
@@ -35,14 +34,12 @@ check(
 	!noRemember.includes('Yes, always\u2026'),
 );
 
-// --- askMain: order with footer ---
 const withSessionTitle = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
 check(
 	'askMain: title has header + body + footer',
 	withSessionTitle[0] === 'No' && withSessionTitle[2] === 'Yes, for this session' && withSessionTitle[3] === 'Yes, always\u2026',
 );
 
-// --- askMain: allow-first ordering (network asks, ADR-024) — same option order, Enter picks Yes (once) ---
 const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true, allowFirst: true }));
 check(
 	'askMain allowFirst = No / Yes, just this once / session / remember',
@@ -56,12 +53,10 @@ check('askMain allowFirst o2 → session', (await pickAllowFirst((o) => o[2])) =
 check('askMain allowFirst o3 → remember', (await pickAllowFirst((o) => o[3])) === 'remember');
 check('askMain allowFirst undefined (Esc) → block', (await pickAllowFirst(undefined)) === 'block');
 
-// --- askMain: countdown expiry is the default; Esc is not ---
 const expires = { hasUI: true, ui: { select: async () => { await new Promise((r) => setTimeout(r, 30)); return undefined; } } };
 check('askMain allowFirst countdown expiry → once', (await askMain(expires, 'H', 'b', { allowFirst: true, timeoutMs: 10 })) === 'once');
 check('askMain countdown expiry stays block for file asks', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
 
-// --- prompts are serialized: pi's selector is a singleton (ADR-024) ---
 let active = 0;
 let maxActive = 0;
 const starts = [];
@@ -81,8 +76,6 @@ const serialized = {
 await Promise.all([askMain(serialized, 'A', 'b'), askMain(serialized, 'B', 'b')]);
 check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 && starts.join('|') === 'No|No');
 
-// --- two-screen asks hold one queue slot (ADR-034): screen 2 must run before
-// the next queued ask, and no two prompts may ever be active together. ---
 {
 	const order = [];
 	let active = 0;
@@ -133,13 +126,11 @@ check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 &&
 	const ctx = { hasUI: true, ui };
 	await Promise.all([
 		askMain(ctx, 'Help M', 'b', { session: true }),
-		// A standalone screen-2 helper must serialize through the same queue too.
 		askRememberFile(ctx, 'Remember R', 'b', '/f/x', '/f'),
 	]);
 	check('a standalone screen-2 helper does not bypass the queue', maxActive === 1 && order.join('|') === 'M|R');
 }
 
-// --- askMain: mapping ---
 const pickMain = async (pick) => askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });
 check('askMain o0 → block', (await pickMain((o) => o[0])) === 'block');
 check('askMain o1 → once', (await pickMain((o) => o[1])) === 'once');
@@ -147,7 +138,6 @@ check('askMain o2 → session', (await pickMain((o) => o[2])) === 'session');
 check('askMain o3 → remember', (await pickMain((o) => o[3])) === 'remember');
 check('askMain undefined → block', (await askMain({ hasUI: true, ui: { select: async () => undefined } }, 'H', 'b')) === 'block');
 
-// --- askRememberFile (v3.3 labels) ---
 const fileOpts = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', '/f'));
 check('askRememberFile: 4 options with folder', fileOpts.length === 4);
 check(
@@ -169,14 +159,12 @@ check('remember file · project', JSON.stringify(await pickFile(1)) === '{"scope
 check('remember folder · global', JSON.stringify(await pickFile(2)) === '{"scope":"global","folder":true}');
 check('remember file · global', JSON.stringify(await pickFile(3)) === '{"scope":"global","folder":false}');
 check('askRememberFile undefined → null', (await askRememberFile({ hasUI: true, ui: { select: async () => undefined } }, 'T', 'b', '/f/x', '/f')) === null);
-// --- askRememberFile: untrusted hides cwd rows ---
 const untrustedOpts = await optionsOf((ctx) => askRememberFile(ctx, 'T', 'b', '/f/x', '/f', { untrusted: true }));
 check(
 	'askRememberFile untrusted: 2 options, both global',
 	untrustedOpts.length === 2 && untrustedOpts.every((o) => o.includes('in all projects')),
 );
 
-// --- askRememberHost (v3.3 labels) ---
 const hostOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'example.com'));
 check(
 	'askRememberHost: 2 options for apex',
@@ -197,14 +185,12 @@ check(
 const pickSubdomain = async (idx) => askRememberHost({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, 'T', 'b', 'api.example.com');
 check('remember wildcard · project', (await pickSubdomain(0)).scope === 'cwd' && (await pickSubdomain(0)).pattern === '*.example.com');
 check('remember exact host · project', (await pickSubdomain(1)).scope === 'cwd' && (await pickSubdomain(1)).pattern === 'api.example.com');
-// --- askRememberHost: untrusted hides cwd rows ---
 const untrustedHostOpts = await optionsOf((ctx) => askRememberHost(ctx, 'T', 'b', 'api.example.com', { untrusted: true }));
 check(
 	'askRememberHost untrusted: 2 options, both global',
 	untrustedHostOpts.length === 2 && untrustedHostOpts.every((o) => o.includes('in all projects')),
 );
 
-// --- askExposure (Advanced Secure output gate, ADR-018) ---
 const hit = 'config.env\n12: key=asdfadsdaasdfdsafasdf';
 const expOpts = await optionsOf((ctx) => askExposure(ctx, [hit]));
 check('askExposure: 2 options, keep-hidden first', expOpts.length === 2 && expOpts[0].startsWith('No, keep it hidden'));
@@ -223,7 +209,6 @@ check('askExposure undefined → block', (await askExposure({ hasUI: true, ui: {
 check('askExposure pick allow → allow', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[1] } }, [hit])) === 'allow');
 check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: { select: async (_t, o) => o[0] } }, [hit])) === 'block');
 
-// --- askExposure with programId: adds "Yes, all <program> output for this session" ---
 const expOptsWithProg = await optionsOf((ctx) => askExposure(ctx, [hit], 'composio'));
 check(
 	'askExposure +programId: 3 options, session-grant row added',
@@ -243,7 +228,6 @@ check('withheldNotice: names the subject', notice.includes('config.env') && noti
 check('withheldNotice: says the tool completed', notice.includes('completed successfully') && notice.includes('output is unavailable'));
 check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 
-// --- custom TUI selector (ADR-031): ctx.mode === "tui" routes to ui.custom ---
 {
 	let component;
 	let signalFactory;
@@ -273,7 +257,7 @@ check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 	check('askMain tui: renders through ui.custom, not ui.select', ready && !!component);
 	if (component) {
 		check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: Yes, just this once (15s)'));
-		component.handleInput('\r'); // Enter on the preselected "No"
+		component.handleInput('\r');
 		check('askMain tui: custom pick maps to a decision', (await main) === 'block');
 	} else {
 		check('askMain tui: footer carries the live countdown', false);

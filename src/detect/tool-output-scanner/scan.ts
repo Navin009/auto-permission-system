@@ -172,7 +172,6 @@ export function walk(
 
     const trimmed = text.trim();
 
-    // Double-encoded JSON: scan the nested structure, keep the string type.
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       try {
         const parsed = JSON.parse(trimmed) as unknown;
@@ -183,7 +182,6 @@ export function walk(
           return "***REDACTED***";
         }
       } catch {
-        // not JSON; continue with the text scan
       }
     }
 

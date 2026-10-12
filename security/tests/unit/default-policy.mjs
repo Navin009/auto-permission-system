@@ -4,7 +4,6 @@ import { loadDefaultPolicy, overlayPolicy } from '../../../src/core/index.ts';
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-// --- the shipped default is present and strong ---
 const d = loadDefaultPolicy();
 check('sandbox.default.json is found', d !== null && typeof d === 'object');
 const fs = d?.filesystem ?? {};
@@ -18,7 +17,6 @@ check('default: write asks cover .env and shell rc', (fs.askWrite ?? []).include
 check('default: allowWrite is project + /tmp', Array.isArray(fs.allowWrite) && fs.allowWrite.includes('.') && fs.allowWrite.includes('/tmp'));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
 
-// --- overlayPolicy: authoritative layering ---
 const base = {
 	enabled: true,
 	network: { allowedDomains: ['a.com'], deniedDomains: ['x.com'] },

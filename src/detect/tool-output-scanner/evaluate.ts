@@ -29,7 +29,6 @@ export function scanToolOutput(
   const askThreshold = input.askThreshold ?? TOOL_OUTPUT_DEFAULT_ASK_THRESHOLD;
   const estimate = estimateSize(input.output, limitBytes);
 
-  // Fast path: oversized output is skipped, never scanned.
   if (estimate.exceeded) {
     return {
       decision: "ask",

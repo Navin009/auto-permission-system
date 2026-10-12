@@ -19,23 +19,14 @@ check('last EPERM line wins', x('grep: ./a: Operation not permitted\ngrep: ./b.k
 check('EACCES variant', x('open ./secret.txt: EACCES') === '/private/tmp/pi-guard-test/secret.txt');
 check('no error, no path', x('all good') === undefined);
 
-// Regression (v3.7.5): Chrome/Electron crash output. A path with a space is one
-// operand, and a bare operation word (`socket`, `display`) is not a path at all
-// — mis-attributing it to cwd made the plugin prompt for a project folder that
-// never existed and then report the grant as ineffective.
 check('unquoted path with a space keeps the whole path', x("open /home/me/.config/google-chrome/Crash Reports/new/abc.dmp: Read-only file system (30)") === '/home/me/.config/google-chrome/Crash Reports/new/abc.dmp');
 check('pid-prefixed errno line keeps the whole path', x("[1011/234914:ERROR:crashpad.cc:153] open /home/me/.config/google-chrome/Crash Reports/new/abc.dmp: Read-only file system (30)") === '/home/me/.config/google-chrome/Crash Reports/new/abc.dmp');
 check('operation word "socket" is not a path', x('Failed to open socket: Operation not permitted') === undefined);
 check('operation word "display" is not a path', x('Failed to connect to Wayland display: Operation not permitted') === undefined);
 check('a sentence before the errno is not a path', x('Check failed: . socket() failed: Operation not permitted (1)') === undefined);
 check('a pid-prefixed sentence is not a path', x('[4:4:1011:FATAL:process_singleton.cc:297] Check failed: . socket() failed: Operation not permitted (1)') === undefined);
-// Regression (v3.7.6): bwrap's own mount-setup failure names a path INSIDE the
-// project (its mandatory `.claude/agents` mask). It must not be mistaken for a
-// cwd-relative operand like `Can't create file /…`.
 check('bwrap mount-setup line recovers the masked path', x("bwrap: Can't create file /private/tmp/pi-guard-test/.claude/agents: Read-only file system") === '/private/tmp/pi-guard-test/.claude/agents');
 
-// Linux bubblewrap makes writes outside allowWrite fail EROFS (read-only mount),
-// not EPERM. The errno-style messages put the operand after the error token.
 check('EROFS: Node-prefixed errno style', x("Could not update /home/me/.pi/agent/mcp.json: EROFS: read-only file system, open '/home/me/.pi/agent/mcp.json'") === '/home/me/.pi/agent/mcp.json');
 check('EROFS: bare errno style', x("EROFS: read-only file system, open '/var/lib/x' ") === '/var/lib/x');
 check('EROFS: coreutils style', x("touch: cannot touch '/etc/conf': Read-only file system") === '/etc/conf');

@@ -129,7 +129,6 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 				icon: "net",
 				timeoutMs: ASK_TIMEOUT_MS,
 			},
-			// Screen 2 runs in the same queue slot as screen 1 (ADR-034).
 			() => {
 				const body: string[] = [];
 				body.push(`Site     ${host}`);

@@ -19,7 +19,6 @@ export async function resolve(specifier, context, nextResolve) {
 				return nextResolve(`${specifier}.ts`, context);
 			}
 		} catch {
-			/* fall through to the default resolver */
 		}
 	}
 	return nextResolve(specifier, context);

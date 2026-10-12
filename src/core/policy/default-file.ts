@@ -37,7 +37,6 @@ export function loadDefaultPolicy(): Record<string, unknown> | null {
 			const parsed = JSON.parse(readFileSync(path, "utf-8"));
 			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) resolved = parsed;
 		} catch {
-			/* fall back to the caller's constants */
 		}
 	}
 	cached = resolved;

@@ -161,11 +161,8 @@ export function scanTextContent(
     let score = BASE_SCORES.SECRET_ASSIGNMENT;
 
     if (entropy(value) >= 4.0) {
-      // A strongly random literal asks regardless of context: test/mock
-      // files can still contain real leaked credentials.
       score += HIGH_ENTROPY_BONUS;
     } else if (testContext) {
-      // Only discount lower-confidence candidates in fixture paths.
       score -= TEST_CONTEXT_PENALTY;
     }
 
@@ -179,7 +176,6 @@ export function scanTextContent(
     });
   }
 
-  // Remove duplicate findings (same type on the same line).
   const uniqueFindings = Array.from(
     new Map(
       findings.map((finding) => [

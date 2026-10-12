@@ -22,14 +22,14 @@ interface Operator {
 function findAssignmentOperator(line: string): Operator | null {
   for (let i = 0; i < line.length; i++) {
     if (line.charCodeAt(i) !== 0x3d) {
-      continue; // '='
+      continue;
     }
 
     const previous = line[i - 1];
     const next = line[i + 1];
 
     if (next === "=" || next === ">") {
-      i += 1; // ==, === or =>
+      i += 1;
       continue;
     }
 
@@ -55,7 +55,7 @@ function findAssignmentOperator(line: string): Operator | null {
     }
 
     if (line[i + 1] === "/" && line[i + 2] === "/") {
-      continue; // URL scheme
+      continue;
     }
 
     return { start: i, end: i + 1 };
@@ -71,9 +71,6 @@ function extractSensitiveKey(left: string): string | null {
     return null;
   }
 
-  // Walk right-to-left so a trailing type annotation
-  // (`const apiKey: string`) is skipped, while a timestamped log prefix
-  // (`... 00:00:03Z DEBUG DB_PASSWORD`) still finds the real key.
   for (let i = tokens.length - 1; i >= 0; i--) {
     if (isSensitiveKey(normalizeKey(tokens[i]))) {
       return tokens[i];

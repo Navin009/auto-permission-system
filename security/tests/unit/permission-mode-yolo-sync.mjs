@@ -55,12 +55,10 @@ const ctx = {
 	},
 };
 
-// Persisted yolo, runtime not yolo: the pick must turn the layers off.
 await command.handler("", ctx);
 check("picking YOLO emits the toggle", emitted.some((e) => e.channel === YOLO_CHANNEL && e.data.enabled === true));
 check("the notice does not claim it was already on", notices.some((n) => n.message.includes("YOLO") && !n.message.includes("already")));
 
-// Runtime already yolo (bus listener synced it): a second pick is a no-op.
 const before = emitted.filter((e) => e.channel === YOLO_CHANNEL).length;
 await command.handler("", ctx);
 check("a no-op pick emits nothing new", emitted.filter((e) => e.channel === YOLO_CHANNEL).length === before);

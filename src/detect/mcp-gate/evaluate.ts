@@ -61,7 +61,6 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
     summary,
   });
 
-  // Layer 0: explicit policy.
   if (policy.askTools?.includes(toolName)) {
     return baseResult(
       "ask",
@@ -89,7 +88,6 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
     );
   }
 
-  // Layer 1: name/title classification.
   const operationName = stripServerPrefix(toolName);
   const nameTokens = tokenize(`${input.tool.title ?? ""} ${operationName}`);
   const nameHit = classifyName(nameTokens);
@@ -109,7 +107,6 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
     baseScore = Math.max(baseScore, descriptionHit.score);
   }
 
-  // Layer 2+3: schema and arguments.
   const state = createState();
 
   if (!input.tool.description?.trim()) {
@@ -140,7 +137,6 @@ export function evaluateMcpCall(input: McpGateInput): McpGateResult {
     baseScore = Math.max(baseScore, 45);
   }
 
-  // Layer 4: annotations (untrusted hints by default).
   const annotations = input.tool.annotations ?? {};
   let annotationScore = 0;
 

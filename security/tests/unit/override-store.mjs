@@ -25,7 +25,6 @@ const projectPath = join(root, "project", ".pi", "sandbox.json");
 const storePath = join(root, "extensions", "sandbox.trust.json");
 const read = (path) => JSON.parse(readFileSync(path, "utf8"));
 
-// --- addOverride: create, append, preserve ---------------------------------
 const written = addOverride(policyPath, "allowWrite", "/opt/tool-a");
 check("addOverride returns the path it wrote", written === policyPath);
 check("addOverride creates the parent directory", read(policyPath).overrides.allowWrite.includes("/opt/tool-a"));
@@ -36,7 +35,6 @@ const preserved = read(policyPath);
 check("addOverride appends a second value", preserved.overrides.allowWrite.join(",") === "/opt/tool-a,/opt/tool-b");
 check("addOverride keeps a sibling grant kind", preserved.overrides.allowDomains.join(",") === "*.example.com");
 
-// --- addOverride: idempotent and non-destructive ---------------------------
 addOverride(policyPath, "allowWrite", "/opt/tool-a");
 check("addOverride does not duplicate a value", read(policyPath).overrides.allowWrite.filter((v) => v === "/opt/tool-a").length === 1);
 
@@ -48,7 +46,6 @@ check("addOverride preserves hand-written top-level keys", merged.mode === "defa
 check("addOverride preserves an existing override kind", merged.overrides.allowRead[0] === "/tmp/x");
 check("addOverride adds the new kind next to it", merged.overrides.allowWrite[0] === "/opt/tool-c");
 
-// --- addOverride: refuse an unparseable file -------------------------------
 writeFileSync(policyPath, "{ this is not json");
 let threw = false;
 try {
@@ -59,7 +56,6 @@ try {
 check("addOverride refuses an unparseable file", threw);
 check("addOverride left the unparseable file untouched", readFileSync(policyPath, "utf8") === "{ this is not json");
 
-// --- addProjectOverride: write + record trust ------------------------------
 addProjectOverride(projectPath, storePath, "allowWrite", "/opt/tool-e");
 check("addProjectOverride writes the project file", read(projectPath).overrides.allowWrite[0] === "/opt/tool-e");
 check("addProjectOverride records trust for the new content", isProjectFileTrusted(projectPath, storePath) === true);
@@ -69,7 +65,6 @@ const project = read(projectPath);
 check("addProjectOverride keeps the earlier kind", project.overrides.allowWrite[0] === "/opt/tool-e");
 check("addProjectOverride keeps trust after a second write", isProjectFileTrusted(projectPath, storePath) === true);
 
-// --- createProjectTrust ----------------------------------------------------
 const trust = createProjectTrust(storePath);
 check("createProjectTrust trusts an absent file", trust.isTrusted(join(root, "empty-project")) === true);
 check("createProjectTrust trusts a matching hash", trust.isTrusted(join(root, "project")) === true);

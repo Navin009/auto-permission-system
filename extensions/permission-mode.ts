@@ -84,12 +84,9 @@ async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active:
 		MODES.map((m) => m.label),
 		{ timeout: 120_000 },
 	);
-	if (picked === undefined) return; // Esc / timeout → keep the current mode
+	if (picked === undefined) return;
 	const next = MODES.find((m) => m.label === picked)?.value ?? current;
 	if (next === current) {
-		// The persisted mode can match while this session's runtime state does not:
-		// another session may have written mode=yolo after this one started. Picking
-		// YOLO must still turn the running session's layers off.
 		if (next === "yolo" && !yolo.active) {
 			yolo.active = true;
 			emitYolo(pi.events, true);
@@ -109,8 +106,6 @@ async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active:
 		return;
 	}
 	yolo.active = next === "yolo";
-	// Layers off/on in place, without a restart. `--yolo` keeps its own flag
-	// value; this only flips the runtime state.
 	emitYolo(pi.events, yolo.active);
 	audit({ layer: 0, event: "permission-mode", mode: next, cwd: ctx.cwd });
 	renderSandboxChip(ctx);
@@ -120,8 +115,6 @@ async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active:
 
 export default function (pi: ExtensionAPI) {
 	const yolo = { active: false };
-	// `sandbox.ts` owns the CLI flags and broadcasts the startup state, so the
-	// menu shows the truth even when `--yolo` was passed for this run only.
 	onYolo(pi.events, (enabled) => {
 		yolo.active = enabled;
 	});

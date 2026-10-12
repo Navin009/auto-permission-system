@@ -27,7 +27,6 @@ function verb(
 }
 
 const VERB_ENTRIES: VerbEntry[] = [
-  // Read
   verb("get", "read", 0, "get"),
   verb("list", "read", 0, "list"),
   verb("read", "read", 0, "read"),
@@ -52,7 +51,6 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("plan", "read", 0, "plan"),
   verb("discover", "read", 0, "discover"),
 
-  // Additive
   verb("create", "additive", 30, "create"),
   verb("add", "additive", 30, "add"),
   verb("insert", "additive", 30, "insert"),
@@ -72,7 +70,6 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("schedule", "additive", 25, "schedule"),
   verb("open", "additive", 20, "open"),
 
-  // Operational (reversible service state)
   verb("enable", "operational", 25, "enable"),
   verb("disable", "operational", 25, "disable"),
   verb("start", "operational", 25, "start"),
@@ -92,7 +89,6 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("uncordon", "operational", 25, "uncordon"),
   verb("renew", "operational", 25, "renew"),
 
-  // Mutating
   verb("update", "mutating", 35, "update"),
   verb("edit", "mutating", 35, "edit"),
   verb("modify", "mutating", 35, "modify"),
@@ -126,7 +122,6 @@ const VERB_ENTRIES: VerbEntry[] = [
   verb("merge", "mutating", 40, "merge"),
   verb("commit", "mutating", 35, "commit"),
 
-  // Destructive
   verb("delete", "destructive", 80, "delete"),
   verb("remove", "destructive", 70, "remove"),
   verb("destroy", "destructive", 85, "destroy"),
@@ -200,8 +195,6 @@ export function collectVerbHits(tokens: string[]): VerbHit[] {
 
       if (!form) continue;
 
-      // Past-tense/adjective usage ("deleted users") does not make the
-      // operation destructive; only a head/imperative position does.
       if (form === "past" && index > 0) break;
 
       hits.push({

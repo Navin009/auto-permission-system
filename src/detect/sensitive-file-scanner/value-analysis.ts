@@ -18,7 +18,6 @@ export function isPlaceholder(value: string): boolean {
     return true;
   }
 
-  // Environment / template references, not literal secrets.
   if (/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(trimmed)) {
     return true;
   }
@@ -35,12 +34,10 @@ export function isPlaceholder(value: string): boolean {
     return true;
   }
 
-  // Function calls / expressions are code, not literals.
   if (/^[A-Za-z_$][\w$]*\s*\(/.test(trimmed)) {
     return true;
   }
 
-  // Masked values.
   if (/^[*x•]+$/i.test(trimmed)) {
     return true;
   }
@@ -59,19 +56,19 @@ const WEAK_KEY_MIN_ENTROPY = 1.5;
  */
 function looksLikeIdentifierOrPath(value: string): boolean {
   if (/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+$/.test(value)) {
-    return true; // dotted path / namespace, e.g. subagent.network
+    return true;
   }
 
   if (/^[\w.-]+\/[\w./-]*$/.test(value)) {
-    return true; // file or slash path, e.g. entropy/length
+    return true;
   }
 
   if (/^[A-Za-z]+(?:[_-][A-Za-z]+)+$/.test(value)) {
-    return true; // snake_case / kebab-case, e.g. customer_id
+    return true;
   }
 
   if (/^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)+$/.test(value)) {
-    return true; // lowerCamelCase, e.g. primaryKey
+    return true;
   }
 
   return false;
@@ -94,24 +91,18 @@ export function looksLikeRealSecret(
     return false;
   }
 
-  // Code, not a literal value: template interpolation, calls, indexing,
-  // member access, quoting and escapes are code syntax (`const key = \`${a}:${b}\``).
   if (/[(){}[\]<>]|=>|`|\\/.test(trimmed)) {
     return false;
   }
 
-  // Avoid flagging human-readable code phrases.
   if (/^[a-zA-Z]+(?:\s+[a-zA-Z]+){2,}$/.test(trimmed)) {
     return false;
   }
 
-  // A generated secret never contains whitespace. Passphrases may, so this
-  // excludes the password keys ("my secret phrase") only.
   if (!isPasswordKey && /\s/.test(trimmed)) {
     return false;
   }
 
-  // Purely alphabetic identifiers (generateToken, mySecretValue) are code.
   if (
     !isPasswordKey &&
     !isWeakKey &&
@@ -124,8 +115,6 @@ export function looksLikeRealSecret(
   const e = entropy(trimmed);
 
   if (isWeakKey) {
-    // `key` is also an everyday field name; only a value that does not read
-    // as an identifier or a path counts as a secret.
     if (looksLikeIdentifierOrPath(trimmed)) {
       return false;
     }

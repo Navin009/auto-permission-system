@@ -103,10 +103,6 @@ export default function (pi: ExtensionAPI) {
 		active = policyEnabled && !runtimeYolo;
 	};
 
-	// `--yolo` and the `/permission-mode` toggle both arrive on pi's process-wide
-	// bus; `sandbox.ts` is the only extension that registers the CLI flags and
-	// broadcasts the state (ADR-020). The entrypoints share no memory, so this is
-	// the only channel that reaches Layer 2.
 	onYolo(pi.events, (enabled) => {
 		runtimeYolo = enabled;
 		applyActive();
@@ -114,8 +110,6 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_start", (_event, ctx) => {
-		// A policy file that does not parse is skipped and the defaults apply.
-		// Say so loudly: otherwise one trailing comma silently disables the whole file.
 		for (const p of [`${getAgentDir()}/extensions/sandbox.json`, `${ctx.cwd}/.pi/sandbox.json`]) {
 			const err = policyFileError(p);
 			if (!err) continue;
@@ -153,14 +147,9 @@ export default function (pi: ExtensionAPI) {
 		if (!active) return;
 		const policy = loadPolicy(ctx.cwd);
 
-		// Capture the program id (binary for bash, MCP server for mcp__ tools) so the
-		// Advanced Secure output gate can label the prompt and honor a session grant
-		// keyed by that program. Falls back to the tool name when nothing else fits.
 		const programId = programIdForToolCall(event.toolName, event.input);
 		if (event.toolCallId && programId) programIdByCallId.set(event.toolCallId, programId);
 
-		// --- Path-based gates (with ask-tier prompt) ---
-		// One gate for every read: the read policy first, then the project boundary.
 		const gateRead = async (rawPath: string, tool: string) => {
 			const abs = canonicalize(rawPath, ctx.cwd);
 			let reason = isDeniedRead(rawPath, ctx.cwd, policy);
@@ -192,10 +181,6 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 		}
-		// Read-only search tools. grep returns file contents and runs ripgrep in
-		// process, so neither the bash sandbox nor the read gate saw it before.
-		// Gate the search root here; tool_result below drops output lines from
-		// denied files beneath the root.
 		const searchRoot = isToolCallEventType("grep", event) || isToolCallEventType("find", event) || isToolCallEventType("ls", event)
 			? (event.input.path ?? ".")
 			: null;
@@ -220,7 +205,6 @@ export default function (pi: ExtensionAPI) {
 			}
 		}
 
-		// --- URL/domain gates (best-effort by tool name; tools are extension-defined) ---
 		const input = event.input as Record<string, unknown> | undefined;
 		const collectUrls = (): string[] => {
 			if (!input) return [];
@@ -236,8 +220,6 @@ export default function (pi: ExtensionAPI) {
 			const saReason = subagentNetworkBlock(ctx as { hasUI?: boolean; sessionManager?: unknown }, policy);
 			if (saReason) return { block: true, reason: saReason };
 			for (const u of collectUrls()) {
-				// deniedDomains is the hard-deny tier: the bash proxy refuses it before
-				// any ask, so Layer 2 must not offer to override it either.
 				const denied = deniedUrlReason(u, policy);
 				if (denied) {
 					audit({ layer: 2, tool: event.toolName, subject: u, reason: denied, decision: "no", note: "denied-domain", cwd: ctx.cwd });
@@ -247,7 +229,6 @@ export default function (pi: ExtensionAPI) {
 				if (!reason) continue;
 				const host = hostnameOf(u) ?? u;
 				const result = await askOrBlock(/* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, { layer: 2, tool: event.toolName, subject: u, reason, overrideKind: "allowDomains", overrideValue: host }, null, (kind, value) => {
-					// Layer 1's proxy does not re-read the file: apply the remembered host live (ADR-023).
 					if (kind === "allowDomains") emitDomainGrant(pi.events, value);
 				});
 				if (result) return result;
@@ -257,22 +238,14 @@ export default function (pi: ExtensionAPI) {
 		if (event.toolName === "web_search") {
 			const saReason = subagentNetworkBlock(ctx as { hasUI?: boolean; sessionManager?: unknown }, policy);
 			if (saReason) return { block: true, reason: saReason };
-			// web_search itself goes to the search provider (out of scope for v1
-			// allowlist). The follow-on fetch_content for individual results is
-			// the catchable surface.
 		}
 
-		// Advanced Secure (ADR-018): classify MCP tool calls before they run.
 		if (policy.mode === "advanced-secure" && event.toolName.startsWith("mcp__")) {
 			const det = await detectMcpAsk(pi, event.toolName, (event.input ?? {}) as Record<string, unknown>, /* SAFETY: pi's ctx carries cwd/UI at runtime. */ ctx as unknown as UICtx, policy.mcp);
 			if (det) return det;
 		}
 	});
 
-	// grep output filter. A root that passed the gate can still contain denied
-	// files (`.env`, `*.pem`, `~/.ssh` under a search of `~`). Approving the
-	// root does not approve the denied files beneath it. Runs before the
-	// result reaches the model.
 	pi.on("tool_result", (event, ctx) => {
 		if (!active || event.toolName !== "grep" || event.isError) return;
 		const input = event.input as { path?: string } | undefined;
@@ -284,7 +257,6 @@ export default function (pi: ExtensionAPI) {
 		} catch {
 			return;
 		}
-		// A single-file search prints only the basename; its root gate already decided.
 		if (!rootIsDir) return;
 		let removedLines = 0;
 		const removedFiles = new Set<string>();
@@ -301,10 +273,6 @@ export default function (pi: ExtensionAPI) {
 		return { content };
 	});
 
-	// Advanced Secure (ADR-018): before any tool output reaches the model, ask
-	// the user when it looks like it carries a secret. Block withholds it and
-	// tells the model plainly, so the model does not read it as a failure or an
-	// empty result; Allow send passes the real values through.
 	pi.on("tool_result", async (event, ctx) => {
 		if (!active || event.isError) return;
 		const policy = loadPolicy(ctx.cwd);
@@ -437,7 +405,6 @@ export default function (pi: ExtensionAPI) {
 					for (const l of tail) lines.push(`  ${l}`);
 				}
 			} catch {
-				/* no audit log yet */
 			}
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

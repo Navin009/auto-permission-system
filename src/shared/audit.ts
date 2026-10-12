@@ -12,6 +12,5 @@ export function audit(entry: Record<string, unknown>): void {
 	try {
 		appendFileSync(AUDIT_PATH, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`);
 	} catch {
-		/* best-effort */
 	}
 }

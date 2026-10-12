@@ -83,7 +83,6 @@ export async function askOrBlock(
 			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
 			return null;
 		}
-		// Interactive only: headless "user" messages may be written by another model.
 		if (ask.outside && ctx.hasUI !== false) {
 			const named = userNamedOutside(ctx as SessionCtx, ask);
 			if (named) {
@@ -99,9 +98,6 @@ export async function askOrBlock(
 		return { block: true, reason: denyMessage(ask.overrideKind, ask.reason) };
 	}
 	if (decision === Decision.Session || decision === Decision.SessionFolder) {
-		// ADR-030: a session grant for a file covers the whole folder, so a CLI writing
-		// many files under ~/.composio/ stops re-prompting after the first grant. Falls
-		// back to the exact path when the parent folder is unsafe (root, home, …).
 		const parent = ask.overrideKind === OverrideKind.AllowDomains ? ask.overrideValue : dirname(ask.overrideValue);
 		const value = ask.overrideKind === OverrideKind.AllowDomains || isSafeFolderGrant(parent, homedir()) ? parent : ask.overrideValue;
 		sessionGrants.push({ kind: ask.overrideKind, value });

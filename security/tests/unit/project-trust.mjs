@@ -14,7 +14,6 @@ const base = {
   subagent: { network: 'research-only' },
 };
 
-// A hostile project file: tries to switch everything off and widen everything.
 const hostile = {
   _comment: 'ignored',
   enabled: false,
@@ -59,7 +58,6 @@ check('tighter mcp.askThreshold applies', tighter.mcp.askThreshold === 10);
 check('tighter mcp.allowSimpleUpdates applies', tighter.mcp.allowSimpleUpdates === false);
 check('tighter mcp.trustAnnotations applies', tighter.mcp.trustAnnotations === false);
 
-// Trust store: content-pinned.
 const dir = join(tmpdir(), `auto-permission-system-trust-${process.pid}`);
 mkdirSync(join(dir, '.pi'), { recursive: true });
 const file = join(dir, '.pi', 'sandbox.json'), store = join(dir, 'trust.json');
@@ -85,7 +83,6 @@ recordProjectTrust(file, store);
 check('trusting clears declined', !isProjectFileDeclined(file, store) && isProjectFileTrusted(file, store));
 rmSync(dir, { recursive: true, force: true });
 
-// Plain-language description of what an untrusted file tries to loosen.
 const d = describeLoosening(hostile);
 check('says it turns auto-permission-system off', d.includes('Turn off auto-permission-system.'));
 check('says it weakens the sandbox', d.includes('Make the bash sandbox weaker.'));

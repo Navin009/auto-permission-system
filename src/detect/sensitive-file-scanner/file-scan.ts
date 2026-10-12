@@ -52,9 +52,6 @@ export async function scanFile(input: ScanInput): Promise<ScanResult> {
   const verdict = classifyFilename(absolutePath);
   const ignoredByExtension = IGNORED_EXTENSIONS.has(extension);
 
-  // ------------------------------------------------------------
-  // Layer 0: path metadata. Never follow symlinks.
-  // ------------------------------------------------------------
 
   let stat: Stats;
 
@@ -97,9 +94,6 @@ export async function scanFile(input: ScanInput): Promise<ScanResult> {
   }
 
   if (ignoredByExtension) {
-    // Content is never decoded for binary extensions, so a sensitive
-    // NAME must fail closed here: a cert/keystore/credential artifact
-    // could otherwise be converted into a readable secret by the agent.
     return skipResult({
       absolutePath,
       fileName,
@@ -123,9 +117,6 @@ export async function scanFile(input: ScanInput): Promise<ScanResult> {
     });
   }
 
-  // ------------------------------------------------------------
-  // Layer 1: bounded read + text decode. Content scan for all text.
-  // ------------------------------------------------------------
 
   let buffer: Buffer;
 
@@ -183,7 +174,6 @@ export async function scanFile(input: ScanInput): Promise<ScanResult> {
     findings.push(filenameFinding(verdict, fileName));
   }
 
-  // Remove duplicate findings (same type on the same line).
   const uniqueFindings = Array.from(
     new Map(
       findings.map((finding) => [
