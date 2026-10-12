@@ -49,7 +49,8 @@ function toAbsolutePath(rawToken: string, cwd: string, home: string): string | u
 function stripErrnoLeadIn(text: string): string {
 	const withoutPidPrefix = text.replace(/^\[[^\]]*\]\s*/, "");
 	return withoutPidPrefix
-		.replace(/^(?:open|cannot (?:touch|remove|create|open|stat|access)|touch|creat|unlink|mkdir|rmdir|rename)\s+/i, "")
+		.replace(/^bwrap:\s*/i, "")
+		.replace(/^(?:open|cannot (?:touch|remove|create|open|stat|access)|(?:can't|failed to) create file|touch|creat|unlink|mkdir|rmdir|rename)\s+/i, "")
 		.trim();
 }
 
@@ -77,8 +78,11 @@ function looksLikePath(token: string): boolean {
  * (`EROFS: read-only file system, open '/abs/path'`,
  * `[Errno 30] Read-only file system: '/abs/path'`). A path with spaces keeps
  * its spaces (`open /…/Crash Reports/new/x.dmp`) while operation words
- * (`socket`, `display`) are not mistaken for files. Relative paths resolve
- * against the command's working directory, never against `/`.
+ * (`socket`, `display`) are not mistaken for files. A `bwrap: Can't create
+ * file <path>` line is the OS sandbox failing to build its own mount mask, but
+ * its path is still recovered so the caller can report it as a setup problem.
+ * Relative paths resolve against the command's working directory, never
+ * against `/`.
  */
 export function extractBlockedPath(output: string, cwd: string, home: string): string | undefined {
 	for (const line of [...output.split("\n")].reverse()) {

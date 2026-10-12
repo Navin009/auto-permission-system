@@ -29,6 +29,10 @@ check('operation word "socket" is not a path', x('Failed to open socket: Operati
 check('operation word "display" is not a path', x('Failed to connect to Wayland display: Operation not permitted') === undefined);
 check('a sentence before the errno is not a path', x('Check failed: . socket() failed: Operation not permitted (1)') === undefined);
 check('a pid-prefixed sentence is not a path', x('[4:4:1011:FATAL:process_singleton.cc:297] Check failed: . socket() failed: Operation not permitted (1)') === undefined);
+// Regression (v3.7.6): bwrap's own mount-setup failure names a path INSIDE the
+// project (its mandatory `.claude/agents` mask). It must not be mistaken for a
+// cwd-relative operand like `Can't create file /…`.
+check('bwrap mount-setup line recovers the masked path', x("bwrap: Can't create file /private/tmp/pi-guard-test/.claude/agents: Read-only file system") === '/private/tmp/pi-guard-test/.claude/agents');
 
 // Linux bubblewrap makes writes outside allowWrite fail EROFS (read-only mount),
 // not EPERM. The errno-style messages put the operand after the error token.

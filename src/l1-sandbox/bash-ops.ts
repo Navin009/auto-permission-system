@@ -306,7 +306,12 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						let outsideDenied = false;
 						let outsideMode: "allow" | "ask" | "deny" = "allow";
 						let blockedHint = "";
+						let sandboxSetupError = false;
 						if (isBlockedAccessError(outputTail)) {
+							// bwrap's own mount-setup failure (e.g. the mandatory `.claude/agents`
+							// deny in a project that has no `.claude`) is not the command being
+							// refused a write — no allowWrite grant can change it.
+							sandboxSetupError = /(^|\n)\s*bwrap:/i.test(outputTail);
 							// Relative paths resolve against the command's cwd: "./.env" is not "/.env".
 							spelledOffending = extractBlockedPath(outputTail, cwd, homedir());
 							// ADR-006/ADR-035: match and grant the canonical path. sandbox-runtime
@@ -377,7 +382,17 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						// user decides. Otherwise the model gets the EPERM hint immediately,
 						// tries an alternative, and the prompt sits orphaned in the UI.
 						let decisionHint = "";
-						if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
+						if (sandboxSetupError && !hardDenied && !outsideDenied && (!offending || offending === cwd || offending.startsWith(`${cwd}/`))) {
+							// bwrap could not build its own mount mask (e.g. the mandatory
+							// `.claude/agents` deny inside a project that has no `.claude`). The
+							// command was refused by sandbox setup, not by the write policy, so a grant
+							// cannot help and asking would mislabel an in-project path.
+							blockedHint = "";
+							auditL1({ subject: offending ?? spelledOffending, decision: "write-denied", reason: "the OS sandbox could not start (bwrap mount setup)", cwd: opts?.ctx?.cwd, note: "sandbox-setup-error" });
+							opts?.ctx?.ui?.notify?.(`pi-sandbox: the OS sandbox could not start (bwrap could not create ${offending ?? spelledOffending ?? "a protected mount point"}). This is a sandbox setup problem, not a policy denial.`, "warning");
+							decisionHint = `\n❌ pi-sandbox: the OS sandbox could not start (bwrap could not create a protected mount point), so nothing was permission-prompted. This is a sandbox setup problem, not a policy denial.\n`;
+							onData(Buffer.from(decisionHint));
+						} else if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
 							// ask-tier read grant for a path outside the project (ADR-014).
 							const absPath = offending;
 							let askError: unknown;

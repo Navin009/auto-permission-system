@@ -44,12 +44,14 @@ let symlinkProbeFenced = false;
 let symlinkFencePath = "";
 let denyFencePath = "";
 let stubbornFencePath = "";
+let bwrapFencePath = "";
 const fence = (p) => `printf '%s\\n' "touch: cannot touch '${p}': Read-only file system" >&2; exit 1`;
 SandboxManager.wrapWithSandbox = async (command, _argv, custom) => {
 	callCount++;
 	customConfigs.push(custom);
 	const text = String(command);
 	if (text.includes("STUBBORN-PROBE")) return fence(stubbornFencePath);
+	if (text.includes("BWRAP-PROBE")) return `printf '%s\\n' "bwrap: Can't create file ${bwrapFencePath}: Read-only file system" >&2; exit 1`;
 	if (text.includes("DENY-PROBE")) return fence(denyFencePath);
 	if (text.includes("SYMLINK-PROBE")) {
 		if (!symlinkProbeFenced) {
@@ -217,6 +219,22 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	check("an ineffective grant prompts exactly once", prompted === 1, `prompts=${prompted}`);
 	check("an ineffective grant reports the block instead of looping", stubbornOut.join("").includes("did not take effect"), stubbornOut.join(""));
 	check("an ineffective grant is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"grant-ineffective"'));
+}
+
+// --- a bwrap mount-setup failure is not a policy denial: the path is INSIDE
+// the project, so no allowWrite grant can help. It must not prompt with a
+// misleading reason ("outside your project" / "not under an allowWrite root").
+{
+	bwrapFencePath = join(cwd, ".claude", "agents");
+	let prompted = 0;
+	const bwrapCtx = { cwd, hasUI: true, ui: { select: async () => { prompted++; return undefined; }, notify: () => {} } };
+	const bwrapOut = [];
+	const execBwrap = createSandboxedBashOps({ ctx: bwrapCtx, onAlways, onAlwaysRead: onAlways });
+	r = await execBwrap.exec("ls BWRAP-PROBE", cwd, { onData: (chunk) => bwrapOut.push(chunk.toString()), signal: undefined, timeout: 10 });
+	check("bwrap setup failure is not offered a grant", prompted === 0, `prompts=${prompted}`);
+	check("bwrap setup failure reports a setup problem", bwrapOut.join("").includes("sandbox could not start"), bwrapOut.join(""));
+	check("bwrap setup failure hides the misleading allowWrite hint", !bwrapOut.join("").includes("not under an allowWrite root"), bwrapOut.join(""));
+	check("bwrap setup failure is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"sandbox-setup-error"'));
 }
 
 // --- session_start clears the grants -------------------------------------
