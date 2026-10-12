@@ -57,6 +57,24 @@ const expires = { hasUI: true, ui: { select: async () => { await new Promise((r)
 check('askMain allowFirst countdown expiry → once', (await askMain(expires, 'H', 'b', { allowFirst: true, timeoutMs: 10 })) === 'once');
 check('askMain countdown expiry stays block for file asks', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
 
+// Navigation cancels the countdown in the select fallback too, and the timer
+// records the expiry itself, so an unanswered-but-engaged prompt blocks rather
+// than auto-allow (ADR-039).
+{
+	let onInput;
+	const ctx = {
+		hasUI: true,
+		ui: {
+			select: async () => { await new Promise((r) => setTimeout(r, 60)); return undefined; },
+			onTerminalInput: (handler) => { onInput = handler; return () => {}; },
+		},
+	};
+	const main = askMain(ctx, 'H', 'b', { allowFirst: true, timeoutMs: 20 });
+	await new Promise((r) => setTimeout(r, 5));
+	onInput('\x1b[B');
+	check('askMain select: navigation cancels the countdown (no auto-allow)', (await main) === 'block');
+}
+
 let active = 0;
 let maxActive = 0;
 const starts = [];

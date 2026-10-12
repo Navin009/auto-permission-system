@@ -1,6 +1,7 @@
-// Custom TUI ask selector (src/ui/ask-selector.ts, ADR-031).
-// The footer shows a live countdown, disappears the moment the user moves the
-// selection, and expiry is exact (Esc is never mistaken for the countdown).
+// Custom TUI ask selector (src/ui/ask-selector.ts, ADR-031, ADR-039).
+// The footer shows a live countdown and disappears the moment the user moves the
+// selection; the first ↕/↓ cancels the countdown so Enter/Esc alone decide.
+// Expiry is exact (Esc is never mistaken for the countdown).
 // Keyboard only (ADR-036): mouse events are inert, only Enter picks a row.
 import { getKeybindings } from '@earendil-works/pi-tui';
 import { AskSelector } from '../../../src/ui/ask-selector.ts';
@@ -151,41 +152,43 @@ const mouse = (overrides = {}) => ({
 		footer: 'Default: Yes, just this once',
 		options: OPTIONS,
 		timeoutMs: 5000,
-		tickMs: 200,
+		tickMs: 100,
 		tui,
 		theme,
 		keybindings,
 		done: (r) => { result = r; },
 		onExpire: () => { expired = true; },
 	});
-	await sleep(450);
+	await sleep(200);
 	comp.handleInput('\x1b[B');
-	const restarted = text(comp);
-	check('activity: footer is hidden on navigation', !restarted.includes('Default:'));
-	await sleep(750);
-	check('activity: full timeout restarts (not expired mid-way)', expired === false && result === undefined);
-	comp.dispose();
+	check('activity: footer is hidden on navigation', !text(comp).includes('Default:'));
+	await sleep(1000);
+	check('activity: navigation cancels the countdown', expired === false && result === undefined);
+	comp.handleInput('\r');
+	check('activity: Enter after navigation picks the highlighted row', result === 'Yes, just this once', String(result));
+	check('activity: the pick is not an expiry', expired === false);
 }
 
 {
-	let expired = false;
+	let result; let expired = false;
 	const comp = new AskSelector({
 		title: TITLE,
 		footer: 'Default: Yes, just this once',
 		options: OPTIONS,
 		timeoutMs: 5000,
-		tickMs: 200,
+		tickMs: 100,
 		tui,
 		theme,
 		keybindings,
-		done: () => {},
+		done: (r) => { result = r; },
 		onExpire: () => { expired = true; },
 	});
-	await sleep(450);
+	await sleep(200);
 	comp.handleInput('\x1b[B');
+	await sleep(1000);
+	comp.handleInput('\x1b');
+	check('activity: Esc after navigation cancels without expiry', result === undefined && expired === false);
 	comp.dispose();
-	await sleep(1200);
-	check('activity: dispose stops the restarted countdown', expired === false);
 }
 
 {

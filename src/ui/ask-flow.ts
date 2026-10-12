@@ -205,8 +205,8 @@ async function askWithCustom(
 	return { picked, expired };
 }
 
-/** Select fallback (RPC, print, tests): the footer is the last title line and
- * expiry is inferred from elapsed time (ADR-024). */
+/** Select fallback (RPC, print, tests): the footer is the last title line; the
+ * timer records expiry exactly, so Esc is never mistaken for it (ADR-039). */
 async function askWithSelect(
 	ctx: AskCtx,
 	title: string,
@@ -219,56 +219,71 @@ async function askWithSelect(
 		const picked = await ctx.ui.select(selectTitle, options);
 		return { picked, expired: false };
 	}
-	const started = Date.now();
-	const picked = await askSelectWithActivity(ctx, selectTitle, options, timeoutMs);
-	return { picked, expired: picked === undefined && Date.now() - started >= timeoutMs };
+	return askSelectWithActivity(ctx, selectTitle, options, timeoutMs);
 }
 
 /**
- * `ui.select` with activity-based timer extension. v3.5.10: pi's "(Ns)" countdown
- * is NOT passed to `ctx.ui.select` (the v3.5.6 attempt with abort+reissue flickered
- * because pi's SelectList resets selectedIndex on every re-issue). The outer timer
- * is reset on navigation input (v3.5.3 behavior) so the user has more time while
- * reading options. `timeoutMs === 0` takes the no-countdown-no-auto-dismiss path
- * (prompt stays open until pick or Esc).
+ * `ui.select` with a countdown that ends at the first navigation. v3.5.10: pi's
+ * "(Ns)" countdown is NOT passed to `ctx.ui.select` (the v3.5.6 attempt with
+ * abort+reissue flickered because pi's SelectList resets selectedIndex on every
+ * re-issue). The first navigation cancels the timer, so a user who is choosing
+ * decides with Enter/Esc and is never auto-answered (ADR-039). Expiry is
+ * recorded by the timer itself, not inferred from elapsed time. `timeoutMs === 0`
+ * takes the no-countdown-no-auto-dismiss path (prompt stays open until pick or
+ * Esc).
  */
 async function askSelectWithActivity(
 	ctx: AskCtx,
 	title: string,
 	options: string[],
 	timeoutMs: number,
-): Promise<string | undefined> {
-	if (timeoutMs === 0) return ctx.ui.select(title, options);
+): Promise<{ picked: string | undefined; expired: boolean }> {
+	if (timeoutMs === 0) return { picked: await ctx.ui.select(title, options), expired: false };
 
-	const offInput = ctx.ui.onTerminalInput?.((data: string) => {
+	let settled = false;
+	let engaged = false;
+	let expired = false;
+	let currentTimer: ReturnType<typeof setTimeout> | null = null;
+	const started = Date.now();
+	const ctrl = new AbortController();
+	const clearTimer = (): void => {
+		if (currentTimer) {
+			clearTimeout(currentTimer);
+			currentTimer = null;
+		}
+	};
+	let offInput: () => void = () => {};
+
+	const finish = (): void => {
 		if (settled) return;
+		settled = true;
+		clearTimer();
+		if (!ctrl.signal.aborted) ctrl.abort();
+		offInput();
+	};
+
+	offInput = ctx.ui.onTerminalInput?.((data: string) => {
+		if (settled || engaged) return;
 		if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
-			if (currentTimer) clearTimeout(currentTimer);
-			currentTimer = setTimeout(finish, timeoutMs);
+			engaged = true;
+			clearTimer();
 		}
 	}) ?? (() => {});
 
-	let settled = false;
-	let currentTimer: ReturnType<typeof setTimeout> | null = null;
-	const ctrl = new AbortController();
-
-	const finish = (): undefined => {
-		if (settled) return undefined;
-		settled = true;
-		if (currentTimer) clearTimeout(currentTimer);
-		if (!ctrl.signal.aborted) ctrl.abort();
-		offInput();
-		return undefined;
-	};
-
-	currentTimer = setTimeout(finish, timeoutMs);
+	currentTimer = setTimeout(() => {
+		expired = true;
+		finish();
+	}, timeoutMs);
 
 	const picked = await ctx.ui.select(title, options, { signal: ctrl.signal });
-	if (settled) return undefined;
+	if (settled) return { picked: undefined, expired };
 	settled = true;
-	if (currentTimer) clearTimeout(currentTimer);
+	clearTimer();
 	offInput();
-	return picked;
+	// Without an input hook navigation cannot be observed, so fall back to the
+	// elapsed-time split (ADR-024); with it, an engaged prompt never expires.
+	const expiredByElapsed = !engaged && picked === undefined && Date.now() - started >= timeoutMs;
+	return { picked, expired: expiredByElapsed };
 }
 
 /** Join `header` + optional `icon` (e.g. `🔑  Let pi read your key?`). The icon gets a double space. */

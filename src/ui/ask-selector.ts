@@ -17,9 +17,11 @@
  *     Yes, always…
  *
  * Keyboard only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels.
- * Mouse events are swallowed before they reach the list — pi's SelectList picks
- * the clicked row and moves the highlight on wheel, which could approve a row
- * the user never read.
+ * The countdown only applies to an untouched prompt: the first ↑/↓ cancels it, so
+ * a user who is choosing is never auto-answered and Enter/Esc alone decide
+ * (ADR-039). Mouse events are swallowed before they reach the list — pi's
+ * SelectList picks the clicked row and moves the highlight on wheel, which
+ * could approve a row the user never read.
  *
  * `askSelect` loads this module lazily and only in TUI mode
  * (`ctx.mode === "tui"`), so `src/ui/ask-flow.ts` and the contract tests stay
@@ -86,6 +88,7 @@ export class AskSelector extends Container {
 	private remaining: number;
 	private timer: ReturnType<typeof setInterval> | null = null;
 	private finished = false;
+	private engaged = false;
 
 	constructor(o: AskSelectorOptions) {
 		super();
@@ -201,15 +204,15 @@ export class AskSelector extends Container {
 		}, this.tickMs);
 	}
 
-	/** Activity restarts the countdown, so reading the options never runs it out
-	 * (v3.5.3 behavior); the footer only ever disappears, it never comes back. */
+	/** The first ↑/↓ ends the countdown: a user who has started choosing decides
+	 * with Enter/Esc, not a timer (ADR-039). The footer is gone, so nothing is
+	 * left that claims to be counting down. */
 	private onActivity(): void {
+		this.engaged = true;
 		if (this.footerVisible) this.hideFooter();
-		if (this.timeoutMs > 0) {
-			if (this.timer) clearInterval(this.timer);
+		if (this.timer) {
+			clearInterval(this.timer);
 			this.timer = null;
-			this.remaining = Math.ceil(this.timeoutMs / 1000);
-			this.startCountdown();
 		}
 	}
 
@@ -225,7 +228,7 @@ export class AskSelector extends Container {
 	}
 
 	private expire(): void {
-		if (this.finished) return;
+		if (this.finished || this.engaged) return;
 		this.onExpire();
 		this.finish(undefined);
 	}

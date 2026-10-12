@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-12T08:14:34.954Z
+Generated: 2026-10-12T09:31:48.605Z
 
 ## At a glance
 
@@ -52,7 +52,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - Raw-IP egress bypasses domain allowlist (sandbox-runtime matches by hostname only) — XFAIL, accepted v1 risk
 - The network ask callback receives only host:port, not command identity; an 'Allow once' grant is scoped to the bash invocation in flight and can briefly cover a concurrent user_bash command to the same host
 - An extension prompt can still be replaced by a pi-internal selector (trust, model picker); the prompt queue serializes only this extension's asks. A displaced selector settles on dispose, so it no longer wedges the queue (ADR-034)
-- Esc and countdown expiry both surface as `undefined` from pi's select; in RPC they are distinguished by elapsed time (ADR-024), while the TUI custom selector records expiry exactly (ADR-031)
+- Esc and countdown expiry both surface as `undefined` from pi's select; the TUI custom selector and the select fallback's own timer both record expiry exactly (ADR-031, ADR-039)
 - Pre-flight ask (ADR-015) path detection is heuristic: obfuscated reads (variable expansion, nested shells, scripts) are not prompted and stay masked by the OS fence
 - askRead (ADR-019) pre-flight is heuristic too: an obfuscated read of an askRead path is not prompted (put the path in denyRead to hard-deny it)
 - Write attribution is post-hoc (ADR-021): the command has already failed when the prompt appears, and a command whose output never names the operand cannot be attributed
@@ -60,7 +60,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 ### L2 — In-process tool guard  ✅ shipped
 
-Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032. Ask prompts are keyboard-only (ADR-036): mouse clicks and wheel are inert, so only ↑/↓ moves the highlight and only Enter picks.
+Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch_content/web_search/get_search_content tools. Same policy file as L1. grep output lines from denied files beneath an allowed search root are removed before they reach the model (ADR-008). Denied domains are a hard block, never ask-able (ADR-023); an unknown domain asks with once/session/remember. In Advanced Secure mode (ADR-018) it also flags sensitive filenames and risky MCP tool calls before they run, and redacts detected secrets from any tool output before it reaches the model. The MCP gate ignores the server namespace, classifies from the head verb of the name or description, asks for destructive names/arguments and mutating names, and fails closed only for tools with no description; `sandbox.json` -> `mcp` tunes it (allow/ask lists, annotation trust, threshold) per ADR-032. Ask prompts are keyboard-only (ADR-036): mouse clicks and wheel are inert, so only ↑/↓ moves the highlight and only Enter picks. The countdown ends at the first ↑/↓, so a user who has started choosing is resolved only by Enter/Esc, never by the timer (ADR-039).
 
 **Source files**
 
@@ -83,8 +83,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=57, FAIL=0
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
-- `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=60, FAIL=0
-- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=37 FAIL=0
+- `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=61, FAIL=0
+- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=39 FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
