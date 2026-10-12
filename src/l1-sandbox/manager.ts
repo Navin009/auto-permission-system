@@ -7,10 +7,51 @@
 
 import { homedir } from "node:os";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
+import { DANGEROUS_FILES, DANGEROUS_DIRECTORIES } from "@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { addOverride, addProjectOverride, globalPolicyPath, projectPolicyPath, sandboxFilesystem, GrantScope, OverrideKind } from "../core/index";
 import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config";
 import { createNetworkAsk, type NetworkAskDeps } from "./network-ask";
+
+/**
+ * Shell startup dotfiles that sandbox-runtime hardcodes into DANGEROUS_FILES.
+ * On Linux, bubblewrap binds /dev/null over non-existent DANGEROUS_FILES in cwd,
+ * which causes bwrap to creat() empty mount point files on the host filesystem.
+ *
+ * Shell startup files are only ever loaded from $HOME (which is already protected
+ * by policy denyWrite/askWrite and root read-only isolation), so filtering them out
+ * in memory ensures bubblewrap never binds them and never creates them on disk.
+ */
+const SUPPRESSED_PROJECT_FILES = new Set([
+	".bash_profile",
+	".bashrc",
+	".zprofile",
+	".zshrc",
+	".profile",
+]);
+
+/**
+ * Mutate sandbox-runtime's in-memory DANGEROUS_FILES and DANGEROUS_DIRECTORIES arrays
+ * to prevent ghost dotfile and ghost directory creation in the project root.
+ */
+export function suppressGhostDotfiles(): void {
+	try {
+		const files = DANGEROUS_FILES as unknown as string[];
+		const filteredFiles = files.filter((f) => !SUPPRESSED_PROJECT_FILES.has(f));
+		files.length = 0;
+		files.push(...filteredFiles);
+
+		const dirs = DANGEROUS_DIRECTORIES as unknown as string[];
+		const filteredDirs = dirs.filter((d) => d === ".git");
+		dirs.length = 0;
+		dirs.push(...filteredDirs);
+	} catch {
+		// Safe fallback if runtime internals change
+	}
+}
+
+// Suppress ghost dotfiles immediately upon module import
+suppressGhostDotfiles();
 
 /** The two override kinds Layer 1's filesystem asks can persist. */
 type Layer1FilesystemKind = typeof OverrideKind.AllowWrite | typeof OverrideKind.AllowRead;
@@ -39,6 +80,7 @@ function runtimeConfig(cwd: string, config: SandboxConfig): SandboxRuntimeConfig
  * behavior when no callback is registered).
  */
 export async function initSandbox(cwd: string, config: SandboxConfig, deps?: NetworkAskDeps): Promise<void> {
+	suppressGhostDotfiles();
 	await SandboxManager.initialize(runtimeConfig(cwd, config), deps ? createNetworkAsk(deps) : undefined);
 }
 
