@@ -41,12 +41,43 @@ function toAbsolutePath(rawToken: string, cwd: string, home: string): string | u
 }
 
 /**
+ * Strip the diagnostic lead-in that precedes an unquoted operand so the whole
+ * operand survives (`open /path with spaces/file` -> `/path with spaces/file`).
+ * Handles the `[pid:...]` prefix runtimes print before errno-style messages and
+ * the coreutils verbs (`cannot touch`, `cannot remove`, ...).
+ */
+function stripErrnoLeadIn(text: string): string {
+	const withoutPidPrefix = text.replace(/^\[[^\]]*\]\s*/, "");
+	return withoutPidPrefix
+		.replace(/^(?:open|cannot (?:touch|remove|create|open|stat|access)|touch|creat|unlink|mkdir|rmdir|rename)\s+/i, "")
+		.trim();
+}
+
+/**
+ * Whether a recovered operand really names a file. Operation words that appear
+ * in diagnostics (`socket`, `display`, `failed`, `Failed to open socket`) are
+ * not paths; a path either is rooted, contains a separator, or carries an
+ * extension. A candidate with whitespace must contain a separator, so a
+ * sentence like `. socket() failed` is rejected while `Crash Reports/x.dmp`
+ * (an unquoted path with a space) is kept.
+ */
+function looksLikePath(token: string): boolean {
+	if (!token) return false;
+	if (/\s/.test(token)) return token.includes("/");
+	if (token.startsWith("/") || token.startsWith("~")) return true;
+	if (token.startsWith(".")) return true;
+	return token.includes("/") || token.includes(".");
+}
+
+/**
  * The path a sandboxed bash command was refused, from its error output, as an
  * absolute path. Handles `tool: ./rel: Operation not permitted`, quoted paths
  * (`cannot touch 'x.pem'`), `~/…` and absolute paths, plus the errno-style
  * forms that put the path *after* the error text
  * (`EROFS: read-only file system, open '/abs/path'`,
- * `[Errno 30] Read-only file system: '/abs/path'`). Relative paths resolve
+ * `[Errno 30] Read-only file system: '/abs/path'`). A path with spaces keeps
+ * its spaces (`open /…/Crash Reports/new/x.dmp`) while operation words
+ * (`socket`, `display`) are not mistaken for files. Relative paths resolve
  * against the command's working directory, never against `/`.
  */
 export function extractBlockedPath(output: string, cwd: string, home: string): string | undefined {
@@ -56,9 +87,12 @@ export function extractBlockedPath(output: string, cwd: string, home: string): s
 		const quotedTokens = [...line.matchAll(/['"“‘`]([^'"”’`]+)['"”’`]/g)].map((quote) => quote[1] as string);
 		const quotedPath = toAbsolutePath(quotedTokens.at(-1) ?? "", cwd, home);
 		if (quotedPath) return quotedPath;
+		// Keep the whole operand, spaces included, instead of its last
+		// whitespace-delimited token: `Crash Reports/new/x.dmp` is one path.
 		const beforeError = line.slice(0, match.index).replace(/[\s:]+$/, "");
-		const candidate = beforeError.split(/:\s+/).pop() ?? "";
-		const resolved = toAbsolutePath(candidate.split(/\s+/).pop() ?? "", cwd, home);
+		const candidate = stripErrnoLeadIn(beforeError.split(/:\s+/).pop() ?? "");
+		if (!looksLikePath(candidate)) continue;
+		const resolved = toAbsolutePath(candidate, cwd, home);
 		if (resolved) return resolved;
 	}
 	return undefined;

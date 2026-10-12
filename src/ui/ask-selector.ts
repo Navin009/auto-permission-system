@@ -216,6 +216,9 @@ export class AskSelector extends Container {
 		if (this.timeoutMs > 0) {
 			if (this.timer) clearInterval(this.timer);
 			this.timer = null;
+			// Reset the counter, not just the interval: navigating restarts the
+			// full timeout (ADR-031), so reading the options never runs it out.
+			this.remaining = Math.ceil(this.timeoutMs / 1000);
 			this.startCountdown();
 		}
 	}

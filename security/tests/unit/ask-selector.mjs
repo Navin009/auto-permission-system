@@ -153,6 +153,56 @@ const mouse = (overrides = {}) => ({
 	check('expiry resolves undefined (caller maps the default)', s.result === undefined);
 }
 
+// --- navigating restarts the FULL timeout (ADR-031, v3.7.5 regression): the
+// counter used to be left where it was, so a prompt expired seconds early and
+// auto-answered even though the user was still reading. timeoutMs is in
+// seconds (ceil), so give it several ticks to make the restart observable. ---
+{
+	let result; let expired = false;
+	const comp = new AskSelector({
+		title: TITLE,
+		footer: 'Default: Yes, just this once',
+		options: OPTIONS,
+		timeoutMs: 5000,
+		tickMs: 200,
+		tui,
+		theme,
+		keybindings,
+		done: (r) => { result = r; },
+		onExpire: () => { expired = true; },
+	});
+	await sleep(450); // ~2 of 5 ticks elapsed
+	comp.handleInput('\x1b[B');
+	const restarted = text(comp);
+	check('activity: footer is hidden on navigation', !restarted.includes('Default:'));
+	// Without the reset this would expire at ~1050ms; with it, at ~1450ms.
+	await sleep(750); // t ~= 1200ms
+	check('activity: full timeout restarts (not expired mid-way)', expired === false && result === undefined);
+	comp.dispose();
+}
+
+// --- disposing after navigation still stops the restarted countdown ---
+{
+	let expired = false;
+	const comp = new AskSelector({
+		title: TITLE,
+		footer: 'Default: Yes, just this once',
+		options: OPTIONS,
+		timeoutMs: 5000,
+		tickMs: 200,
+		tui,
+		theme,
+		keybindings,
+		done: () => {},
+		onExpire: () => { expired = true; },
+	});
+	await sleep(450);
+	comp.handleInput('\x1b[B');
+	comp.dispose();
+	await sleep(1200);
+	check('activity: dispose stops the restarted countdown', expired === false);
+}
+
 // --- dispose stops the countdown (component replaced before it fires) ---
 {
 	const s = mk({ timeoutMs: 50, tickMs: 5 });

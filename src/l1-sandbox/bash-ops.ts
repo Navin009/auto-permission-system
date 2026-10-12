@@ -453,10 +453,11 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							try {
 								const ui = opts.ctx as AskCtx;
 								const folder = isSafeFolderGrant(parentDir, homedir()) ? parentDir : null;
+								const deniedWhy = writeDenied ? "not under an allowWrite root" : "blocked by the sandbox filesystem policy";
 								const { choice, grant } = await askMainWithRemember(
 									ui,
 									`Let ${firstWord(command)} save files in ${parentDir}/?`,
-									[`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Command  ${command}`, `Why      outside your project, not on your allowed list`].join("\n"),
+									[`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Command  ${command}`, `Why      ${deniedWhy}`].join("\n"),
 									{ session: true, once: !alreadyGranted },
 									() => askRememberFile(ui, "Always allow saving \u2014 what, and where?", [`File     ${absPath}`, ...linkRow(absPath, spelledOffending), `Folder   ${parentDir}/`, `Note     the rule works for any command, not just ${firstWord(command)}`].join("\n"), absPath, folder, { icon: "save", untrusted: !projectTrusted(cwd) }),
 								);

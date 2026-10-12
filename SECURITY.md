@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-10-11T18:39:09.338Z
+Generated: 2026-10-12T07:12:16.093Z
 
 ## At a glance
 
@@ -26,7 +26,7 @@ Generated: 2026-10-11T18:39:09.338Z
 
 ### L1 — Bash sandbox (sandbox-exec)  ✅ shipped
 
-Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. A host in neither allowedDomains nor deniedDomains asks through the shared ask-tier prompt (ADR-023, ADR-024) — `Allow (default)` / `Deny` / `Allow for this session` / `Allow and remember…`; an unanswered countdown counts as Allow once, Esc denies; prompts are serialized so pi never shows two at once (overlapping selects orphan each other and hang the awaited proxy request), and a two-screen ask holds one queue slot end-to-end (ADR-034). "once" covers the bash command, "remember" writes overrides.allowDomains (applied live, without restarting the proxy); headless denies. `deniedDomains` is a hard deny the prompt cannot override. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022). Filesystem asks offer once / session / remember: a session grant lives in memory, covers the folder (the exact path when the parent is unsafe to grant) and is cleared at session_start. The blocked path, the deny matches and every grant use the canonical (symlink-resolved) path (ADR-006, ADR-035) — sandbox-runtime silently skips an allowWrite root whose realpath escapes the spelling, so a spelled grant would re-run into the same fence; a `denyWrite` match is a hard deny and a grant that does not take effect is not re-prompted. The filesystem block is rebuilt from a fresh sandbox.json for every command (ADR-033), so a remember from either layer — or a hand edit — applies to the next bash call without a reload; the network section stays live via updateConfig.
+Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes outside allowWrite, blocks reads of denyRead, restricts network to allowedDomains. A host in neither allowedDomains nor deniedDomains asks through the shared ask-tier prompt (ADR-023, ADR-024) — `Allow (default)` / `Deny` / `Allow for this session` / `Allow and remember…`; an unanswered countdown counts as Allow once, Esc denies; prompts are serialized so pi never shows two at once (overlapping selects orphan each other and hang the awaited proxy request), and a two-screen ask holds one queue slot end-to-end (ADR-034). "once" covers the bash command, "remember" writes overrides.allowDomains (applied live, without restarting the proxy); headless denies. `deniedDomains` is a hard deny the prompt cannot override. When filesystem.outsideProject.read gates reads, a pre-flight ask (ADR-015) confirms plainly-named outside reads before the command runs — undetected reads still fall back to the home fence and re-exposed allowRead roots (ADR-014). A refused write is attributed from the error output (EPERM on macOS, EROFS/"read-only file system" on Linux) and offered through the write prompt (ADR-021); a failed write is never offered as a read grant (ADR-022). A path with spaces is kept whole and a bare operation word (`socket`, `display`) is not mistaken for a file (ADR-037). Filesystem asks offer once / session / remember: a session grant lives in memory, covers the folder (the exact path when the parent is unsafe to grant) and is cleared at session_start. The blocked path, the deny matches and every grant use the canonical (symlink-resolved) path (ADR-006, ADR-035) — sandbox-runtime silently skips an allowWrite root whose realpath escapes the spelling, so a spelled grant would re-run into the same fence; a `denyWrite` match is a hard deny and a grant that does not take effect is not re-prompted. The filesystem block is rebuilt from a fresh sandbox.json for every command (ADR-033), so a remember from either layer — or a hand edit — applies to the next bash call without a reload; the network section stays live via updateConfig.
 
 **Source files**
 
@@ -34,11 +34,11 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-10-10
 - ✓ `src/core/` — dir, mtime 2026-10-10
 - ✓ `src/shared/` — dir, mtime 2026-10-11
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-11
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-12
 
 **Tests**
 
-- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=41, FAIL=0
+- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=47, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=11, FAIL=0
 - `L1-session-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs` → expects PASS=35, FAIL=0
@@ -83,7 +83,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=60, FAIL=0
-- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=34 FAIL=0
+- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=37 FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=16, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
@@ -135,7 +135,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-11
+- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-10-12
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 
