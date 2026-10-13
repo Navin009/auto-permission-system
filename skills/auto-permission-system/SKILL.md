@@ -1,11 +1,11 @@
 ---
 name: auto-permission-system
-description: Use this skill when the user asks about the auto-permission-system extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
+description: Use this skill when the user asks about auto-permission-system, security for Pi, permission system for Pi, how to secure Pi, Cloud auto mode for Pi, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, Cloud auto mode preset (sandbox.cloud.json), ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
 ---
 
-# Pi Security — Skill
+# Security for Pi (Pi Permission System) — Skill
 
-Use this skill when the user asks about the auto-permission-system extension, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior.
+Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, or configuring Cloud auto mode for Pi.
 
 ## What this extension does
 
@@ -19,15 +19,16 @@ Wraps the `bash` tool with `sandbox-exec` (macOS) or `bubblewrap` (Linux). Block
 **Layer 2 — In-process tool guard**
 Hooks `tool_call` for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. Applies the same policy file as Layer 1. For `grep`, `find` and `ls` the search root is checked like a `read` path. A `tool_result` hook also removes `grep` output lines from denied files beneath an allowed root (for example a `.env` deep in the tree); approving the root does not approve those files. When a call is blocked, shows an interactive prompt with persistence options.
 
-**Layer 3 — Subagent posture**
-When `ctx.hasUI === false` (subagents, `-p`, JSON mode), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`.
+**Layer 3 — Subagent posture & Cloud Auto Mode**
+When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`. In Cloud Auto Mode, unapproved prompts fail closed.
 
 ## Policy files
 
 Merged in order (later wins):
 1. `sandbox.default.json` — shipped baseline (`outsideProject.read: "ask"`, full `denyRead`/`denyWrite`, `modelDenyRead`)
-2. `~/.pi/agent/extensions/sandbox.json` — global user policy
-3. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
+2. `sandbox.cloud.json` — shipped Cloud Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
+3. `~/.pi/agent/extensions/sandbox.json` — global user policy
+4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
 
 A higher layer only states what it changes; absent keys keep the layer below. A **trusted** project may loosen the baseline; an **untrusted** project may only tighten it (ADR-013). You do not need a global file for good defaults (ADR-016).
 

@@ -1,13 +1,15 @@
-# auto-permission-system
+# Auto Permission System: Cloud Auto Mode & Security for Pi Coding Agent
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
 [![CI](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml)
+[![Cloud Auto Mode for Pi](https://img.shields.io/badge/Pi-Cloud_Auto_Mode-blue.svg)](#cloud-auto-mode-for-pi)
+[![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi--how-to-secure-pi)
+[![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system-for-pi-pi-permission-system)
 
-**A security sandbox, permission system and tool guard for the [Pi coding agent](https://pi.dev).**
-It puts allow/deny rules, interactive ask prompts, secret detection and an audit log around every tool the agent can call — file reads and writes, shell commands, searches and network access — so the agent can work in your repository without reaching your credentials or the wider internet by accident.
+**Auto Permission System** is the comprehensive toolkit providing **cloud auto mode for Pi**, **security for Pi**, and a zero-trust **permission system for Pi** ([pi.dev](https://pi.dev)). Whether you need an interactive **Pi permission system** with real-time ask prompts, an automated **PyPI permission system** to guard `.pypirc` and `pip install` commands, or a hardened **cloud auto mode** to **secure Pi** in headless CI/CD environments, this extension enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
 
 Enforcement happens in three layers:
 
@@ -22,6 +24,10 @@ When a tool call is blocked you get an interactive prompt — no need to leave p
 - [Install](#install)
 - [Requirements](#requirements)
 - [Configuration](#configuration)
+- [Cloud Auto Mode for Pi](#cloud-auto-mode-for-pi)
+- [Security for Pi & How to Secure Pi](#security-for-pi--how-to-secure-pi)
+- [Permission System for Pi (Pi Permission System)](#permission-system-for-pi-pi-permission-system)
+- [PyPI & Python Ecosystem Security](#pypi--python-ecosystem-security)
 - [Commands](#commands)
 - [Escape hatches](#escape-hatches)
 - [FAQ](#faq)
@@ -172,6 +178,72 @@ Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/a
 
 `sandbox.json` is strict JSON: no comments, no trailing commas. If a file does not parse, both layers skip it and use the built-in defaults for it. Layer 2 then shows an error at session start and writes `policy-parse-error` to the audit log. The "always" prompts refuse to write to a file they cannot parse, so a hand-written policy is never replaced.
 
+## Cloud Auto Mode for Pi
+
+When running the Pi coding agent autonomously in the cloud, CI/CD pipelines, Docker containers, remote devboxes (GitHub Codespaces, Gitpod, Daytona), or headless subagents (`pi -p`, JSON mode), interactive terminal ask prompts cannot be answered by a human.
+
+**Cloud Auto Mode for Pi** provides a deterministic, zero-trust security configuration engineered for autonomous execution:
+
+- **Fail-Closed by Design:** Any tool call or bash command requesting an unlisted domain, credential path, or unapproved write fails closed immediately with an informative audit reason, preventing unmonitored agent deviations.
+- **Pre-Configured Cloud Preset (`sandbox.cloud.json`):** Shipped directly in this package, `sandbox.cloud.json` sets `strictAllowlist: true`, locks `outsideProject.read: "deny"`, restricts subagent network egress, and denies read/write access to cloud credentials (`~/.aws`, `~/.azure`, `~/.config/gcloud`).
+- **Subagent Posture Control (`subagent.network`):** Prevents subagents from opening external network sockets or exfiltrating private codebase data (`"deny"` or `"research-only"`).
+
+### Activating Cloud Auto Mode in Your Repository or CI:
+
+```bash
+# 1. Copy the shipped Cloud Auto Mode template to your repository:
+cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+
+# 2. Run Pi headlessly with complete automated protection:
+pi -p "Review pull request changes and execute test suite"
+```
+
+---
+
+## Security for Pi & How to Secure Pi
+
+AI coding agents are granted powerful system tools—arbitrary bash command execution, filesystem reads and edits, URL fetching, and MCP integration. Without guardrails, prompt injections or untrusted code can compromise developer environments.
+
+### The 3-Layer Defense in Depth:
+
+1. **OS-Level Kernel Sandbox (Layer 1):** Uses `bubblewrap` (Linux) or `sandbox-exec` (macOS) to confine bash processes at the OS kernel boundary. Bash subprocesses cannot write outside designated directories or read forbidden directories even if child processes are spawned.
+2. **In-Process Tool Guard (Layer 2):** Guards the agent's internal tools (`read`, `write`, `edit`, `grep`, `find`, `ls`, `fetch_content`, `web_search`). Denied files are filtered out of directory listings and search outputs before the LLM can observe them.
+3. **Secret Detection & Output Redactor (Auto Secure):** Analyzes tool outputs and bash output streams in real time. Credentials, private keys, API tokens, and environment secrets are masked before reaching the model context window.
+
+### Quick Checklist: How to Secure Pi in 3 Steps
+- **Step 1:** Install `auto-permission-system` (`pi install npm:auto-permission-system`).
+- **Step 2:** Ensure `/permission-mode` is set to **Advanced Secure** (Auto Secure).
+- **Step 3:** For CI/CD and cloud runs, adopt `sandbox.cloud.json` to enforce strict domain and path boundaries.
+
+---
+
+## Permission System for Pi (Pi Permission System)
+
+The **Pi permission system** in `auto-permission-system` offers granular allow/ask/deny control with session memory and repository-level persistence:
+
+| Policy Tier | Behavior | Example Subjects |
+|---|---|---|
+| **Absolute Deny** | Always blocked. Never prompts. | `~/.ssh`, `~/.aws`, `auth.json`, `*.pem`, `*.key` |
+| **Ask (Interactive)** | Prompts user with 10s countdown timer (`Allow once`, `Always for project`, `Always global`). | `.env`, unlisted domains (`api.example.com`), bash `printenv` |
+| **Allowed Roots** | Allowed transparently without prompting. | Project root `.`, `/tmp`, trusted package registries |
+| **Cloud Auto Mode** | In headless runs (`-p`), unapproved operations fail closed without blocking execution. | Headless subagents, Docker containers, GitHub Actions |
+
+### Permission Modes Available:
+- **`advanced-secure` (Auto Secure / Recommended):** Full rule engine + real-time AST/regex secret detection + MCP tool risk scoring.
+- **`default`:** Rule-based sandbox without inspecting payload content.
+- **`yolo`:** Emergency escape hatch that temporarily bypasses all security layers.
+
+---
+
+## PyPI & Python Ecosystem Security
+
+`auto-permission-system` includes dedicated, out-of-the-box safeguards for Python developers and PyPI packaging workflows:
+
+- **PyPI Token Protection:** Scans all tool outputs and bash streams in real time for exposed PyPI API tokens (matching `pypi-AgEI...` token signatures) and redacts them before the language model can read or exfiltrate them.
+- **Sensitive Credentials Guard (`.pypirc`):** `~/.pypirc` and package registry credentials are gated under strict deny-read rules, preventing AI coding agents from accessing PyPI deployment credentials.
+- **Governed `pip install` Network Egress:** Outgoing requests to `pypi.org` and `*.pypi.org` are pre-configured in the baseline domain allowlist (`sandbox.default.json`), allowing standard package resolution while blocking unvetted third-party download mirrors or suspicious domains.
+- **Shield Against Malicious Package Setup Scripts:** When installing unfamiliar dependencies or running untrusted Python code, Layer 1 OS-level sandboxing (`bubblewrap` / `sandbox-exec`) confines `python setup.py` and bash commands within the project root, stopping arbitrary filesystem tampering outside allowed directories.
+
 ## Commands
 
 | Command | Description |
@@ -207,6 +279,12 @@ Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JS
 ```
 
 ## FAQ
+
+### How does Cloud Auto Mode secure unattended or headless runs?
+In headless mode (`pi -p` or subagent executions), interactive ask prompts cannot be presented to a human. Auto Permission System operates in a fail-closed posture: any tool call or bash command targeting an unlisted domain, credential file, or outside-project path is automatically blocked, and the refusal reason is provided to the agent and recorded in the audit log.
+
+### How does this package secure PyPI tokens and Python packages?
+Auto Permission System includes native pattern recognizers for PyPI API tokens (`pypi-*`), hard-blocks model access to `~/.pypirc`, and gates `pip install` network requests to trusted hosts (`pypi.org`, `*.pypi.org`), preventing AI agents from leaking deployment secrets or pulling unvetted dependencies.
 
 ### How do I allow the agent to reach a new domain?
 Add it to `network.allowedDomains` in a policy file (global `~/.pi/agent/extensions/sandbox.json` or project `<cwd>/.pi/sandbox.json`), or just run the tool (or a bash `curl`) once and pick an **always** option in the ask prompt — that writes the domain to the project file for you.
