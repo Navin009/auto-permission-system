@@ -218,7 +218,7 @@ export default function (pi: ExtensionAPI) {
 				`  Allow Write: ${config.filesystem?.allowWrite?.join(", ") || "(none)"}`,
 				`  Deny Write: ${config.filesystem?.denyWrite?.join(", ") || "(none)"}`,
 				`  Outside project reads: ${config.filesystem?.outsideProject?.read ?? "allow"}`,
-				`  Session grants: ${filesystemSessionGrantSummary() || "(none)"}`,
+				`  Conversation grants: ${filesystemSessionGrantSummary() || "(none)"}`,
 			];
 			ctx.ui.notify(lines.join("\n"), "info");
 		},

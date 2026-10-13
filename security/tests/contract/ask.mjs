@@ -27,7 +27,7 @@ check('headless returns no without prompting', (await askDecision(headless, file
 check('screen1 No → no', (await askDecision(mkCtx([(o) => o[0]]).ctx, fileKind, null)) === 'no');
 check('screen1 timeout/undefined → no', (await askDecision(mkCtx([undefined]).ctx, fileKind, null)) === 'no');
 check('screen1 Yes, just this once → yes', (await askDecision(mkCtx([(o) => o[1]]).ctx, fileKind, null)) === 'yes');
-check('screen1 Yes, for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, fileKind, null)) === 'session');
+check('screen1 Yes, for this conversation → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, fileKind, null)) === 'session');
 
 const remember = (idx) => [(o) => o[3], (o) => o[idx]];
 check('remember: folder · this project → always-cwd-folder', (await askDecision(mkCtx(remember(0)).ctx, fileKind, null)) === 'always-cwd-folder');
@@ -60,10 +60,10 @@ const domainMain = mkCtx([(o) => o[1]]);
 check('domain screen1 Yes, just this once → yes', (await askDecision(domainMain.ctx, domainKind, null)) === 'yes');
 check(
 	'domain screen1 order = No / Yes, just this once / session / remember',
-	domainMain.seen[0].join('|') === 'No|Yes, just this once|Yes, all in group for this session|Yes, always\u2026',
+	domainMain.seen[0].join('|') === 'No|Yes, just this once|Yes, all in group for this conversation|Yes, always\u2026',
 );
 check('domain screen1 No → no', (await askDecision(mkCtx([(o) => o[0]]).ctx, domainKind, null)) === 'no');
-check('domain screen1 Yes, all in group for this session → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, domainKind, null)) === 'session');
+check('domain screen1 Yes, all in group for this conversation → session', (await askDecision(mkCtx([(o) => o[2]]).ctx, domainKind, null)) === 'session');
 {
 	const realNow = Date.now;
 	let clock = realNow();

@@ -1,6 +1,6 @@
 # Auto Permission System: Comprehensive FAQ & Security Scenarios
 
-This guide provides in-depth explanations, configuration examples, and security scenarios for **Auto Permission System**—the zero-trust permission architecture and **Cloud Auto Mode for Pi** ([pi.dev](https://pi.dev)).
+This guide provides in-depth explanations, configuration examples, and security scenarios for **Auto Permission System**—the zero-trust permission architecture and **Claude Auto Mode for Pi** ([pi.dev](https://pi.dev)).
 
 ---
 
@@ -11,10 +11,10 @@ This guide provides in-depth explanations, configuration examples, and security 
    - [How does the 3-Layer Defense-in-Depth work?](#how-does-the-3-layer-defense-in-depth-work)
    - [How does it defend against prompt injection and data exfiltration?](#how-does-it-defend-against-prompt-injection-and-data-exfiltration)
    - [Why not just run Pi with `--yolo`?](#why-not-just-run-pi-with---yolo)
-2. [Secure Auto Mode & Cloud Auto Mode (Claude-Style Auto Mode for Pi)](#secure-auto-mode--cloud-auto-mode-claude-style-auto-mode-for-pi)
-   - [What is Cloud Auto Mode for Pi?](#what-is-cloud-auto-mode-for-pi)
+2. [Secure Auto Mode & Claude Auto Mode (Claude-Style Auto Mode for Pi)](#secure-auto-mode--claude-auto-mode-claude-style-auto-mode-for-pi)
+   - [What is Claude Auto Mode for Pi?](#what-is-claude-auto-mode-for-pi)
    - [How does Advanced Secure Mode prevent data breaches during autonomous runs?](#how-does-advanced-secure-mode-prevent-data-breaches-during-autonomous-runs)
-   - [How does Cloud Auto Mode prevent headless agent deadlocks in CI/CD?](#how-does-cloud-auto-mode-prevent-headless-agent-deadlocks-in-cicd)
+   - [How does Claude Auto Mode prevent headless agent deadlocks in CI/CD?](#how-does-claude-auto-mode-prevent-headless-agent-deadlocks-in-cicd)
    - [How do I run Pi headlessly in GitHub Actions or Docker?](#how-do-i-run-pi-headlessly-in-github-actions-or-docker)
 3. [Real-Time Secret Detection & Content Scanning](#real-time-secret-detection--content-scanning)
    - [What secrets and tokens does the scanner detect?](#what-secrets-and-tokens-does-the-scanner-detect)
@@ -60,14 +60,14 @@ When an AI coding agent ingests untrusted code (such as third-party PRs, depende
 
 ---
 
-## Secure Auto Mode & Cloud Auto Mode (Claude-Style Auto Mode for Pi)
+## Secure Auto Mode & Claude Auto Mode (Claude-Style Auto Mode for Pi)
 
-### What is Cloud Auto Mode for Pi?
+### What is Claude Auto Mode for Pi?
 In modern AI coding agents (such as Claude Code or Pi), developers desire an **autonomous auto mode**—allowing the agent to read files, run tests, and iterate on code without pausing to ask human confirmation for every single routine command.
 
 However, running an agent autonomously without boundaries is a major data breach risk: unconstrained agents can accidentally read local secrets, send data to unverified endpoints, or delete critical files.
 
-**Cloud Auto Mode for Pi** brings the confidence of **Claude's auto mode** to the Pi coding agent:
+**Claude Auto Mode for Pi** brings the confidence of **Claude's auto mode** to the Pi coding agent:
 - It allows the agent to execute safely within predefined zero-trust boundaries.
 - Uses **Advanced Secure Mode** to actively scan files, shell outputs, and tool responses for sensitive credentials.
 - In headless CI/CD pipelines (`pi -p`), it operates in a **Fail-Closed** posture: any attempt to breach allowed boundaries fails closed with a clear refusal reason instead of hanging or deadlocking.
@@ -78,20 +78,20 @@ When running in `advanced-secure` mode:
 - **Post-Execution Output Scanning:** Even if a bash command prints API tokens, private keys, or passwords to stdout/stderr, the scanner intercepts the output stream and masks the secrets (`***REDACTED***`) before the language model can view or exfiltrate them.
 - **MCP Risk Classification:** Evaluates MCP tools by verb and argument risk (destructive names like `delete_*`, `drop_*`, `rm -rf`) to prevent accidental resource destruction.
 
-### How does Cloud Auto Mode prevent headless agent deadlocks in CI/CD?
+### How does Claude Auto Mode prevent headless agent deadlocks in CI/CD?
 In interactive mode, unknown domains or sensitive reads present a countdown prompt. If run headlessly in CI/CD without a human, ordinary prompts would either hang the pipeline or cause unmonitored timeouts. 
 
-Under Cloud Auto Mode (configured via `sandbox.cloud.json`):
+Under Claude Auto Mode (configured via `sandbox.claude.json`):
 - Unlisted domains and outside-project writes fail closed immediately with a structured refusal reason.
 - The agent is informed of the policy boundary and proceeds to alternate solutions without blocking the pipeline.
 - Every blocked attempt is recorded in `~/.pi/agent/audit.log` for security auditing.
 
 ### How do I run Pi headlessly in GitHub Actions or Docker?
 
-1. Copy the shipped `sandbox.cloud.json` preset into your repository's `.pi/` directory:
+1. Copy the shipped `sandbox.claude.json` preset into your repository's `.pi/` directory:
    ```bash
    mkdir -p .pi
-   cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+   cp node_modules/auto-permission-system/sandbox.claude.json .pi/sandbox.json
    ```
 
 2. Add a CI workflow step (`.github/workflows/pi-security.yml`):
@@ -128,7 +128,7 @@ The AST and regex engine includes high-confidence, bounded pattern matchers for:
 ### How does output redaction protect developer credentials?
 When a bash command or tool outputs a secret:
 - In interactive mode, the prompt asks: `Should the AI be allowed to see it? > No, keep private`.
-- In headless/cloud mode, it withholds or redacts the detected token automatically.
+- In headless/Claude mode, it withholds or redacts the detected token automatically.
 - The model receives `[auth] API Key: ***REDACTED*** (content withheld)`. The agent understands that a key was present without ever transmitting the real secret over network APIs.
 
 ### How does the scanner handle large outputs (>64 KiB)?
@@ -141,7 +141,7 @@ To prevent catastrophic memory exhaustion and ensure real-time responsiveness, o
 ### How do the keyboard-driven Ask prompts work?
 When an unlisted domain, `.env` read, or directory write is requested during an interactive terminal session:
 1. **Screen 1 (Action & Scope):**
-   - Options: `No` · `Yes, just this once` · `Yes, for this session` · `Yes, always…`
+   - Options: `No` · `Yes, just this once` · `Yes, for this conversation` · `Yes, always…`
    - Navigation: `↑` / `↓` keys move highlight; `Enter` confirms; `Esc` cancels/blocks. Mouse clicks are ignored to prevent accidental approvals.
 2. **Screen 2 (Permanent Granularity - only if "Yes, always…" is picked):**
    - File/Folder choice: `All in folder` vs. `Only this file`.
@@ -153,7 +153,7 @@ When an unlisted domain, `.env` read, or directory write is requested during an 
 
 ### Where are permissions persisted (Session vs. Project vs. Global)?
 - **`Yes, just this once`:** Covers the single tool call or current bash command invocation only. Nothing is saved to disk.
-- **`Yes, for this session`:** Kept in memory in Pi's runtime process. Grants remain active until Pi exits and are never written to disk.
+- **`Yes, for this conversation`:** Kept in memory in Pi's runtime process. Grants remain active until Pi exits and are never written to disk.
 - **`Always in this project`:** Saved directly to `<cwd>/.pi/sandbox.json`. Governs this repository across future sessions.
 - **`Always in all projects`:** Saved to global settings at `~/.pi/agent/extensions/sandbox.json`.
 

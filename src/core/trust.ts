@@ -67,7 +67,7 @@ export function isProjectFileDeclined(projectPath: string, storePath: string): b
  * and share only the store file (ADR-018/ADR-020).
  */
 export interface ProjectTrust {
-	/** Record pi's own project-trust answer for this session. Declined is never trusted. */
+	/** Record pi's own project-trust answer for this conversation. Declined is never trusted. */
 	setDeclined(value: boolean): void;
 	/** The project file applies in full only when its current hash is recorded and pi did not decline. */
 	isTrusted(cwd: string): boolean;

@@ -21,7 +21,7 @@ check(
 const withSession = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
 check(
 	'askMain session inserts before remember',
-	withSession.join('|') === 'No|Yes, just this once|Yes, for this session|Yes, always\u2026',
+	withSession.join('|') === 'No|Yes, just this once|Yes, for this conversation|Yes, always\u2026',
 );
 const noOnce = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { once: false }));
 check(
@@ -37,13 +37,13 @@ check(
 const withSessionTitle = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
 check(
 	'askMain: title has header + body + footer',
-	withSessionTitle[0] === 'No' && withSessionTitle[2] === 'Yes, for this session' && withSessionTitle[3] === 'Yes, always\u2026',
+	withSessionTitle[0] === 'No' && withSessionTitle[2] === 'Yes, for this conversation' && withSessionTitle[3] === 'Yes, always\u2026',
 );
 
 const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true, allowFirst: true }));
 check(
 	'askMain allowFirst = No / Yes, just this once / session / remember',
-	allowFirstOpts.join('|') === 'No|Yes, just this once|Yes, for this session|Yes, always\u2026',
+	allowFirstOpts.join('|') === 'No|Yes, just this once|Yes, for this conversation|Yes, always\u2026',
 );
 const pickAllowFirst = async (pick) =>
 	askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true, allowFirst: true });
@@ -216,8 +216,8 @@ check('askExposure: allow label', expOpts[1].startsWith('Yes, show it this once'
 let expTitle;
 await askExposure({ hasUI: true, ui: { select: async (t) => { expTitle = t; return undefined; } } }, [hit]);
 check(
-	'askExposure: icon-prefixed title + location + line + footer',
-	expTitle.startsWith(`${ICON.cred}  This output may contain a secret`) && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Default: No'),
+	'askExposure: warning title + location + line + question + footer',
+	expTitle.startsWith(`${ICON.warn}  Sensitive information detected`) && expTitle.includes('config.env') && expTitle.includes('12: key=asdfadsdaasdfdsafasdf') && expTitle.includes('Question Should the AI be allowed to see it?') && expTitle.includes('Default: No'),
 );
 const multiHit = 'config.env\n12: key=aaa\n20: OPENAI_API_KEY=sk-bbb';
 let multiTitle;
@@ -230,7 +230,7 @@ check('askExposure pick block → block', (await askExposure({ hasUI: true, ui: 
 const expOptsWithProg = await optionsOf((ctx) => askExposure(ctx, [hit], 'composio'));
 check(
 	'askExposure +programId: 3 options, session-grant row added',
-	expOptsWithProg.length === 3 && expOptsWithProg[2] === 'Yes, all composio output for this session',
+	expOptsWithProg.length === 3 && expOptsWithProg[2] === 'Yes, all composio output for this conversation',
 );
 const pickProgramSession = async (idx) => askExposure({ hasUI: true, ui: { select: async (_t, o) => o[idx] } }, [hit], 'composio');
 check('askExposure +programId o0 → block', (await pickProgramSession(0)) === 'block');

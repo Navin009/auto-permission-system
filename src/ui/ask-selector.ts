@@ -13,7 +13,7 @@
  *
  *   → No
  *     Yes, just this once
- *     Yes, all in group for this session
+ *     Yes, all in group for this conversation
  *     Yes, always…
  *
  * Keyboard only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels.

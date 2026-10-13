@@ -7,7 +7,7 @@ demonstrating auto-permission-system features:
 2. L1 OS Sandbox kernel write boundary (Bubblewrap EROFS refusal)
 3. L1 Network domain intercept with countdown
 4. Advanced Secure real-time API key & secret token redaction
-5. Cloud Auto Mode: Secure autonomous execution for Pi (like Claude auto mode)
+5. Claude Auto Mode: Secure autonomous execution for Pi (like Claude auto mode)
 
 Outputs:
 - assets/demo.mp4 (High-res Full HD MP4)
@@ -18,7 +18,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
 
@@ -233,7 +232,7 @@ def create_frames():
     prompt1_options = [
         "No",
         "Yes, just this once",
-        "Yes, for this session",
+        "Yes, for this conversation",
     ]
 
     for sec in [10, 9, 8]:
@@ -299,7 +298,7 @@ def create_frames():
     prompt2_options = [
         "No",
         "Yes, just this once",
-        "Yes, all in group for this session",
+        "Yes, all in group for this conversation",
         "Yes, always…",
     ]
 
@@ -344,7 +343,7 @@ def create_frames():
     prompt3_title = [
         ("⚠  Sensitive information detected: API Secret Key", FG_RED, True),
         ("    Tool     bash (node verify_service.js)", FG_TEXT, False),
-        ("    Finding  sk-(?!ant-)[A-Za-z0-9_-] (score: 90 / CRITICAL)", FG_YELLOW, False),
+        ("    Finding  23: sk-(?!ant-)[A-Za-z0-9_-]", FG_YELLOW, False),
         ("    Question Should the AI be allowed to see it?", FG_TEXT, False),
     ]
     prompt3_options = [
@@ -380,11 +379,11 @@ def create_frames():
         frames.append(img)
 
     # ----------------------------------------------------
-    # SCENE 6: Cloud Auto Mode (Claude-Style Secure Auto Mode for Pi)
+    # SCENE 6: Claude Auto Mode (Claude-Style Secure Auto Mode for Pi)
     # ----------------------------------------------------
     scene6_lines = [
         [("$ ", FG_GREEN, True), ("pi -p \"Deploy release in headless auto mode\"", FG_TEXT, True)],
-        [("Mode: ", FG_MUTED, False), ("Cloud Auto Mode (sandbox.cloud.json)", FG_CYAN, True)],
+        [("Mode: ", FG_MUTED, False), ("Claude Auto Mode (sandbox.claude.json)", FG_CYAN, True)],
         ("Auto Mode for Pi: Advanced Secure content scan prevents data breaches", FG_MUTED, False),
         "SPACER",
         [("✓  Layer 1 Sandbox:   ", FG_GREEN, True), ("OS Kernel isolation (bubblewrap/sandbox-exec) ACTIVE", FG_TEXT, False)],
@@ -408,7 +407,10 @@ def create_frames():
 
 def main():
     assets_dir = os.path.abspath("assets")
-    os.makedirs(assets_dir, exist_ok=True)
+    try:
+        os.makedirs(assets_dir, exist_ok=True)
+    except OSError as exc:
+        raise SystemExit(f"Could not create assets directory: {exc}") from exc
     temp_dir = tempfile.mkdtemp(prefix="aps_demo_frames_")
 
     print(f"Generating crisp widescreen HD (1200x580) frames in {temp_dir}...")
@@ -458,7 +460,10 @@ def main():
     subprocess.run(cmd_gif, check=True)
     print(f"Saved GIF: {gif_out}")
 
-    shutil.rmtree(temp_dir)
+    try:
+        shutil.rmtree(temp_dir)
+    except OSError as exc:
+        print(f"Could not remove temp directory {temp_dir}: {exc}")
     print("Done! Widescreen HD demo generation complete.")
 
 if __name__ == "__main__":

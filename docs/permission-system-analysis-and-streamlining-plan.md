@@ -86,7 +86,7 @@ The current design prioritizes a **"fail-closed, prompt-everything"** posture. W
 - **Mechanism:** `sandbox.default.json` ships `"commands": { "ask": ["printenv", "env", "/proc/*/environ"] }`.
 - **The Flaw:**
   - `matchedAskCommands()` checks if `head === entry`. Therefore, any command using `env` as a runner or wrapper—such as `env NODE_ENV=development npm start` or `env PATH=... python main.py`—matches `head === "env"`.
-  - Unlike file or network asks, `preflightSensitiveCommands()` offers **only `once`**. There is **no session grant** and **no remember option** (ADR-017: *"The gate offers only Allow once; per-command persistence would need a new override kind"*).
+  - Unlike file or network asks, `preflightSensitiveCommands()` offers **only `once`**. There is **no conversation grant** and **no remember option** (ADR-017: *"The gate offers only Allow once; per-command persistence would need a new override kind"*).
   - Every single invocation prompts. Unattended timer expiration immediately aborts the run.
 
 ### 2.3 Friction Point 3: Filesystem Write Denials on Normal Tool Caches

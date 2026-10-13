@@ -4,7 +4,7 @@
  * ADR-030.
  *
  * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
- * `Yes, for this session` / `Yes, always…`. Body uses the canonical field set
+ * `Yes, for this conversation` / `Yes, always…`. Body uses the canonical field set
  * File / Folder / Site / Group / Command / Why / Risk / Note. Absolute-deny
  * (credentials) collapses to ONE screen with `No` preselected. Untrusted
  * project: screen 2 hides the `in this project` rows and adds a Note.
@@ -192,7 +192,7 @@ export async function askDecision(ctx: AskCtx, ask: AskKind, absoluteDenyPattern
 	}
 
 	const header = headerFor(action, ask.subject, ask);
-	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this session" : "Yes, for this session";
+	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
 	const untrusted = ask.projectTrusted === false;
 	const mainOpts = {
 		session: true,

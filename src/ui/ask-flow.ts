@@ -3,7 +3,7 @@
  * it only calls the caller's `ctx.ui.select`, so the contract tests can script it.
  *
  * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
- * `Yes, for this session` / `Yes, always…` so row 2 is always "once". Screen 2
+ * `Yes, for this conversation` / `Yes, always…` so row 2 is always "once". Screen 2
  * collapses to "All in folder · in this project" / "Only <name> · in this project" /
  * "All in folder · in all projects" / "Only <name> · in all projects" — folder /
  * wildcard is preselected (the wider grant is the right answer almost every time).
@@ -294,10 +294,10 @@ function withIcon(icon: string | undefined, header: string): string {
 export type MainOpts = {
 	/** Offer `Yes, just this once` (default on). */
 	once?: boolean;
-	/** Offer `Yes, for this session` (opt-in). */
+	/** Offer `Yes, for this conversation` (opt-in). */
 	session?: boolean;
-	/** Override the session label so the caller can name what the session grant covers
-	 * (`Yes, for this session` for files, `Yes, all in group for this session` for networks). */
+	/** Override the session label so the caller can name what the conversation grant covers
+	 * (`Yes, for this conversation` for files, `Yes, all in group for this conversation` for networks). */
 	sessionLabel?: string;
 	/** Offer `Yes, always…` (default on). */
 	remember?: boolean;
@@ -322,7 +322,7 @@ export type MainOpts = {
  * highlighted.
  */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
-	const sessionLabel = opts.sessionLabel ?? "Yes, for this session";
+	const sessionLabel = opts.sessionLabel ?? "Yes, for this conversation";
 	const choices: Array<{ label: string; value: MainChoice }> = [];
 	choices.push({ label: "No", value: MainChoice.Block });
 	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: MainChoice.Once });
@@ -444,18 +444,20 @@ export type ExposureChoice = (typeof ExposureChoice)[keyof typeof ExposureChoice
 
 /** Advanced Secure output gate (ADR-018): show where it was found and ask before the output reaches the model.
  *  When `programId` is set, an extra option lets the user grant the rest of the
- *  session for that program — same pattern as path/host session grants, but for
+ *  conversation for that program — same pattern as path/host conversation grants, but for
  *  tool output (display, not access). */
 export async function askExposure(ctx: AskCtx, hits: string[], programId?: string): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
 		{ label: "No, keep it hidden   (recommended)", value: ExposureChoice.Block },
 		{ label: "Yes, show it this once", value: ExposureChoice.Allow },
 	];
-	if (programId) choices.push({ label: `Yes, all ${programId} output for this session`, value: ExposureChoice.ProgramSession });
+	if (programId) choices.push({ label: `Yes, all ${programId} output for this conversation`, value: ExposureChoice.ProgramSession });
 	const titleParts = [
-		`${ICON.cred}  This output may contain a secret \u2014 show it to the AI?`,
+		`${ICON.warn}  Sensitive information detected`,
 		"",
 		hits.join("\n\n"),
+		"",
+		"Question Should the AI be allowed to see it?",
 		"",
 		"Note     you'll be asked again each time a secret shows up",
 	];

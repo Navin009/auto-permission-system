@@ -1,5 +1,5 @@
 /**
- * Layer 2 ask-tier prompts, session grants, and persisted "always" overrides
+ * Layer 2 ask-tier prompts, conversation grants, and persisted "always" overrides
  * (ADR-009, ADR-010). Owns the interactive UI calls; policy decisions come from
  * matching.ts.
  */
@@ -32,7 +32,7 @@ export function persistOverride(scope: GrantScope, cwd: string, kind: OverrideKi
 }
 
 /**
- * Grants from "yes — for this session" (ADR-010). In memory only, cleared on
+ * Grants from "yes — for this conversation" (ADR-010). In memory only, cleared on
  * session_start, never written to sandbox.json, never consulted for the
  * absolute-deny tier.
  */
@@ -67,7 +67,7 @@ export type UICtx = {
 };
 
 /**
- * Ask the user, then apply the answer: session grants stay in memory, "always"
+ * Ask the user, then apply the answer: conversation grants stay in memory, "always"
  * grants are persisted and announced to the other layer via `onPersist`.
  * Headless asks deny. A `null` return means the call may proceed.
  */
@@ -102,7 +102,7 @@ export async function askOrBlock(
 		const value = ask.overrideKind === OverrideKind.AllowDomains || isSafeFolderGrant(parent, homedir()) ? parent : ask.overrideValue;
 		sessionGrants.push({ kind: ask.overrideKind, value });
 		audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, grant: value, cwd: ctx.cwd });
-		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${value}`, "info");
+		ctx.ui.notify(`security-guard: allowed for this conversation (not saved) → ${value}`, "info");
 		return null;
 	}
 	if (decision === Decision.AlwaysCwd || decision === Decision.AlwaysGlobal || decision === Decision.AlwaysCwdFolder || decision === Decision.AlwaysGlobalFolder) {

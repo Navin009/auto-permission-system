@@ -21,7 +21,7 @@ We conducted live automated search probes against the production `pi.dev/package
 | `security` | **Yes** | **#46 / 50** | 98 | Nearly off page 1 entirely. |
 | `pi security` | **Yes** | **#44 / 50** | 93 | Nearly off page 1 entirely. |
 | **`auto secure`** | ❌ **NO** | **0** | **0** | **0 packages found on entire site!** Because neither our package nor any other has the exact words `auto` + `secure`. |
-| **`cloud auto mode`** | ❌ **NO** | **0 / 1** | 1 | Only 1 package matches on the site. Our package is completely missing because `"cloud"` is not in our metadata. |
+| **`claude auto mode`** | ❌ **NO** | **0 / 1** | 1 | Only 1 package matches on the site. Our package is completely missing because `"claude"` is not in our metadata. |
 | **`pypi`** | ❌ **NO** | **0 / 3** | 3 | Only 3 packages match on the site. Our package is completely missing because `"pypi"` is not in `package.json`. |
 | **`secure it`** | ❌ **NO** | **0** | 0 | **0 packages found!** Missing from metadata. |
 
@@ -39,9 +39,9 @@ Every package on `pi.dev` has a precompiled search attribute:
   data-package-search="auto-permission-system security sandbox, permission system and tool guard for the pi coding agent (pi): enforce filesystem allow/deny lists and network domain allowlists on read, write, edit, bash, grep, find, ls, fetch_content and web_search, with interactive ask prompts, secr navin09 extension pi-coding-agent security sandbox permission-system tool-guard allowlist access-control secret-detection audit-log bubblewrap sandbox-exec ai-agent ai-coding-agent">
 ```
 * `pi.dev` constructs `data-package-search` by concatenating: `name + description + author + types + keywords`.
-* When a user searches for multiple words (e.g., `auto secure`, `cloud auto mode`, `pypi security`), `pi.dev` applies strict **AND conjunction** matching: **every word must exist in `data-package-search`**.
+* When a user searches for multiple words (e.g., `auto secure`, `claude auto mode`, `pypi security`), `pi.dev` applies strict **AND conjunction** matching: **every word must exist in `data-package-search`**.
 * **Why `auto secure` failed**: We had `"security"` (noun), but NOT `"secure"` (verb/adjective)! Searching `auto secure` failed to match `secure` and produced 0 results.
-* **Why `cloud auto mode` failed**: The word `"cloud"` does not appear anywhere in `package.json`.
+* **Why `claude auto mode` failed**: The word `"claude"` does not appear anywhere in `package.json`.
 * **Why `pypi` failed**: The word `"pypi"` does not appear in `package.json` keywords or description.
 * **Why `pi-permission` failed**: We had `"permission-system"` and `"pi-package"`, but not the unhyphenated token `"pi-permission"`.
 
@@ -56,7 +56,7 @@ The original description was 270 characters long. The npm/pi.dev ingestion crawl
 **The Golden Opportunity**:
 On specialized high-intent terms, there is **zero to near-zero competition**:
 - `auto secure`: **0 competing packages**. Adding `auto-secure` and `secure` instantly makes our package **#1 on pi.dev**!
-- `cloud auto mode`: **Only 1 competing package**. Adding `cloud auto mode` makes our package **#1 or #2**!
+- `claude auto mode`: **Only 1 competing package**. Adding `claude auto mode` makes our package **#1 or #2**!
 - `pypi` / `pypi security`: **Only 3 competing packages**. Adding `pypi` makes our package **#1 to #4**!
 - `pi-permission`: Adding `pi-permission` immediately includes us in the 30 packages returned for that exact keyword.
 
@@ -104,9 +104,9 @@ Replace the current `keywords` array with comprehensive token coverage:
   "pypi-security",
   "pypi-secure-it",
   "pypi-permission-system",
-  "cloud",
-  "cloud-auto-mode",
-  "cloud-security",
+  "claude",
+  "claude-auto-mode",
+  "claude-security",
   "auto-mode",
   "permission",
   "permissions",
@@ -139,23 +139,23 @@ Google, GitHub, and `pi.dev` detail pages (`https://pi.dev/packages/auto-permiss
 
 #### A. SEO-Optimized H1 & Top Paragraph
 ```markdown
-# Auto Permission System: Auto Secure Sandbox & Cloud Permission System for Pi & PyPI Workflows
+# Auto Permission System: Auto Secure Sandbox & claude Permission System for Pi & PyPI Workflows
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
 [![Security: Auto Secure](https://img.shields.io/badge/security-auto--secure-green.svg)](#auto-secure-mode)
-[![Mode: Cloud Auto](https://img.shields.io/badge/mode-cloud--auto--mode-blue.svg)](#cloud-auto-mode)
+[![Mode: claude Auto](https://img.shields.io/badge/mode-claude--auto--mode-blue.svg)](#claude-auto-mode)
 
-**Auto Permission System** is the comprehensive **auto secure** sandbox, permission system, and tool guard for the [Pi coding agent](https://pi.dev) and automated cloud workflows. Whether you need an interactive **PyPI permission system** to guard `.pypirc` tokens and `pip install` commands, or an autonomous **cloud auto mode** for headless CI/CD runs, this extension enforces zero-trust boundaries across filesystem reads/writes, network egress, bash commands, and MCP tools.
+**Auto Permission System** is the comprehensive **auto secure** sandbox, permission system, and tool guard for the [Pi coding agent](https://pi.dev) and automated claude workflows. Whether you need an interactive **PyPI permission system** to guard `.pypirc` tokens and `pip install` commands, or an autonomous **claude auto mode** for headless CI/CD runs, this extension enforces zero-trust boundaries across filesystem reads/writes, network egress, bash commands, and MCP tools.
 ```
 
 #### B. Add 3 Dedicated Core Feature Sections
 
-1. **`## ☁️ Cloud Auto Mode & Autonomous Agent Security`**
-   - Documents headless/unattended execution (`pi -p`, subagents, CI/CD pipelines, Docker/cloud containers).
+1. **`## ☁️ claude Auto Mode & Autonomous Agent Security`**
+   - Documents headless/unattended execution (`pi -p`, subagents, CI/CD pipelines, Docker/claude containers).
    - Explains fail-closed policy enforcement when human prompts are unavailable.
-   - Captures queries: *cloud auto mode for PyPI*, *cloud auto mode*, *autonomous agent permissions*.
+   - Captures queries: *claude auto mode for PyPI*, *claude auto mode*, *autonomous agent permissions*.
 
 2. **`## 🛡️ Auto Secure: Real-Time Secret Detection & Tool Guard`**
    - Documents the `advanced-secure` (Auto Secure) permission mode (`/permission-mode`).
@@ -212,29 +212,29 @@ If you want developers searching `pypi.org` or running `pip install` to find and
 
 ---
 
-### Step 5: Cloud Auto Mode for Pi Toolkit Enhancements
+### Step 5: claude Auto Mode for Pi Toolkit Enhancements
 
-To make the package uniquely differentiated and capture 100% of search traffic for **"Cloud auto mode for Pi"**, **"Security for Pi"**, **"Permission system for Pi"**, and **"Secure Pi"**:
+To make the package uniquely differentiated and capture 100% of search traffic for **"claude auto mode for Pi"**, **"Security for Pi"**, **"Permission system for Pi"**, and **"Secure Pi"**:
 
-1. **Shipped Cloud Preset (`sandbox.cloud.json`)**:
-   - Added `sandbox.cloud.json` directly to the repository and npm package distribution.
+1. **Shipped claude Preset (`sandbox.claude.json`)**:
+   - Added `sandbox.claude.json` directly to the repository and npm package distribution.
    - Provides a drop-in configuration for unattended, non-interactive execution (GitHub Actions, Docker, remote devboxes, subagents) with `strictAllowlist: true`, `outsideProject.read: "deny"`, and locked-down network sockets.
 2. **Metadata Optimization (`package.json`)**:
    - Updated description to: `"Claude auto mode for Pi & security for Pi. A zero-trust permission system for Pi to secure Pi coding agent workflows with tool guard, sandbox, and Advanced Secure mode."`
-   - Added compound keyword tokens: `"cloud-auto-mode-for-pi"`, `"security-for-pi"`, `"permission-system-for-pi"`, `"secure-pi"`, `"pi-cloud-auto-mode"`, `"cloud-auto-mode"`.
+   - Added compound keyword tokens: `"claude-auto-mode-for-pi"`, `"security-for-pi"`, `"permission-system-for-pi"`, `"secure-pi"`, `"pi-claude-auto-mode"`, `"claude-auto-mode"`.
 3. **Skill & README Guides**:
-   - Dedicated sections in `README.md` and `skills/auto-permission-system/SKILL.md` detailing how to secure Pi, how Cloud Auto Mode works, and a checklist for hardening Pi coding agent sessions.
+   - Dedicated sections in `README.md` and `skills/auto-permission-system/SKILL.md` detailing how to secure Pi, how claude Auto Mode works, and a checklist for hardening Pi coding agent sessions.
 
 ---
 
 ### Step 6: Release & Verification Workflow
 
-1. Update `package.json`, `README.md`, `sandbox.cloud.json`, and `skills/auto-permission-system/SKILL.md`.
+1. Update `package.json`, `README.md`, `sandbox.claude.json`, and `skills/auto-permission-system/SKILL.md`.
 2. Commit with conventional commit message:
-   `feat(seo): enhance cloud auto mode for Pi, security for Pi, and permission system for Pi keywords`
+   `feat(seo): enhance claude auto mode for Pi, security for Pi, and permission system for Pi keywords`
 3. Push to `main`.
 4. Automated `semantic-release` triggers, tags a new version, and publishes to npm.
 5. Within 5–15 minutes, `pi.dev` re-indexes the new release:
    - The package appears on the **"Recently published"** shelf on `pi.dev`'s homepage.
-   - Searches for `cloud auto mode for pi`, `security for pi`, `permission system for pi`, `secure pi`, `auto secure`, `pypi`, and `pi-permission` will immediately match and return `auto-permission-system`!
+   - Searches for `claude auto mode for pi`, `security for pi`, `permission system for pi`, `secure pi`, `auto secure`, `pypi`, and `pi-permission` will immediately match and return `auto-permission-system`!
 

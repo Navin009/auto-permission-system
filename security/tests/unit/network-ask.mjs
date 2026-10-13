@@ -86,7 +86,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('Yes, just this once → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
 	check(
 		'order = No / Yes, just this once / session / remember',
-		c.seen[0].join('|') === 'No|Yes, just this once|Yes, all in group for this session|Yes, always\u2026',
+		c.seen[0].join('|') === 'No|Yes, just this once|Yes, all in group for this conversation|Yes, always\u2026',
 	);
 }
 {
@@ -122,7 +122,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	const ask = createNetworkAsk(deps);
 	check('session → allow', (await ask({ host: 'example.com' })) === true);
 	check('session covers the next command without a prompt', (await ask({ host: 'example.com' })) === true && c.seen.length === 1);
-	check('session notifies "not saved"', c.notified.some((m) => m.includes('this session')));
+	check('session notifies "not saved"', c.notified.some((m) => m.includes('this conversation')));
 	check('session audited', audits.some((e) => e.decision === 'session' && e.grant === 'example.com'));
 }
 {
@@ -212,7 +212,7 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	const ask = createNetworkAsk(deps);
 	await ask({ host: 'b.example.com' });
 	clearNetworkSessionGrants();
-	check('clearSession drops the session grant', (await ask({ host: 'b.example.com' })) === false && c.seen.length === 2);
+	check('clearSession drops the conversation grant', (await ask({ host: 'b.example.com' })) === false && c.seen.length === 2);
 }
 
 {

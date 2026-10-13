@@ -19,7 +19,7 @@ const TITLE = [
 	"Group    *.posthog.com   (every posthog.com site)",
 	'Why      this site isn\'t on your allowed list yet',
 ].join('\n');
-const OPTIONS = ['No', 'Yes, just this once', 'Yes, all in group for this session', 'Yes, always…'];
+const OPTIONS = ['No', 'Yes, just this once', 'Yes, all in group for this conversation', 'Yes, always…'];
 
 function mk(overrides = {}) {
 	let result;

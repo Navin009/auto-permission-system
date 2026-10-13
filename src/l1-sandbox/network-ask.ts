@@ -4,7 +4,7 @@
  * Uses the same two-screen ask-tier as Layer 2 (once / session / remember
  * project|global) and the same grant semantics:
  *
- * - session grants: in memory only, cleared at `session_start`, never saved;
+ * - conversation grants: in memory only, cleared at `session_start`, never saved;
  * - "once" grants: one bash command's connections to that host (the proxy
  *   calls back per request, so a redirect or a parallel connection must not
  *   re-prompt), scoped by `beginNetworkCommand`/`endNetworkCommand`;
@@ -14,7 +14,7 @@
  *
  * Headless (`hasUI === false`) denies, like every other gate.
  *
- * Session grants use the parent-domain wildcard when useful (covers all sibling
+ * Conversation grants use the parent-domain wildcard when useful (covers all sibling
  * subdomains). Screen 2 hides the "in this project" rows in untrusted
  * projects so the user can't quietly trust a widening file.
  */
@@ -22,7 +22,7 @@
 import { domainMatches, GrantScope, OverrideKind } from "../core/index";
 import { askMainWithRemember, askRememberHost, ASK_TIMEOUT_MS, MainChoice, parentDomainWildcard, type AskCtx, type HostGrant } from "../ui/ask-flow";
 
-/** In-memory session grants ("Yes, for this session"). Cleared at session_start. */
+/** In-memory conversation grants ("Yes, for this conversation"). Cleared at session_start. */
 const sessionGrants: string[] = [];
 /** Hosts allowed for the current bash command ("Yes, just this once" covers its connections). */
 let commandGrants: Set<string> | null = null;
@@ -87,7 +87,7 @@ function firstWord(command: string | undefined): string | null {
 
 /**
  * Screen 1 (once / session / remember) plus, for remember, screen 2 (scope and
- * pattern). A session grant uses the parent-domain wildcard when the host has
+ * pattern). A conversation grant uses the parent-domain wildcard when the host has
  * a useful parent, so any sibling subdomain is covered for the rest of the
  * session; apex hosts (2 parts) fall back to the exact host because
  * `*.example.com` would not match `example.com`.
@@ -124,7 +124,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 			bodyParts.join("\n"),
 			{
 				session: true,
-				sessionLabel: "Yes, all in group for this session",
+				sessionLabel: "Yes, all in group for this conversation",
 				allowFirst: true,
 				icon: "net",
 				timeoutMs: ASK_TIMEOUT_MS,
@@ -161,7 +161,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	if (mainChoice === MainChoice.Session) {
 		sessionGrants.push(wildcard);
 		deps.audit({ ...base, decision: "session", grant: wildcard, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: allowed for this session (not saved) → ${wildcard}`, "info");
+		ctx.ui.notify?.(`pi-sandbox: allowed for this conversation (not saved) → ${wildcard}`, "info");
 		return true;
 	}
 

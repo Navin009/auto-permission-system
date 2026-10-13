@@ -1,6 +1,6 @@
 // `/permission-mode` must reconcile a persisted mode with the running session's
 // runtime state: another session can write mode=yolo to the global sandbox.json
-// after this session started, so picking YOLO here has to emit the toggle even
+// after this conversation started, so picking YOLO here has to emit the toggle even
 // though the persisted mode already reads as yolo.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

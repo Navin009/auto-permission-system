@@ -11,11 +11,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
 [![CI](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml)
-[![Cloud Auto Mode for Pi](https://img.shields.io/badge/Pi-Cloud_Auto_Mode-blue.svg)](#secure-auto-mode--cloud-auto-mode)
+[![Claude Auto Mode for Pi](https://img.shields.io/badge/Pi-Claude_Auto_Mode-blue.svg)](#secure-auto-mode--claude-auto-mode)
 [![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi-how-it-works)
 [![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system--modes)
 
-**Auto Permission System** is a zero-trust permission architecture and **Secure Auto Mode / Cloud Auto Mode for the [Pi coding agent](https://pi.dev)**. It brings the confidence of **Claude's auto mode** to Pi—enabling autonomous agent workflows while actively scanning files, shell commands, and tool content to **prevent data breaches and credential exfiltration**.
+**Auto Permission System** is a zero-trust permission architecture and **Secure Auto Mode / Claude Auto Mode for the [Pi coding agent](https://pi.dev)**. It brings the confidence of **Claude's auto mode** to Pi—enabling autonomous agent workflows while actively scanning files, shell commands, and tool content to **prevent data breaches and credential exfiltration**.
 
 Whether running interactively with keyboard-driven ask prompts or running headlessly in CI/CD pipelines, this package enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
 
@@ -30,7 +30,7 @@ Whether running interactively with keyboard-driven ask prompts or running headle
 2. **Kernel OS Sandbox Confinement:** Prevents bash commands from writing to system paths outside allowed roots (`EROFS: Read-only file system`).
 3. **Governed Network Egress:** Catches unknown outbound connections (`curl`) with an interactive domain ask prompt and a 15s countdown timer.
 4. **Real-Time API Key & Secret Redaction:** Automatically detects exposed API tokens (`sk-proj-...`, `ghp_...`) in command output and replaces them with `***REDACTED***` before reaching the LLM context.
-5. **Autonomous Cloud Auto Mode:** Demonstrates headless, fail-closed CI execution (`pi -p`) with zero deadlocks and zero hangs.
+5. **Autonomous Claude Auto Mode:** Demonstrates headless, fail-closed CI execution (`pi -p`) with zero deadlocks and zero hangs.
 
 ---
 
@@ -41,7 +41,7 @@ Whether running interactively with keyboard-driven ask prompts or running headle
 - [Key Features at a Glance](#key-features-at-a-glance)
 - [Security for Pi: How It Works](#security-for-pi-how-it-works)
 - [Interactive Ask Prompts](#interactive-ask-prompts)
-- [Secure Auto Mode & Cloud Auto Mode](#secure-auto-mode--cloud-auto-mode)
+- [Secure Auto Mode & Claude Auto Mode](#secure-auto-mode--claude-auto-mode)
 - [Real-Time Secret Detection & Content Scanning](#real-time-secret-detection--content-scanning)
 - [Permission System & Modes](#permission-system--modes)
 - [Configuration Reference](#configuration-reference)
@@ -98,7 +98,7 @@ Once installed, the extension automatically loads whenever you launch `pi`. Chec
 | Feature | Description | Protection Level |
 |---|---|---|
 | 🛡️ **3-Layer Defense** | OS Kernel sandbox (`bubblewrap`/`sandbox-exec`) + in-process tool guard + real-time content redactor. | Zero-Trust |
-| ⚡ **Secure Auto Mode** | Autonomous execution inspired by Claude's auto mode; scans files and output to prevent data breaches. | Autonomous / Cloud |
+| ⚡ **Secure Auto Mode** | Autonomous execution inspired by Claude's auto mode; scans files and output to prevent data breaches. | Autonomous / Claude |
 | 🔑 **Interactive Ask Prompts** | Real-time terminal prompts with 10s countdowns (`Once`, `Session`, `Project`, `Global`). | Interactive Human-in-the-Loop |
 | 🔍 **AST & Regex Secret Scanner** | Scans tool stdout/stderr for API keys, private keys, and tokens, redacting them before model context. | Data Breach Prevention |
 | 🌐 **Network Egress Gate** | Intercepts unapproved network connections and prompts for confirmation with wildcards. | Data Leak Prevention |
@@ -160,7 +160,7 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 
   > No
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
 
   Default: No (10s)
 ```
@@ -177,7 +177,7 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 
   > No
     Yes, just this once
-    Yes, all in group for this session
+    Yes, all in group for this conversation
     Yes, always…
 
   Default: Yes, just this once (15s)
@@ -189,33 +189,34 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 ⚠  Sensitive information detected: API Secret Key
 
     Tool     bash (node verify_service.js)
-    Finding  sk-(?!ant-)[A-Za-z0-9_-] (score: 90 / CRITICAL)
+    Finding  23: sk-(?!ant-)[A-Za-z0-9_-]
     Question Should the AI be allowed to see it?
 
   > No, keep private  (recommended)
     Yes, allow
 ```
+- `Finding` prints the **complete** detected line and its line number — one `Finding` row per match when several secrets appear, with no truncation.
 - Choosing **No, keep private** replaces the token with `***REDACTED***` in the model's context window, preventing credentials from leaking to LLM providers.
 
 ---
 
-## Secure Auto Mode & Cloud Auto Mode
+## Secure Auto Mode & Claude Auto Mode
 
 In modern AI coding tools like Claude Code, developers love **auto mode** because the agent can execute tasks autonomously without constantly prompting for confirmation on trivial, harmless steps.
 
 However, unconstrained auto mode is a significant data breach risk. If an autonomous agent reads credentials, runs unvetted scripts, or sends code to third-party endpoints, the entire developer environment can be compromised.
 
-**Cloud Auto Mode for Pi** delivers **Claude-style auto mode with zero-trust security**:
+**Claude Auto Mode for Pi** delivers **Claude-style auto mode with zero-trust security**:
 - **Autonomous Execution with Real-Time Guardrails:** The agent operates autonomously within approved boundaries, allowing rapid development while guarding sensitive resources.
 - **Advanced Secure Scanning:** Uses `advanced-secure` mode to scan files, commands, and content to stop data breaches before they can occur.
 - **Fail-Closed in Headless CI/CD:** When running unattended (`pi -p`, GitHub Actions, Docker, remote devboxes), unapproved operations fail closed immediately with a structured reason instead of hanging or deadlocking the pipeline.
 
-### Activating Cloud Auto Mode in CI/CD:
+### Activating Claude Auto Mode in CI/CD:
 
 ```bash
-# 1. Copy the shipped Cloud Auto Mode template to your repository:
+# 1. Copy the shipped Claude Auto Mode template to your repository:
 mkdir -p .pi
-cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+cp node_modules/auto-permission-system/sandbox.claude.json .pi/sandbox.json
 
 # 2. Run Pi headlessly with complete automated protection:
 pi -p "Review pull request changes, verify dependencies, and execute test suite"
@@ -238,10 +239,10 @@ jobs:
         run: |
           npm install -g @earendil-works/pi-coding-agent
           pi install npm:auto-permission-system
-      - name: Activate Cloud Auto Mode Preset
+      - name: Activate Claude Auto Mode Preset
         run: |
           mkdir -p .pi
-          cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+          cp node_modules/auto-permission-system/sandbox.claude.json .pi/sandbox.json
       - name: Run Autonomous Review in Auto Mode
         run: |
           pi -p "Verify changes, run npm test, and flag security issues"
@@ -392,11 +393,11 @@ grep '"finding"' ~/.pi/agent/audit.log | tail -n 10
 
 A selection of common questions is below. For the complete, detailed guide, read **[docs/FAQ.md](docs/FAQ.md)**.
 
-### How does Cloud Auto Mode secure unattended runs?
+### How does Claude Auto Mode secure unattended runs?
 In headless mode (`pi -p` or subagent executions), interactive ask prompts cannot be presented to a human. Auto Permission System operates in a fail-closed posture: any tool call or bash command targeting an unlisted domain, credential file, or outside-project path is automatically blocked, and the refusal reason is provided to the agent and recorded in the audit log.
 
-### What is the relationship between Cloud Auto Mode and Claude's auto mode?
-Claude Code popularized autonomous "auto mode", allowing developers to let AI code without stopping for confirmation on harmless steps. Cloud Auto Mode brings this exact convenience to the Pi coding agent, but adds essential zero-trust boundaries: using Advanced Secure Mode to scan files, shell commands, and content to guarantee that autonomous execution never leads to data breaches or leaked API tokens.
+### What is the relationship between Claude Auto Mode and Claude's auto mode?
+Claude Code popularized autonomous "auto mode", allowing developers to let AI code without stopping for confirmation on harmless steps. Claude Auto Mode brings this exact convenience to the Pi coding agent, but adds essential zero-trust boundaries: using Advanced Secure Mode to scan files, shell commands, and content to guarantee that autonomous execution never leads to data breaches or leaked API tokens.
 
 ### How do I allow the agent to reach a new domain?
 Add it to `network.allowedDomains` in `<cwd>/.pi/sandbox.json` or `~/.pi/agent/extensions/sandbox.json`, or run a curl command once and select **Yes, always… → All in group in this project**.

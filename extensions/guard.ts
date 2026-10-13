@@ -65,7 +65,7 @@ async function askDetection(
 	if (choice === "session") {
 		detectionGrants.add(key);
 		audit({ layer: 2, tool: kind, subject, reason, decision: "session", note: "advanced-secure", cwd: ctx.cwd });
-		ctx.ui.notify(`security-guard: allowed for this session (not saved) → ${subject}`, "info");
+		ctx.ui.notify(`security-guard: allowed for this conversation (not saved) → ${subject}`, "info");
 		return null;
 	}
 	audit({ layer: 2, tool: kind, subject, reason, decision: "no", note: "advanced-secure", cwd: ctx.cwd });
@@ -288,7 +288,7 @@ export default function (pi: ExtensionAPI) {
 			if (typeof rawPath === "string" && rawPath) return rawPath;
 			if (event.toolName === "bash") {
 				const cmd = (event.input as { command?: string } | undefined)?.command;
-				return cmd ? `bash: ${cmd}` : "bash";
+				return cmd ? `bash (${cmd})` : "bash";
 			}
 			return event.toolName;
 		})();
@@ -301,15 +301,15 @@ export default function (pi: ExtensionAPI) {
 			if (choice === "program-session" && programId) {
 				grantProgramOutputSession(programId);
 				audit({ layer: 2, tool: event.toolName, decision: "session", grant: programId, note: "advanced-secure-output", findings, cwd: ctx.cwd });
-				ctx.ui.notify(`🛡 Advanced Secure: you allowed all ${programId} output for the rest of this session.`, "info");
+				ctx.ui.notify(`🧠 Advanced Secure: you allowed all ${programId} output for the rest of this conversation.`, "info");
 			} else {
 				audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-				ctx.ui.notify(`🛡 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
+				ctx.ui.notify(`🧠 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
 			}
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-		ctx.ui.notify(`🛡 Advanced Secure: blocked ${event.toolName} output — it may contain sensitive information. Nothing was sent to the model.`, "warning");
+		ctx.ui.notify(`🧠 Advanced Secure: blocked ${event.toolName} output — it may contain sensitive information. Nothing was sent to the model.`, "warning");
 		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
 
@@ -349,7 +349,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				recordProjectTrust(file, TRUST_STORE);
 				audit({ layer: 2, event: "project-trusted", file, applied: changes, cwd: ctx.cwd });
-				ctx.ui.notify("Done. The file applies now. Start a new session so the bash sandbox uses it too.", "info");
+				ctx.ui.notify("Done. The file applies now. Start a new conversation so the bash sandbox uses it too.", "info");
 				return;
 			}
 			if (!active) {
@@ -367,7 +367,7 @@ export default function (pi: ExtensionAPI) {
 				`  cwd:               ${ctx.cwd}`,
 				`  hasUI:             ${(ctx as { hasUI?: boolean }).hasUI !== false}`,
 				`  subagent.network:  ${policy.subagent?.network ?? "allow"}`,
-				`  session grants:    ${sessionGrantSummary() || "(none)"}`,
+				`  conversation grants:    ${sessionGrantSummary() || "(none)"}`,
 				`  project file:      ${!existsSync(projectPolicyPath(ctx.cwd)) ? "none" : projectTrusted(ctx.cwd) ? "trusted" : untrustedProjectChanges(ctx.cwd).length ? `not trusted, its weaker settings are ignored (/security trust)` : "only block rules, they apply"}`,
 				`  outside project:   read ${policy.filesystem.outsideProject?.read ?? "allow"}${(policy.filesystem.outsideProject?.allowRead ?? []).length ? `, allowRead ${policy.filesystem.outsideProject?.allowRead?.join(", ")}` : ""}`,
 				"",

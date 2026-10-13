@@ -1,6 +1,6 @@
-// Layer 1 filesystem session grants (ADR-010, ADR-012): a session pick on the
+// Layer 1 filesystem conversation grants (ADR-010, ADR-012): a session pick on the
 // write/read prompt re-runs the blocked command, the grant covers later commands
-// without re-prompting, askRead session grants are remembered, and
+// without re-prompting, askRead conversation grants are remembered, and
 // session_start clears them.
 //
 // Runs `createSandboxedBashOps().exec` with a stubbed SandboxManager so the
@@ -70,13 +70,13 @@ const ctx = {
 	ui: {
 		select: async (_title, options) => {
 			prompts.push(options);
-			return options.find((o) => o === "Yes, for this session");
+			return options.find((o) => o === "Yes, for this conversation");
 		},
 		notify: () => {},
 	},
 };
 const onAlways = async () => {
-	throw new Error("session grants must never persist");
+	throw new Error("conversation grants must never persist");
 };
 const exec = createSandboxedBashOps({ ctx, onAlways, onAlwaysRead: onAlways });
 const run = (command) => exec.exec(command, cwd, { onData: () => {}, signal: undefined, timeout: 10 });
@@ -87,9 +87,9 @@ const out1 = [];
 const execOut = createSandboxedBashOps({ ctx, onAlways, onAlwaysRead: onAlways });
 let r = await execOut.exec(`touch '${target}'`, cwd, { onData: (c) => out1.push(c.toString()), signal: undefined, timeout: 10 });
 check("session write re-runs the command", r.exitCode === 0, `exit=${r.exitCode}`);
-check("write prompt offered the session option", prompts[0]?.includes("Yes, for this session"));
+check("write prompt offered the session option", prompts[0]?.includes("Yes, for this conversation"));
 check("no 'user denied' line on a session pick", !out1.join("").includes("user denied"), out1.join(""));
-check("session grant announced", out1.join("").includes("for this session"), out1.join(""));
+check("conversation grant announced", out1.join("").includes("for this conversation"), out1.join(""));
 check("session pick hides the stale block hint", !out1.join("").includes("filesystem access blocked") && !out1.join("").includes("Waiting for your decision"), out1.join(""));
 check("session pick states the outcome, not a retry", out1.join("").includes("Command output with the new permission follows") && !/retry the bash command|re-running the command/i.test(out1.join("")), out1.join(""));
 check("write grant is the parent folder", filesystemSessionGrantSummary().includes(`write:${outside}`), filesystemSessionGrantSummary());
@@ -99,21 +99,21 @@ const promptsBefore = prompts.length;
 const configsBefore = customConfigs.length;
 r = await run(`touch '${target}'`);
 check("later command does not re-prompt", prompts.length === promptsBefore, `${prompts.length} vs ${promptsBefore}`);
-check("later command carries the session grant", allowWriteOf(customConfigs[configsBefore]).some((p) => p.includes(outside)), JSON.stringify(customConfigs[configsBefore]));
+check("later command carries the conversation grant", allowWriteOf(customConfigs[configsBefore]).some((p) => p.includes(outside)), JSON.stringify(customConfigs[configsBefore]));
 check("later command succeeds", r.exitCode === 0, `exit=${r.exitCode}`);
 
 const promptsBeforeAsk = prompts.length;
 r = await run("cat .env");
-check("askRead prompt offered the session option", prompts[promptsBeforeAsk]?.includes("Yes, for this session"));
-check("askRead session grant recorded", filesystemSessionGrantSummary().includes(`askRead:${envFile}`), filesystemSessionGrantSummary());
+check("askRead prompt offered the session option", prompts[promptsBeforeAsk]?.includes("Yes, for this conversation"));
+check("askRead conversation grant recorded", filesystemSessionGrantSummary().includes(`askRead:${envFile}`), filesystemSessionGrantSummary());
 const promptsBeforeAsk2 = prompts.length;
 r = await run("cat .env");
 check("askRead is not re-asked in the session", prompts.length === promptsBeforeAsk2, `${prompts.length} vs ${promptsBeforeAsk2}`);
-check("askRead session grant never leaks into allowRead", !allowReadOf(customConfigs[customConfigs.length - 1]).includes(envFile));
+check("askRead conversation grant never leaks into allowRead", !allowReadOf(customConfigs[customConfigs.length - 1]).includes(envFile));
 
 const auditLog = readFileSync(join(agentDir, "audit.log"), "utf8");
-check("write session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"write-session"'), auditLog);
-check("askRead session grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"ask-read"'), auditLog);
+check("write conversation grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"write-session"'), auditLog);
+check("askRead conversation grant audited", auditLog.includes('"decision":"session"') && auditLog.includes('"note":"ask-read"'), auditLog);
 
 {
 	const globalDir = join(agentDir, "extensions");
@@ -163,12 +163,12 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 	try { rmSync(link, { force: true }); } catch { }
 	symlinkSync(real, link);
 	symlinkFencePath = join(link, "file.txt");
-	const symlinkCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((o) => o === "Yes, for this session"), notify: () => {} } };
+	const symlinkCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => options.find((o) => o === "Yes, for this conversation"), notify: () => {} } };
 	const execSymlink = createSandboxedBashOps({ ctx: symlinkCtx, onAlways, onAlwaysRead: onAlways });
 	const before = customConfigs.length;
 	const symlinkOut = [];
 	r = await execSymlink.exec("touch SYMLINK-PROBE", cwd, { onData: (chunk) => symlinkOut.push(chunk.toString()), signal: undefined, timeout: 10 });
-	check("symlinked write re-runs after the session grant", r.exitCode === 0, `exit=${r.exitCode}`);
+	check("symlinked write re-runs after the conversation grant", r.exitCode === 0, `exit=${r.exitCode}`);
 	const granted = allowWriteOf(customConfigs[before + 1]);
 	check("symlinked write grant is the canonical target", granted.includes(real), JSON.stringify(granted));
 	check("symlinked write grant is not the link spelling", !granted.includes(link), JSON.stringify(granted));
@@ -193,7 +193,7 @@ check("askRead session grant audited", auditLog.includes('"decision":"session"')
 {
 	stubbornFencePath = join(outside, "stubborn.txt");
 	let prompted = 0;
-	const stubbornCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => { prompted++; return options.find((o) => o === "Yes, for this session"); }, notify: () => {} } };
+	const stubbornCtx = { cwd, hasUI: true, ui: { select: async (_title, options) => { prompted++; return options.find((o) => o === "Yes, for this conversation"); }, notify: () => {} } };
 	const stubbornOut = [];
 	const execStubborn = createSandboxedBashOps({ ctx: stubbornCtx, onAlways, onAlwaysRead: onAlways });
 	r = await execStubborn.exec("touch STUBBORN-PROBE", cwd, { onData: (chunk) => stubbornOut.push(chunk.toString()), signal: undefined, timeout: 10 });

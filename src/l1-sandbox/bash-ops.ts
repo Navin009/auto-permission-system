@@ -40,7 +40,7 @@ function linkRow(absPath: string, spelled: string | undefined): string[] {
 const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
 
 /**
- * In-memory filesystem grants from "Yes, for this session" (ADR-010, ADR-012).
+ * In-memory filesystem grants from "Yes, for this conversation" (ADR-010, ADR-012).
  * A read grant is the absolute path; a write grant is the parent directory (a
  * whole path would not let a new file be created — ADR-021), falling back to the
  * exact path when the parent is an unsafe folder to grant (root, home, …).
@@ -48,7 +48,7 @@ const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bas
  */
 const sessionReadGrants: string[] = [];
 const sessionWriteGrants: string[] = [];
-/** askRead (.env) session grants, kept apart so they never leak into allowRead (ADR-019). */
+/** askRead (.env) conversation grants, kept apart so they never leak into allowRead (ADR-019). */
 const sessionAskReadGrants: string[] = [];
 
 export function clearFilesystemSessionGrants(): void {
@@ -158,7 +158,7 @@ async function preflightOutsideReads(
 		if (choice === MainChoice.Session) {
 			sessionReadGrants.push(absPath);
 			auditL1({ subject: absPath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd });
-			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} for this session (not saved)`, "info");
+			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} for this conversation (not saved)`, "info");
 			continue;
 		}
 		if (choice !== MainChoice.Remember || !grant) {
@@ -366,8 +366,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									if (choice === MainChoice.Once) readOnce.push(absPath);
 									else sessionReadGrants.push(absPath);
 									auditL1({ subject: absPath, decision: choice, scope: choice === MainChoice.Once ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${choice === MainChoice.Once ? "once" : "for this session"} — re-running the command`, "warning");
-									onData(Buffer.from(`\n✅ pi-sandbox: read of ${absPath} allowed ${choice === MainChoice.Once ? "once" : "for this session"}. Command output with the new permission follows.\n`));
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${choice === MainChoice.Once ? "once" : "for this conversation"} — re-running the command`, "warning");
+									onData(Buffer.from(`\n✅ pi-sandbox: read of ${absPath} allowed ${choice === MainChoice.Once ? "once" : "for this conversation"}. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
@@ -441,8 +441,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									sessionWriteGrants.push(value);
 									(value === parentDir ? grantedWriteFolders : grantedWriteFiles).add(value);
 									auditL1({ subject: value, granularity: value === parentDir ? "folder" : "file", original: absPath, decision: "session", scope: "session", cwd: opts.ctx.cwd, note: "write-session" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${value} for this session (not saved) — re-running the command`, "info");
-									onData(Buffer.from(`\n✅ pi-sandbox: write to ${value} allowed for this session. Command output with the new permission follows.\n`));
+									opts.ctx.ui?.notify?.(`pi-sandbox: allowed ${value} for this conversation (not saved) — re-running the command`, "info");
+									onData(Buffer.from(`\n✅ pi-sandbox: write to ${value} allowed for this conversation. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}

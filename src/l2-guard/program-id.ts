@@ -1,9 +1,9 @@
 /**
  * Program-id detection for the Advanced Secure output gate.
  *
- * Used to label the "This output may contain a secret" prompt with the binary
+ * Used to label the Advanced Secure output prompt with the binary
  * that produced it (`composio`, `aws`, `gcloud`, …) and to key the per-program
- * session grant (`isProgramOutputGranted`). Pure functions, no pi / fs / audit.
+ * conversation grant (`isProgramOutputGranted`). Pure functions, no pi / fs / audit.
  */
 
 /** Strip env assignments (`FOO=bar`), common wrappers (sudo, nice, command, …), and the
@@ -27,7 +27,7 @@ export function bashBinary(command: string | undefined): string | undefined {
 
 /** The program id for a tool call. Bash binaries only — MCP and other tools return
  *  `undefined` so the Advanced Secure output gate doesn't offer them a per-program
- *  session grant (MCP tools handle their own secrets and don't share the
+ *  conversation grant (MCP tools handle their own secrets and don't share the
  *  composio-style "same binary, same surface" pattern). */
 export function programIdForToolCall(toolName: string | undefined, input: unknown): string | undefined {
 	if (!toolName) return undefined;

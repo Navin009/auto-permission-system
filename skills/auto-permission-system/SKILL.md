@@ -1,11 +1,11 @@
 ---
 name: auto-permission-system
-description: Use this skill when the user asks about auto-permission-system, security for Pi, permission system for Pi, how to secure Pi, Cloud auto mode for Pi, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, Cloud auto mode preset (sandbox.cloud.json), ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
+description: Use this skill when the user asks about auto-permission-system, security for Pi, permission system for Pi, how to secure Pi, Claude auto mode for Pi, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, Claude auto mode preset (sandbox.claude.json), ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
 ---
 
 # Security for Pi (Pi Permission System) — Skill
 
-Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, or configuring Cloud auto mode for Pi.
+Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, or configuring Claude auto mode for Pi.
 
 ## What this extension does
 
@@ -14,19 +14,19 @@ Wraps the `bash` tool with `sandbox-exec` (macOS) or `bubblewrap` (Linux). Block
 - Filesystem writes outside `allowWrite`
 - Filesystem reads of `denyRead` paths (defaults include `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.pi/agent`)
 - Filesystem reads outside the project when `outsideProject.read` is `"ask"` or `"deny"` — when set, the home dir (and the project's parent) is fenced with `denyRead` and the project plus `allowWrite`/`outsideProject.allowRead` are re-exposed (ADR-014). With `"ask"`, a bash command that *plainly* names an outside path is confirmed with you **before it runs** (ADR-015): allow (`yes — this once`, or a persistent `always` grant) → the real, complete output; deny → the command is not run at all (no silently trimmed output). `install`/`npm` under `~/.pi/agent` are pre-allowed via `outsideProject.allowRead`, so they never prompt. Obfuscated reads still hit the fence and stay masked.
-- Network egress to domains not in `allowedDomains`: a host in neither list asks before the proxy decides (ADR-023) — `yes — this once` covers that bash command's connections to the host, `yes — for this session` lasts until the session ends, and `always` writes `overrides.allowDomains` and applies live. A host in `deniedDomains`, or `network.strictAllowlist: true`, is a hard deny that is never ask-able; headless blocks.
+- Network egress to domains not in `allowedDomains`: a host in neither list asks before the proxy decides (ADR-023) — `yes — this once` covers that bash command's connections to the host, `yes — for this conversation` lasts until the conversation ends, and `always` writes `overrides.allowDomains` and applies live. A host in `deniedDomains`, or `network.strictAllowlist: true`, is a hard deny that is never ask-able; headless blocks.
 
 **Layer 2 — In-process tool guard**
 Hooks `tool_call` for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. Applies the same policy file as Layer 1. For `grep`, `find` and `ls` the search root is checked like a `read` path. A `tool_result` hook also removes `grep` output lines from denied files beneath an allowed root (for example a `.env` deep in the tree); approving the root does not approve those files. When a call is blocked, shows an interactive prompt with persistence options.
 
-**Layer 3 — Subagent posture & Cloud Auto Mode**
-When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`. In Cloud Auto Mode, unapproved prompts fail closed.
+**Layer 3 — Subagent posture & Claude Auto Mode**
+When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`. In Claude Auto Mode, unapproved prompts fail closed.
 
 ## Policy files
 
 Merged in order (later wins):
 1. `sandbox.default.json` — shipped baseline (`outsideProject.read: "ask"`, full `denyRead`/`denyWrite`, `modelDenyRead`)
-2. `sandbox.cloud.json` — shipped Cloud Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
+2. `sandbox.claude.json` — shipped Claude Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
 3. `~/.pi/agent/extensions/sandbox.json` — global user policy
 4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
 
@@ -87,7 +87,7 @@ A project `.pi/sandbox.json` applies in full only after the user trusted its exa
 When a normal (non-absolute-deny) call is blocked:
 - **no — block** — hard deny (default, pre-selected)
 - **yes — this once** — allow just this call
-- **yes — for this session** — this file, its parent folder, or this domain until the session ends; not saved
+- **yes — for this conversation** — this file, its parent folder, or this domain until the conversation ends; not saved
 - **always for CURRENT project** — whitelist this file in `<cwd>/.pi/sandbox.json`
 - **always for CURRENT project (folder)** — whitelist the parent directory
 - **always for ALL projects** — whitelist in `~/.pi/agent/extensions/sandbox.json`
@@ -99,7 +99,7 @@ For a Layer 1 bash **write** blocked after the command already ran, `yes — thi
 
 Every prompt waits **15 seconds** by default and shows it live as `Default: … (Ns)` under the body. For file reads/writes no answer means the safe default: **block / deny**, and Esc blocks. For a network ask, an unanswered countdown means **allow once** (Esc still denies) — ADR-024. In the TUI the `Default:` line disappears as soon as you press ↑/↓ and the timer restarts, so the hint never competes with an active choice (ADR-031). The prompt is keyboard-only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels — a mouse click or wheel over the prompt does nothing.
 
-The same options apply to a bash command whose network request reaches a host outside `allowedDomains` (ADR-023), with the countdown default and live footer from ADR-024/ADR-031: `No` / `Yes, just this once` / `Yes, all in group for this session` / `Yes, always…`, and an untouched countdown counts as allow-once. Because the sandbox proxy asks per connection, `Allow (default)` covers that bash command rather than one connection — redirects and parallel connections to the same host do not re-prompt. A host in `deniedDomains`, or `network.strictAllowlist: true`, is blocked outright: the prompt never appears. A remembered host is written to `overrides.allowDomains` and takes effect immediately, so the waiting request completes without a retry. Prompts from both layers are serialized through one queue (`src/ui/ask-flow.ts`), so two unknown hosts cannot replace each other's selector and hang the waiting connection.
+The same options apply to a bash command whose network request reaches a host outside `allowedDomains` (ADR-023), with the countdown default and live footer from ADR-024/ADR-031: `No` / `Yes, just this once` / `Yes, all in group for this conversation` / `Yes, always…`, and an untouched countdown counts as allow-once. Because the sandbox proxy asks per connection, `Allow (default)` covers that bash command rather than one connection — redirects and parallel connections to the same host do not re-prompt. A host in `deniedDomains`, or `network.strictAllowlist: true`, is blocked outright: the prompt never appears. A remembered host is written to `overrides.allowDomains` and takes effect immediately, so the waiting request completes without a retry. Prompts from both layers are serialized through one queue (`src/ui/ask-flow.ts`), so two unknown hosts cannot replace each other's selector and hang the waiting connection.
 
 ## Sensitive reads ask
 
@@ -113,7 +113,7 @@ The same options apply to a bash command whose network request reaches a host ou
 - **`advanced-secure`** (recommended) — adds secret/credential detection, and **only adds asks or blocks** (never loosens):
   - file reads whose name looks like a credential store ask before the read;
   - risky `mcp__<server>__<tool>` calls ask before they run. The gate ignores the `mcp__<server>__` namespace, takes the operation from the head verb of the name (or the first verb of the description), and asks for destructive names, mutating names (`update_*`, `create_*`, `run_*`, `evaluate_*`), and destructive arguments (SQL `DELETE`/`UPDATE` without `WHERE`, `rm -rf`, `*` targets, HTTP `DELETE`, production targets). A documented tool with an unclassified name (`context`, `capture`, `logs`) does not ask; a tool with **no description** counts as opaque and does. Tune it under `mcp` in `sandbox.json` (ADR-032): `allowTools` / `allowPrefixes` skip asks, `askTools` forces them, `trustAnnotations` lets a server's `readOnlyHint` allow the call, `askThreshold` moves the score line (default 30). An untrusted project file may only tighten it (add `askTools`, lower `askThreshold`, turn `allowSimpleUpdates`/`trustAnnotations` off).
-  - before any tool/command/file output reaches the model, a secret-like hit shows the file and each detected line as `lineNo: text`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
+  - before any tool/command/file output reaches the model, a secret-like hit shows the tool and each detected line as `Finding  <lineNo>: <complete line>` — one `Finding` row per match, no truncation — plus `Question Should the AI be allowed to see it?`, with two choices — **No, keep private** or **Yes, allow**. No, keep private withholds the output and tells the model it was withheld because it may contain sensitive information (not a failure, not an empty result).
 
 Switch with `/permission-mode`; all three modes are saved to the global `sandbox.json` and reflected in the footer's sandbox chip (`Sandbox: 🧠 N domains, M paths` for advanced-secure, `Sandbox: 🔒 …` for default). An untrusted project may move the mode **up** (toward stricter), never down: it cannot turn on YOLO or turn off Advanced Secure. The third choice, **YOLO**, disables every layer; the chip reads `⚠️ YOLO — all security layers disabled` until you pick another mode (ADR-020).
 

@@ -12,7 +12,7 @@ Conventions:
 
 - **Every prompt is a question, and every answer starts with No or Yes.**
   The answers always come in the same order — No · Yes, just this once ·
-  Yes, for this session · Yes, always… — so row 2 always means "once".
+  Yes, for this conversation · Yes, always… — so row 2 always means "once".
   Answers that don't apply to a prompt are removed, not greyed out.
 - **`>`** marks the highlighted answer that Enter picks. It starts on No
   everywhere; network prompts only change the *countdown* default (ADR-024).
@@ -58,7 +58,7 @@ the write hook takes over.
 
   > No
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
     Yes, always…
 
   Default: No
@@ -68,7 +68,7 @@ the write hook takes over.
 | --------------------- | ------------ |
 | No                    | composio's save fails and the AI is told you said no. Nothing is saved. |
 | Yes, just this once   | composio runs again and can save files in this folder until the command finishes (ADR-021). Nothing is saved. |
-| Yes, for this session | Any command can save files in this folder until you quit pi, with no more prompts for it (ADR-030). Nothing is saved to disk. |
+| Yes, for this conversation | Any command can save files in this folder until you quit pi, with no more prompts for it (ADR-030). Nothing is saved to disk. |
 | Yes, always…          | Opens screen 2 to choose how wide a permanent rule should be. |
 
 ### Screen 2 — only after "Yes, always…"
@@ -117,7 +117,7 @@ folder, in this project"):
 
 Trigger: the same `composio search` saves
 `~/.composio/tool_definitions/googleads.json` next. You answered "Yes, for
-this session" in §1, so this fires **no prompt**. A quiet status line (no
+this conversation" in §1, so this fires **no prompt**. A quiet status line (no
 key press needed) tells you why:
 
 ```
@@ -125,7 +125,7 @@ key press needed) tells you why:
     allowed by your session rule for this folder
 ```
 
-**Audit** (silent allow via session grant):
+**Audit** (silent allow via conversation grant):
 
 ```jsonl
 {"layer":1,"tool":"bash","subject":"/home/u/.composio/tool_definitions/googleads.json","decision":"write-once","cwd":"…"}
@@ -150,7 +150,7 @@ different (wider) place:
 
   > No
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
     Yes, always…
 
   Default: No
@@ -179,7 +179,7 @@ misread.
 
   > No   (recommended)
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
     Yes, always…
 
   Default: No
@@ -189,7 +189,7 @@ misread.
 | --------------------- | ------------ |
 | No                    | The write fails and the AI is told you said no. Nothing is saved. |
 | Yes, just this once   | The command runs again and can change `/etc/foo` only. Nothing is saved. |
-| Yes, for this session | Any command can change `/etc/foo` (only this file) until you quit pi. |
+| Yes, for this conversation | Any command can change `/etc/foo` (only this file) until you quit pi. |
 | Yes, always…          | Opens screen 2, which offers only "Only foo" rows (no folder). |
 
 ### Screen 2 — only after "Yes, always…"
@@ -207,10 +207,10 @@ misread.
   Default: All in folder · in this project
 ```
 
-### Session grant value
+### Conversation grant value
 
-For "Yes, for this session", the parent `/etc` fails the safety check
-(`isSafeFolderGrant('/etc', home) === false`), so the session grant is the
+For "Yes, for this conversation", the parent `/etc` fails the safety check
+(`isSafeFolderGrant('/etc', home) === false`), so the conversation grant is the
 file: **sessionGrants.push({ kind: 'allowWrite', value: '/etc/foo' })**.
 The audit records it:
 
@@ -241,7 +241,7 @@ the command runs, so nothing has been read yet.
 
   > No
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
 
   Default: No
 ```
@@ -250,7 +250,7 @@ the command runs, so nothing has been read yet.
 | --------------------- | ------------ |
 | No                    | The command doesn't run and the AI is told you said no. |
 | Yes, just this once   | The command runs once; the AI sees what it prints from `.env`. |
-| Yes, for this session | Any command can read this `.env` until you quit pi. Nothing is saved to disk. |
+| Yes, for this conversation | Any command can read this `.env` until you quit pi. Nothing is saved to disk. |
 
 There's no "Yes, always…": secrets should never be saved as a rule in a
 `sandbox.json`. `askRead` only ever prompts.
@@ -273,7 +273,7 @@ pre-flight detects the outside path before sandbox-exec fences it.
 
   > No
     Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
     Yes, always…
 
   Default: No
@@ -283,10 +283,10 @@ pre-flight detects the outside path before sandbox-exec fences it.
 | --------------------- | ------------ |
 | No                    | The command doesn't run and the AI is told you said no. |
 | Yes, just this once   | The command runs once and can read this file. Nothing is saved. |
-| Yes, for this session | Any command can read files in `~/notes/` until you quit pi. Nothing is saved to disk. |
+| Yes, for this conversation | Any command can read files in `~/notes/` until you quit pi. Nothing is saved to disk. |
 | Yes, always…          | Opens screen 2 to choose how wide a permanent rule should be. |
 
-"Yes, for this session" is the same answer as on write prompts, so the four
+"Yes, for this conversation" is the same answer as on write prompts, so the four
 rows mean the same thing everywhere.
 
 ### Screen 2 — only after "Yes, always…"
@@ -310,7 +310,7 @@ rows mean the same thing everywhere.
 
 For `~/todo.md`, the parent is your home folder (`/home/u`). That's too wide
 to allow as a whole (`isSafeFolderGrant('/home/u', '/home/u') === false`),
-so "Yes, for this session" covers only the file, and screen 2 shows only
+so "Yes, for this conversation" covers only the file, and screen 2 shows only
 the file rows:
 
 ```
@@ -354,7 +354,7 @@ pressing Enter never approves. There's no second "are you sure?" screen.
 | No                        | The command doesn't run and the AI is told you said no. |
 | Yes, allow this one read  | The command runs once; the AI sees the key. Nothing is saved. |
 
-No "for this session" and no "always": credentials are only ever allowed
+No "for this conversation" and no "always": credentials are only ever allowed
 one read at a time.
 
 **Audit:**
@@ -385,7 +385,7 @@ before connecting.
 
   > No
     Yes, just this once
-    Yes, all in group for this session
+    Yes, all in group for this conversation
     Yes, always…
 
   Default: Yes, just this once (15s)
@@ -400,7 +400,7 @@ first ↑/↓ (ADR-031).
 | ---------------------------------- | ------------ |
 | No                                 | The connection is refused; the command may fail. |
 | Yes, just this once                | This command can connect to `backend.composio.dev`. Its later connections there don't ask again (ADR-023). Nothing is saved. |
-| Yes, all in group for this session | Any command can connect to any `*.composio.dev` site (`api.composio.dev`, `metrics.composio.dev`, …) until you quit pi. Nothing is saved to disk. |
+| Yes, all in group for this conversation | Any command can connect to any `*.composio.dev` site (`api.composio.dev`, `metrics.composio.dev`, …) until you quit pi. Nothing is saved to disk. |
 | Yes, always…                       | Opens screen 2 to choose how wide a permanent rule should be. |
 
 ### Screen 2 — only after "Yes, always…"
@@ -453,13 +453,13 @@ Same shape as §7; only the site and group change. The group is
 
   > No
     Yes, just this once
-    Yes, all in group for this session
+    Yes, all in group for this conversation
     Yes, always…
 
   Default: Yes, just this once (15s)
 ```
 
-### Audit (session grant):
+### Audit (conversation grant):
 
 ```jsonl
 {"layer":1,"tool":"network","subject":"us.i.posthog.com","decision":"session","grant":"*.i.posthog.com","requested":"us.i.posthog.com","cwd":"…"}
@@ -488,13 +488,13 @@ only this site.
 
     No
   > Yes, just this once
-    Yes, for this session
+    Yes, for this conversation
     Yes, always…
 
   Default: Yes, just this once
 ```
 
-With no group, row 3 is plain "Yes, for this session" — it covers only
+With no group, row 3 is plain "Yes, for this conversation" — it covers only
 `example.com`.
 
 ### Screen 2 — only "Only example.com" rows
@@ -511,7 +511,7 @@ With no group, row 3 is plain "Yes, for this session" — it covers only
   Default: All in folder · in this project
 ```
 
-The session grant for `example.com` is the exact site — the wildcard
+The conversation grant for `example.com` is the exact site — the wildcard
 generation returns the host itself for 2-part hosts.
 
 ---
@@ -541,7 +541,7 @@ Trigger: the AI runs `env | grep -i composio`. `commands.ask` lists
 | No                  | The command never runs and the AI is told you said no (message below). |
 | Yes, just this once | The command runs once; the AI sees what it prints. Nothing is saved. |
 
-No "for this session" and no "always" — these commands print too much to
+No "for this conversation" and no "always" — these commands print too much to
 allow broadly.
 
 The pre-flight runs before the sandbox-exec child starts. If you answer No,
@@ -591,12 +591,12 @@ Trigger: the AI ran `cat deploy.sh`, and the output contains a login token
 (JWT). The output filter caught it before the AI saw it.
 
 ```
-🔑  This output may contain a secret — show it to the AI?
+⚠  Sensitive information detected
 
-    From     bash: cat deploy.sh
-        ...   
-    14: export JWT="eyJhbGciasdfadfs..." # show full line
-        ...
+    Tool     bash (cat deploy.sh)
+    Finding  14: export JWT="eyJhbGciasdfadfs..." # show full line
+    Question Should the AI be allowed to see it?
+
     Note     you'll be asked again each time a secret shows up
 
   > No, keep it hidden   (recommended)
@@ -606,8 +606,9 @@ Trigger: the AI ran `cat deploy.sh`, and the output contains a login token
 ```
 
 The screen never shows the internal rule name (`JWT_ASSIGNMENT`) — it shows
-a plain name for what was found, plus the start of the line so you can
-recognise it. Each detection rule gets a plain name:
+the complete detected line with its line number so you can recognise it.
+Several matches produce several `Finding` rows, never a truncated line.
+Each detection rule gets a plain name:
 
 | Rule             | Shown as           |
 | ---------------- | ------------------ |
@@ -695,7 +696,7 @@ project, so it's your call. (This replaces the earlier follow-up: refuse
 | Second `composio search` in same session    | 4+ prompts again            | 0 prompts (session answers still active) |
 | `grep -r TOKEN .env` (askRead)              | 1 prompt                    | 1 prompt (no "always" — secrets are never saved) |
 | `cat ~/.ssh/id_rsa`                         | 2 screens                   | 1 screen (one read at a time) |
-| `cat ~/notes/todo.md` (outside project)     | 1 prompt, no session answer | 1 prompt, now with "Yes, for this session" |
+| `cat ~/notes/todo.md` (outside project)     | 1 prompt, no session answer | 1 prompt, now with "Yes, for this conversation" |
 | `curl https://example.com/api`              | 1 prompt + 1 option pick    | 1 prompt + 1 option pick (no change — no group for a bare domain) |
 | `curl https://api.composio.dev/v1/...`      | 1 prompt, exact host        | 1 prompt; "all in group" covers **`*.composio.dev`** for the session |
 

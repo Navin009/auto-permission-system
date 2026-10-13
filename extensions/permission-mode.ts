@@ -46,7 +46,7 @@ const EXPLANATION = [
 	"  No file contents are inspected.",
 	"",
 	"YOLO",
-	"  Turns every layer off. Saved like the other modes, so new sessions",
+	"  Turns every layer off. Saved like the other modes, so new conversations",
 	"  start with it too until you pick Default or Advanced Secure again.",
 ].join("\n");
 
@@ -72,8 +72,8 @@ function renderSandboxChip(ctx: ExtensionContext): void {
 }
 
 function modeNotice(mode: PermissionMode): { text: string; level: "info" | "warning" } {
-	if (mode === "yolo") return { text: "⚠️  YOLO — all security layers disabled. Saved; new sessions start this way too.", level: "warning" };
-	if (mode === "advanced-secure") return { text: "🛡 Advanced Secure on. File reads, MCP calls, and tool output are checked for secrets.", level: "info" };
+	if (mode === "yolo") return { text: "⚠️  YOLO — all security layers disabled. Saved; new conversations start this way too.", level: "warning" };
+	if (mode === "advanced-secure") return { text: "🧠 Advanced Secure on. File reads, MCP calls, and tool output are checked for secrets.", level: "info" };
 	return { text: "🛡 Default mode. Rule-based policy only.", level: "info" };
 }
 
@@ -92,7 +92,7 @@ async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active:
 			emitYolo(pi.events, true);
 			audit({ layer: 0, event: "permission-mode", mode: "yolo", cwd: ctx.cwd, note: "runtime-sync" });
 			renderSandboxChip(ctx);
-			ctx.ui.notify("⚠️  YOLO — all security layers disabled for this session.", "warning");
+			ctx.ui.notify("⚠️  YOLO — all security layers disabled for this conversation.", "warning");
 			return;
 		}
 		ctx.ui.notify(`Permission mode is already ${modeLabel(next)}.`, "info");

@@ -1,11 +1,11 @@
 /**
- * In-memory session grants for the Advanced Secure output gate (ADR-018).
+ * In-memory conversation grants for the Advanced Secure output gate (ADR-018).
  *
  * When a CLI like `composio` returns output that matches a secret pattern
  * (JWT, OAuth refresh token, etc.), the user can pick "Yes, all <program>
- * output for this session" instead of approving every block. The program id
+ * output for this conversation" instead of approving every block. The program id
  * is added here, and the output gate short-circuits for the rest of the
- * session — same shape as path/host session grants, but for tool output.
+ * conversation — same shape as path/host conversation grants, but for tool output.
  *
  * Cleared at session_start (ADR-010), never written to disk. The credential
  * tier (denyRead / askRead) still wins on the file side; this only loosens
@@ -19,12 +19,12 @@ export function clearProgramOutputSessionGrants(): void {
 	programOutputSessionGrants.clear();
 }
 
-/** Add a program to the session grant list. Idempotent. */
+/** Add a program to the conversation grant list. Idempotent. */
 export function grantProgramOutputSession(programId: string): void {
 	programOutputSessionGrants.add(programId.toLowerCase());
 }
 
-/** True when the program is already granted for the rest of the session. */
+/** True when the program is already granted for the rest of the conversation. */
 export function isProgramOutputGranted(programId: string | undefined): boolean {
 	if (!programId) return false;
 	return programOutputSessionGrants.has(programId.toLowerCase());

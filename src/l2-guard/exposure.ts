@@ -5,14 +5,9 @@ import { scanToolOutput } from "../detect/index";
 export interface Exposure {
 	/** Finding types, e.g. ["SECRET_ASSIGNMENT"]. Empty means clean. */
 	types: string[];
-	/** One block: `subject` then `lineNo: text` per detected line (max 8). */
+	/** One block: `Tool` header then `Finding  <lineNo>: <line>` per detected line. */
 	hits: string[];
 }
-
-const MAX_LINES = 8;
-const MAX_LINE_CHARS = 200;
-
-const clip = (s: string) => (s.length > MAX_LINE_CHARS ? `${s.slice(0, MAX_LINE_CHARS)}…` : s);
 
 export function collectExposure(content: ReadonlyArray<{ type: string; text?: string }>, subject: string): Exposure {
 	const types = new Set<string>();
@@ -29,14 +24,9 @@ export function collectExposure(content: ReadonlyArray<{ type: string; text?: st
 			if (after[i] !== before[i] && before[i].trim()) matchedIndices.push(i);
 		}
 		if (matchedIndices.length === 0) continue;
-		const shown = matchedIndices.slice(0, MAX_LINES);
-		const firstIdx = shown[0];
-		const lastIdx = shown[shown.length - 1];
-		const moreMatched = matchedIndices.length > MAX_LINES;
-		const moreBelow = lastIdx < before.length - 1;
-		if (firstIdx > 0) lines.push("        \u2026");
-		for (const idx of shown) lines.push(`${idx + 1}: ${clip(before[idx].trim())}`);
-		if (moreMatched || moreBelow) lines.push("        \u2026");
+		lines.push(`Tool     ${subject}`);
+		// One `Finding` row per detected line, showing the complete line (no clipping).
+		for (const idx of matchedIndices) lines.push(`Finding  ${idx + 1}: ${before[idx].trim()}`);
 	}
-	return { types: [...types], hits: lines.length ? [`From     ${subject}\n${lines.join("\n")}`] : [] };
+	return { types: [...types], hits: lines.length ? [lines.join("\n")] : [] };
 }
