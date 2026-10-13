@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://pi.dev/packages">
+    <img src="https://raw.githubusercontent.com/Navin009/auto-permission-system/main/assets/logo.png" alt="Auto Permission System Logo" width="160" />
+  </a>
+</p>
+
 # Auto Permission System: Secure Auto Mode & Security for Pi Coding Agent
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
