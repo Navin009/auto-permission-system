@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 generate-recording.py
-Generates a realistic, cinematic terminal recording demonstrating
-auto-permission-system features:
+Generates a crisp, high-definition widescreen (1200x580), cinematic terminal recording
+demonstrating auto-permission-system features:
 1. L2 Interactive .env read prompt (Ask tier with live countdown)
 2. L1 OS Sandbox kernel write boundary (Bubblewrap EROFS refusal)
 3. L1 Network domain intercept with countdown
@@ -10,8 +10,8 @@ auto-permission-system features:
 5. Cloud Auto Mode: Secure autonomous execution for Pi (like Claude auto mode)
 
 Outputs:
-- assets/demo.mp4 (High-res 60fps MP4)
-- assets/demo.gif (Optimized palette-based looping GIF for GitHub & NPM)
+- assets/demo.mp4 (High-res Full HD MP4)
+- assets/demo.gif (High-res palette-optimized GIF)
 """
 
 import os
@@ -22,14 +22,14 @@ import sys
 import tempfile
 from PIL import Image, ImageDraw, ImageFont
 
-WIDTH = 920
-HEIGHT = 570
+WIDTH = 1200
+HEIGHT = 580
 PADDING = 20
 TERMINAL_X = PADDING
 TERMINAL_Y = PADDING
 TERMINAL_W = WIDTH - 2 * PADDING
 TERMINAL_H = HEIGHT - 2 * PADDING
-TITLEBAR_H = 34
+TITLEBAR_H = 42
 
 # Fonts
 MONO_PATH = "/usr/share/fonts/adwaita-mono-fonts/AdwaitaMono-Regular.ttf"
@@ -39,11 +39,11 @@ if not os.path.exists(MONO_PATH):
 EMOJI_PATH = "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf"
 SANS_PATH = "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"
 
-font_mono = ImageFont.truetype(MONO_PATH, 13)
-font_mono_bold = ImageFont.truetype(MONO_PATH, 13)
-font_mono_lg = ImageFont.truetype(MONO_PATH, 14)
-font_emoji = ImageFont.truetype(EMOJI_PATH, 13)
-font_title = ImageFont.truetype(SANS_PATH, 12)
+FONT_SIZE = 16
+font_mono = ImageFont.truetype(MONO_PATH, FONT_SIZE)
+font_mono_bold = ImageFont.truetype(MONO_PATH, FONT_SIZE)
+font_emoji = ImageFont.truetype(EMOJI_PATH, FONT_SIZE)
+font_title = ImageFont.truetype(SANS_PATH, 13)
 
 # Colors
 BG_CANVAS = (13, 17, 23)          # Outer canvas #0d1117
@@ -79,7 +79,7 @@ def draw_styled_segment(draw, x, y, text, color, bold=False):
         if EMOJI_PATTERN.fullmatch(tok):
             draw.text((cur_x, y), tok, font=font_emoji, fill=color)
             bbox = font_emoji.getbbox(tok)
-            cur_x += (bbox[2] - bbox[0]) + 3
+            cur_x += (bbox[2] - bbox[0]) + 4
         else:
             f = font_mono_bold if bold else font_mono
             draw.text((cur_x, y), tok, font=f, fill=color)
@@ -94,7 +94,7 @@ def draw_terminal_base():
     # Terminal card with rounded corners
     draw.rounded_rectangle(
         [TERMINAL_X, TERMINAL_Y, TERMINAL_X + TERMINAL_W, TERMINAL_Y + TERMINAL_H],
-        radius=10,
+        radius=12,
         fill=BG_TERM,
         outline=BORDER_TERM,
         width=1,
@@ -103,13 +103,13 @@ def draw_terminal_base():
     # Title bar
     draw.rounded_rectangle(
         [TERMINAL_X, TERMINAL_Y, TERMINAL_X + TERMINAL_W, TERMINAL_Y + TITLEBAR_H],
-        radius=10,
+        radius=12,
         fill=BG_TITLEBAR,
         outline=BORDER_TERM,
         width=1,
     )
     draw.rectangle(
-        [TERMINAL_X, TERMINAL_Y + TITLEBAR_H - 10, TERMINAL_X + TERMINAL_W, TERMINAL_Y + TITLEBAR_H],
+        [TERMINAL_X, TERMINAL_Y + TITLEBAR_H - 12, TERMINAL_X + TERMINAL_W, TERMINAL_Y + TITLEBAR_H],
         fill=BG_TITLEBAR,
     )
     draw.line(
@@ -118,32 +118,32 @@ def draw_terminal_base():
         width=1,
     )
 
-    # Window controls
+    # Window controls (radius 7px)
     btn_y = TERMINAL_Y + TITLEBAR_H // 2
-    draw.ellipse([TERMINAL_X + 16, btn_y - 6, TERMINAL_X + 28, btn_y + 6], fill=BTN_RED)
-    draw.ellipse([TERMINAL_X + 36, btn_y - 6, TERMINAL_X + 48, btn_y + 6], fill=BTN_YELLOW)
-    draw.ellipse([TERMINAL_X + 56, btn_y - 6, TERMINAL_X + 68, btn_y + 6], fill=BTN_GREEN)
+    draw.ellipse([TERMINAL_X + 18, btn_y - 7, TERMINAL_X + 32, btn_y + 7], fill=BTN_RED)
+    draw.ellipse([TERMINAL_X + 40, btn_y - 7, TERMINAL_X + 54, btn_y + 7], fill=BTN_YELLOW)
+    draw.ellipse([TERMINAL_X + 62, btn_y - 7, TERMINAL_X + 76, btn_y + 7], fill=BTN_GREEN)
 
     # Title
-    title = "pi — auto-permission-system v3.8.0 (Secure Auto Mode)"
-    draw.text((TERMINAL_X + 85, TERMINAL_Y + 10), title, font=font_title, fill=FG_MUTED)
+    title = "pi — auto-permission-system v3.8.0 (Secure Auto Mode & Zero-Trust Sandbox)"
+    draw.text((TERMINAL_X + 98, TERMINAL_Y + 12), title, font=font_title, fill=FG_MUTED)
 
     return img
 
-def render_lines(draw, lines, start_y=TERMINAL_Y + TITLEBAR_H + 14, start_x=TERMINAL_X + 20):
+def render_lines(draw, lines, start_y=TERMINAL_Y + TITLEBAR_H + 18, start_x=TERMINAL_X + 24):
     curr_y = start_y
     for item in lines:
         if isinstance(item, tuple):
             text, color, is_bold = item
             draw_styled_segment(draw, start_x, curr_y, text, color, is_bold)
-            curr_y += 20
+            curr_y += 25
         elif isinstance(item, list):
             curr_x = start_x
             for seg_text, seg_color, seg_bold in item:
                 curr_x = draw_styled_segment(draw, curr_x, curr_y, seg_text, seg_color, seg_bold)
-            curr_y += 20
+            curr_y += 25
         elif item == "SPACER":
-            curr_y += 10
+            curr_y += 12
     return curr_y
 
 def render_prompt_box(draw, box_y, box_h, title_lines, options, selected_idx, footer=None, default_hint=None):
@@ -152,23 +152,23 @@ def render_prompt_box(draw, box_y, box_h, title_lines, options, selected_idx, fo
 
     draw.rounded_rectangle(
         [box_x, box_y, box_x + box_w, box_y + box_h],
-        radius=6,
+        radius=8,
         fill=CARD_BG,
         outline=CARD_BORDER,
         width=1,
     )
 
-    y = box_y + 12
+    y = box_y + 14
     for t_text, t_color, t_bold in title_lines:
-        draw_styled_segment(draw, box_x + 16, y, t_text, t_color, t_bold)
-        y += 19
+        draw_styled_segment(draw, box_x + 18, y, t_text, t_color, t_bold)
+        y += 24
 
     if footer:
-        y += 4
-        draw.line([box_x + 16, y, box_x + box_w - 16, y], fill=BORDER_TERM, width=1)
+        y += 5
+        draw.line([box_x + 18, y, box_x + box_w - 18, y], fill=BORDER_TERM, width=1)
         y += 8
-        draw_styled_segment(draw, box_x + 16, y, footer, FG_MUTED, False)
-        y += 18
+        draw_styled_segment(draw, box_x + 18, y, footer, FG_MUTED, False)
+        y += 22
 
     y += 6
     for idx, opt in enumerate(options):
@@ -176,18 +176,18 @@ def render_prompt_box(draw, box_y, box_h, title_lines, options, selected_idx, fo
         opt_y = y
         if is_sel:
             draw.rounded_rectangle(
-                [box_x + 14, opt_y - 2, box_x + box_w - 14, opt_y + 19],
+                [box_x + 16, opt_y - 3, box_x + box_w - 16, opt_y + 23],
                 radius=4,
                 fill=SEL_BG,
             )
-            draw_styled_segment(draw, box_x + 20, opt_y, f"→  {opt}", FG_CYAN, True)
+            draw_styled_segment(draw, box_x + 24, opt_y, f"→  {opt}", FG_CYAN, True)
         else:
-            draw_styled_segment(draw, box_x + 20, opt_y, f"   {opt}", FG_TEXT, False)
-        y += 22
+            draw_styled_segment(draw, box_x + 24, opt_y, f"   {opt}", FG_TEXT, False)
+        y += 27
 
     if default_hint:
         y += 6
-        draw_styled_segment(draw, box_x + 20, y, default_hint, FG_MUTED, False)
+        draw_styled_segment(draw, box_x + 24, y, default_hint, FG_MUTED, False)
 
 def create_frames():
     frames = []
@@ -207,7 +207,7 @@ def create_frames():
         [("  → Calling tool: ", FG_MUTED, False), ("read(\".env\")", FG_YELLOW, True)],
     ]
 
-    for _ in range(14):  # ~1.2s
+    for _ in range(14):
         img = draw_terminal_base()
         draw = ImageDraw.Draw(img)
         render_lines(draw, scene1_lines)
@@ -243,8 +243,8 @@ def create_frames():
             y = render_lines(draw, scene2_header)
             render_prompt_box(
                 draw,
-                box_y=y + 8,
-                box_h=230,
+                box_y=y + 10,
+                box_h=285,
                 title_lines=prompt1_title,
                 options=prompt1_options,
                 selected_idx=0,
@@ -311,7 +311,7 @@ def create_frames():
             render_prompt_box(
                 draw,
                 box_y=TERMINAL_Y + TITLEBAR_H + 90,
-                box_h=235,
+                box_h=290,
                 title_lines=prompt2_title,
                 options=prompt2_options,
                 selected_idx=0,
@@ -358,8 +358,8 @@ def create_frames():
         y = render_lines(draw, scene5_header)
         render_prompt_box(
             draw,
-            box_y=y + 8,
-            box_h=190,
+            box_y=y + 10,
+            box_h=240,
             title_lines=prompt3_title,
             options=prompt3_options,
             selected_idx=0,
@@ -392,10 +392,10 @@ def create_frames():
         [("✓  Layer 3 Auto Secure: ", FG_GREEN, True), ("Real-time content scan & secret leak prevention ACTIVE", FG_TEXT, False)],
         [("✓  Zero Deadlocks:     ", FG_GREEN, True), ("Headless auto mode runs safely without hanging on prompts", FG_TEXT, False)],
         "SPACER",
-        ("╔═══════════════════════════════════════════════════════════════════════╗", FG_PURPLE, True),
-        ("║   auto-permission-system: Secure Auto Mode for Pi Coding Agent        ║", FG_TEXT, True),
-        ("║   Install: pi install npm:auto-permission-system                     ║", FG_CYAN, True),
-        ("╚═══════════════════════════════════════════════════════════════════════╝", FG_PURPLE, True),
+        ("╔═══════════════════════════════════════════════════════════════════════════════════╗", FG_PURPLE, True),
+        ("║       auto-permission-system: Secure Auto Mode for Pi Coding Agent                ║", FG_TEXT, True),
+        ("║       Install: pi install npm:auto-permission-system                             ║", FG_CYAN, True),
+        ("╚═══════════════════════════════════════════════════════════════════════════════════╝", FG_PURPLE, True),
     ]
 
     for _ in range(24):
@@ -411,7 +411,7 @@ def main():
     os.makedirs(assets_dir, exist_ok=True)
     temp_dir = tempfile.mkdtemp(prefix="aps_demo_frames_")
 
-    print(f"Generating frames in {temp_dir}...")
+    print(f"Generating crisp widescreen HD (1200x580) frames in {temp_dir}...")
     frames = create_frames()
     print(f"Generated {len(frames)} frames.")
 
@@ -422,27 +422,27 @@ def main():
     mp4_out = os.path.join(assets_dir, "demo.mp4")
     gif_out = os.path.join(assets_dir, "demo.gif")
 
-    print("Encoding MP4 with ffmpeg...")
+    print("Encoding HD MP4 with ffmpeg (CRF 16 - visually lossless)...")
     cmd_mp4 = [
         "ffmpeg", "-y",
         "-framerate", "12",
         "-i", os.path.join(temp_dir, "frame_%04d.png"),
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
-        "-crf", "20",
+        "-crf", "16",
         "-movflags", "+faststart",
         mp4_out
     ]
     subprocess.run(cmd_mp4, check=True)
     print(f"Saved MP4: {mp4_out}")
 
-    print("Encoding optimized GIF with ffmpeg (2-pass palettegen)...")
+    print("Encoding High-Res GIF with ffmpeg (256-color palette, high quality)...")
     palette_path = os.path.join(temp_dir, "palette.png")
     cmd_palette = [
         "ffmpeg", "-y",
         "-framerate", "12",
         "-i", os.path.join(temp_dir, "frame_%04d.png"),
-        "-vf", "palettegen=max_colors=128:reserve_transparent=0",
+        "-vf", "palettegen=max_colors=256:reserve_transparent=0",
         palette_path
     ]
     subprocess.run(cmd_palette, check=True)
@@ -452,15 +452,14 @@ def main():
         "-framerate", "12",
         "-i", os.path.join(temp_dir, "frame_%04d.png"),
         "-i", palette_path,
-        "-lavfi", "paletteuse=dither=bayer:bayer_scale=5",
+        "-lavfi", "paletteuse=dither=bayer:bayer_scale=3",
         gif_out
     ]
     subprocess.run(cmd_gif, check=True)
     print(f"Saved GIF: {gif_out}")
 
-    shutil.copyfile(gif_out, os.path.join(os.path.abspath("."), "banner-demo.gif"))
     shutil.rmtree(temp_dir)
-    print("Done! Demo generation complete.")
+    print("Done! Widescreen HD demo generation complete.")
 
 if __name__ == "__main__":
     main()
