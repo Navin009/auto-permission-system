@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+# [3.9.0](https://github.com/Navin009/auto-permission-system/compare/v3.8.0...v3.9.0) (2026-10-13)
+
+### Features
+
+* **demo:** crisp widescreen HD terminal recording (`demo.mp4`, `demo.gif`) demonstrating Cloud Auto Mode and Advanced Secure Mode
+* **branding:** official security shield logo and banner in documentation and package
+* **docs:** comprehensive FAQ, Cloud Auto Mode architecture, interactive prompt guides, and zero-trust documentation
+* **metadata:** package keywords, clean npm manifest, and remove legacy PyPI references
+
 # [2.0.0](https://github.com/Navin009/auto-permission-system/compare/v1.2.0...v2.0.0) (2026-10-02)
 
 

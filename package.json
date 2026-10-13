@@ -1,6 +1,6 @@
 {
   "name": "auto-permission-system",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "description": "Secure auto mode & cloud auto mode for Pi. A zero-trust permission system for the Pi coding agent powered by Advanced Secure mode to scan files, content, and tools to prevent data breaches.",
   "type": "module",
   "author": "Navin Kumar",
