@@ -127,9 +127,9 @@ Replace the current `keywords` array with comprehensive token coverage:
 Replace the 270-character description with a high-density, non-truncated description:
 
 ```json
-"description": "Auto secure permission system and sandbox for Pi coding agent (pi). Features cloud auto mode, PyPI security (.pypirc guard), zero-trust tool guard, and secret detection."
+"description": "Claude auto mode for Pi & security for Pi. A zero-trust permission system for Pi coding agent powered by Advanced Secure mode to scan files, content, and tools to prevent data breaches."
 ```
-*Why this matters*: Every single word in this description will be indexed by `pi.dev` and npm. It contains `auto secure`, `cloud auto mode`, `pypi security`, `permission system`, and `secret detection` without getting cut off.
+*Why this matters*: Every single word in this description will be indexed by `pi.dev` and npm. It contains `claude auto mode`, `security for pi`, `permission system`, and `advanced secure mode` without getting cut off.
 
 ---
 
@@ -179,11 +179,11 @@ Google, GitHub, and `pi.dev` detail pages (`https://pi.dev/packages/auto-permiss
 
 To rank on GitHub search and Google:
 1. **Repository "About" Section**:
-   - Description: `Auto secure permission system and sandbox for Pi coding agent (pi). Features cloud auto mode, PyPI security (.pypirc guard), secret detection, and OS sandboxing.`
+   - Description: `Claude auto mode for Pi & security for Pi. A zero-trust permission system for Pi coding agent powered by Advanced Secure mode to scan files, content, and tools to prevent data breaches.`
    - Website: `https://www.npmjs.com/package/auto-permission-system`
 2. **Repository Topics**:
-   Add the following 14 topics:
-   `pi-package`, `pi-coding-agent`, `pi-extension`, `pi-permission-system`, `pi-security`, `auto-secure`, `permission-system`, `pypi-security`, `cloud-auto-mode`, `sandbox`, `bubblewrap`, `ai-agent-security`, `zero-trust`, `prompt-injection`.
+   Add the following topics:
+   `pi-package`, `pi-coding-agent`, `pi-extension`, `pi-permission-system`, `pi-security`, `claude-auto-mode-for-pi`, `security-for-pi`, `auto-secure`, `permission-system`, `claude-auto-mode`, `sandbox`, `bubblewrap`, `ai-agent-security`, `zero-trust`.
 3. **Social Preview Image**:
    In **Settings → General → Social preview**, upload `banner.png`.
 
@@ -220,7 +220,7 @@ To make the package uniquely differentiated and capture 100% of search traffic f
    - Added `sandbox.cloud.json` directly to the repository and npm package distribution.
    - Provides a drop-in configuration for unattended, non-interactive execution (GitHub Actions, Docker, remote devboxes, subagents) with `strictAllowlist: true`, `outsideProject.read: "deny"`, and locked-down network sockets.
 2. **Metadata Optimization (`package.json`)**:
-   - Updated description to: `"Cloud auto mode for Pi & security for Pi. A zero-trust permission system for Pi to secure Pi coding agent workflows with tool guard, sandbox, and PyPI security."`
+   - Updated description to: `"Claude auto mode for Pi & security for Pi. A zero-trust permission system for Pi to secure Pi coding agent workflows with tool guard, sandbox, and Advanced Secure mode."`
    - Added compound keyword tokens: `"cloud-auto-mode-for-pi"`, `"security-for-pi"`, `"permission-system-for-pi"`, `"secure-pi"`, `"pi-cloud-auto-mode"`, `"cloud-auto-mode"`.
 3. **Skill & README Guides**:
    - Dedicated sections in `README.md` and `skills/auto-permission-system/SKILL.md` detailing how to secure Pi, how Cloud Auto Mode works, and a checklist for hardening Pi coding agent sessions.
