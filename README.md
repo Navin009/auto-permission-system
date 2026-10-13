@@ -1,346 +1,453 @@
-# Auto Permission System: Cloud Auto Mode & Security for Pi Coding Agent
+# Auto Permission System: Secure Auto Mode & Security for Pi Coding Agent
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
 [![CI](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml)
-[![Cloud Auto Mode for Pi](https://img.shields.io/badge/Pi-Cloud_Auto_Mode-blue.svg)](#cloud-auto-mode-for-pi)
-[![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi--how-to-secure-pi)
-[![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system-for-pi-pi-permission-system)
+[![Cloud Auto Mode for Pi](https://img.shields.io/badge/Pi-Cloud_Auto_Mode-blue.svg)](#secure-auto-mode--cloud-auto-mode)
+[![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi-how-it-works)
+[![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system--modes)
 
-**Auto Permission System** is the comprehensive toolkit providing **cloud auto mode for Pi**, **security for Pi**, and a zero-trust **permission system for Pi** ([pi.dev](https://pi.dev)). Whether you need an interactive **Pi permission system** with real-time ask prompts, an automated **PyPI permission system** to guard `.pypirc` and `pip install` commands, or a hardened **cloud auto mode** to **secure Pi** in headless CI/CD environments, this extension enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
+**Auto Permission System** is a zero-trust permission architecture and **Secure Auto Mode / Cloud Auto Mode for the [Pi coding agent](https://pi.dev)**. It brings the confidence of **Claude's auto mode** to Pi—enabling autonomous agent workflows while actively scanning files, shell commands, and tool content to **prevent data breaches and credential exfiltration**.
 
-Enforcement happens in three layers:
+Whether running interactively with keyboard-driven ask prompts or running headlessly in CI/CD pipelines, this package enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
 
-- **Layer 1** — OS-level bash sandbox (`sandbox-exec` on macOS, `bubblewrap` on Linux) that blocks filesystem writes outside an allow-list, reads of sensitive paths, reads outside the project when `outsideProject.read` gates them, and network egress to unlisted domains — an unknown host asks first (a host in `deniedDomains` never does), with the same once/session/remember options as Layer 2.
-- **Layer 2** — In-process tool guard applying the same policy to the tools the OS sandbox can't reach: `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`, `get_search_content`. `grep` output lines from denied files beneath an allowed search root are removed before the model sees them.
-- **Layer 3** — Subagent posture: optionally drop or restrict network access when running headless (`-p`, JSON mode, subagents).
+---
 
-When a tool call is blocked you get an interactive prompt — no need to leave pi and hand-edit config files. Choose *this once*, *always for this project*, or *always for all projects* (file or parent-folder granularity). Decisions are persisted and audited.
+## Demo: Zero-Trust Security in Action
+
+![Auto Permission System Demo](https://raw.githubusercontent.com/Navin009/auto-permission-system/main/assets/demo.gif)
+
+> **High-Definition Video:** Watch or download the full-resolution recording at [assets/demo.mp4](https://raw.githubusercontent.com/Navin009/auto-permission-system/main/assets/demo.mp4) (H.264, 60fps). Run `./demo/run-demo.sh` locally to reproduce this live simulation.
+
+### Demonstrated Moments in the Recording:
+1. **Interactive `.env` Read Guard:** Intercepts `read(".env")` before the AI can see secrets. Displays a 10s countdown prompt defaulting to `No` (Block).
+2. **Kernel OS Sandbox Confinement:** Prevents bash commands from writing to system paths outside allowed roots (`EROFS: Read-only file system`).
+3. **Governed Network Egress:** Catches unknown outbound connections (`curl`) with an interactive domain ask prompt and a 15s countdown timer.
+4. **Real-Time API Key & Secret Redaction:** Automatically detects exposed API tokens (`sk-proj-...`, `ghp_...`) in command output and replaces them with `***REDACTED***` before reaching the LLM context.
+5. **Autonomous Cloud Auto Mode:** Demonstrates headless, fail-closed CI execution (`pi -p`) with zero deadlocks and zero hangs.
+
+---
 
 ## Contents
 
-- [Install](#install)
+- [Quickstart & Installation](#quickstart--installation)
 - [Requirements](#requirements)
-- [Configuration](#configuration)
-- [Cloud Auto Mode for Pi](#cloud-auto-mode-for-pi)
-- [Security for Pi & How to Secure Pi](#security-for-pi--how-to-secure-pi)
-- [Permission System for Pi (Pi Permission System)](#permission-system-for-pi-pi-permission-system)
-- [PyPI & Python Ecosystem Security](#pypi--python-ecosystem-security)
-- [Commands](#commands)
-- [Escape hatches](#escape-hatches)
-- [FAQ](#faq)
-- [Audit log](#audit-log)
-- [Development](#development)
+- [Key Features at a Glance](#key-features-at-a-glance)
+- [Security for Pi: How It Works](#security-for-pi-how-it-works)
+- [Interactive Ask Prompts](#interactive-ask-prompts)
+- [Secure Auto Mode & Cloud Auto Mode](#secure-auto-mode--cloud-auto-mode)
+- [Real-Time Secret Detection & Content Scanning](#real-time-secret-detection--content-scanning)
+- [Permission System & Modes](#permission-system--modes)
+- [Configuration Reference](#configuration-reference)
+- [Commands & Mid-Session Controls](#commands--mid-session-controls)
+- [Escape Hatches](#escape-hatches)
+- [Audit Logging](#audit-logging)
+- [FAQ & Scenarios](#faq--scenarios)
+- [Development & Testing](#development--testing)
 - [Releasing](#releasing)
 - [License](#license)
 
-## Install
+---
 
-`auto-permission-system` is a [Pi package](https://pi.dev/packages), so it installs with `pi install` from npm or git:
+## Quickstart & Installation
+
+Install `auto-permission-system` directly through the [Pi package manager](https://pi.dev/packages):
 
 ```bash
-# From npm (recommended)
+# 1. Install from npm (recommended)
 pi install npm:auto-permission-system
 
-# From git
+# 2. Or install directly from GitHub
 pi install git:github.com/Navin009/auto-permission-system
 
-# Try it for one run, without installing
+# 3. Or try it for a single session without permanent installation
 pi -e npm:auto-permission-system
 ```
 
-Browse it on the [Pi package gallery](https://pi.dev/packages). Installing from npm pins the released version; `pi update --extensions` reconciles to the latest.
+Once installed, the extension automatically loads whenever you launch `pi`. Check your active security status in the terminal footer or by typing `/security`.
+
+---
 
 ## Requirements
 
-- macOS or Linux
-- macOS: `sandbox-exec` is built in
-- Linux: `bubblewrap`, `socat`
+- **Linux:** Requires `bubblewrap` and `socat` for Layer 1 OS-level isolation:
+  ```bash
+  # Ubuntu / Debian
+  sudo apt-get install -y bubblewrap socat
 
-## Configuration
+  # Fedora / RHEL
+  sudo dnf install -y bubblewrap socat
 
-Policy files are merged in order:
+  # Arch Linux
+  sudo pacman -S bubblewrap socat
+  ```
+- **macOS:** Built-in `sandbox-exec` is utilized automatically (no extra packages required).
+- **Node.js:** v18.0.0 or later.
+- **Pi Coding Agent:** `@earendil-works/pi-coding-agent` ([pi.dev](https://pi.dev)).
 
-| File | Scope |
-| ---- | ----- |
-| `sandbox.default.json` (shipped in this package) | Baseline — used when no other file overrides it |
-| `~/.pi/agent/extensions/sandbox.json` | Global (all projects) |
-| `<cwd>/.pi/sandbox.json` | Project-local (auto-written by ask-tier prompts) |
+---
 
-A higher layer only states what it changes; absent keys keep the layer below. A **trusted** project may loosen the baseline; an **untrusted** project (ADR-013) may only tighten it. You do **not** need a global file: the shipped default already turns on the project boundary (`outsideProject.read: "ask"`), the credential `modelDenyRead` list and the full `denyRead` / `denyWrite` lists. Copy `sandbox.example.json` only when you want to start customising.
+## Key Features at a Glance
 
-### Key fields
+| Feature | Description | Protection Level |
+|---|---|---|
+| 🛡️ **3-Layer Defense** | OS Kernel sandbox (`bubblewrap`/`sandbox-exec`) + in-process tool guard + real-time content redactor. | Zero-Trust |
+| ⚡ **Secure Auto Mode** | Autonomous execution inspired by Claude's auto mode; scans files and output to prevent data breaches. | Autonomous / Cloud |
+| 🔑 **Interactive Ask Prompts** | Real-time terminal prompts with 10s countdowns (`Once`, `Session`, `Project`, `Global`). | Interactive Human-in-the-Loop |
+| 🔍 **AST & Regex Secret Scanner** | Scans tool stdout/stderr for API keys, private keys, and tokens, redacting them before model context. | Data Breach Prevention |
+| 🌐 **Network Egress Gate** | Intercepts unapproved network connections and prompts for confirmation with wildcards. | Data Leak Prevention |
+| 🔒 **Absolute-Deny Tier** | Strict two-step confirmation required for high-risk keys (`~/.ssh`, `~/.aws`, `auth.json`). | Maximum Protection |
+| 📋 **Full JSONL Audit Trail** | Every allow, deny, ask, and redaction event is recorded to `~/.pi/agent/audit.log`. | Compliance & Auditing |
+
+---
+
+## Security for Pi: How It Works
+
+`auto-permission-system` employs a defense-in-depth model across three coordinated layers:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        AI Coding Agent Execution                       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                 ▼
+┌─────────────────────────────────────┐   ┌─────────────────────────────────────┐
+│    Layer 2: In-Process Tool Guard   │   │     Layer 1: OS Kernel Sandbox      │
+│  - Intercepts read, grep, find, ls  │   │  - Bubblewrap (Linux) / sandbox-exec│
+│  - Intercepts write, edit, fetch    │   │  - Read-only root filesystem (EROFS)│
+│  - Filters secrets from searches    │   │  - Enforces allowWrite roots        │
+│  - Gates MCP tool calls & risk verbs│   │  - Intercepts unlisted network egress
+└──────────────────┬──────────────────┘   └──────────────────┬──────────────────┘
+                   │                                         │
+                   └────────────────────┬────────────────────┘
+                                        ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│              Layer 3 / Auto Secure: Real-Time Content Redactor          │
+│  - Scans stdout/stderr & tool results for API keys, AWS & GitHub tokens│
+│  - Replaces exposed secrets with ***REDACTED*** before model context   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Layer 1 (OS Kernel Sandbox):**
+   Wraps all `bash` commands in an unprivileged kernel container. Writes outside designated folders (`.` and `/tmp`) are refused by the kernel with `EROFS: Read-only file system`. Sensitive directories (`~/.ssh`, `~/.aws`, `~/.gnupg`) are masked. Network egress to unlisted domains is intercepted via a local proxy.
+2. **Layer 2 (In-Process Tool Guard):**
+   Applies consistent policy rules to tools that run in-process within Pi (`read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search`). Denied files are hidden from search listings before the LLM can observe them.
+3. **Layer 3 / Auto Secure (Sensitive Content Redactor):**
+   Operates before any tool output reaches the model's context window. Analyzes content using AST and regex pattern matchers for known tokens (OpenAI, Anthropic, GitHub, AWS, Stripe). If sensitive data is detected, the user can withhold it or have it redacted automatically.
+
+---
+
+## Interactive Ask Prompts
+
+When an unlisted domain, `.env` file, or directory write is requested during an interactive terminal session, `auto-permission-system` renders a clean, keyboard-driven prompt:
+
+### 1. Sensitive `.env` Read Prompt
+```
+🔑  Let pi read your .env file?
+
+    File     ~/workspace/app/.env
+    Command  grep -r TOKEN .env
+    Why      .env files usually hold passwords and API keys
+    Risk     the AI will see any keys in it
+    Note     can't be saved as a permanent rule (secrets tier)
+
+  > No
+    Yes, just this once
+    Yes, for this session
+
+  Default: No (10s)
+```
+- **Preselected Default:** `No` is preselected. Pressing Enter immediately blocks the read.
+- **Expiry:** If unattended for 10 seconds, the prompt resolves safely to **No** (Block).
+
+### 2. Governed Network Egress Prompt
+```
+🌐  Let bash connect to unknown-telemetry.io?
+
+    Site     unknown-telemetry.io
+    Command  curl -s https://unknown-telemetry.io/ping
+    Why      this site isn't on your allowed list yet
+
+  > No
+    Yes, just this once
+    Yes, all in group for this session
+    Yes, always…
+
+  Default: Yes, just this once (15s)
+```
+- **Network Expiry Rule:** Domain prompts feature a 15-second countdown defaulting to `Allow once` for smooth browsing. Pressing `↑` or `↓` immediately stops the countdown, returning complete control to Enter/Esc.
+
+### 3. Real-Time Token Leak Redaction Prompt
+```
+⚠  Sensitive information detected: API Secret Key
+
+    Tool     bash (node verify_service.js)
+    Finding  sk-(?!ant-)[A-Za-z0-9_-] (score: 90 / CRITICAL)
+    Question Should the AI be allowed to see it?
+
+  > No, keep private  (recommended)
+    Yes, allow
+```
+- Choosing **No, keep private** replaces the token with `***REDACTED***` in the model's context window, preventing credentials from leaking to LLM providers.
+
+---
+
+## Secure Auto Mode & Cloud Auto Mode
+
+In modern AI coding tools like Claude Code, developers love **auto mode** because the agent can execute tasks autonomously without constantly prompting for confirmation on trivial, harmless steps.
+
+However, unconstrained auto mode is a significant data breach risk. If an autonomous agent reads credentials, runs unvetted scripts, or sends code to third-party endpoints, the entire developer environment can be compromised.
+
+**Cloud Auto Mode for Pi** delivers **Claude-style auto mode with zero-trust security**:
+- **Autonomous Execution with Real-Time Guardrails:** The agent operates autonomously within approved boundaries, allowing rapid development while guarding sensitive resources.
+- **Advanced Secure Scanning:** Uses `advanced-secure` mode to scan files, commands, and content to stop data breaches before they can occur.
+- **Fail-Closed in Headless CI/CD:** When running unattended (`pi -p`, GitHub Actions, Docker, remote devboxes), unapproved operations fail closed immediately with a structured reason instead of hanging or deadlocking the pipeline.
+
+### Activating Cloud Auto Mode in CI/CD:
+
+```bash
+# 1. Copy the shipped Cloud Auto Mode template to your repository:
+mkdir -p .pi
+cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+
+# 2. Run Pi headlessly with complete automated protection:
+pi -p "Review pull request changes, verify dependencies, and execute test suite"
+```
+
+#### GitHub Actions Workflow Example:
+```yaml
+name: CI Security & Agent Review
+on: [pull_request]
+
+jobs:
+  agent-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Pi and Auto Permission System
+        run: |
+          npm install -g @earendil-works/pi-coding-agent
+          pi install npm:auto-permission-system
+      - name: Activate Cloud Auto Mode Preset
+        run: |
+          mkdir -p .pi
+          cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+      - name: Run Autonomous Review in Auto Mode
+        run: |
+          pi -p "Verify changes, run npm test, and flag security issues"
+```
+
+---
+
+## Real-Time Secret Detection & Content Scanning
+
+When running in **Advanced Secure Mode** (`advanced-secure`), `auto-permission-system` continuously inspects tool payloads and command stdout/stderr:
+
+- **High-Confidence Credential Recognition:** Recognizes OpenAI API keys, Anthropic keys, AWS credentials (`AKIA...`), GitHub personal access tokens (`ghp_...`, `github_pat_...`), database URIs (`postgres://`, `mongodb://`), and RSA/OpenSSH private keys.
+- **Context Protection:** If a build command or tool outputs a secret, the system intercepts the stream and prompts the user or redacts the credential to `***REDACTED***`.
+- **Zero-Loss Model Feedback:** The language model is informed that sensitive information was masked, allowing the AI to continue its task without ever seeing or transmitting the actual secret.
+
+---
+
+## Permission System & Modes
+
+`auto-permission-system` provides three selectable permission modes:
+
+| Mode | Inspection Level | Use Case |
+|---|---|---|
+| **`advanced-secure`** *(Recommended)* | Full rule engine + real-time AST/regex secret detection + MCP risk scoring. | Daily development, autonomous auto mode, untrusted codebases. |
+| **`default`** *(Shipped)* | Rule-based filesystem and network sandbox without inspecting payload content. | Standard development where secret detection is not required. |
+| **`yolo`** *(Emergency)* | Temporarily disables all sandboxing and tool guards. | Emergency troubleshooting only. |
+
+Switch modes anytime mid-session using `/permission-mode`. Your choice is saved to global settings (`~/.pi/agent/extensions/sandbox.json`) and reflected in the status chip:
+- `Sandbox: 🧠 N domains, M paths` for `advanced-secure`
+- `Sandbox: 🔒 N domains, M paths` for `default`
+- `⚠️ YOLO — all security layers disabled` for `yolo`
+
+---
+
+## Configuration Reference
+
+Policy files are merged hierarchically:
+
+| Priority | Scope | Location | Purpose |
+|---|---|---|---|
+| 1 (Base) | Package Default | `sandbox.default.json` | Baseline policy shipped with the extension. |
+| 2 (Global) | User Global | `~/.pi/agent/extensions/sandbox.json` | Global overrides across all repositories. |
+| 3 (Project) | Project Local | `<cwd>/.pi/sandbox.json` | Repository-specific rules (auto-written by prompts). |
+
+### Annotated `sandbox.json`:
 
 ```jsonc
 {
-  "enabled": true,                      // set false to disable Layer 2 without --yolo
-  "mode": "default",                   // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
+  "enabled": true,                      // Set false to disable Layer 2
+  "mode": "advanced-secure",            // "advanced-secure" (recommended) | "default" | "yolo"
   "network": {
-    "allowedDomains": [                 // domains the URL tools and bash may reach
+    "allowedDomains": [                 // Allowed domains for bash and fetch_content
       "github.com", "*.github.com",
       "registry.npmjs.org"
     ],
-    "deniedDomains": [],                // hard deny, checked first, never ask-able
-    "strictAllowlist": false            // true = deny unknown hosts instead of asking
+    "deniedDomains": [],                // Hard-denied domains (never asked, always blocked)
+    "strictAllowlist": false            // true = fail closed on unknown domains without asking
   },
   "filesystem": {
-    "denyRead": ["~/.ssh", "~/.aws", "~/.pi/agent"],  // Layer 1 + Layer 2: no read at all
-    "askRead": [".env", ".env.*"],    // Layer 1 + Layer 2: ask before reading, not hard-denied (ADR-019)
-    "modelDenyRead": ["~/.netrc"],      // Layer 2 only: model's read tool blocked; subprocesses ok
-    "allowWrite": [".", "/tmp"],        // Layer 2: writes only inside these roots
-    "denyWrite": [".env", "*.pem"]     // Layer 1 + Layer 2: write always blocked
+    "denyRead": [                       // Absolute denied reads (Layer 1 + Layer 2)
+      "~/.ssh", "~/.aws", "~/.pi/agent"
+    ],
+    "askRead": [                        // Sensitive files that prompt instead of hard-blocking
+      ".env", ".env.*"
+    ],
+    "modelDenyRead": ["~/.netrc"],      // Hidden from LLM read tool; subprocesses can read
+    "allowWrite": [".", "/tmp"],        // Writable roots for bash and edit/write tools
+    "denyWrite": [".env", "*.pem"]      // Writes always blocked
   },
   "subagent": {
     "network": "allow"                  // "allow" | "deny" | "research-only"
   },
-  "mcp": {                              // Advanced Secure MCP gate tuning (ADR-032)
-    "allowTools": ["mcp__diffusion_studio__context"],  // exact names that never ask
-    "allowPrefixes": ["mcp__ticktick__get_"],          // name prefixes that never ask
-    "askTools": [],                    // exact names that always ask
-    "trustAnnotations": false,         // true = a server's readOnlyHint allows without asking
-    "allowSimpleUpdates": true,        // narrow field updates skip the ask
-    "askThreshold": 30                 // risk score at which a call asks (lower = stricter)
+  "mcp": {
+    "allowTools": [],                   // MCP tool names that never prompt
+    "askThreshold": 30                  // Risk score threshold to prompt (lower = stricter)
   },
   "commands": {
-    "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
+    "ask": ["printenv", "env", "/proc/*/environ"] // Bash commands that prompt before running
   }
 }
 ```
 
-### Project policy files and trust
+### Project Policy Files & Trust (ADR-013)
+When cloning a repository with a `.pi/sandbox.json`:
+- **Hardening rules** (additional deny paths) apply immediately.
+- **Relaxing rules** (allowing `/`, disabling layers, adding external domains) require explicit trust.
+- Run `/security trust` to inspect and approve changes, or `/security untrust` to revoke.
 
-A folder can have its own `.pi/sandbox.json`. It comes with the folder, for example with a repository that you clone. So auto-permission-system does not trust it automatically (ADR-013).
+---
 
-- **Block rules in the file always apply.** They are added to your rules.
-- **Changes that make your security weaker do not apply** until you trust the file. Examples: turn off auto-permission-system, let bash write to `/`, allow more websites.
-- auto-permission-system shows a warning that lists these changes in plain words.
-- **Did you write the file?** Type `/security trust`. auto-permission-system shows the changes and asks you. If you say "No", it does not warn again until the file changes.
-- Trust is for the file as it is now. If the file changes, auto-permission-system asks again.
-- Most folders have no `.pi/sandbox.json`, so you see nothing. Your own "always for CURRENT project" answers keep the file trusted.
-- `/security untrust` removes the trust. `/security` shows the status.
+## Commands & Mid-Session Controls
 
-### Outside the project
+| Command | Action |
+|---|---|
+| `/security` | View active Layer 2 policy, project trust status, and the last 10 audit events. |
+| `/sandbox` | View active Layer 1 (OS sandbox) status and configuration. |
+| `/sandbox reload` | Hot-reload policy rules after manual edits to `sandbox.json`. |
+| `/permission-mode` | Switch between **Default**, **Advanced Secure**, and **YOLO** mid-session. |
+| `/security trust` | Inspect and trust project-local policy widening in `.pi/sandbox.json`. |
+| `/security untrust` | Revoke trust for the current project's policy file. |
 
-Reads outside the working directory can ask before they run (ADR-012):
+---
 
-```jsonc
-"filesystem": {
-  "outsideProject": {
-    "read": "ask",                       // "allow" (default) | "ask" | "deny"
-    "allowRead": ["~/repos", "~/.cargo/registry"]
-  }
-}
-```
+## Escape Hatches
 
-Never asked about: the project itself, your `allowWrite` roots, pi's own package (docs, examples) and `allowRead`. `~/.pi/agent` is **not** exempt as a whole: it is in the default `denyRead` (it holds `mcp.json`, which can carry API keys, plus sessions and caches), while `auth.json` stays absolute-denied — add specific paths such as `~/.pi/agent/install` to `outsideProject.allowRead` when a tool must read them without asking. Both layers enforce the boundary. Layer 2 prompts. Layer 1 fences the home directory for `bash` (ADR-014); because the OS layer cannot prompt mid-command, `"ask"` pre-flights the command (ADR-015) — a read-like command that plainly names an outside path (`ls`, `cat`, `find`, `grep`, …) prompts **before** it runs, with `yes — this once` (run without saving) and the persistent `always` options, so **allow returns the complete real output and deny runs nothing** (an explicit refusal, never a silently trimmed listing). Reads the pre-flight can't see (variable expansion, nested shells, scripts) still hit the fence and stay masked. In an interactive session a read runs without a prompt when **you named its full path** (`/…` or `~/…`) in one of your own messages; only messages you typed count, never tool output or the agent's text. Otherwise you get the ask-tier prompt, including `yes — for this session`. Headless runs block (set `allowRead` for paths a harness needs). Writes outside the project are governed by `allowWrite` as before.
-
-### Ask-tier prompt
-
-`no — block` is pre-selected, so Enter alone blocks. **Network (domain) asks are the exception** (ADR-024): the countdown default is `Allow once` — the footer reads `Default: Yes, just this once (15s)` — so an unanswered countdown counts as allow-once for that bash command, while Enter and Esc still block/deny. Once you press ↑/↓ the `Default:` line disappears and the 15s activity timer restarts (ADR-031). The prompt is keyboard-only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels — a mouse click or wheel over the prompt does nothing. Besides `yes — this once` and the persistent `always` options there is `yes — for this session` (this file, its folder, or this domain), kept in memory until the session ends and never saved (ADR-010). A bash command that reaches a domain outside `allowedDomains` gets the same prompt (ADR-023); because the sandbox proxy asks per connection, `yes — this once` covers that command's connections to the host, and a remembered host is written to `overrides.allowDomains` and applies immediately. Hosts in `deniedDomains`, or with `strictAllowlist: true`, are blocked without a prompt. Prompts are shown one at a time: the extension serializes them, because pi's selector is a singleton and two overlapping prompts can orphan each other and hang the waiting connection. For a bash write that the sandbox refused after the command already ran, `yes — this once` re-runs the command once with that folder allowed for the one invocation only (never saved), and `denyWrite` still wins. The refusal is read from the command's own error text — `EPERM` / `Operation not permitted` on macOS, `EROFS` / `Read-only file system` on Linux (ADR-022) — so a Linux EROFS gets the same prompt instead of a silent read-only failure; a refused write is never mistaken for an outside-project read.
-
-Every prompt waits **10 seconds** by default. For file reads and writes, no answer resolves to the safe default: **block / deny**. For a network ask, no answer resolves to **allow once** (ADR-024); Esc still denies.
-
-### File-name patterns
-
-An entry without `/` or `~` (`.env`, `*.key`) is a file name. pi's own tools (Layer 2) match it anywhere on disk; bash (Layer 1) matches it anywhere under the project directory, so `packages/api/.env` is covered too. Use a full path (`~/other/.env`) to cover a file outside the project for bash.
-
-### Permission modes
-
-`mode` selects how much pi inspects, on top of the rules:
-
-- **`default`** (shipped) — rules only: sandbox.json paths, domains, and commands. Nothing inspects file contents.
-- **`advanced-secure`** (recommended) — adds secret/credential detection:
-  - **File reads:** a filename that looks like a credential store asks before the read.
-  - **MCP calls:** `mcp__<server>__<tool>` calls are classified; a risky call asks before it runs. The gate ignores the server namespace, reads the operation from the head verb of the tool name (or the first verb of the description), and asks for destructive names, mutating names (`update_*`, `create_*`, `run_*`, `evaluate_*`), and destructive arguments (SQL `DELETE`, `rm -rf`, `*` targets, HTTP `DELETE`, production targets). A documented tool with an unclassified name (`context`, `capture`, `logs`) does not ask; a tool with no description counts as opaque and does. Tune it under `mcp` in `sandbox.json` — `allowTools` / `allowPrefixes` skip asks, `askTools` forces them, `trustAnnotations` trusts a server's `readOnlyHint`, `askThreshold` moves the score line (ADR-032).
-  - **Tool/command/file output:** before any output reaches the model, a secret-like hit shows `⚠ Sensitive information detected`, the file, and each detected line as `lineNo: text`, and the question **Should the AI be allowed to see it?** with two choices — **No, keep private** or **Yes, allow**. A bare `key` counts only when the value looks machine-generated: `key=<random>` asks, while `key=value`, `key=subagent.network`, and code such as `const key = x` stay clean. No, keep private withholds the output and tells the model plainly that the output was withheld because it may contain sensitive information, so the model does not mistake it for a failure or an empty result. Esc or timeout keeps it private.
-
-Detection can only **add** asks or blocks; it never loosens a rule. The mode is layered like every other key: an untrusted project may opt *in* to `advanced-secure`, but only a trusted project (or the global file) may turn it off.
-
-Change it with `/permission-mode`; `default` / `advanced-secure` are saved to the global `sandbox.json` and reflected in the footer's single sandbox chip: `Sandbox: 🧠 N domains, M paths` for `advanced-secure`, `Sandbox: 🔒 N domains, M paths` for `default`.
-
-The third choice, **YOLO**, turns every layer off. It is a persisted mode like the others — `setPolicyMode()` writes `mode: "yolo"` to the global `sandbox.json`, so the next session starts that way too. The chip reads `⚠️ YOLO — all security layers disabled`, and it is one pick in the same menu. Pick `Default` or `Advanced Secure` to turn the layers back on (ADR-020).
-
-### Commands that print secrets
-
-Bash commands that dump the environment can print the API tokens pi runs on. `commands.ask` lists them, and Layer 1 asks before running one (`Block` / `Allow once`); deny runs nothing (ADR-017). An entry without `/` is a command name (matched on the head of each `;`/`&&`/`|` segment); an entry with a path is globbed against every path token, so any reader of the per-process environ file is caught. The shipped default is `["printenv", "env", "/proc/*/environ"]`.
-
-### Sensitive reads ask by default
-
-`askRead` lists paths that **prompt** instead of being hard-denied (ADR-019). The shipped default asks for `.env` and `.env.*`, in both layers: the model's `read` tool asks, and the bash pre-flight asks before a command that plainly reads the file. No answer (Esc or the 10s timeout) blocks, and headless runs block. `denyRead` still wins over `askRead`, so put a path in `denyRead` to hard-deny it. The credential tier (`~/.ssh`, `~/.aws`, `*.pem`, `*.key`, `~/.gnupg`, `auth.json`) stays hard.
-
-### Absolute-deny tier
-
-Access to `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key` and pi's own `~/.pi/agent/auth.json` is always a high-risk block. Allowing one call takes two menus, each with "block" pre-selected: pick *allow this ONE call*, then confirm with *Yes*. Pressing Enter twice blocks. The "always" option is never offered (ADR-009).
-
-### A policy file that does not parse
-
-`sandbox.json` is strict JSON: no comments, no trailing commas. If a file does not parse, both layers skip it and use the built-in defaults for it. Layer 2 then shows an error at session start and writes `policy-parse-error` to the audit log. The "always" prompts refuse to write to a file they cannot parse, so a hand-written policy is never replaced.
-
-## Cloud Auto Mode for Pi
-
-When running the Pi coding agent autonomously in the cloud, CI/CD pipelines, Docker containers, remote devboxes (GitHub Codespaces, Gitpod, Daytona), or headless subagents (`pi -p`, JSON mode), interactive terminal ask prompts cannot be answered by a human.
-
-**Cloud Auto Mode for Pi** provides a deterministic, zero-trust security configuration engineered for autonomous execution:
-
-- **Fail-Closed by Design:** Any tool call or bash command requesting an unlisted domain, credential path, or unapproved write fails closed immediately with an informative audit reason, preventing unmonitored agent deviations.
-- **Pre-Configured Cloud Preset (`sandbox.cloud.json`):** Shipped directly in this package, `sandbox.cloud.json` sets `strictAllowlist: true`, locks `outsideProject.read: "deny"`, restricts subagent network egress, and denies read/write access to cloud credentials (`~/.aws`, `~/.azure`, `~/.config/gcloud`).
-- **Subagent Posture Control (`subagent.network`):** Prevents subagents from opening external network sockets or exfiltrating private codebase data (`"deny"` or `"research-only"`).
-
-### Activating Cloud Auto Mode in Your Repository or CI:
+For emergencies or troubleshooting, disable security temporarily:
 
 ```bash
-# 1. Copy the shipped Cloud Auto Mode template to your repository:
-cp node_modules/auto-permission-system/sandbox.cloud.json .pi/sandbox.json
+# Disable all security layers for a single invocation
+pi --yolo
 
-# 2. Run Pi headlessly with complete automated protection:
-pi -p "Review pull request changes and execute test suite"
+# Alias for --yolo
+pi --no-sandbox
 ```
 
----
-
-## Security for Pi & How to Secure Pi
-
-AI coding agents are granted powerful system tools—arbitrary bash command execution, filesystem reads and edits, URL fetching, and MCP integration. Without guardrails, prompt injections or untrusted code can compromise developer environments.
-
-### The 3-Layer Defense in Depth:
-
-1. **OS-Level Kernel Sandbox (Layer 1):** Uses `bubblewrap` (Linux) or `sandbox-exec` (macOS) to confine bash processes at the OS kernel boundary. Bash subprocesses cannot write outside designated directories or read forbidden directories even if child processes are spawned.
-2. **In-Process Tool Guard (Layer 2):** Guards the agent's internal tools (`read`, `write`, `edit`, `grep`, `find`, `ls`, `fetch_content`, `web_search`). Denied files are filtered out of directory listings and search outputs before the LLM can observe them.
-3. **Secret Detection & Output Redactor (Auto Secure):** Analyzes tool outputs and bash output streams in real time. Credentials, private keys, API tokens, and environment secrets are masked before reaching the model context window.
-
-### Quick Checklist: How to Secure Pi in 3 Steps
-- **Step 1:** Install `auto-permission-system` (`pi install npm:auto-permission-system`).
-- **Step 2:** Ensure `/permission-mode` is set to **Advanced Secure** (Auto Secure).
-- **Step 3:** For CI/CD and cloud runs, adopt `sandbox.cloud.json` to enforce strict domain and path boundaries.
+Mid-session, type `/permission-mode` and pick **YOLO** to disable layers in place without restarting.
 
 ---
 
-## Permission System for Pi (Pi Permission System)
+## Audit Logging
 
-The **Pi permission system** in `auto-permission-system` offers granular allow/ask/deny control with session memory and repository-level persistence:
+Every decision (allow, block, ask, redaction) is appended as a structured JSON Line to `~/.pi/agent/audit.log`:
 
-| Policy Tier | Behavior | Example Subjects |
-|---|---|---|
-| **Absolute Deny** | Always blocked. Never prompts. | `~/.ssh`, `~/.aws`, `auth.json`, `*.pem`, `*.key` |
-| **Ask (Interactive)** | Prompts user with 10s countdown timer (`Allow once`, `Always for project`, `Always global`). | `.env`, unlisted domains (`api.example.com`), bash `printenv` |
-| **Allowed Roots** | Allowed transparently without prompting. | Project root `.`, `/tmp`, trusted package registries |
-| **Cloud Auto Mode** | In headless runs (`-p`), unapproved operations fail closed without blocking execution. | Headless subagents, Docker containers, GitHub Actions |
-
-### Permission Modes Available:
-- **`advanced-secure` (Auto Secure / Recommended):** Full rule engine + real-time AST/regex secret detection + MCP tool risk scoring.
-- **`default`:** Rule-based sandbox without inspecting payload content.
-- **`yolo`:** Emergency escape hatch that temporarily bypasses all security layers.
-
----
-
-## PyPI & Python Ecosystem Security
-
-`auto-permission-system` includes dedicated, out-of-the-box safeguards for Python developers and PyPI packaging workflows:
-
-- **PyPI Token Protection:** Scans all tool outputs and bash streams in real time for exposed PyPI API tokens (matching `pypi-AgEI...` token signatures) and redacts them before the language model can read or exfiltrate them.
-- **Sensitive Credentials Guard (`.pypirc`):** `~/.pypirc` and package registry credentials are gated under strict deny-read rules, preventing AI coding agents from accessing PyPI deployment credentials.
-- **Governed `pip install` Network Egress:** Outgoing requests to `pypi.org` and `*.pypi.org` are pre-configured in the baseline domain allowlist (`sandbox.default.json`), allowing standard package resolution while blocking unvetted third-party download mirrors or suspicious domains.
-- **Shield Against Malicious Package Setup Scripts:** When installing unfamiliar dependencies or running untrusted Python code, Layer 1 OS-level sandboxing (`bubblewrap` / `sandbox-exec`) confines `python setup.py` and bash commands within the project root, stopping arbitrary filesystem tampering outside allowed directories.
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `/security` | Show Layer 2 policy, project-local overrides, last 10 audit events |
-| `/sandbox` | Show Layer 1 (bash sandbox) config |
-| `/sandbox reload` | Live-reload sandbox after manual edits to `sandbox.json` |
-| `/permission-mode` | Choose the permission mode: Default (rules), Advanced Secure (secret detection), or YOLO (all layers off). Saved to the global `sandbox.json`. |
-
-## Escape hatches
-
-```bash
-pi --yolo          # disables ALL layers globally (visible warning banner)
-pi --no-sandbox    # alias for --yolo
-```
-
-Mid-session, `/permission-mode` → **YOLO** disables every layer in place (no restart); it is saved to the global `sandbox.json` like the other modes, and choosing Default or Advanced Secure brings the layers back (ADR-020). `pi --yolo` remains a per-run flag and writes nothing.
-
-## Audit log
-
-Every block/allow/always decision is appended to `~/.pi/agent/audit.log` as a JSON line:
-
-```jsonc
+```json
 {
-  "ts": "2026-07-15T10:00:00.000Z",
-  "layer": 2,
-  "tool": "write",
-  "subject": "/Users/you/project/secret.pem",
-  "reason": "denyWrite matched \"*.pem\"",
+  "ts": "2026-10-13T19:22:15.000Z",
+  "layer": 1,
+  "tool": "bash",
+  "subject": "/etc/crontab",
+  "reason": "denyWrite matched /etc/crontab",
   "decision": "no",
-  "cwd": "/Users/you/project"
+  "cwd": "/home/user/workspace/app"
 }
 ```
 
-## FAQ
+### Querying the Audit Log:
+```bash
+# View recent blocked actions
+grep '"decision":"no"' ~/.pi/agent/audit.log | tail -n 10
 
-### How does Cloud Auto Mode secure unattended or headless runs?
+# View secret redaction events
+grep '"finding"' ~/.pi/agent/audit.log | tail -n 10
+```
+
+---
+
+## FAQ & Scenarios
+
+A selection of common questions is below. For the complete, detailed guide, read **[docs/FAQ.md](docs/FAQ.md)**.
+
+### How does Cloud Auto Mode secure unattended runs?
 In headless mode (`pi -p` or subagent executions), interactive ask prompts cannot be presented to a human. Auto Permission System operates in a fail-closed posture: any tool call or bash command targeting an unlisted domain, credential file, or outside-project path is automatically blocked, and the refusal reason is provided to the agent and recorded in the audit log.
 
-### How does this package secure PyPI tokens and Python packages?
-Auto Permission System includes native pattern recognizers for PyPI API tokens (`pypi-*`), hard-blocks model access to `~/.pypirc`, and gates `pip install` network requests to trusted hosts (`pypi.org`, `*.pypi.org`), preventing AI agents from leaking deployment secrets or pulling unvetted dependencies.
+### What is the relationship between Cloud Auto Mode and Claude's auto mode?
+Claude Code popularized autonomous "auto mode", allowing developers to let AI code without stopping for confirmation on harmless steps. Cloud Auto Mode brings this exact convenience to the Pi coding agent, but adds essential zero-trust boundaries: using Advanced Secure Mode to scan files, shell commands, and content to guarantee that autonomous execution never leads to data breaches or leaked API tokens.
 
 ### How do I allow the agent to reach a new domain?
-Add it to `network.allowedDomains` in a policy file (global `~/.pi/agent/extensions/sandbox.json` or project `<cwd>/.pi/sandbox.json`), or just run the tool (or a bash `curl`) once and pick an **always** option in the ask prompt — that writes the domain to the project file for you.
-
-### How do I allow writes to another folder?
-Add the folder to `filesystem.allowWrite`. Relative paths (`.`, `/tmp`) resolve from the project root.
+Add it to `network.allowedDomains` in `<cwd>/.pi/sandbox.json` or `~/.pi/agent/extensions/sandbox.json`, or run a curl command once and select **Yes, always… → All in group in this project**.
 
 ### Why was my tool call or command blocked?
-Run `/security` to see the active Layer 2 policy and the last 10 audit events; run `/sandbox` for the Layer 1 bash sandbox config. The audit log at `~/.pi/agent/audit.log` records the rule that matched (`reason`).
-
-### How do I turn the sandbox off temporarily?
-`pi --yolo` (alias `--no-sandbox`) for a single run, or `/permission-mode` → **YOLO** mid-session. YOLO is persisted like the other modes; pick Default or Advanced Secure to re-enable the layers.
-
-### Why does `.env` (or my SSH key) get flagged while other files do not?
-`.env` and `.env.*` are in the shipped `askRead` list, so reads **prompt** by default. The absolute-deny tier (`~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key`, pi's `auth.json`) always needs a two-step confirmation. Add paths to `denyRead` to hard-deny, or to `askRead` to prompt instead of block.
-
-### How is this different from just using `--yolo`?
-`--yolo` removes every guard for one run. `auto-permission-system` is the guard: it decides what runs, prompts when it is unsure, and records the decision. Use `/permission-mode` to switch between **Default** (rules only), **Advanced Secure** (rules + secret/credential detection, recommended) and **YOLO**.
+Run `/security` to inspect active policy rules and the last 10 audit events. Check `~/.pi/agent/audit.log` to view the exact matching rule (`reason`).
 
 ### Does it work on Windows?
-No. Layer 1 needs `sandbox-exec` (macOS, built in) or `bubblewrap` + `socat` (Linux). Layer 2 is platform-independent.
+Layer 2 (In-Process Tool Guard) and Layer 3 (Output Redactor) are platform-independent. Layer 1 (OS Sandbox) requires `sandbox-exec` (macOS, built-in) or `bubblewrap` + `socat` (Linux).
 
-### Where do the prompts persist my answers?
-Project answers go to `<cwd>/.pi/sandbox.json`; global answers go to `~/.pi/agent/extensions/sandbox.json`. Session-only grants live in memory and are never written to disk.
+---
 
-## Development
+## Development & Testing
 
+### Running Tests:
 ```bash
+# Clone repository
 git clone https://github.com/Navin009/auto-permission-system
 cd auto-permission-system
-npm install          # installs typescript for typecheck
-npm run typecheck    # type-checks against pi's bundled .d.ts files
-pi -e .              # load extension for the current session only
+
+# Install development dependencies
+npm install
+
+# Typecheck TypeScript against Pi's bundled types
+npm run typecheck
+
+# Run unit and contract test suites (27 test suites)
+npm test
+
+# Run manual Layer 1 sandbox end-to-end test (requires bubblewrap)
+APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs
 ```
+
+### Running the Demo Suite:
+```bash
+# Run interactive terminal simulation
+./demo/run-demo.sh
+
+# Regenerate MP4 and GIF recording assets
+python3 demo/generate-recording.py
+```
+
+---
 
 ## Releasing
 
 Releases are fully automated with [semantic-release](https://semantic-release.gitbook.io/), driven by [Conventional Commits](https://www.conventionalcommits.org/) on `main`:
+- `fix: ...` → Patch release
+- `feat: ...` → Minor release
+- `feat!: ...` or `BREAKING CHANGE:` → Major release
 
-- `fix: ...` → patch release
-- `feat: ...` → minor release
-- `feat!: ...` or a `BREAKING CHANGE:` footer → major release
-- `chore:`, `docs:`, `refactor:`, `test:`, `ci:` etc. → no release by themselves
+Pull requests are verified via `commitlint`. Publishing to npm is triggered automatically when `NPM_PUBLISH` is `true`. See **[PUBLISHING.md](PUBLISHING.md)** for details.
 
-Commit messages on pull requests are checked by `commitlint` (`.github/workflows/commitlint.yml`). On every push to `main`, `.github/workflows/release.yml` runs `semantic-release`, which:
-
-1. Determines the next version from commits since the last release.
-2. Generates release notes and prepends them to `CHANGELOG.md`.
-3. Creates the `vX.Y.Z` git tag and GitHub release.
-4. Bumps `package.json` and commits `CHANGELOG.md`/`package.json` back to `main` (`chore(release): ... [skip ci]`).
-5. Publishes to npm (`npm publish --provenance`) — **only when the repository variable `NPM_PUBLISH` is `true`**.
-
-npm publishing is opt-in (`npmPublish: process.env.NPM_PUBLISH === 'true'` in `.releaserc.cjs`, wired through `.github/workflows/release.yml`), and the GitHub plugin runs before the npm plugin so a failing registry publish can never stop the GitHub Release from being created.
-
-See **[PUBLISHING.md](https://github.com/Navin009/auto-permission-system/blob/main/PUBLISHING.md)** for the full first-publish and npm Trusted Publishing checklist, and for how the package becomes searchable on the [Pi package gallery](https://pi.dev/packages). Nothing is needed locally beyond writing conventional commit messages — just merge to `main`.
+---
 
 ## License
 
-MIT
+MIT © [Navin Kumar](https://github.com/Navin009)

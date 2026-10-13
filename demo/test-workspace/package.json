@@ -1,0 +1,7 @@
+{
+  "name": "sample-backend-app",
+  "version": "1.0.0",
+  "description": "Demo application for testing auto-permission-system sandbox and guard",
+  "main": "server.js",
+  "type": "module"
+}
