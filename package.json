@@ -1,6 +1,6 @@
 {
   "name": "auto-permission-system",
-  "version": "3.7.8",
+  "version": "3.8.0",
   "description": "Cloud auto mode for Pi & security for Pi. A zero-trust permission system for Pi to secure Pi coding agent workflows with tool guard, sandbox, and PyPI security.",
   "type": "module",
   "author": "Navin Kumar",
