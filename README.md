@@ -25,8 +25,6 @@ Whether running interactively with keyboard-driven ask prompts or running headle
 
 ![Auto Permission System Demo](https://raw.githubusercontent.com/Navin009/auto-permission-system/main/assets/demo.gif)
 
-> **High-Definition Video:** Watch or download the full-resolution recording at [assets/demo.mp4](https://raw.githubusercontent.com/Navin009/auto-permission-system/main/assets/demo.mp4) (H.264, 60fps). Run `./demo/run-demo.sh` locally to reproduce this live simulation.
-
 ### Demonstrated Moments in the Recording:
 1. **Interactive `.env` Read Guard:** Intercepts `read(".env")` before the AI can see secrets. Displays a 10s countdown prompt defaulting to `No` (Block).
 2. **Kernel OS Sandbox Confinement:** Prevents bash commands from writing to system paths outside allowed roots (`EROFS: Read-only file system`).
