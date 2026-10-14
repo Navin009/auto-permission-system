@@ -41,6 +41,8 @@ check('a camelCase key value stays clean', scanTextContent('key=primaryKey').fin
 check('an arrow function is not an assignment', scanTextContent('return xs.some((token) => TOKENS.has(token));').findings.length === 0);
 check('a two-word label stays clean', scanTextContent('PRIVATE_KEY: "private key"').findings.length === 0);
 check('a quoted random key value still flags', scanTextContent('key="Xk9pQ2mN7vR4tY8wZ1aB3cD6eF0gH5jL"').findings.length >= 1);
+check('keyboard key name stays clean in output gate', scanToolOutput({ output: 'Successfully pressed key: Backspace' }).decision === 'allow');
+check('keyboard key name stays clean in text content scan', scanTextContent('key: Backspace').findings.length === 0);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);
