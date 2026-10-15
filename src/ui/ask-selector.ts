@@ -72,6 +72,9 @@ class Border implements Component {
 	}
 }
 
+const SCROLL_UP_KEYS = new Set(["\x1b[5~", "[", "\x1b[1;2A"]);
+const SCROLL_DOWN_KEYS = new Set(["\x1b[6~", "]", "\x1b[1;2B"]);
+
 export class AskSelector extends Container {
 	private readonly theme: AskTheme;
 	private readonly tui: { requestRender(): void };
@@ -92,7 +95,6 @@ export class AskSelector extends Container {
 	private finished = false;
 	private engaged = false;
 
-	// Scrollable body state
 	private readonly isMultiLine: boolean;
 	private readonly headerText: string;
 	private readonly bodyLines: string[];
@@ -131,13 +133,10 @@ export class AskSelector extends Container {
 		this.addChild(new Spacer(1));
 
 		if (!this.isMultiLine) {
-			// Single-line prompt: render exactly as before
 			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
 		} else if (this.bodyLines.length <= this.maxBodyLines) {
-			// Short multi-line prompt: preserve exact single Text node to avoid formatting issues
 			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
 		} else {
-			// Long multi-line script/command: separate header from scrollable viewport
 			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
 			this.addChild(new Spacer(1));
 			this.bodyComponent = new Text(this.renderBodySlice(), 0, 0);
@@ -187,22 +186,11 @@ export class AskSelector extends Container {
 	handleInput(data: string): void {
 		if (this.bodyLines.length > this.maxBodyLines) {
 			const pageSize = Math.max(1, this.maxBodyLines - 2);
-			// Support mouse wheel, [, ], Shift+Up/Down, or PageUp/Down
-			if (
-				this.keybindings.matches(data, "tui.select.pageUp") ||
-				data === "\x1b[5~" ||
-				data === "[" ||
-				data === "\x1b[1;2A"
-			) {
+			if (this.keybindings.matches(data, "tui.select.pageUp") || SCROLL_UP_KEYS.has(data)) {
 				this.scrollBody(-pageSize);
 				return;
 			}
-			if (
-				this.keybindings.matches(data, "tui.select.pageDown") ||
-				data === "\x1b[6~" ||
-				data === "]" ||
-				data === "\x1b[1;2B"
-			) {
+			if (this.keybindings.matches(data, "tui.select.pageDown") || SCROLL_DOWN_KEYS.has(data)) {
 				this.scrollBody(pageSize);
 				return;
 			}
@@ -242,10 +230,6 @@ export class AskSelector extends Container {
 		this.tui.requestRender();
 	}
 
-	/**
-	 * Mouse handler: allow mouse wheel to scroll the body content if multi-line,
-	 * while keeping clicks inert to prevent accidental option confirmation.
-	 */
 	handleMouse(event: { type?: string; wheelDelta?: number }): undefined {
 		if (event?.type === "wheel" && Number.isFinite(event.wheelDelta)) {
 			if (this.bodyLines.length > this.maxBodyLines) {
