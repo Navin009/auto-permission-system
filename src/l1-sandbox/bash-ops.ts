@@ -76,11 +76,15 @@ async function preflightSensitiveCommands(
 	const matched = matchedAskCommands(command, ask, cwd, homedir());
 	if (!matched.length) return undefined;
 	const ui = opts.ctx as AskCtx;
-	const body = [
+	const bodyLines: string[] = [
 		`Command  ${matched.join(", ")}`,
 		`Risk     environment variables often hold API keys and tokens`,
 		`Note     can only be allowed one run at a time`,
-	].join("\n");
+	];
+	if (command.includes("\n")) {
+		bodyLines.push(`\nScript:\n${command}`);
+	}
+	const body = bodyLines.join("\n");
 	const choice = await askMain(ui, `Let ${matched[0]} print your environment variables?`, body, { once: true, remember: false, icon: "cred" });
 	const subject = matched.join(", ");
 	if (choice === "once") {
