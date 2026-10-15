@@ -214,7 +214,17 @@ async function askWithSelect(
 	timeoutMs: number,
 	footer: string | null,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
-	const selectTitle = footer ? `${title}\n\n${footer}` : title;
+	// Guard against terminal overflow in non-custom/RPC mode for long scripts
+	let boundedTitle = title;
+	const lines = title.split("\n");
+	const MAX_FALLBACK_LINES = 16;
+	if (lines.length > MAX_FALLBACK_LINES) {
+		const header = lines[0];
+		const preview = lines.slice(1, MAX_FALLBACK_LINES).join("\n");
+		boundedTitle = `${header}\n${preview}\n\n[... ${lines.length - MAX_FALLBACK_LINES} more lines truncated]`;
+	}
+
+	const selectTitle = footer ? `${boundedTitle}\n\n${footer}` : boundedTitle;
 	if (timeoutMs === 0) {
 		const picked = await ctx.ui.select(selectTitle, options);
 		return { picked, expired: false };

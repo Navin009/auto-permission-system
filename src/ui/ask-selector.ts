@@ -54,6 +54,8 @@ export type AskSelectorOptions = {
 	onExpire: () => void;
 	/** Countdown tick, default 1000 ms. Test seam. */
 	tickMs?: number;
+	/** Maximum body lines shown in viewport before scrolling engages. Default 12. */
+	maxBodyLines?: number;
 };
 
 /** A one-line horizontal rule, like pi's DynamicBorder but without the
@@ -90,6 +92,15 @@ export class AskSelector extends Container {
 	private finished = false;
 	private engaged = false;
 
+	// Scrollable body state
+	private readonly isMultiLine: boolean;
+	private readonly headerText: string;
+	private readonly bodyLines: string[];
+	private readonly maxBodyLines: number;
+	private readonly bodyComponent: Text | null = null;
+	private readonly indicatorComponent: Text | null = null;
+	private bodyScrollOffset = 0;
+
 	constructor(o: AskSelectorOptions) {
 		super();
 		this.theme = o.theme;
@@ -103,10 +114,38 @@ export class AskSelector extends Container {
 		this.labels = o.options;
 		this.footerVisible = o.footer !== null && o.footer !== "";
 		this.remaining = Math.ceil(o.timeoutMs / 1000);
+		this.maxBodyLines = o.maxBodyLines ?? 12;
+
+		const allLines = o.title.split("\n");
+		this.isMultiLine = allLines.length > 1;
+
+		if (this.isMultiLine) {
+			this.headerText = allLines[0] ?? "";
+			this.bodyLines = allLines.slice(1);
+		} else {
+			this.headerText = o.title;
+			this.bodyLines = [];
+		}
 
 		this.addChild(new Border((t) => this.theme.fg("border", t)));
 		this.addChild(new Spacer(1));
-		this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
+
+		if (!this.isMultiLine) {
+			// Single-line prompt: render exactly as before
+			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
+		} else if (this.bodyLines.length <= this.maxBodyLines) {
+			// Short multi-line prompt: preserve exact single Text node to avoid formatting issues
+			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
+		} else {
+			// Long multi-line script/command: separate header from scrollable viewport
+			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
+			this.addChild(new Spacer(1));
+			this.bodyComponent = new Text(this.renderBodySlice(), 0, 0);
+			this.addChild(this.bodyComponent);
+			this.indicatorComponent = new Text(this.renderScrollIndicator(), 0, 0);
+			this.addChild(this.indicatorComponent);
+		}
+
 		this.addChild(new Spacer(1));
 		if (this.footerVisible) {
 			this.footerText = new Text(this.footerValue(), 0, 0);
@@ -146,6 +185,17 @@ export class AskSelector extends Container {
 	}
 
 	handleInput(data: string): void {
+		if (this.bodyLines.length > this.maxBodyLines) {
+			const pageSize = Math.max(1, this.maxBodyLines - 2);
+			if (this.keybindings.matches(data, "tui.select.pageUp") || data === "\x1b[5~") {
+				this.scrollBody(-pageSize);
+				return;
+			}
+			if (this.keybindings.matches(data, "tui.select.pageDown") || data === "\x1b[6~") {
+				this.scrollBody(pageSize);
+				return;
+			}
+		}
 		if (this.keybindings.matches(data, "tui.select.up")) {
 			this.move(-1);
 			return;
@@ -155,6 +205,30 @@ export class AskSelector extends Container {
 			return;
 		}
 		this.list.handleInput(data);
+	}
+
+	private renderBodySlice(): string {
+		const slice = this.bodyLines.slice(this.bodyScrollOffset, this.bodyScrollOffset + this.maxBodyLines);
+		return this.theme.fg("accent", this.theme.bold(slice.join("\n")));
+	}
+
+	private renderScrollIndicator(): string {
+		const total = this.bodyLines.length;
+		const start = this.bodyScrollOffset + 1;
+		const end = Math.min(total, this.bodyScrollOffset + this.maxBodyLines);
+		return this.theme.fg("muted", `[${start}–${end} of ${total} lines | PgUp/PgDn to scroll]`);
+	}
+
+	private scrollBody(delta: number): void {
+		if (this.bodyLines.length <= this.maxBodyLines) return;
+		const maxOffset = this.bodyLines.length - this.maxBodyLines;
+		const next = Math.max(0, Math.min(maxOffset, this.bodyScrollOffset + delta));
+		if (next === this.bodyScrollOffset) return;
+		this.bodyScrollOffset = next;
+		this.bodyComponent?.setText(this.renderBodySlice());
+		this.indicatorComponent?.setText(this.renderScrollIndicator());
+		this.onActivity();
+		this.tui.requestRender();
 	}
 
 	/**

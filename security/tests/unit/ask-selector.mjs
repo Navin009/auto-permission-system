@@ -228,5 +228,28 @@ const mouse = (overrides = {}) => ({
 	check('footer null: no Default line', !text(s.comp).includes('Default:'));
 }
 
+{
+	// Long body / script preview scrolling test
+	const longBody = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n');
+	const s = mk({
+		title: `Run long script?\n${longBody}`,
+		maxBodyLines: 5,
+	});
+	let t = text(s.comp);
+	check('initial long body: shows first 5 lines', t.includes('line 1') && t.includes('line 5') && !t.includes('line 6'));
+	check('initial long body: options remain visible at bottom', t.includes('→ No') && t.includes('Yes, just this once'));
+
+	// Page down to scroll body
+	s.comp.handleInput('\x1b[6~');
+	t = text(s.comp);
+	check('after PgDn: body scrolled to next slice', !t.includes('line 1\n') && t.includes('line 6') && t.includes('line 8'));
+	check('after PgDn: options remain visible at bottom', t.includes('→ No') && t.includes('Yes, just this once'));
+
+	// Page up to scroll back
+	s.comp.handleInput('\x1b[5~');
+	t = text(s.comp);
+	check('after PgUp: body scrolled back to line 1', t.includes('line 1') && t.includes('line 5') && !t.includes('line 6'));
+}
+
 console.log(`PASS=${pass} FAIL=${fail}`);
 if (fail) process.exit(1);
