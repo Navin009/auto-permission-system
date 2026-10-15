@@ -187,11 +187,22 @@ export class AskSelector extends Container {
 	handleInput(data: string): void {
 		if (this.bodyLines.length > this.maxBodyLines) {
 			const pageSize = Math.max(1, this.maxBodyLines - 2);
-			if (this.keybindings.matches(data, "tui.select.pageUp") || data === "\x1b[5~") {
+			// Support mouse wheel, [, ], Shift+Up/Down, or PageUp/Down
+			if (
+				this.keybindings.matches(data, "tui.select.pageUp") ||
+				data === "\x1b[5~" ||
+				data === "[" ||
+				data === "\x1b[1;2A"
+			) {
 				this.scrollBody(-pageSize);
 				return;
 			}
-			if (this.keybindings.matches(data, "tui.select.pageDown") || data === "\x1b[6~") {
+			if (
+				this.keybindings.matches(data, "tui.select.pageDown") ||
+				data === "\x1b[6~" ||
+				data === "]" ||
+				data === "\x1b[1;2B"
+			) {
 				this.scrollBody(pageSize);
 				return;
 			}
@@ -216,7 +227,7 @@ export class AskSelector extends Container {
 		const total = this.bodyLines.length;
 		const start = this.bodyScrollOffset + 1;
 		const end = Math.min(total, this.bodyScrollOffset + this.maxBodyLines);
-		return this.theme.fg("muted", `[${start}–${end} of ${total} lines | PgUp/PgDn to scroll]`);
+		return this.theme.fg("muted", `[${start}–${end} of ${total} lines | [/] or Shift+↑/↓ or Scroll Wheel]`);
 	}
 
 	private scrollBody(delta: number): void {
@@ -232,14 +243,18 @@ export class AskSelector extends Container {
 	}
 
 	/**
-	 * Keyboard-only prompt (ADR-036). Deliberately does not call the inherited
-	 * Container dispatch: that would forward the event to the SelectList, which
-	 * picks the row a left click lands on and moves the highlight on wheel — a
-	 * stray click on the terminal could allow a call the user never chose.
-	 * Returning `undefined` means "not handled here"; the renderer may still use
-	 * the gesture for its own text selection, which cannot pick an answer.
+	 * Mouse handler: allow mouse wheel to scroll the body content if multi-line,
+	 * while keeping clicks inert to prevent accidental option confirmation.
 	 */
-	handleMouse(): undefined {
+	handleMouse(event: { type?: string; wheelDelta?: number }): undefined {
+		if (event?.type === "wheel" && Number.isFinite(event.wheelDelta)) {
+			if (this.bodyLines.length > this.maxBodyLines) {
+				const delta = event.wheelDelta;
+				if (delta !== undefined) {
+					this.scrollBody(delta > 0 ? 2 : -2);
+				}
+			}
+		}
 		return undefined;
 	}
 
