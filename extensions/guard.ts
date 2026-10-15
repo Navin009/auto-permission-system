@@ -91,7 +91,22 @@ async function detectMcpAsk(
 		policy: mcpPolicy,
 	});
 	if (result.decision !== "ask") return null;
-	return askDetection(ctx, "tool", toolName, result.summary);
+
+	// Include detailed call parameters or script preview if present
+	let detailedSummary = result.summary;
+	if (input && Object.keys(input).length > 0) {
+		const rawScript = input.code ?? input.script ?? input.command ?? input.query;
+		if (typeof rawScript === "string" && rawScript.includes("\n")) {
+			detailedSummary += `\n\n${rawScript}`;
+		} else {
+			const formattedArgs = JSON.stringify(input, null, 2);
+			if (formattedArgs.includes("\n")) {
+				detailedSummary += `\n\nArguments:\n${formattedArgs}`;
+			}
+		}
+	}
+
+	return askDetection(ctx, "tool", toolName, detailedSummary);
 }
 
 export default function (pi: ExtensionAPI) {
