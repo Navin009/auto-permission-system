@@ -66,11 +66,12 @@ type Layer1FilesystemKind = typeof OverrideKind.AllowWrite | typeof OverrideKind
  * filesystem.outsideProject.read gates reads.
  */
 function runtimeConfig(cwd: string, config: SandboxConfig): SandboxRuntimeConfig {
+	const allowLocalhost = config.allowLocalhost ?? config.network?.allowLocalhost ?? true;
 	const network = config.network
 		? {
 				...config.network,
 				allowAllUnixSockets: config.allowAllUnixSockets ?? config.network.allowAllUnixSockets,
-				allowLocalBinding: config.allowLocalBinding ?? config.network.allowLocalBinding,
+				allowLocalBinding: config.allowLocalBinding ?? config.network.allowLocalBinding ?? allowLocalhost,
 			}
 		: undefined;
 

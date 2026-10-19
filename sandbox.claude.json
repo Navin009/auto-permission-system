@@ -2,6 +2,7 @@
   "enabled": true,
   "mode": "advanced-secure",
   "network": {
+    "allowLocalhost": false,
     "strictAllowlist": true,
     "allowedDomains": [
       "registry.npmjs.org",

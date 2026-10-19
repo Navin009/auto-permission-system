@@ -2,6 +2,7 @@
   "enabled": true,
   "mode": "advanced-secure",
   "network": {
+    "allowLocalhost": true,
     "allowedDomains": [
       "registry.npmjs.org",
       "registry.yarnpkg.com",
@@ -24,13 +25,22 @@
       "rubygems.org",
       "api.nuget.org",
       "deno.land",
-      "jsr.io"
+      "jsr.io",
+      "api.openai.com",
+      "huggingface.co",
+      "*.huggingface.co",
+      "cdn-lfs.huggingface.co",
+      "*.diffusion.studio",
+      "diffusion.studio"
     ]
   },
   "filesystem": {
     "outsideProject": {
       "read": "allow",
-      "allowRead": []
+      "allowRead": [
+        "~/Downloads",
+        "~/.cache"
+      ]
     },
     "denyRead": [],
     "askRead": [

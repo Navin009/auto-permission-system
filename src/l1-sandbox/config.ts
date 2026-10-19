@@ -22,10 +22,18 @@ export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["fil
 	outsideProject?: { read?: ReadPosture; allowRead?: string[] };
 }
 
-export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> {
+export interface SandboxNetwork extends Partial<NonNullable<SandboxRuntimeConfig["network"]>> {
+	/** Whether to allow localhost / loopback on all ports (default: true). Set false to strictly isolate network. */
+	allowLocalhost?: boolean;
+	/** Host TCP ports to bridge into the Linux sandbox namespace when allowLocalhost is false. */
+	bridgeHostPorts?: number[];
+}
+
+export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem" | "network"> {
 	enabled?: boolean;
 	/** `default` = rules only; `advanced-secure` adds secret/credential detection (ADR-018). */
 	mode?: PermissionMode;
+	network?: SandboxNetwork;
 	filesystem?: SandboxFilesystem;
 	/**
 	 * Additive project-local overrides written by the ask-tier prompts (Layer 1
@@ -44,7 +52,9 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 	allowAllUnixSockets?: boolean;
 	/** Allow local port binding. */
 	allowLocalBinding?: boolean;
-	/** Host TCP ports to bridge into the Linux sandbox namespace (defaults to [3274] for Diffusion Studio). */
+	/** Whether to allow localhost / loopback on all ports (default: true). Set false to strictly isolate network. */
+	allowLocalhost?: boolean;
+	/** Host TCP ports to bridge into the Linux sandbox namespace when allowLocalhost is false. */
 	bridgeHostPorts?: number[];
 }
 
@@ -54,6 +64,7 @@ const BUILTIN_CONFIG: SandboxConfig = {
 	network: {
 		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
 		deniedDomains: [],
+		allowLocalhost: true,
 	},
 	filesystem: {
 		denyRead: [...DEFAULT_DENY_READ],

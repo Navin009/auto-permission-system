@@ -39,6 +39,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   "enabled": true,
   "mode": "default",                     // "default" (rules) | "advanced-secure" (secret detection, ADR-018)
   "network": {
+    "allowLocalhost": true,                // true (default): localhost on all ports allowed; false: strict network isolation
     "allowedDomains": ["github.com", "*.github.com"],  // empty = allow all
     "deniedDomains": [],                   // hard deny, never ask-able
     "strictAllowlist": false               // true = deny unknown hosts instead of asking

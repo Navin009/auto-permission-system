@@ -14,7 +14,7 @@ import { audit } from "../shared/audit";
 import { canonicalize } from "../shared/canonicalize";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow";
 import { loadConfig, projectTrusted } from "./config";
-import { injectBridgesIntoBwrap, startHostPortBridges } from "./host-bridge";
+import { injectBridgesIntoBwrap, startHostPortBridges, type HostPortBridge } from "./host-bridge";
 
 /** First whitespace-separated token of a bash command — used to name the binary in prompt titles. */
 function firstWord(command: string): string {
@@ -221,10 +221,21 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			const grantedWriteFiles = new Set<string>();
 			const attempt = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
 				const cfg = loadConfig(cwd);
-				const hostPorts = cfg.bridgeHostPorts ?? [3274];
-				const bridges = await startHostPortBridges(hostPorts);
+				const allowLocalhost = cfg.allowLocalhost ?? cfg.network?.allowLocalhost ?? true;
+				let bridges: HostPortBridge[] = [];
+				if (!allowLocalhost && process.platform === "linux") {
+					const hostPorts = cfg.bridgeHostPorts ?? [3274];
+					bridges = await startHostPortBridges(hostPorts);
+				}
 				const rawWrapped = await SandboxManager.wrapWithSandbox(command, undefined, buildCustom(writeOnce));
-				const wrappedCommand = injectBridgesIntoBwrap(rawWrapped, bridges);
+				let wrappedCommand = rawWrapped;
+				if (process.platform === "linux") {
+					if (allowLocalhost) {
+						wrappedCommand = wrappedCommand.replace(" --unshare-net ", " ");
+					} else if (bridges.length > 0) {
+						wrappedCommand = injectBridgesIntoBwrap(wrappedCommand, bridges);
+					}
+				}
 
 				const cleanupBridges = () => {
 					bridges.forEach((b) => b.close());
