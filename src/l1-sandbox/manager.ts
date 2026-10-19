@@ -36,11 +36,13 @@ const SUPPRESSED_PROJECT_FILES = new Set([
  */
 export function suppressGhostDotfiles(): void {
 	try {
+		/* SAFETY: DANGEROUS_FILES is an array of strings in sandbox-runtime. */
 		const files = DANGEROUS_FILES as unknown as string[];
 		const filteredFiles = files.filter((f) => !SUPPRESSED_PROJECT_FILES.has(f));
 		files.length = 0;
 		files.push(...filteredFiles);
 
+		/* SAFETY: DANGEROUS_DIRECTORIES is an array of strings in sandbox-runtime. */
 		const dirs = DANGEROUS_DIRECTORIES as unknown as string[];
 		const filteredDirs = dirs.filter((d) => d === ".git");
 		dirs.length = 0;
@@ -64,8 +66,16 @@ type Layer1FilesystemKind = typeof OverrideKind.AllowWrite | typeof OverrideKind
  * filesystem.outsideProject.read gates reads.
  */
 function runtimeConfig(cwd: string, config: SandboxConfig): SandboxRuntimeConfig {
+	const network = config.network
+		? {
+				...config.network,
+				allowAllUnixSockets: config.allowAllUnixSockets ?? config.network.allowAllUnixSockets,
+				allowLocalBinding: config.allowLocalBinding ?? config.network.allowLocalBinding,
+			}
+		: undefined;
+
 	return {
-		network: config.network,
+		network: network as NonNullable<SandboxRuntimeConfig["network"]>,
 		filesystem: config.filesystem
 			? sandboxFilesystem(config.filesystem, { cwd, home: homedir() })
 			: { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [], disabled: true },
@@ -87,7 +97,8 @@ export async function initSandbox(cwd: string, config: SandboxConfig, deps?: Net
 export async function resetSandbox(): Promise<void> {
 	try {
 		await SandboxManager.reset();
-	} catch {
+	} catch (err) {
+		void err;
 	}
 }
 

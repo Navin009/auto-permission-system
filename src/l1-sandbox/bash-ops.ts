@@ -9,7 +9,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
-import { askReadCandidates, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { askReadCandidates, extractBlockedPath, extractLoopbackEndpoint, isBlockedAccessError, isLoopbackConnectionRefused, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize } from "../shared/canonicalize";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow";
@@ -330,6 +330,50 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									`   or write inside the project directory (${cwd}).\n`;
 							}
 							blockedHint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
+						} else if (code !== 0 && isLoopbackConnectionRefused(outputTail)) {
+							const endpointInfo = extractLoopbackEndpoint(outputTail, command);
+							const endpointStr = endpointInfo?.port ? `${endpointInfo.host}:${endpointInfo.port}` : (endpointInfo?.host ?? "127.0.0.1");
+							const serviceName = endpointInfo?.service;
+
+							auditL1({
+								subject: endpointStr,
+								decision: "loopback-refused",
+								reason: "Linux sandbox network namespace (--unshare-net) isolates host loopback",
+								cwd: opts?.ctx?.cwd,
+								note: serviceName ? `service:${serviceName}` : undefined,
+							});
+
+							const notifyMsg = serviceName === "Diffusion Studio"
+								? "pi-sandbox: Diffusion Studio is running on host port 3274, but sandboxed bash cannot reach host localhost. Connect it via MCP in ~/.pi/agent/mcp.json."
+								: `pi-sandbox: connection to host ${endpointStr} refused. Sandboxed bash cannot reach host localhost.`;
+							opts?.ctx?.ui?.notify?.(notifyMsg, "warning");
+
+							blockedHint = `\n💡 pi-sandbox: localhost / loopback connection refused.\n` +
+								`   Target: ${endpointStr}${serviceName ? ` (${serviceName})` : ""}\n` +
+								`   Why: The Linux sandbox runs inside an isolated network namespace (--unshare-net).\n` +
+								`        Services running on your HOST's 127.0.0.1/localhost are isolated and cannot\n` +
+								`        be reached directly from sandboxed bash commands.\n`;
+
+							if (serviceName === "Diffusion Studio" || /dapi|diffusion|3274/i.test(command)) {
+								blockedHint +=
+									`   Resolution for Diffusion Studio:\n` +
+									`   • Diffusion Studio exposes an MCP server on http://127.0.0.1:3274/mcp\n` +
+									`   • Add it to ~/.pi/agent/mcp.json so Pi connects directly on the host:\n` +
+									`       {\n` +
+									`         "mcpServers": {\n` +
+									`           "diffusion-studio": { "url": "http://127.0.0.1:3274/mcp" }\n` +
+									`         }\n` +
+									`       }\n` +
+									`   • Once added, restart or reload Pi: the agent gets native MCP tools\n` +
+									`     (context, check, capture, probe) with Layer 2 security, no bash needed.\n` +
+									`   • Or run pi with --yolo for one-off host access.\n`;
+							} else {
+								blockedHint +=
+									`   Resolution:\n` +
+									`   • If this is an MCP service, configure it in ~/.pi/agent/mcp.json.\n` +
+									`   • Pi runs on the host and can communicate with local MCP servers directly.\n` +
+									`   • Or run pi with --yolo if this task requires interacting with host network services.\n`;
+							}
 						}
 						/**
 						 * Emit the block explanation only when the command is not re-run with a

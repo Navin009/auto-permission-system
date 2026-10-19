@@ -1,6 +1,6 @@
 // Layer 1 violation attribution: which path was refused, whether it was a denyRead,
 // and which folders may be offered as a write grant. Imports the real lib.
-import { extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchesPolicyPattern, toSandboxPatterns } from '../../../src/core/index.ts';
+import { extractBlockedPath, extractLoopbackEndpoint, isBlockedAccessError, isLoopbackConnectionRefused, isSafeFolderGrant, isWriteBlockError, matchesPolicyPattern, toSandboxPatterns } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -40,6 +40,27 @@ check('blocked-access regex sees EPERM', isBlockedAccessError('rm: /x: Operation
 check('blocked-access regex ignores clean output', isBlockedAccessError('all good') === false);
 check('write-block regex sees EROFS', isWriteBlockError("EROFS: read-only file system, open '/x'") === true);
 check('write-block regex does not claim EPERM', isWriteBlockError('rm: /x: Operation not permitted') === false);
+
+// Loopback / localhost connection refusal checks
+check('loopback regex sees Diffusion Studio not running', isLoopbackConnectionRefused('Diffusion Studio is not running. Launch the app first, then retry.') === true);
+check('loopback regex sees curl 127.0.0.1', isLoopbackConnectionRefused('curl: (7) Failed to connect to 127.0.0.1 port 3274 after 0 ms: Could not connect to server') === true);
+check('loopback regex sees curl localhost', isLoopbackConnectionRefused('curl: (7) Failed to connect to localhost port 3000: Connection refused') === true);
+check('loopback regex sees ECONNREFUSED 127.0.0.1', isLoopbackConnectionRefused('connect ECONNREFUSED 127.0.0.1:3274') === true);
+check('loopback regex sees ECONNREFUSED ::1', isLoopbackConnectionRefused('Error: connect ECONNREFUSED ::1:8080') === true);
+check('loopback regex ignores clean output', isLoopbackConnectionRefused('all good') === false);
+check('loopback regex ignores normal error', isLoopbackConnectionRefused('cat: file not found') === false);
+
+const epDiffusion = extractLoopbackEndpoint('Diffusion Studio is not running. Launch the app first, then retry.', 'dapi ctx');
+check('extractLoopbackEndpoint identifies Diffusion Studio', epDiffusion?.host === '127.0.0.1' && epDiffusion?.port === '3274' && epDiffusion?.service === 'Diffusion Studio');
+
+const epCurl = extractLoopbackEndpoint('curl: (7) Failed to connect to 127.0.0.1 port 3274 after 0 ms: Could not connect to server', 'curl http://127.0.0.1:3274/');
+check('extractLoopbackEndpoint parses curl 127.0.0.1 port 3274', epCurl?.host === '127.0.0.1' && epCurl?.port === '3274' && epCurl?.service === 'Diffusion Studio');
+
+const epLocalhost = extractLoopbackEndpoint('curl: (7) Failed to connect to localhost port 3000: Connection refused', 'curl http://localhost:3000');
+check('extractLoopbackEndpoint parses localhost port 3000', epLocalhost?.host === 'localhost' && epLocalhost?.port === '3000' && epLocalhost?.service === undefined);
+
+const epNode = extractLoopbackEndpoint('connect ECONNREFUSED 127.0.0.1:8080');
+check('extractLoopbackEndpoint parses node ECONNREFUSED', epNode?.host === '127.0.0.1' && epNode?.port === '8080');
 
 check('/ is never a folder grant', !isSafeFolderGrant('/', home));
 check('home is never a folder grant', !isSafeFolderGrant('/Users/me', home));

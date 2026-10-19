@@ -31,6 +31,63 @@ export function isWriteBlockError(output: string): boolean {
 	return WRITE_BLOCK_RE.test(output);
 }
 
+/**
+ * Loopback / localhost connection refusal evidence in a sandboxed command's output.
+ * On Linux, bubblewrap runs with --unshare-net which isolates network namespaces.
+ * Host services listening on 127.0.0.1/localhost (like Diffusion Studio on port 3274,
+ * or local dev servers) are not reachable from inside the container namespace.
+ */
+const LOOPBACK_REFUSAL_RE =
+	/(?:Failed to connect to (?:127\.0\.0\.1|localhost|::1)|(?:connect|connection refused).*?(?:127\.0\.0\.1|localhost|::1)|(?:127\.0\.0\.1|localhost|::1).*?(?:connection refused|ECONNREFUSED)|ECONNREFUSED.*?(?:127\.0\.0\.1|localhost|::1)|Diffusion Studio is not running)/i;
+
+/** True when the command failed due to connecting to a loopback/localhost address in the sandbox. */
+export function isLoopbackConnectionRefused(output: string): boolean {
+	return LOOPBACK_REFUSAL_RE.test(output);
+}
+
+export interface LoopbackEndpointInfo {
+	host: string;
+	port?: string;
+	service?: string;
+}
+
+/**
+ * Extract endpoint metadata (host, port, service name) from a loopback connection failure.
+ */
+export function extractLoopbackEndpoint(output: string, command?: string): LoopbackEndpointInfo | undefined {
+	if (!isLoopbackConnectionRefused(output)) return undefined;
+
+	// Check for Diffusion Studio specific error or command
+	const isDiffusion = /diffusion studio is not running/i.test(output) || (command && /\b(?:dapi|diffusion)\b/i.test(command));
+	if (isDiffusion) {
+		return { host: "127.0.0.1", port: "3274", service: "Diffusion Studio" };
+	}
+
+	// Match "Failed to connect to 127.0.0.1 port 3274" or "localhost port 8080"
+	const curlMatch = output.match(/Failed to connect to (127\.0\.0\.1|localhost|::1) port (\d+)/i);
+	if (curlMatch) {
+		return {
+			host: curlMatch[1],
+			port: curlMatch[2],
+			service: curlMatch[2] === "3274" ? "Diffusion Studio" : undefined,
+		};
+	}
+
+	// Match "connect ECONNREFUSED 127.0.0.1:3274"
+	const nodeMatch = output.match(/(?:ECONNREFUSED|connect to)\s+(127\.0\.0\.1|localhost|::1)(?::| port )(\d+)/i);
+	if (nodeMatch) {
+		return {
+			host: nodeMatch[1],
+			port: nodeMatch[2],
+			service: nodeMatch[2] === "3274" ? "Diffusion Studio" : undefined,
+		};
+	}
+
+	// Generic host match
+	const hostMatch = output.match(/(127\.0\.0\.1|localhost|::1)/i);
+	return { host: hostMatch ? hostMatch[1] : "127.0.0.1" };
+}
+
 /** A shell-name/empty token is not a path; everything else resolves against cwd unless absolute. */
 function toAbsolutePath(rawToken: string, cwd: string, home: string): string | undefined {
 	let token = rawToken.trim().replace(/[.,;]+$/, "");

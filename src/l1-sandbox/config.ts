@@ -40,6 +40,10 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 	};
 	/** Commands/paths that can print secrets (env, proc environ) and must ask first. */
 	commands?: { ask?: string[] };
+	/** Allow all Unix domain sockets on Linux (disables seccomp socket blocking). */
+	allowAllUnixSockets?: boolean;
+	/** Allow local port binding. */
+	allowLocalBinding?: boolean;
 }
 
 const BUILTIN_CONFIG: SandboxConfig = {
