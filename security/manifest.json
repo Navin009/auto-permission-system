@@ -19,7 +19,8 @@
         "~/.pi/agent/extensions/sandbox.json"
       ],
       "tests": [
-        { "id": "L1-attribution", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs", "expected": "PASS=48, FAIL=0" },
+        { "id": "L1-attribution", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs", "expected": "PASS=59, FAIL=0" },
+        { "id": "L1-host-bridge", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/host-bridge.mjs", "expected": "PASS=9, FAIL=0" },
         { "id": "L1-outside-fence", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs", "expected": "PASS=38, FAIL=0" },
         { "id": "L1-ask-commands", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs", "expected": "PASS=11, FAIL=0" },
         { "id": "L1-session-grants", "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs", "expected": "PASS=39, FAIL=0" },

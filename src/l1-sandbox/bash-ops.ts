@@ -14,6 +14,7 @@ import { audit } from "../shared/audit";
 import { canonicalize } from "../shared/canonicalize";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow";
 import { loadConfig, projectTrusted } from "./config";
+import { injectBridgesIntoBwrap, startHostPortBridges } from "./host-bridge";
 
 /** First whitespace-separated token of a bash command — used to name the binary in prompt titles. */
 function firstWord(command: string): string {
@@ -219,7 +220,15 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 			const grantedWriteFolders = new Set<string>();
 			const grantedWriteFiles = new Set<string>();
 			const attempt = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
-				const wrappedCommand = await SandboxManager.wrapWithSandbox(command, undefined, buildCustom(writeOnce));
+				const cfg = loadConfig(cwd);
+				const hostPorts = cfg.bridgeHostPorts ?? [3274];
+				const bridges = await startHostPortBridges(hostPorts);
+				const rawWrapped = await SandboxManager.wrapWithSandbox(command, undefined, buildCustom(writeOnce));
+				const wrappedCommand = injectBridgesIntoBwrap(rawWrapped, bridges);
+
+				const cleanupBridges = () => {
+					bridges.forEach((b) => b.close());
+				};
 
 				return new Promise((resolve, reject) => {
 					const child = spawn("bash", ["-c", wrappedCommand], {
@@ -255,11 +264,13 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 
 					child.on("error", (err) => {
 						if (timeoutHandle) clearTimeout(timeoutHandle);
+						cleanupBridges();
 						SandboxManager.cleanupAfterCommand();
 						reject(err);
 					});
 
 					const onAbort = () => {
+						cleanupBridges();
 						if (child.pid) {
 							try {
 								process.kill(-child.pid, "SIGKILL");
@@ -274,6 +285,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 					child.on("close", async (code) => {
 						if (timeoutHandle) clearTimeout(timeoutHandle);
 						signal?.removeEventListener("abort", onAbort);
+						cleanupBridges();
 
 						SandboxManager.cleanupAfterCommand();
 

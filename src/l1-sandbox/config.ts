@@ -44,6 +44,8 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem"> 
 	allowAllUnixSockets?: boolean;
 	/** Allow local port binding. */
 	allowLocalBinding?: boolean;
+	/** Host TCP ports to bridge into the Linux sandbox namespace (defaults to [3274] for Diffusion Studio). */
+	bridgeHostPorts?: number[];
 }
 
 const BUILTIN_CONFIG: SandboxConfig = {
