@@ -19,36 +19,31 @@ import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo";
 
 const GLOBAL_POLICY = `${getAgentDir()}/extensions/sandbox.json`;
 
-const MODES: Array<{ label: string; value: PermissionMode }> = [
+const MODE_DEFS: Array<{
+	value: PermissionMode;
+	icon: string;
+	name: string;
+	desc: string;
+}> = [
 	{
-		label: "Advanced Secure (recommended) — detect secrets in reads, MCP calls, and output",
 		value: "advanced-secure",
+		icon: "🧠",
+		name: "Advanced Secure",
+		desc: "Blocks sensitive data leaks from file reads, MCP tools & command outputs",
 	},
 	{
-		label: "Default — rules only",
 		value: "default",
+		icon: "🔒",
+		name: "Default",
+		desc: "Restricts file paths & network access at the sandbox level",
 	},
 	{
-		label: "YOLO — disable ALL security layers",
 		value: "yolo",
+		icon: "⚠️",
+		name: "YOLO",
+		desc: "Turns off all file sandboxing and leak protections",
 	},
 ];
-
-const EXPLANATION = [
-	"Advanced Secure (recommended)",
-	"  Adds secret/credential detection on top of the rules:",
-	"   • File reads — scans contents for keys, tokens, and passwords",
-	"   • MCP calls — flags risky tool calls before they run",
-	"   • Tool/command/file output — redacts secrets before they reach the model",
-	"",
-	"Default",
-	"  Rule-based only: sandbox.json paths, domains, and commands.",
-	"  No file contents are inspected.",
-	"",
-	"YOLO",
-	"  Turns every layer off. Saved like the other modes, so new conversations",
-	"  start with it too until you pick Default or Advanced Secure again.",
-].join("\n");
 
 /**
  * The single sandbox footer chip: `Sandbox: <icon> N domains, M paths`.
@@ -79,13 +74,23 @@ function modeNotice(mode: PermissionMode): { text: string; level: "info" | "warn
 
 async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active: boolean }): Promise<void> {
 	const current: PermissionMode = yolo.active ? "yolo" : normalizeMode(loadPolicy(ctx.cwd).mode);
+
+	const options = MODE_DEFS.map((m) => {
+		const isActive = m.value === current;
+		const nameWithStatus = isActive ? `${m.name} (active)` : m.name;
+		const labelCol = nameWithStatus.padEnd(26);
+		return `${m.icon}  ${labelCol} —  ${m.desc}`;
+	});
+
 	const picked = await ctx.ui.select(
-		`Permission mode — current: ${modeLabel(current)}\n\n${EXPLANATION}\n\nEsc keeps the current mode.`,
-		MODES.map((m) => m.label),
+		"Select permission mode:",
+		options,
 		{ timeout: 120_000 },
 	);
 	if (picked === undefined) return;
-	const next = MODES.find((m) => m.label === picked)?.value ?? current;
+
+	const pickedIndex = options.indexOf(picked);
+	const next = pickedIndex >= 0 ? MODE_DEFS[pickedIndex].value : current;
 	if (next === current) {
 		if (next === "yolo" && !yolo.active) {
 			yolo.active = true;
