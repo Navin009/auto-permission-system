@@ -84,10 +84,10 @@ const absCtx = mkCtx([(o) => o[1]]);
 await askDecision(absCtx.ctx, fileKind, '~/.ssh');
 check('absolute-deny: one screen, no second prompt', absCtx.seen.length === 1);
 
-check('displayWhy strips " → path"', displayWhy('denyRead matched ".env" → /x/.env') === 'denyRead matched ".env"');
+check('displayWhy formats user-friendly reason', displayWhy('denyRead matched ".env" → /x/.env') === '.env files usually hold passwords and API keys');
 
-check('denyMessage: read', denyMessage('allowRead', 'denyRead matched ".env" → /x/.env') === 'Read blocked by policy: denyRead matched ".env". Nothing was read \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.');
-check('denyMessage: write', denyMessage('allowWrite', 'not under any allowWrite root → /x') === 'Write blocked by policy: not under any allowWrite root. Nothing was written \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.');
+check('denyMessage: read', denyMessage('allowRead', 'denyRead matched ".env" → /x/.env') === 'Read blocked by policy: .env files usually hold passwords and API keys. Nothing was read \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.');
+check('denyMessage: write', denyMessage('allowWrite', 'not under any allowWrite root → /x') === 'Write blocked by policy: saving files outside your project workspace requires permission. Nothing was written \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.');
 check(
 	'denyMessage: network',
 	denyMessage('allowDomains', 'domain not in allowlist: x.com') === 'Network blocked by policy: this site isn\'t on your allowed list yet. Nothing was fetched \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.',

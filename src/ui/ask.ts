@@ -67,9 +67,59 @@ function actionOf(ask: AskKind): AskAction {
 	return AskAction.Read;
 }
 
-/** The reason without the trailing `→ /abs/path` (the body already shows the path). */
+/** Format the reason into plain, user-friendly language for non-technical users. */
 export function displayWhy(reason: string): string {
-	return reason.replace(/\s*→\s*.*$/, "");
+	const raw = reason.replace(/\s*→\s*.*$/, "").trim();
+
+	if (raw.startsWith("absolute-deny matched")) {
+		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
+		if (pat.includes("ssh")) return `contains private SSH keys (${pat})`;
+		if (pat.includes("aws")) return `contains AWS credentials (${pat})`;
+		if (pat.includes("gnupg")) return `contains private encryption keys (${pat})`;
+		if (pat.includes("pem") || pat.includes("key")) return `contains private security keys (${pat})`;
+		if (pat.includes("auth.json")) return "holds login credentials";
+		return `contains sensitive credentials (${pat || "credentials"})`;
+	}
+
+	if (raw.startsWith("askRead matched")) {
+		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
+		if (pat.includes(".env")) return ".env files usually hold passwords and API keys";
+		return `this file usually holds private passwords or API keys (${pat})`;
+	}
+
+	if (raw.startsWith("denyRead matched")) {
+		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
+		if (pat.includes(".env")) return ".env files usually hold passwords and API keys";
+		return `protected by security rules from being read (${pat})`;
+	}
+
+	if (raw.startsWith("modelDenyRead matched")) {
+		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
+		return `contains private data hidden from the AI (${pat})`;
+	}
+
+	if (raw.startsWith("denyWrite matched")) {
+		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
+		return `protected file that cannot be modified (${pat})`;
+	}
+
+	if (raw.includes("not under any allowWrite root") || raw.includes("not under an allowWrite root")) {
+		return "saving files outside your project workspace requires permission";
+	}
+
+	if (raw.startsWith("outside the project")) {
+		return "reading files outside your project folder requires permission";
+	}
+
+	if (raw.startsWith("domain not in allowlist")) {
+		return "this site isn't on your allowed list yet";
+	}
+
+	if (raw === "blocked by the sandbox filesystem policy") {
+		return "restricted by your project's security policy";
+	}
+
+	return raw;
 }
 
 /** A domain reason without its `: host` suffix, so it can sit next to `Site:` without repeating it. */
