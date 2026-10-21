@@ -79,9 +79,9 @@ export function networkWhy(reason: string): string {
 
 /** The model-facing denial text: one pattern for every block. */
 export function denyMessage(overrideKind: OverrideKind, reason: string): string {
-	if (overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(reason)}. Nothing was fetched \u2014 ask the user.`;
-	if (overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(reason)}. Nothing was written \u2014 ask the user.`;
-	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read \u2014 ask the user.`;
+	if (overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(reason)}. Nothing was fetched \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+	if (overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(reason)}. Nothing was written \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
 }
 
 /**

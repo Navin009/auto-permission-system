@@ -65,6 +65,7 @@ const BUILTIN_CONFIG: SandboxConfig = {
 		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
 		deniedDomains: [],
 		allowLocalhost: true,
+		allowAllUnixSockets: true,
 	},
 	filesystem: {
 		denyRead: [...DEFAULT_DENY_READ],

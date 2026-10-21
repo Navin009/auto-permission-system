@@ -9,3 +9,4 @@ sandbox/package-lock.json
 # dummy test fixtures (not part of the package)
 .env.test
 test.pem
+pi-session-*.html

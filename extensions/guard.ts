@@ -34,8 +34,8 @@ import { onYolo } from "../src/shared/yolo";
 const detectionGrants = new Set<string>();
 
 function detectionBlock(action: "read" | "tool", why: string): string {
-	if (action === "read") return `Read blocked by policy: ${why}. Nothing was read — ask the user.`;
-	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user.`;
+	if (action === "read") return `Read blocked by policy: ${why}. Nothing was read — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+	return `Tool call blocked by policy: ${why}. Nothing was run — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
 }
 
 /** Maps each in-flight tool call to the program id we'll show in the

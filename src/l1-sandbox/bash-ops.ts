@@ -30,7 +30,7 @@ export interface SandboxedBashOpts {
 
 /** One denial shape for Layer 1, mirroring denyMessage() in Layer 2. */
 function blockedLine(action: "Read" | "Write", why: string, outcome: "read" | "written" | "run"): string {
-	return `❌ pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome} — ask the user.`;
+	return `🛡️  pi-sandbox: ${action} blocked by policy: ${why}. Nothing was ${outcome}. Assistant guideline: Inform the user and ask if they wish to adjust the permission mode (/permission-mode); do not attempt workarounds or inspect plugin internals.`;
 }
 
 /** `Link` body row for a symlinked block path; empty when the spellings agree (ADR-035). */
@@ -327,32 +327,21 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								}
 								readDenied = hardDenied || outsideDenied;
 							}
-							const configDirHint = offending && /\.config\/|\.kube\/|\.docker\/|\.netrc|\.aws\/|\.npmrc|\.gitconfig/.test(offending);
-
-							blockedHint = `\n💡 pi-sandbox: filesystem access blocked.\n`;
+							blockedHint = `\n🛡️  Security Policy Notice: filesystem access blocked by sandbox policy.\n`;
 							if (offending) {
 								let why = "";
-								if (writeDenied && !hardDenied) why = " (not under an allowWrite root: writes outside it are read-only)";
+								if (writeDenied && !hardDenied) why = " (writes outside allowWrite are read-only)";
 								else if (hardDenied) why = ` (${hardWhy})`;
-								else if (outsideDenied) why = " (outside the project: reading it is gated by policy)";
-								blockedHint += `   Path: ${offending}${why}\n`;
-								if (spelledOffending && spelledOffending !== offending) blockedHint += `   Link: ${spelledOffending} (symlink target shown as Path)\n`;
+								else if (outsideDenied) why = " (outside the project directory)";
+								blockedHint += `   Target: ${offending}${why}\n`;
+								if (spelledOffending && spelledOffending !== offending) blockedHint += `   Link:   ${spelledOffending}\n`;
 							}
-							blockedHint += `   This is the pi sandbox (Layer 1), NOT macOS Full Disk Access / TCC.\n`;
-							if (configDirHint) {
-								blockedHint +=
-									`   Looks like a tool's own config dir. To allow this tool in the\n` +
-									`   current project, add a project-local policy:\n` +
-									`     mkdir -p ${cwd}/.pi && cat > ${cwd}/.pi/sandbox.json <<'JSON'\n` +
-									`     { "filesystem": { "allowWrite": [".", "${offending?.replace(/^~/, "$HOME") ?? "~/.config/<tool>"}"] } }\n` +
-									`     JSON\n` +
-									`   Or run pi with --yolo for one-off elevated access (disables ALL layers).\n`;
-							} else {
-								blockedHint +=
-									`   Use $TMPDIR (= ${piTmp}/) for scratch files,\n` +
-									`   or write inside the project directory (${cwd}).\n`;
-							}
-							blockedHint += `   Policy: ~/.pi/agent/extensions/sandbox.json (+ <cwd>/.pi/sandbox.json overrides).\n`;
+							blockedHint +=
+								`   Explanation: The current sandbox policy restricts this operation to protect your system.\n` +
+								`   Guideline for Assistant:\n` +
+								`   • Stop and inform the user clearly about what was blocked.\n` +
+								`   • Ask the user if they wish to adjust the permission mode (/permission-mode) to allow this action.\n` +
+								`   • Do not inspect security plugin internals or attempt unauthorized bypasses.\n`;
 						} else if (code !== 0 && isLoopbackConnectionRefused(outputTail)) {
 							const endpointInfo = extractLoopbackEndpoint(outputTail, command);
 							const endpointStr = endpointInfo?.port ? `${endpointInfo.host}:${endpointInfo.port}` : (endpointInfo?.host ?? "127.0.0.1");
@@ -361,42 +350,23 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							auditL1({
 								subject: endpointStr,
 								decision: "loopback-refused",
-								reason: "Linux sandbox network namespace (--unshare-net) isolates host loopback",
+								reason: "Network namespace isolates host loopback under current policy",
 								cwd: opts?.ctx?.cwd,
 								note: serviceName ? `service:${serviceName}` : undefined,
 							});
 
-							const notifyMsg = serviceName === "Diffusion Studio"
-								? "pi-sandbox: Diffusion Studio is running on host port 3274, but sandboxed bash cannot reach host localhost. Connect it via MCP in ~/.pi/agent/mcp.json."
-								: `pi-sandbox: connection to host ${endpointStr} refused. Sandboxed bash cannot reach host localhost.`;
+							const notifyMsg = serviceName
+								? `pi-sandbox: connection to ${serviceName} on ${endpointStr} was restricted by the sandbox.`
+								: `pi-sandbox: connection to host ${endpointStr} was restricted by the sandbox.`;
 							opts?.ctx?.ui?.notify?.(notifyMsg, "warning");
 
-							blockedHint = `\n💡 pi-sandbox: localhost / loopback connection refused.\n` +
+							blockedHint = `\n🛡️  Security Policy Notice: Local network connection restricted.\n` +
 								`   Target: ${endpointStr}${serviceName ? ` (${serviceName})` : ""}\n` +
-								`   Why: The Linux sandbox runs inside an isolated network namespace (--unshare-net).\n` +
-								`        Services running on your HOST's 127.0.0.1/localhost are isolated and cannot\n` +
-								`        be reached directly from sandboxed bash commands.\n`;
-
-							if (serviceName === "Diffusion Studio" || /dapi|diffusion|3274/i.test(command)) {
-								blockedHint +=
-									`   Resolution for Diffusion Studio:\n` +
-									`   • Diffusion Studio exposes an MCP server on http://127.0.0.1:3274/mcp\n` +
-									`   • Add it to ~/.pi/agent/mcp.json so Pi connects directly on the host:\n` +
-									`       {\n` +
-									`         "mcpServers": {\n` +
-									`           "diffusion-studio": { "url": "http://127.0.0.1:3274/mcp" }\n` +
-									`         }\n` +
-									`       }\n` +
-									`   • Once added, restart or reload Pi: the agent gets native MCP tools\n` +
-									`     (context, check, capture, probe) with Layer 2 security, no bash needed.\n` +
-									`   • Or run pi with --yolo for one-off host access.\n`;
-							} else {
-								blockedHint +=
-									`   Resolution:\n` +
-									`   • If this is an MCP service, configure it in ~/.pi/agent/mcp.json.\n` +
-									`   • Pi runs on the host and can communicate with local MCP servers directly.\n` +
-									`   • Or run pi with --yolo if this task requires interacting with host network services.\n`;
-							}
+								`   Explanation: The sandbox policy restricted access to this local host address.\n` +
+								`   Guideline for Assistant:\n` +
+								`   • Stop and inform the user clearly about what connection was restricted.\n` +
+								`   • Ask the user if they wish to adjust the permission mode (/permission-mode) to allow this action.\n` +
+								`   • Do not inspect security plugin internals or attempt unauthorized bypasses.\n`;
 						}
 						/**
 						 * Emit the block explanation only when the command is not re-run with a

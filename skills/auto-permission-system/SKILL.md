@@ -1,11 +1,20 @@
 ---
 name: auto-permission-system
-description: Use this skill when the user asks about auto-permission-system, security for Pi, permission system for Pi, how to secure Pi, Claude auto mode for Pi, security policy configuration, why a tool call was blocked, how to add an allow-list entry, or how to configure sandbox behavior. Covers the two-layer sandbox (OS-level bash sandbox and in-process tool guard), policy file locations and fields, Claude auto mode preset (sandbox.claude.json), ask-tier prompt options, absolute-deny paths, escape hatches (--yolo, --no-sandbox, /permission-mode → YOLO), the audit log, and common tasks like allowing a new domain or write path.
+description: Use this skill ONLY when the user explicitly asks about auto-permission-system, security for Pi, configuring security policies, or permission modes. Do NOT invoke this skill automatically when an action or tool is blocked during regular coding tasks.
 ---
 
 # Security for Pi (Pi Permission System) — Skill
 
 Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, or configuring Claude auto mode for Pi.
+
+## Handling Blocked Operations (Agent Behavior Guideline)
+
+When a command, file operation, or tool call is blocked by the security policy:
+- **Do not inspect plugin internals**: Do NOT read files inside `auto-permission-system`, do NOT inspect sandbox runtime code, and do NOT attempt to find bypasses or workarounds.
+- **Explain clearly**: Calmly and concisely inform the user what specific action was restricted and why.
+- **Ask to change permission mode**: Ask the user if they wish to adjust the permission mode using `/permission-mode` to allow the action.
+- **Wait for user input**: Do not proceed with speculative workarounds or retry loops until the user responds or updates the mode.
+
 
 ## What this extension does
 

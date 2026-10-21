@@ -67,10 +67,11 @@ type Layer1FilesystemKind = typeof OverrideKind.AllowWrite | typeof OverrideKind
  */
 function runtimeConfig(cwd: string, config: SandboxConfig): SandboxRuntimeConfig {
 	const allowLocalhost = config.allowLocalhost ?? config.network?.allowLocalhost ?? true;
+	const allowAllUnixSockets = config.allowAllUnixSockets ?? config.network?.allowAllUnixSockets ?? true;
 	const network = config.network
 		? {
 				...config.network,
-				allowAllUnixSockets: config.allowAllUnixSockets ?? config.network.allowAllUnixSockets,
+				allowAllUnixSockets,
 				allowLocalBinding: config.allowLocalBinding ?? config.network.allowLocalBinding ?? allowLocalhost,
 			}
 		: undefined;

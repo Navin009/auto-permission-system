@@ -3,6 +3,7 @@
   "mode": "advanced-secure",
   "network": {
     "allowLocalhost": true,
+    "allowAllUnixSockets": true,
     "allowedDomains": [
       "registry.npmjs.org",
       "registry.yarnpkg.com",

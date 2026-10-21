@@ -57,13 +57,11 @@ export interface LoopbackEndpointInfo {
 export function extractLoopbackEndpoint(output: string, command?: string): LoopbackEndpointInfo | undefined {
 	if (!isLoopbackConnectionRefused(output)) return undefined;
 
-	// Check for Diffusion Studio specific error or command
 	const isDiffusion = /diffusion studio is not running/i.test(output) || (command && /\b(?:dapi|diffusion)\b/i.test(command));
 	if (isDiffusion) {
 		return { host: "127.0.0.1", port: "3274", service: "Diffusion Studio" };
 	}
 
-	// Match "Failed to connect to 127.0.0.1 port 3274" or "localhost port 8080"
 	const curlMatch = output.match(/Failed to connect to (127\.0\.0\.1|localhost|::1) port (\d+)/i);
 	if (curlMatch) {
 		return {
@@ -73,7 +71,6 @@ export function extractLoopbackEndpoint(output: string, command?: string): Loopb
 		};
 	}
 
-	// Match "connect ECONNREFUSED 127.0.0.1:3274"
 	const nodeMatch = output.match(/(?:ECONNREFUSED|connect to)\s+(127\.0\.0\.1|localhost|::1)(?::| port )(\d+)/i);
 	if (nodeMatch) {
 		return {
@@ -83,7 +80,6 @@ export function extractLoopbackEndpoint(output: string, command?: string): Loopb
 		};
 	}
 
-	// Generic host match
 	const hostMatch = output.match(/(127\.0\.0\.1|localhost|::1)/i);
 	return { host: hostMatch ? hostMatch[1] : "127.0.0.1" };
 }
