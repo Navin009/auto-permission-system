@@ -169,7 +169,7 @@ export default function (pi: ExtensionAPI) {
 		if (runtimeYolo) {
 			await stopSandbox();
 			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
-			ctx.ui.notify(ctx.ui.theme.fg("error", "⚠️  YOLO mode — all pi security layers disabled."), "info");
+			ctx.ui.notify(ctx.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."), "info");
 			return;
 		}
 

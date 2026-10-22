@@ -86,8 +86,10 @@ export function extractLoopbackEndpoint(output: string, command?: string): Loopb
 
 /** A shell-name/empty token is not a path; everything else resolves against cwd unless absolute. */
 function toAbsolutePath(rawToken: string, cwd: string, home: string): string | undefined {
-	let token = rawToken.trim().replace(/[.,;]+$/, "");
-	if (!token || /^(bash|sh|zsh)$/.test(token)) return undefined;
+	let token = rawToken.trim().replace(/[.,;:]+$/, "");
+	if (!token || /^(bash|sh|zsh|EROFS)$/i.test(token)) return undefined;
+	token = token.replace(/\/EROFS$/i, "");
+	if (!token) return undefined;
 	if (token === "~" || token.startsWith("~/")) token = home + token.slice(1);
 	const absolute = token.startsWith("/") ? token : `${cwd.replace(/\/+$/, "")}/${token}`;
 	return normalizeAbs(absolute);

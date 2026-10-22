@@ -26,7 +26,7 @@
 export const YOLO_CHANNEL = "auto-permission-system:yolo";
 
 /** Footer text shown while every layer is disabled. */
-export const YOLO_STATUS = "⚠️  YOLO — all security layers disabled";
+export const YOLO_STATUS = "🚨  YOLO — all security layers disabled";
 
 /** The pi APIs this module needs; kept structural so tests can fake them. */
 export interface YoloFlagPI {
