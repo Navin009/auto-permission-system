@@ -65,7 +65,7 @@ async function askDetection(
 	if (choice === "session") {
 		detectionGrants.add(key);
 		audit({ layer: 2, tool: kind, subject, reason, decision: "session", note: "advanced-secure", cwd: ctx.cwd });
-		ctx.ui.notify(`security-guard: allowed for this conversation (not saved) → ${subject}`, "info");
+		ctx.ui.notify(`Allowed for this conversation: ${subject}`, "info");
 		return null;
 	}
 	audit({ layer: 2, tool: kind, subject, reason, decision: "no", note: "advanced-secure", cwd: ctx.cwd });
@@ -130,24 +130,23 @@ export default function (pi: ExtensionAPI) {
 			if (!err) continue;
 			audit({ layer: 2, event: "policy-parse-error", file: p, error: err, cwd: ctx.cwd });
 			console.error(`security-guard: ${p} does not parse (${err}); its rules are NOT applied`);
-			ctx.ui.notify(`⚠️  security-guard: ${p} does not parse, so neither layer applies its rules (built-in defaults instead).\n${err}`, "error");
+			const isProject = p === `${ctx.cwd}/.pi/sandbox.json`;
+			const msg = isProject
+				? "⚠️  Syntax error in settings file — project configuration not loaded."
+				: "⚠️  Syntax error in settings file — global configuration not loaded.";
+			ctx.ui.notify(msg, "error");
 		}
 		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
 		const changes = untrustedProjectChanges(ctx.cwd);
 		if (changes.length && !isProjectFileDeclined(projectPolicyPath(ctx.cwd), TRUST_STORE)) {
 			audit({ layer: 2, event: "untrusted-project-policy", file: projectPolicyPath(ctx.cwd), changes, cwd: ctx.cwd });
-			ctx.ui.notify(
-				`⚠️  This folder has a .pi/sandbox.json that tries to make your security weaker:\n${bullets(changes)}\n` +
-					"auto-permission-system ignores these changes. Its block rules still apply.\n" +
-					"Did you write this file? Then type /security trust.",
-				"warning",
-			);
+			ctx.ui.notify("🛡️  Project-level configuration detected: run /security trust to approve.", "warning");
 		}
 		const policy = loadPolicy(ctx.cwd);
 		if (!policy.enabled) {
 			policyEnabled = false;
 			applyActive();
-			ctx.ui.notify("security-guard (Layer 2) disabled: enabled=false in sandbox.json", "info");
+			ctx.ui.notify("Tool guard is disabled in your sandbox.json settings.", "info");
 			return;
 		}
 		policyEnabled = true;
@@ -316,15 +315,15 @@ export default function (pi: ExtensionAPI) {
 			if (choice === "program-session" && programId) {
 				grantProgramOutputSession(programId);
 				audit({ layer: 2, tool: event.toolName, decision: "session", grant: programId, note: "advanced-secure-output", findings, cwd: ctx.cwd });
-				ctx.ui.notify(`🧠 Advanced Secure: you allowed all ${programId} output for the rest of this conversation.`, "info");
+				ctx.ui.notify(`Output permitted: allowed all ${programId} output for this conversation.`, "info");
 			} else {
 				audit({ layer: 2, tool: event.toolName, decision: "yes", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-				ctx.ui.notify(`🧠 Advanced Secure: you allowed ${event.toolName} output to be sent.`, "warning");
+				ctx.ui.notify(`Output permitted: allowed ${event.toolName} output for this call.`, "info");
 			}
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-		ctx.ui.notify(`🧠 Advanced Secure: blocked ${event.toolName} output — it may contain sensitive information. Nothing was sent to the model.`, "warning");
+		ctx.ui.notify(`Sensitive data protected: withheld ${event.toolName} output from the AI (potential secrets detected).`, "warning");
 		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
 

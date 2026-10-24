@@ -21,7 +21,7 @@ export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: un
 	if (ctx.hasUI !== false) return null;
 	const mode = policy.subagent?.network ?? SubagentNetwork.Allow;
 	if (mode === SubagentNetwork.Allow) return null;
-	if (mode === SubagentNetwork.Deny) return "Network blocked by policy: subagent.network=deny. Nothing was fetched — ask the user.";
+	if (mode === SubagentNetwork.Deny) return "[Security Policy Notice] Network access blocked: automated subagent network connections are restricted. Nothing was fetched. Inform the user; do not attempt workarounds.";
 	if (mode === SubagentNetwork.ResearchOnly) {
 		const sessionManager = ctx.sessionManager as { getBranch?: () => Array<{ type: string; text?: string }> } | undefined;
 		const branch = sessionManager?.getBranch?.() ?? [];
@@ -31,7 +31,7 @@ export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: un
 			.join(" ")
 			.toLowerCase();
 		for (const agent of RESEARCH_AGENTS) if (recentText.includes(agent)) return null;
-		return "Network blocked by policy: subagent.network=research-only. Nothing was fetched — ask the user.";
+		return "[Security Policy Notice] Network access restricted: subagents may only connect to approved research domains. Nothing was fetched. Inform the user; do not attempt workarounds.";
 	}
 	return null;
 }

@@ -482,7 +482,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
  */
 export function withheldNotice(subject: string): string {
 	return [
-		`\u26a0 Output from \`${subject}\` was withheld because it may contain sensitive information.`,
+		`[Security Policy Notice] Output from \`${subject}\` was withheld because it contains sensitive credentials.`,
 		"",
 		"The tool completed successfully, but the output is unavailable.",
 		"Continue with the available information, or ask the user to allow access if the output is needed.",

@@ -87,7 +87,7 @@ export async function askOrBlock(
 			const named = userNamedOutside(ctx as SessionCtx, ask);
 			if (named) {
 				audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "user-named", named, cwd: ctx.cwd });
-				ctx.ui.notify(`security-guard: read outside the project allowed once → ${ask.subject} (you named "${named}")`, "info");
+				ctx.ui.notify(`Allowed reading ${ask.subject} once (mentioned in your prompt).`, "info");
 				return null;
 			}
 		}
@@ -102,7 +102,7 @@ export async function askOrBlock(
 		const value = ask.overrideKind === OverrideKind.AllowDomains || isSafeFolderGrant(parent, homedir()) ? parent : ask.overrideValue;
 		sessionGrants.push({ kind: ask.overrideKind, value });
 		audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, grant: value, cwd: ctx.cwd });
-		ctx.ui.notify(`security-guard: allowed for this conversation (not saved) → ${value}`, "info");
+		ctx.ui.notify(`Allowed for this conversation: ${value}`, "info");
 		return null;
 	}
 	if (decision === Decision.AlwaysCwd || decision === Decision.AlwaysGlobal || decision === Decision.AlwaysCwdFolder || decision === Decision.AlwaysGlobalFolder) {
@@ -117,10 +117,11 @@ export async function askOrBlock(
 			const path = persistOverride(scope, ctx.cwd, ask.overrideKind, value);
 			onPersist?.(ask.overrideKind, value, scope);
 			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, scope, granularity: useFolder ? "folder" : "file", cwd: ctx.cwd, persisted_to: path, override: { [ask.overrideKind]: value } });
-			ctx.ui.notify(`security-guard: persisted ${scope}${useFolder ? " (folder)" : ""} override → ${path}`, "warning");
+			const scopeLabel = scope === GrantScope.Cwd ? "this project (stored in project settings)" : "all projects (stored in global settings)";
+			ctx.ui.notify(`Rule saved for ${scopeLabel}.`, "info");
 		} catch (error) {
 			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "yes", note: `always-persist-failed: ${error}`, scope, cwd: ctx.cwd });
-			ctx.ui.notify(`security-guard: could not persist ${scope} override (${error}); allowing this call only`, "warning");
+			ctx.ui.notify(`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this call only.`, "warning");
 		}
 		return null;
 	}

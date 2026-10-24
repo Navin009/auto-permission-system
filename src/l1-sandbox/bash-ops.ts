@@ -345,8 +345,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							});
 
 							const notifyMsg = serviceName
-								? `pi-sandbox: connection to ${serviceName} on ${endpointStr} was restricted by the sandbox.`
-								: `pi-sandbox: connection to host ${endpointStr} was restricted by the sandbox.`;
+								? `Local network notice: connection to ${serviceName} (${endpointStr}) was blocked by security policy.`
+								: `Local network notice: connection to host ${endpointStr} was blocked by security policy.`;
 							opts?.ctx?.ui?.notify?.(notifyMsg, "warning");
 
 							blockedHint = `\n[Security Policy Notice] Connection to ${endpointStr}${serviceName ? ` (${serviceName})` : ""} blocked by sandbox policy.\nReason: Local network connections are restricted. Inform the user; do not attempt workarounds.\n`;
@@ -369,7 +369,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						if (sandboxSetupError && !hardDenied && !outsideDenied && (!offending || offending === cwd || offending.startsWith(`${cwd}/`))) {
 							blockedHint = "";
 							auditL1({ subject: offending ?? spelledOffending, decision: "write-denied", reason: "the OS sandbox could not start (bwrap mount setup)", cwd: opts?.ctx?.cwd, note: "sandbox-setup-error" });
-							opts?.ctx?.ui?.notify?.(`pi-sandbox: the OS sandbox could not start (bwrap could not create ${offending ?? spelledOffending ?? "a protected mount point"}). This is a sandbox setup problem, not a policy denial.`, "warning");
+							opts?.ctx?.ui?.notify?.(`Sandbox setup notice: could not prepare folder isolation for ${offending ?? spelledOffending ?? "the sandbox"}. System defaults will be used.`, "warning");
 							decisionHint = `\n[System Error] pi-sandbox: the OS sandbox could not start (bwrap could not create a protected mount point), so nothing was permission-prompted. This is a sandbox setup problem, not a policy denial.\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
@@ -428,7 +428,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							const action: "Read" | "Write" = writeDenied ? "Write" : "Read";
 							const outcome = action === "Write" ? "written" : "read";
 							auditL1({ subject: offending, decision: readDenied && !writeDenied ? "read-denied" : "write-denied", reason: why, cwd });
-							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a ${action.toLowerCase()} of ${offending} (${why}). Edit sandbox.json if that is wrong.`, "warning");
+							opts?.ctx?.ui?.notify?.(`Folder protected: unable to ${action.toLowerCase()} ${offending}. Location is restricted under current policy.`, "warning");
 							decisionHint = `\n${blockedLine(action, why, outcome)}\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && writeGrantRepeated && writeGrantParent) {
@@ -503,7 +503,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							onData(Buffer.from(decisionHint));
 						} else if (offending && writeDenied) {
 							auditL1({ subject: offending, decision: "write-denied", reason: "not under any allowWrite root", cwd });
-							opts?.ctx?.ui?.notify?.(`pi-sandbox: bash was refused a write of ${offending} (not under any allowWrite root).`, "warning");
+							opts?.ctx?.ui?.notify?.(`Folder protected: unable to write to ${offending}. Location is outside allowed project folders.`, "warning");
 							onData(Buffer.from(`\n${blockedLine("Write", "not under any allowWrite root", "written")}\n`));
 						}
 

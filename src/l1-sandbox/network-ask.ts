@@ -161,7 +161,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	if (mainChoice === MainChoice.Session) {
 		sessionGrants.push(wildcard);
 		deps.audit({ ...base, decision: "session", grant: wildcard, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: allowed for this conversation (not saved) → ${wildcard}`, "info");
+		ctx.ui.notify?.(`Allowed for this conversation: ${wildcard}`, "info");
 		return true;
 	}
 
@@ -176,11 +176,12 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 		const path = await deps.persist(pattern, scope);
 		deps.applyLive(pattern);
 		deps.audit({ ...base, decision: scope === GrantScope.Cwd ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
-		ctx.ui.notify?.(`pi-sandbox: persisted ${scope} override → ${path}`, "warning");
+		const scopeLabel = scope === GrantScope.Cwd ? "this project (stored in project settings)" : "all projects (stored in global settings)";
+		ctx.ui.notify?.(`Rule saved for ${scopeLabel}.`, "info");
 	} catch (error) {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes", note: `always-persist-failed: ${error}`, scope });
-		ctx.ui.notify?.(`pi-sandbox: could not persist ${scope} override (${error}); allowing this command only`, "warning");
+		ctx.ui.notify?.(`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this command only.`, "warning");
 	}
 	return true;
 }
