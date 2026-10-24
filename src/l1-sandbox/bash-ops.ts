@@ -93,7 +93,7 @@ async function preflightSensitiveCommands(
 		return undefined;
 	}
 	auditL1({ subject, decision: "no", note: "sensitive-command", cwd });
-	onData(Buffer.from(`\n[Security Block] pi-sandbox: command blocked — it can print secrets: ${subject}. Nothing was run — ask the user.\n`));
+	onData(Buffer.from(`\n[Security Block] sandbox: command execution was denied by user: ${subject}. Command was not executed.\n`));
 	return { exitCode: 1 };
 }
 
@@ -109,14 +109,15 @@ async function preflightAskReads(
 ): Promise<{ exitCode: number } | undefined> {
 	const cfg = loadConfig(cwd).filesystem;
 	if (!cfg?.askRead?.length) return undefined;
-	const paths = askReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd));
-	if (!paths.length) return undefined;
+	const rawPaths = askReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd));
+	if (!rawPaths.length) return undefined;
+	const paths = Array.from(new Set(rawPaths.map((p) => canonicalize(p, cwd))));
 	const ui = opts?.ctx as AskCtx | undefined;
 	for (const absPath of paths) {
 		if (sessionAskReadGrants.includes(absPath)) continue;
 		if (!ui?.hasUI || !ui.ui?.select) {
 			auditL1({ subject: absPath, decision: "no", note: "ask-read-headless", cwd });
-			onData(Buffer.from(`\n[Security Block] pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
+			onData(Buffer.from(`\n[Security Block] sandbox: read access to ${absPath} was blocked (automated environment). Command was not executed.\n`));
 			return { exitCode: 1 };
 		}
 		const choice = await askMain(ui, "Let this command read your .env file?", [`File     ${absPath}`, `Why      .env files usually hold passwords and API keys`, `Risk     the AI will see any keys in it`, `Note     can't be saved as a permanent rule (it holds secrets)`].join("\n"), { session: true, remember: false, icon: "cred" });
@@ -126,7 +127,7 @@ async function preflightAskReads(
 			continue;
 		}
 		auditL1({ subject: absPath, decision: "no", note: "ask-read", cwd });
-		onData(Buffer.from(`\n[Security Block] pi-sandbox: sensitive file read blocked: ${absPath}. Nothing was run — ask the user.\n`));
+		onData(Buffer.from(`\n[Security Block] sandbox: read access to ${absPath} was denied by user. Command was not executed.\n`));
 		return { exitCode: 1 };
 	}
 	return undefined;
@@ -143,7 +144,9 @@ async function preflightOutsideReads(
 		return undefined;
 	}
 	const once: string[] = [];
-	for (const absPath of outsideProjectReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd))) {
+	const rawCandidates = outsideProjectReadCandidates(command, cwd, homedir(), cfg, undefined, (absPath) => canonicalize(absPath, cwd));
+	const candidates = Array.from(new Set(rawCandidates.map((p) => canonicalize(p, cwd))));
+	for (const absPath of candidates) {
 		if (sessionReadGrants.includes(absPath)) continue;
 		const ui = opts.ctx as AskCtx;
 		const parent = dirname(absPath);
