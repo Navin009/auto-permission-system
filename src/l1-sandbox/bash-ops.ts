@@ -166,7 +166,7 @@ async function preflightOutsideReads(
 		if (choice === MainChoice.Session) {
 			sessionReadGrants.push(absPath);
 			auditL1({ subject: absPath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd });
-			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} for this conversation (not saved)`, "info");
+			opts.ctx.ui?.notify?.(`sandbox: allowed read of ${absPath} for this conversation (not saved)`, "info");
 			continue;
 		}
 		if (choice !== MainChoice.Remember || !grant) {
@@ -179,10 +179,10 @@ async function preflightOutsideReads(
 		try {
 			const persistedTo = await opts.onAlwaysRead(subject, scope);
 			auditL1({ subject, decision: scope === "cwd" ? "always-cwd" : "always-global", scope, cwd, persisted_to: persistedTo, note: "preflight" });
-			opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${scope})`, "warning");
+			opts.ctx.ui?.notify?.(`sandbox: allowed read of ${subject} (${scope})`, "warning");
 		} catch (e) {
 			auditL1({ subject, scope, cwd, error: String(e), note: "preflight" });
-			onData(Buffer.from(`\n❌ pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`));
+			onData(Buffer.from(`\n❌ sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`));
 			return { blocked: { exitCode: 1 } };
 		}
 	}
@@ -373,7 +373,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							blockedHint = "";
 							auditL1({ subject: offending ?? spelledOffending, decision: "write-denied", reason: "the OS sandbox could not start (bwrap mount setup)", cwd: opts?.ctx?.cwd, note: "sandbox-setup-error" });
 							opts?.ctx?.ui?.notify?.(`Sandbox setup notice: could not prepare folder isolation for ${offending ?? spelledOffending ?? "the sandbox"}. System defaults will be used.`, "warning");
-							decisionHint = `\n[System Error] pi-sandbox: the OS sandbox could not start (bwrap could not create a protected mount point), so nothing was permission-prompted. This is a sandbox setup problem, not a policy denial.\n`;
+							decisionHint = `\n[System Error] sandbox: the OS sandbox could not start (bwrap could not create a protected mount point), so nothing was permission-prompted. This is a sandbox setup problem, not a policy denial.\n`;
 							onData(Buffer.from(decisionHint));
 						} else if (offending && outsideDenied && !hardDenied && outsideMode === "ask" && opts?.ctx?.hasUI && opts.ctx.ui?.select && opts.onAlwaysRead) {
 							const absPath = offending;
@@ -393,8 +393,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									if (choice === MainChoice.Once) readOnce.push(absPath);
 									else sessionReadGrants.push(absPath);
 									auditL1({ subject: absPath, decision: choice, scope: choice === MainChoice.Once ? "invocation" : "session", cwd: opts.ctx.cwd, note: "outside-project-read" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${absPath} ${choice === MainChoice.Once ? "once" : "for this conversation"}`, "info");
-									onData(Buffer.from(`\n[Permission Granted] pi-sandbox: read of ${absPath} allowed ${choice === MainChoice.Once ? "once" : "for this conversation"}. Command output with the new permission follows.\n`));
+									opts.ctx.ui?.notify?.(`sandbox: allowed read of ${absPath} ${choice === MainChoice.Once ? "once" : "for this conversation"}`, "info");
+									onData(Buffer.from(`\n[Permission Granted] sandbox: read of ${absPath} allowed ${choice === MainChoice.Once ? "once" : "for this conversation"}. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
@@ -403,13 +403,13 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									try {
 										const persistedTo = await opts.onAlwaysRead(subject, grant.scope);
 										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, decision: grant.scope === "cwd" ? "always-cwd" : "always-global", scope: grant.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo, note: "outside-project-read" });
-										opts.ctx.ui?.notify?.(`pi-sandbox: allowed read of ${subject} (${grant.scope}${grant.folder ? ", folder" : ""})`, "info");
-										onData(Buffer.from(`\n[Permission Granted] pi-sandbox: read of ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
+										opts.ctx.ui?.notify?.(`sandbox: allowed read of ${subject} (${grant.scope}${grant.folder ? ", folder" : ""})`, "info");
+										onData(Buffer.from(`\n[Permission Granted] sandbox: read of ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
 										resolve(attempt([]));
 										return;
 									} catch (e) {
 										auditL1({ subject, scope: grant.scope, cwd: opts.ctx.cwd, error: String(e), note: "outside-project-read" });
-										decisionHint = `\n[Security Notice] pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
+										decisionHint = `\n[Security Notice] sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
 								}
 							} catch (e) {
@@ -459,8 +459,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 								if (choice === MainChoice.Once) {
 									grantedWriteFolders.add(parentDir);
 									auditL1({ subject: absPath, granularity: "folder", original: absPath, decision: "once", scope: "invocation", cwd: opts.ctx.cwd, note: "write-once" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed write to ${absPath} once`, "info");
-									onData(Buffer.from(`\n[Permission Granted] pi-sandbox: write to ${absPath} allowed once. Command output with the new permission follows.\n`));
+									opts.ctx.ui?.notify?.(`sandbox: allowed write to ${absPath} once`, "info");
+									onData(Buffer.from(`\n[Permission Granted] sandbox: write to ${absPath} allowed once. Command output with the new permission follows.\n`));
 									resolve(attempt([...writeOnce, parentDir]));
 									return;
 								}
@@ -469,8 +469,8 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 									sessionWriteGrants.push(value);
 									(value === parentDir ? grantedWriteFolders : grantedWriteFiles).add(value);
 									auditL1({ subject: value, granularity: value === parentDir ? "folder" : "file", original: absPath, decision: "session", scope: "session", cwd: opts.ctx.cwd, note: "write-session" });
-									opts.ctx.ui?.notify?.(`pi-sandbox: allowed write to ${value} for this conversation`, "info");
-									onData(Buffer.from(`\n[Permission Granted] pi-sandbox: write to ${value} allowed for this conversation. Command output with the new permission follows.\n`));
+									opts.ctx.ui?.notify?.(`sandbox: allowed write to ${value} for this conversation`, "info");
+									onData(Buffer.from(`\n[Permission Granted] sandbox: write to ${value} allowed for this conversation. Command output with the new permission follows.\n`));
 									resolve(attempt([]));
 									return;
 								}
@@ -480,14 +480,14 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 										const persistedTo = await opts.onAlways(subject, grant.scope);
 										(grant.folder ? grantedWriteFolders : grantedWriteFiles).add(subject);
 										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, decision: grant.scope === "cwd" ? "always-cwd" : "always-global", scope: grant.scope, cwd: opts.ctx.cwd, persisted_to: persistedTo });
-										opts.ctx.ui?.notify?.(`pi-sandbox: allowed write to ${subject} (${grant.scope}${grant.folder ? ", folder" : ""})`, "info");
-										onData(Buffer.from(`\n[Permission Granted] pi-sandbox: write to ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
+										opts.ctx.ui?.notify?.(`sandbox: allowed write to ${subject} (${grant.scope}${grant.folder ? ", folder" : ""})`, "info");
+										onData(Buffer.from(`\n[Permission Granted] sandbox: write to ${subject} allowed (${grant.scope}${grant.folder ? ", folder" : ""}). Command output with the new permission follows.\n`));
 										resolve(attempt([]));
 										return;
 									} catch (e) {
 										auditL1({ subject, granularity: grant.folder ? "folder" : "file", original: absPath, scope: grant.scope, cwd: opts.ctx.cwd, error: String(e) });
-										opts.ctx.ui?.notify?.(`pi-sandbox: could not save the permission (${e})`, "error");
-										decisionHint = `\n[Security Notice] pi-sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
+										opts.ctx.ui?.notify?.(`sandbox: could not save the permission (${e})`, "error");
+										decisionHint = `\n[Security Notice] sandbox: could not save the permission (${e}). ${subject} remains blocked.\n`;
 									}
 								}
 							} catch (e) {

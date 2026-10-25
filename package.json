@@ -1,6 +1,6 @@
 {
   "name": "auto-permission-system",
-  "version": "3.18.0",
+  "version": "3.19.0",
   "description": "Claude auto mode for Pi & security for Pi. A zero-trust permission system for Pi coding agent powered by Advanced Secure mode to scan files, content, and tools to prevent data breaches.",
   "type": "module",
   "author": "Navin Kumar",

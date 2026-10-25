@@ -323,7 +323,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 		audit({ layer: 2, tool: event.toolName, decision: "no", note: "advanced-secure-output", findings, cwd: ctx.cwd });
-		ctx.ui.notify(`Sensitive data protected: withheld ${event.toolName} output from the AI (potential secrets detected).`, "warning");
+		ctx.ui.notify(`Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`, "warning");
 		return { content: [{ type: "text", text: withheldNotice(subject) }] };
 	});
 

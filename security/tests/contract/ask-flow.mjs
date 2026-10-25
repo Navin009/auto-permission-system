@@ -242,7 +242,7 @@ check(
 );
 
 const notice = withheldNotice('config.env');
-check('withheldNotice: names the subject', notice.includes('config.env') && notice.includes('withheld'));
+check('withheldNotice: names the subject', notice.includes('config.env') && (notice.includes('hidden') || notice.includes('withheld')));
 check('withheldNotice: says the tool completed', notice.includes('completed successfully') && notice.includes('output is unavailable'));
 check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 
