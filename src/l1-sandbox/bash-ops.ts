@@ -9,7 +9,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
-import { askReadCandidates, extractBlockedPath, extractLoopbackEndpoint, isBlockedAccessError, isLoopbackConnectionRefused, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
+import { askReadCandidates, attributeLoopbackFailure, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize } from "../shared/canonicalize";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow";
@@ -334,25 +334,35 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 							if (hardDenied) reason = hardWhy;
 							else if (outsideDenied) reason = "target is outside the project directory";
 							blockedHint = `\n[Security Policy Notice] filesystem access blocked by sandbox policy: ${writeDenied ? "Write" : "Read"} access to ${offending ?? "target"} is restricted.\nReason: ${reason}. Inform the user; do not attempt workarounds.\n`;
-						} else if (code !== 0 && isLoopbackConnectionRefused(outputTail)) {
-							const endpointInfo = extractLoopbackEndpoint(outputTail, command);
-							const endpointStr = endpointInfo?.port ? `${endpointInfo.host}:${endpointInfo.port}` : (endpointInfo?.host ?? "127.0.0.1");
-							const serviceName = endpointInfo?.service;
-
-							auditL1({
-								subject: endpointStr,
-								decision: "loopback-refused",
-								reason: "Network namespace isolates host loopback under current policy",
-								cwd: opts?.ctx?.cwd,
-								note: serviceName ? `service:${serviceName}` : undefined,
+						} else {
+							const loopback = attributeLoopbackFailure({
+								code,
+								output: outputTail,
+								command,
+								allowLocalhost,
+								platform: process.platform,
+								bridgedPorts: bridges.map((b) => b.port),
 							});
+							if (loopback.blocked) {
+								const endpointInfo = loopback.endpoint;
+								const endpointStr = endpointInfo?.port ? `${endpointInfo.host}:${endpointInfo.port}` : (endpointInfo?.host ?? "127.0.0.1");
+								const serviceName = endpointInfo?.service;
 
-							const notifyMsg = serviceName
-								? `Local network notice: connection to ${serviceName} (${endpointStr}) was blocked by security policy.`
-								: `Local network notice: connection to host ${endpointStr} was blocked by security policy.`;
-							opts?.ctx?.ui?.notify?.(notifyMsg, "warning");
+								auditL1({
+									subject: endpointStr,
+									decision: "loopback-refused",
+									reason: "Network namespace isolates host loopback under current policy",
+									cwd: opts?.ctx?.cwd,
+									note: serviceName ? `service:${serviceName}` : undefined,
+								});
 
-							blockedHint = `\n[Security Policy Notice] Connection to ${endpointStr}${serviceName ? ` (${serviceName})` : ""} blocked by sandbox policy.\nReason: Local network connections are restricted. Inform the user; do not attempt workarounds.\n`;
+								const notifyMsg = serviceName
+									? `Local network notice: connection to ${serviceName} (${endpointStr}) was blocked by security policy.`
+									: `Local network notice: connection to host ${endpointStr} was blocked by security policy.`;
+								opts?.ctx?.ui?.notify?.(notifyMsg, "warning");
+
+								blockedHint = `\n[Security Policy Notice] Connection to ${endpointStr}${serviceName ? ` (${serviceName})` : ""} blocked by sandbox policy.\nReason: Local network connections are restricted. Inform the user; do not attempt workarounds.\n`;
+							}
 						}
 						/**
 						 * Emit the block explanation only when the command is not re-run with a

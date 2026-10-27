@@ -1,6 +1,6 @@
 // Layer 1 violation attribution: which path was refused, whether it was a denyRead,
 // and which folders may be offered as a write grant. Imports the real lib.
-import { extractBlockedPath, extractLoopbackEndpoint, isBlockedAccessError, isLoopbackConnectionRefused, isSafeFolderGrant, isWriteBlockError, matchesPolicyPattern, toSandboxPatterns } from '../../../src/core/index.ts';
+import { attributeLoopbackFailure, extractBlockedPath, extractLoopbackEndpoint, isBlockedAccessError, isLoopbackConnectionRefused, isSafeFolderGrant, isWriteBlockError, matchesPolicyPattern, toSandboxPatterns } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -61,6 +61,44 @@ check('extractLoopbackEndpoint parses localhost port 3000', epLocalhost?.host ==
 
 const epNode = extractLoopbackEndpoint('connect ECONNREFUSED 127.0.0.1:8080');
 check('extractLoopbackEndpoint parses node ECONNREFUSED', epNode?.host === '127.0.0.1' && epNode?.port === '8080');
+
+// attributeLoopbackFailure policy checks
+check('attributeLoopbackFailure ignores clean exit (code 0)', attributeLoopbackFailure({
+	code: 0,
+	output: 'Diffusion Studio is not running. Launch the app first, then retry.',
+	allowLocalhost: false,
+	platform: 'linux'
+}).blocked === false);
+
+check('attributeLoopbackFailure ignores failure when allowLocalhost is true', attributeLoopbackFailure({
+	code: 1,
+	output: 'Diffusion Studio is not running. Launch the app first, then retry.',
+	allowLocalhost: true,
+	platform: 'linux'
+}).blocked === false);
+
+check('attributeLoopbackFailure ignores failure on non-linux platform', attributeLoopbackFailure({
+	code: 1,
+	output: 'connect ECONNREFUSED 127.0.0.1:8080',
+	allowLocalhost: false,
+	platform: 'darwin'
+}).blocked === false);
+
+check('attributeLoopbackFailure ignores failure when port is bridged', attributeLoopbackFailure({
+	code: 1,
+	output: 'Diffusion Studio is not running. Launch the app first, then retry.',
+	allowLocalhost: false,
+	platform: 'linux',
+	bridgedPorts: [3274]
+}).blocked === false);
+
+check('attributeLoopbackFailure flags failure when allowLocalhost is false and port is not bridged', attributeLoopbackFailure({
+	code: 1,
+	output: 'connect ECONNREFUSED 127.0.0.1:8080',
+	allowLocalhost: false,
+	platform: 'linux',
+	bridgedPorts: [3274]
+}).blocked === true);
 
 check('/ is never a folder grant', !isSafeFolderGrant('/', home));
 check('home is never a folder grant', !isSafeFolderGrant('/Users/me', home));

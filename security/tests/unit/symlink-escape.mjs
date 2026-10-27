@@ -1,5 +1,5 @@
 import { symlinkSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { canonicalize } from '../../../src/shared/canonicalize.ts';
 
 function expandHome(p){ if(p==='~') return homedir(); if(p.startsWith('~/')) return homedir()+'/'+p.slice(2); return p; }
@@ -8,7 +8,7 @@ function matchPrefix(absPath, pattern){
   return absPath===p || absPath.startsWith(p+'/');
 }
 
-const cwd = homedir() + '/.pi-tmp';
+const cwd = tmpdir() + '/pi-tmp-symlink-test-' + process.pid;
 mkdirSync(cwd, { recursive: true });
 
 const target = cwd + '/secret-target';

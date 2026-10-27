@@ -84,6 +84,45 @@ export function extractLoopbackEndpoint(output: string, command?: string): Loopb
 	return { host: hostMatch ? hostMatch[1] : "127.0.0.1" };
 }
 
+export interface LoopbackAttributionContext {
+	code: number | null;
+	output: string;
+	command?: string;
+	allowLocalhost: boolean;
+	platform?: NodeJS.Platform;
+	bridgedPorts?: readonly number[];
+}
+
+export interface LoopbackBlockAttribution {
+	blocked: boolean;
+	endpoint?: LoopbackEndpointInfo;
+}
+
+/**
+ * Determine whether a command exit code and output represents a loopback connection
+ * failure genuinely caused by sandbox network isolation.
+ *
+ * If localhost is enabled (`allowLocalhost: true`), or if the destination port is
+ * forwarded to the host via port bridging, any failure is an application/host-side issue
+ * (e.g. service down), NOT a sandbox policy block.
+ */
+export function attributeLoopbackFailure(ctx: LoopbackAttributionContext): LoopbackBlockAttribution {
+	if (ctx.code === 0) return { blocked: false };
+	if (ctx.allowLocalhost) return { blocked: false };
+	if (ctx.platform !== undefined && ctx.platform !== "linux") return { blocked: false };
+	if (!isLoopbackConnectionRefused(ctx.output)) return { blocked: false };
+
+	const endpoint = extractLoopbackEndpoint(ctx.output, ctx.command);
+	if (endpoint?.port && ctx.bridgedPorts) {
+		const portNum = parseInt(endpoint.port, 10);
+		if (Number.isFinite(portNum) && ctx.bridgedPorts.includes(portNum)) {
+			return { blocked: false, endpoint };
+		}
+	}
+
+	return { blocked: true, endpoint };
+}
+
 /** A shell-name/empty token is not a path; everything else resolves against cwd unless absolute. */
 function toAbsolutePath(rawToken: string, cwd: string, home: string): string | undefined {
 	let token = rawToken.trim().replace(/[.,;:]+$/, "");
