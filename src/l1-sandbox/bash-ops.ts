@@ -313,7 +313,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						let outsideMode: "allow" | "ask" | "deny" = "allow";
 						let blockedHint = "";
 						let sandboxSetupError = false;
-						if (isBlockedAccessError(outputTail)) {
+						if (code !== 0 && isBlockedAccessError(outputTail)) {
 							sandboxSetupError = /(^|\n)\s*bwrap:/i.test(outputTail);
 							spelledOffending = extractBlockedPath(outputTail, cwd, homedir());
 							offending = spelledOffending ? canonicalize(spelledOffending, cwd) : undefined;

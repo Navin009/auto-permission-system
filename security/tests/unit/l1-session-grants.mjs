@@ -215,6 +215,20 @@ check("askRead conversation grant audited", auditLog.includes('"decision":"sessi
 	check("bwrap setup failure is audited", readFileSync(join(agentDir, "audit.log"), "utf8").includes('"note":"sandbox-setup-error"'));
 }
 
+{
+	// Clean exit code 0 that happens to output words like EROFS / Operation not permitted
+	// must NOT be treated as a policy violation.
+	const cleanOut = [];
+	const execClean = createSandboxedBashOps({ ctx, onAlways, onAlwaysRead: onAlways });
+	r = await execClean.exec("printf 'a69d95a fix(l1): ask on Linux EROFS write blocks\\n'", cwd, {
+		onData: (chunk) => cleanOut.push(chunk.toString()),
+		signal: undefined,
+		timeout: 10,
+	});
+	check("clean exit 0 with EROFS in output succeeds", r.exitCode === 0, `exit=${r.exitCode}`);
+	check("clean exit 0 with EROFS never emits security notice", !cleanOut.join("").includes("Security Policy Notice"), cleanOut.join(""));
+}
+
 clearFilesystemSessionGrants();
 check("clearFilesystemSessionGrants clears the summary", filesystemSessionGrantSummary() === "", filesystemSessionGrantSummary());
 
