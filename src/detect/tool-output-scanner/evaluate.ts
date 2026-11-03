@@ -9,10 +9,10 @@
  * Every result reports `limitBytes`, `scannedBytes`, and `totalBytes`.
  */
 
-import { redactText } from "../sensitive-file-scanner/index";
-import { TOOL_OUTPUT_DEFAULT_ASK_THRESHOLD } from "./constants";
-import { addFinding, aggregateScore, scanLeaf, walk } from "./scan";
-import { clampLimit, estimateSize } from "./size";
+import { redactText } from "../sensitive-file-scanner/index.ts";
+import { TOOL_OUTPUT_DEFAULT_ASK_THRESHOLD } from "./constants.ts";
+import { addFinding, aggregateScore, scanLeaf, walk } from "./scan.ts";
+import { clampLimit, estimateSize } from "./size.ts";
 import type {
   ToolOutputReason,
   ToolOutputScanInput,
@@ -20,7 +20,7 @@ import type {
   ToolOutputScanResult,
   ToolOutputValue,
   WalkState,
-} from "./types";
+} from "./types.ts";
 
 export function scanToolOutput(
   input: ToolOutputScanInput

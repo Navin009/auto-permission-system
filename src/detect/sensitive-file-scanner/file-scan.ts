@@ -25,18 +25,18 @@
 
 import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
-import { classifyFilename } from "../filename-gate/index";
-import { allowsUnquotedAssignment } from "./assignment";
+import { classifyFilename } from "../filename-gate/index.ts";
+import { allowsUnquotedAssignment } from "./assignment.ts";
 import {
   DEFAULT_ASK_THRESHOLD,
   IGNORED_EXTENSIONS,
   MAX_FILE_SIZE_BYTES,
-} from "./constants";
-import { scanTextContent } from "./content-scan";
-import { decodeTextBuffer, readFileCapped } from "./decoding";
-import { isTestContext } from "./patterns";
-import { decide, filenameFinding, scoreFindings, skipResult } from "./scoring";
-import type { Finding, ReadDecision, ScanInput, ScanResult } from "./types";
+} from "./constants.ts";
+import { scanTextContent } from "./content-scan.ts";
+import { decodeTextBuffer, readFileCapped } from "./decoding.ts";
+import { isTestContext } from "./patterns.ts";
+import { decide, filenameFinding, scoreFindings, skipResult } from "./scoring.ts";
+import type { Finding, ReadDecision, ScanInput, ScanResult } from "./types.ts";
 
 export async function scanFile(input: ScanInput): Promise<ScanResult> {
   const hardCap = MAX_FILE_SIZE_BYTES;

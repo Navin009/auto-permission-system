@@ -13,20 +13,20 @@ import {
   isSensitiveKey,
   normalizeKey,
   scanTextContent,
-} from "../sensitive-file-scanner/index";
-import type { Finding } from "../sensitive-file-scanner/index";
+} from "../sensitive-file-scanner/index.ts";
+import type { Finding } from "../sensitive-file-scanner/index.ts";
 import {
   BASE64_BLOB_REGEX,
   MAX_BASE64_DECODED,
   MAX_LEAF_BYTES,
   TOOL_OUTPUT_MAX_DEPTH,
   TOOL_OUTPUT_MAX_NODES,
-} from "./constants";
+} from "./constants.ts";
 import type {
   ToolOutputFinding,
   ToolOutputValue,
   WalkState,
-} from "./types";
+} from "./types.ts";
 
 const TYPE_LABELS: Record<string, string> = {
   PRIVATE_KEY: "private key",
@@ -181,7 +181,8 @@ export function walk(
         if (state.findings.length > before) {
           return "***REDACTED***";
         }
-      } catch {
+      } catch (ignoredError) {
+        void ignoredError;
       }
     }
 

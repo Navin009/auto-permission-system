@@ -1,226 +1,316 @@
-/**
- * Layer 1 entrypoint — thin pi wiring for the OS-level bash sandbox.
- *
- * All logic lives in `src/l1-sandbox/`:
- *  - `config.ts`   policy loading (sandbox.json)
- *  - `manager.ts`  sandbox-runtime lifecycle + persisted "always" grants
- *  - `bash-ops.ts` the sandboxed bash tool, pre-flight ask, blocked-access hints
- * The pure policy logic is in `src/core/`.
- *
- * Uses @anthropic-ai/sandbox-runtime to enforce filesystem and network
- * restrictions on bash commands at the OS level (sandbox-exec on macOS,
- * bubblewrap on Linux).
- *
- * Config files (merged, project takes precedence):
- * - ~/.pi/agent/extensions/sandbox.json (global)
- * - <cwd>/.pi/sandbox.json (project-local)
- *
- * Usage:
- * - `pi` - sandbox enabled with default/config settings (secure by default)
- * - `pi --yolo` - disable all security layers (visible warning banner)
- * - `pi --no-sandbox` - alias for --yolo (hidden, for backwards compat)
- * - `/sandbox` - show current sandbox configuration
- *
- * Setup:
- * 1. A root `npm install` provides @anthropic-ai/sandbox-runtime.
- * 2. pi loads this file as an extension (see package.json `pi.extensions`).
- *
- * Linux also requires: bubblewrap, socat, ripgrep
- */
-
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createBashTool } from "@earendil-works/pi-coding-agent";
-import { clearFilesystemSessionGrants, createSandboxedBashOps, filesystemSessionGrantSummary } from "../src/l1-sandbox/bash-ops";
-import { applyNetworkGrant, initSandbox, persistLayer1Override, reloadSandbox, resetSandbox, writeNetworkOverride } from "../src/l1-sandbox/manager";
-import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask";
-import { loadConfig, projectTrusted, setPiDeclinedTrust } from "../src/l1-sandbox/config";
-import { audit } from "../src/shared/audit";
-import { onDomainGrant } from "../src/shared/network-grants";
-import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo";
+import {
+	clearFilesystemSessionGrants,
+	createSandboxedBashOps,
+	filesystemSessionGrantSummary,
+} from "../src/l1-sandbox/bash-ops.ts";
+import {
+	applyNetworkGrant,
+	initSandbox,
+	persistLayer1Override,
+	reloadSandbox,
+	resetSandbox,
+	writeNetworkOverride,
+} from "../src/l1-sandbox/manager.ts";
+import {
+	clearNetworkSessionGrants,
+	type NetworkAskCtx,
+	type NetworkAskDeps,
+} from "../src/l1-sandbox/network-ask.ts";
+import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } from "../src/l1-sandbox/config.ts";
+import { audit } from "../src/shared/audit.ts";
+import { onDomainGrant } from "../src/shared/network-grants.ts";
+import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo.ts";
+
+async function reloadSandboxConfiguration(
+	context: ExtensionContext,
+	workingDirectory: string,
+	networkDependencies: NetworkAskDeps,
+): Promise<void> {
+	try {
+		await reloadSandbox(workingDirectory, networkDependencies);
+		context.ui.notify("🔄 Sandbox reloaded from disk (global + project sandbox.json)", "info");
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		context.ui.notify(`Sandbox reload failed: ${errorMessage}`, "error");
+	}
+}
+
+function formatSandboxConfiguration(config: SandboxConfig): string {
+	const network = config.network;
+	const filesystem = config.filesystem;
+
+	return [
+		"Sandbox Configuration:",
+		"",
+		"Network:",
+		`  Allowed: ${network?.allowedDomains?.join(", ") || "(none)"}`,
+		`  Denied: ${network?.deniedDomains?.join(", ") || "(none)"}`,
+		"",
+		"Filesystem:",
+		`  Deny Read: ${filesystem?.denyRead?.join(", ") || "(none)"}`,
+		`  Allow Read: ${filesystem?.allowRead?.join(", ") || "(none)"}`,
+		`  Allow Write: ${filesystem?.allowWrite?.join(", ") || "(none)"}`,
+		`  Deny Write: ${filesystem?.denyWrite?.join(", ") || "(none)"}`,
+		`  Outside project reads: ${filesystem?.outsideProject?.read ?? "allow"}`,
+		`  Conversation grants: ${filesystemSessionGrantSummary() || "(none)"}`,
+	].join("\n");
+}
 
 export default function (pi: ExtensionAPI) {
 	registerYoloFlags(pi);
 
 	onDomainGrant(pi.events, applyNetworkGrant);
 
-	const localCwd = process.cwd();
-	const localBash = createBashTool(localCwd);
+	const initialWorkingDirectory = process.cwd();
+	const localBashTool = createBashTool(initialWorkingDirectory);
 
-	let sandboxEnabled = false;
-	let sandboxInitialized = false;
-	let runtimeYolo = false;
-	let sandboxStarting: Promise<void> | null = null;
-	let latestCtx: ExtensionContext | undefined;
+	let isSandboxEnabled = false;
+	let isSandboxInitialized = false;
+	let isRuntimeYolo = false;
+	let sandboxStartingPromise: Promise<void> | null = null;
+	let latestExtensionContext: ExtensionContext | undefined;
 	let latestBashCommand: string | undefined;
-	let activeCtx: { cwd: string; hasUI?: boolean; ui?: { select?: (t: string, o: string[], op?: { timeout?: number }) => Promise<string | undefined>; notify?: (m: string, l?: string) => void } } | undefined;
 
-	const persistAndReload = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowWrite", absPath, scope, networkDeps(localCwd));
-	const persistAndReloadRead = (absPath: string, scope: "cwd" | "global") => persistLayer1Override(localCwd, "allowRead", absPath, scope, networkDeps(localCwd));
+	let activeUiContext: {
+		cwd: string;
+		hasUI?: boolean;
+		ui?: {
+			select?: (title: string, options: string[], opts?: { timeout?: number }) => Promise<string | undefined>;
+			notify?: (message: string, level?: string) => void;
+		};
+	} | undefined;
 
-	/** Layer 1 network ask wiring (ADR-023): the proxy asks for unknown hosts and applies grants live. */
-	const networkDeps = (cwd: string): NetworkAskDeps => ({
-		cwd,
-		getCtx: () => /* SAFETY: pi's runtime ctx carries ui.select/ui.notify; the local type names only the members used. */ activeCtx as unknown as NetworkAskCtx | undefined,
-		persist: (host, scope) => writeNetworkOverride(cwd, host, scope),
+	const createNetworkDependencies = (currentWorkingDirectory: string): NetworkAskDeps => ({
+		cwd: currentWorkingDirectory,
+		getCtx: () =>
+			/* SAFETY: pi's runtime ctx carries ui.select/ui.notify; the local type names only the members used. */
+			activeUiContext as unknown as NetworkAskCtx | undefined,
+		persist: (host, scope) => writeNetworkOverride(currentWorkingDirectory, host, scope),
 		applyLive: applyNetworkGrant,
 		audit,
-		get projectTrusted() { return projectTrusted(cwd); },
-		get command() { return latestBashCommand; },
+		get projectTrusted() {
+			return projectTrusted(currentWorkingDirectory);
+		},
+		get command() {
+			return latestBashCommand;
+		},
 	});
 
-	/** Bring the bash sandbox down; safe when it was never up. */
+	const persistAndReloadWrite = (absolutePath: string, scope: "cwd" | "global") =>
+		persistLayer1Override(
+			initialWorkingDirectory,
+			"allowWrite",
+			absolutePath,
+			scope,
+			createNetworkDependencies(initialWorkingDirectory),
+		);
+
+	const persistAndReloadRead = (absolutePath: string, scope: "cwd" | "global") =>
+		persistLayer1Override(
+			initialWorkingDirectory,
+			"allowRead",
+			absolutePath,
+			scope,
+			createNetworkDependencies(initialWorkingDirectory),
+		);
+
 	const stopSandbox = async (): Promise<void> => {
-		sandboxEnabled = false;
-		if (!sandboxInitialized) return;
-		sandboxInitialized = false;
+		isSandboxEnabled = false;
+
+		if (!isSandboxInitialized) {
+			return;
+		}
+
+		isSandboxInitialized = false;
 		await resetSandbox();
 	};
 
-	/** Re-read policy and bring the bash sandbox up. No-op while YOLO is on. */
-	const startSandbox = async (ctx: ExtensionContext): Promise<void> => {
-		if (runtimeYolo || (sandboxEnabled && sandboxInitialized)) return;
-		const config = loadConfig(ctx.cwd);
+	const startSandbox = async (context: ExtensionContext): Promise<void> => {
+		if (isRuntimeYolo || (isSandboxEnabled && isSandboxInitialized)) {
+			return;
+		}
+
+		const config = loadConfig(context.cwd);
+
 		if (!config.enabled) {
-			sandboxEnabled = false;
-			ctx.ui.notify("Sandbox disabled via config", "info");
+			isSandboxEnabled = false;
+			context.ui.notify("Sandbox disabled via config", "info");
 			return;
 		}
+
 		const platform = process.platform;
+
 		if (platform !== "darwin" && platform !== "linux") {
-			sandboxEnabled = false;
-			ctx.ui.notify(`Sandbox not supported on ${platform}`, "warning");
+			isSandboxEnabled = false;
+			context.ui.notify(`Sandbox not supported on ${platform}`, "warning");
 			return;
 		}
+
 		try {
-			await initSandbox(ctx.cwd, config, networkDeps(ctx.cwd));
-			sandboxEnabled = true;
-			sandboxInitialized = true;
-			const networkCount = config.network?.allowedDomains?.length ?? 0;
-			const writeCount = config.filesystem?.allowWrite?.length ?? 0;
-			const secure = config.mode === "advanced-secure";
-			ctx.ui.setStatus(
+			await initSandbox(context.cwd, config, createNetworkDependencies(context.cwd));
+
+			isSandboxEnabled = true;
+			isSandboxInitialized = true;
+
+			const allowedDomainCount = config.network?.allowedDomains?.length ?? 0;
+			const allowedWritePathCount = config.filesystem?.allowWrite?.length ?? 0;
+			const isAdvancedSecureMode = config.mode === "advanced-secure";
+			const modeIcon = isAdvancedSecureMode ? "🧠" : "🔒";
+			const statusThemeColor = isAdvancedSecureMode ? "success" : "accent";
+
+			context.ui.setStatus(
 				"sandbox",
-				ctx.ui.theme.fg(
-					secure ? "success" : "accent",
-					`Sandbox: ${secure ? "🧠" : "🔒"}  ${networkCount} domains, ${writeCount} paths`,
+				context.ui.theme.fg(
+					statusThemeColor,
+					`Sandbox: ${modeIcon}  ${allowedDomainCount} domains, ${allowedWritePathCount} paths`,
 				),
 			);
-			ctx.ui.notify("Sandbox initialized", "info");
-		} catch (err) {
-			sandboxEnabled = false;
-			ctx.ui.notify(`Sandbox initialization failed: ${err instanceof Error ? err.message : err}`, "error");
+
+			context.ui.notify("Sandbox initialized", "info");
+		} catch (error) {
+			isSandboxEnabled = false;
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			context.ui.notify(`Sandbox initialization failed: ${errorMessage}`, "error");
 		}
 	};
 
 	onYolo(pi.events, (enabled) => {
-		if (enabled === runtimeYolo) return;
-		runtimeYolo = enabled;
-		const ctx = latestCtx;
-		if (!ctx) return;
+		if (enabled === isRuntimeYolo) {
+			return;
+		}
+
+		isRuntimeYolo = enabled;
+		const context = latestExtensionContext;
+
+		if (!context) {
+			return;
+		}
+
 		if (!enabled) {
-			sandboxStarting = startSandbox(ctx).finally(() => {
-				sandboxStarting = null;
+			sandboxStartingPromise = startSandbox(context).finally(() => {
+				sandboxStartingPromise = null;
 			});
 			return;
 		}
+
 		void stopSandbox().then(() => {
-			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
+			context.ui.setStatus("sandbox", context.ui.theme.fg("error", YOLO_STATUS));
 		});
 	});
 
 	pi.registerTool({
-		...localBash,
+		...localBashTool,
 		label: "bash (sandboxed)",
 		async execute(id, params, signal, onUpdate, _ctx) {
-			if (!runtimeYolo && sandboxStarting) await sandboxStarting;
-			if (runtimeYolo || !sandboxEnabled || !sandboxInitialized) {
-				return localBash.execute(id, params, signal, onUpdate);
+			if (!isRuntimeYolo && sandboxStartingPromise) {
+				await sandboxStartingPromise;
 			}
 
-			const sandboxedBash = createBashTool(localCwd, {
-				operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }),
+			if (isRuntimeYolo || !isSandboxEnabled || !isSandboxInitialized) {
+				return localBashTool.execute(id, params, signal, onUpdate);
+			}
+
+			const sandboxedBash = createBashTool(initialWorkingDirectory, {
+				operations: createSandboxedBashOps({
+					ctx: activeUiContext,
+					onAlways: persistAndReloadWrite,
+					onAlwaysRead: persistAndReloadRead,
+				}),
 			});
+
 			return sandboxedBash.execute(id, params, signal, onUpdate);
 		},
 	});
 
 	pi.on("user_bash", async () => {
-		if (!runtimeYolo && sandboxStarting) await sandboxStarting;
-		if (runtimeYolo || !sandboxEnabled || !sandboxInitialized) return;
-		return { operations: createSandboxedBashOps({ ctx: activeCtx, onAlways: persistAndReload, onAlwaysRead: persistAndReloadRead }) };
+		if (!isRuntimeYolo && sandboxStartingPromise) {
+			await sandboxStartingPromise;
+		}
+
+		if (isRuntimeYolo || !isSandboxEnabled || !isSandboxInitialized) {
+			return;
+		}
+
+		return {
+			operations: createSandboxedBashOps({
+				ctx: activeUiContext,
+				onAlways: persistAndReloadWrite,
+				onAlwaysRead: persistAndReloadRead,
+			}),
+		};
 	});
 
 	pi.on("tool_call", (event, _ctx) => {
 		if (event.toolName === "bash") {
 			const input = event.input as { command?: string };
-			if (typeof input.command === "string") latestBashCommand = input.command;
+
+			if (typeof input.command === "string") {
+				latestBashCommand = input.command;
+			}
 		}
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
-		latestCtx = ctx;
-		activeCtx = /* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */ ctx as unknown as typeof activeCtx;
+	pi.on("session_start", async (_event, context) => {
+		latestExtensionContext = context;
+		activeUiContext =
+			/* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */
+			context as unknown as typeof activeUiContext;
+
 		clearNetworkSessionGrants();
 		clearFilesystemSessionGrants();
-		setPiDeclinedTrust((ctx as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
-		runtimeYolo = yoloFromFlags(pi) || loadConfig(ctx.cwd).mode === "yolo";
-		emitYolo(pi.events, runtimeYolo);
 
-		if (runtimeYolo) {
+		setPiDeclinedTrust((context as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
+
+		isRuntimeYolo = yoloFromFlags(pi) || loadConfig(context.cwd).mode === "yolo";
+		emitYolo(pi.events, isRuntimeYolo);
+
+		if (isRuntimeYolo) {
 			await stopSandbox();
-			ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
-			ctx.ui.notify(ctx.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."), "info");
+			context.ui.setStatus("sandbox", context.ui.theme.fg("error", YOLO_STATUS));
+			context.ui.notify(
+				context.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."),
+				"info",
+			);
 			return;
 		}
 
-		await startSandbox(ctx);
+		await startSandbox(context);
 	});
 
 	pi.on("session_shutdown", async () => {
-		if (sandboxInitialized) {
+		if (isSandboxInitialized) {
 			await resetSandbox();
 		}
 	});
 
 	pi.registerCommand("sandbox", {
 		description: "Show sandbox configuration. `/sandbox reload` to reload after manual edits to sandbox.json.",
-		handler: async (args, ctx) => {
-			const sub = (args ?? "").trim().toLowerCase();
-			if (sub === "reload") {
-				if (!sandboxEnabled || !sandboxInitialized) {
-					ctx.ui.notify("Sandbox is disabled — nothing to reload", "info");
+		handler: async (args, context) => {
+			const subcommand = (args ?? "").trim().toLowerCase();
+
+			if (subcommand === "reload") {
+				if (!isSandboxEnabled || !isSandboxInitialized) {
+					context.ui.notify("Sandbox is disabled — nothing to reload", "info");
 					return;
 				}
-				try {
-					await reloadSandbox(localCwd, networkDeps(localCwd));
-					ctx.ui.notify("🔄 Sandbox reloaded from disk (global + project sandbox.json)", "info");
-				} catch (e) {
-					ctx.ui.notify(`Sandbox reload failed: ${e instanceof Error ? e.message : e}`, "error");
-				}
-				return;
-			}
-			if (!sandboxEnabled) {
-				ctx.ui.notify("Sandbox is disabled", "info");
+
+				await reloadSandboxConfiguration(
+					context,
+					initialWorkingDirectory,
+					createNetworkDependencies(initialWorkingDirectory),
+				);
 				return;
 			}
 
-			const config = loadConfig(ctx.cwd);
-			const lines = [
-				"Sandbox Configuration:",
-				"",
-				"Network:",
-				`  Allowed: ${config.network?.allowedDomains?.join(", ") || "(none)"}`,
-				`  Denied: ${config.network?.deniedDomains?.join(", ") || "(none)"}`,
-				"",
-				"Filesystem:",
-				`  Deny Read: ${config.filesystem?.denyRead?.join(", ") || "(none)"}`,
-				`  Allow Read: ${config.filesystem?.allowRead?.join(", ") || "(none)"}`,
-				`  Allow Write: ${config.filesystem?.allowWrite?.join(", ") || "(none)"}`,
-				`  Deny Write: ${config.filesystem?.denyWrite?.join(", ") || "(none)"}`,
-				`  Outside project reads: ${config.filesystem?.outsideProject?.read ?? "allow"}`,
-				`  Conversation grants: ${filesystemSessionGrantSummary() || "(none)"}`,
-			];
-			ctx.ui.notify(lines.join("\n"), "info");
+			if (!isSandboxEnabled) {
+				context.ui.notify("Sandbox is disabled", "info");
+				return;
+			}
+
+			const config = loadConfig(context.cwd);
+			context.ui.notify(formatSandboxConfiguration(config), "info");
 		},
 	});
 }

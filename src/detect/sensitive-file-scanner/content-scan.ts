@@ -7,15 +7,15 @@
  * detection. Used by the file scanner and by the tool-output scanner.
  */
 
-import { analyzeAssignment, findContinuationValue } from "./assignment";
+import { analyzeAssignment, findContinuationValue } from "./assignment.ts";
 import {
   BASE_SCORES,
   HIGH_ENTROPY_BONUS,
   TEST_CONTEXT_PENALTY,
-} from "./constants";
-import { entropy } from "./entropy";
-import { containsJwt } from "./jwt";
-import { normalizeKey } from "./keys";
+} from "./constants.ts";
+import { entropy } from "./entropy.ts";
+import { containsJwt } from "./jwt.ts";
+import { normalizeKey } from "./keys.ts";
 import {
   BEARER_REGEX,
   CONNECTION_STRING_REGEX,
@@ -24,11 +24,11 @@ import {
   PRIVATE_KEY_REGEX,
   URL_CREDENTIAL_REGEX,
   URL_QUERY_CREDENTIAL_REGEX,
-} from "./patterns";
-import { redactValuePreview } from "./redaction";
-import { contentFinding, getSeverity, scoreFindings } from "./scoring";
-import type { Finding, TextScanOptions, TextScanResult } from "./types";
-import { isPlaceholder, looksLikeRealSecret } from "./value-analysis";
+} from "./patterns.ts";
+import { redactValuePreview } from "./redaction.ts";
+import { contentFinding, getSeverity, scoreFindings } from "./scoring.ts";
+import type { Finding, TextScanOptions, TextScanResult } from "./types.ts";
+import { isPlaceholder, looksLikeRealSecret } from "./value-analysis.ts";
 
 /**
  * Scan whole content for detectors that are not line-oriented.

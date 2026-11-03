@@ -4,17 +4,17 @@
  * entrypoints (generic output, command stdout/stderr, API response, MCP
  * tool result).
  */
-export * from "./types";
+export * from "./types.ts";
 export {
   TOOL_OUTPUT_DEFAULT_MAX_BYTES,
   TOOL_OUTPUT_HARD_MAX_BYTES,
   TOOL_OUTPUT_DEFAULT_ASK_THRESHOLD,
   TOOL_OUTPUT_MAX_DEPTH,
   TOOL_OUTPUT_MAX_NODES,
-} from "./constants";
+} from "./constants.ts";
 export {
   scanToolOutput,
   scanCommandOutput,
   scanApiResponse,
   scanMcpToolResult,
-} from "./evaluate";
+} from "./evaluate.ts";

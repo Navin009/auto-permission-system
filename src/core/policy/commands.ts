@@ -1,46 +1,63 @@
-/**
- * Commands/paths that can print secrets and must ask first (ADR-017). Pure.
- */
-
 import { resolve } from "node:path";
-import { shellSegments, shellTokens } from "./fence";
-import { matchesPolicyPattern, normalizeAbs } from "./patterns";
+import { shellSegments, shellTokens } from "./fence.ts";
+import { matchesPolicyPattern, normalizeAbs } from "./patterns.ts";
 
-/** Expand a leading `~`, then resolve relative to cwd. Returns null for non-paths. */
-function asAbsolutePath(rawToken: string, cwd: string, home: string): string | null {
+function asAbsolutePath(rawToken: string, workingDirectory: string, homeDirectory: string): string | null {
 	const token = rawToken.trim();
-	if (!token || token.startsWith("-")) return null;
+
+	if (!token || token.startsWith("-")) {
+		return null;
+	}
+
 	let path = token;
-	if (path === "~") path = home;
-	else if (path.startsWith("~/")) path = `${home}/${path.slice(2)}`;
-	else if (!path.startsWith("/") && !path.startsWith("./") && !path.startsWith("../") && !path.includes("/")) return null;
-	const absolute = path.startsWith("/") ? path : resolve(cwd, path);
+
+	if (path === "~") {
+		path = homeDirectory;
+	} else if (path.startsWith("~/")) {
+		path = `${homeDirectory}/${path.slice(2)}`;
+	} else if (!path.startsWith("/") && !path.startsWith("./") && !path.startsWith("../") && !path.includes("/")) {
+		return null;
+	}
+
+	const absolute = path.startsWith("/") ? path : resolve(workingDirectory, path);
+
 	return normalizeAbs(absolute);
 }
 
-/**
- * Which `ask` entries a command hits. An entry without `/` or `~` is a command
- * name (matched on the segment head); one with a path is globbed against every
- * path token in the command, so a read of the per-process environ file is
- * caught whatever command performs it.
- */
-export function matchedAskCommands(command: string, askEntries: readonly string[], cwd: string, home: string): string[] {
-	const found = new Set<string>();
-	if (!askEntries.length) return [];
+export function matchedAskCommands(
+	command: string,
+	askEntries: readonly string[],
+	workingDirectory: string,
+	homeDirectory: string,
+): string[] {
+	if (!askEntries.length) {
+		return [];
+	}
+
+	const matchedEntries = new Set<string>();
+
 	for (const segment of shellSegments(command)) {
 		const tokens = shellTokens(segment);
-		const head = (tokens[0] ?? "").split("/").pop() ?? "";
+		const headCommand = (tokens[0] ?? "").split("/").pop() ?? "";
+
 		for (const entry of askEntries) {
-			if (!entry) continue;
+			if (!entry) {
+				continue;
+			}
+
 			if (entry.includes("/") || entry.startsWith("~")) {
-				for (const raw of tokens.slice(1)) {
-					const absolute = asAbsolutePath(raw, cwd, home);
-					if (absolute && matchesPolicyPattern(absolute, entry, cwd, home)) found.add(`${head} ${raw}`.trim());
+				for (const rawToken of tokens.slice(1)) {
+					const absolutePath = asAbsolutePath(rawToken, workingDirectory, homeDirectory);
+
+					if (absolutePath && matchesPolicyPattern(absolutePath, entry, workingDirectory, homeDirectory)) {
+						matchedEntries.add(`${headCommand} ${rawToken}`.trim());
+					}
 				}
-			} else if (head === entry) {
-				found.add(entry);
+			} else if (headCommand === entry) {
+				matchedEntries.add(entry);
 			}
 		}
 	}
-	return [...found];
+
+	return [...matchedEntries];
 }

@@ -5,7 +5,7 @@
  * adversarial input (no catastrophic backtracking).
  */
 
-import type { Finding } from "./types";
+import type { Finding } from "./types.ts";
 
 /**
  * Detect private keys. Bounded and linear.

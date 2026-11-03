@@ -11,8 +11,8 @@
  *     <value>
  */
 
-import { isSourceExtension } from "../filename-gate/index";
-import { isSensitiveKey, normalizeKey } from "./keys";
+import { isSourceExtension } from "../filename-gate/index.ts";
+import { isSensitiveKey, normalizeKey } from "./keys.ts";
 
 interface Operator {
   start: number;

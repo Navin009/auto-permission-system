@@ -6,7 +6,7 @@
  * Layout: one folder per core, each with an `index.ts` that defines its
  * public surface. Importers should use this barrel, not the folders.
  */
-export * from "./filename-gate/index";
-export * from "./sensitive-file-scanner/index";
-export * from "./mcp-gate/index";
-export * from "./tool-output-scanner/index";
+export * from "./filename-gate/index.ts";
+export * from "./sensitive-file-scanner/index.ts";
+export * from "./mcp-gate/index.ts";
+export * from "./tool-output-scanner/index.ts";

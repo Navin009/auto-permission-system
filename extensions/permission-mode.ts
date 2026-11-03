@@ -1,131 +1,170 @@
-/**
- * Permission-mode UI (ADR-018, ADR-020): `/permission-mode` and the persisted mode.
- * Enforces nothing; persists `mode` to the global sandbox.json. The mode is
- * reflected in the single sandbox footer chip as an icon: `🧠`
- * advanced-secure, `🔒` default, `⚠️` YOLO.
- *
- * All three modes are persisted the same way and are one menu pick. YOLO is the
- * weakest tier: every layer is off. It travels to the layers over pi's event bus
- * (`src/shared/yolo.ts`) so the switch takes effect without a restart.
- */
-
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { modeLabel, normalizeMode, setPolicyMode, type PermissionMode } from "../src/core/index";
-import { loadConfig } from "../src/l1-sandbox/config";
-import { loadPolicy } from "../src/l2-guard/policy";
-import { audit } from "../src/shared/audit";
-import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo";
+import { modeLabel, normalizeMode, setPolicyMode, type PermissionMode } from "../src/core/index.ts";
+import { loadConfig } from "../src/l1-sandbox/config.ts";
+import { loadPolicy } from "../src/l2-guard/policy.ts";
+import { audit } from "../src/shared/audit.ts";
+import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo.ts";
 
-const GLOBAL_POLICY = `${getAgentDir()}/extensions/sandbox.json`;
+const GLOBAL_POLICY_PATH = `${getAgentDir()}/extensions/sandbox.json`;
+const SELECTION_TIMEOUT_MILLISECONDS = 120_000;
+const MODE_LABEL_COLUMN_WIDTH = 26;
 
-const MODE_DEFS: Array<{
+interface ModeDefinition {
 	value: PermissionMode;
 	icon: string;
 	name: string;
-	desc: string;
-}> = [
+	description: string;
+}
+
+const MODE_DEFINITIONS: ModeDefinition[] = [
 	{
 		value: "advanced-secure",
 		icon: "🧠",
 		name: "Advanced Secure",
-		desc: "Blocks sensitive data leaks from file reads, MCP tools & command outputs",
+		description: "Blocks sensitive data leaks from file reads, MCP tools & command outputs",
 	},
 	{
 		value: "default",
 		icon: "🔒",
 		name: "Default",
-		desc: "Restricts file paths & network access at the sandbox level",
+		description: "Restricts file paths & network access at the sandbox level",
 	},
 	{
 		value: "yolo",
 		icon: "🚨",
 		name: "YOLO",
-		desc: "Turns off all file sandboxing and leak protections",
+		description: "Turns off all file sandboxing and leak protections",
 	},
 ];
 
-/**
- * The single sandbox footer chip: `Sandbox: <icon> N domains, M paths`.
- * `🧠` marks advanced-secure, `🔒` default; YOLO replaces it with the warning.
- * All three are single-code-point emoji (no U+FE0F variation selector), so
- * every terminal measures them as two cells and the padding stays even.
- * Skipped when the sandbox is off, so it never clobbers those notices.
- */
-function renderSandboxChip(ctx: ExtensionContext): void {
-	const config = loadConfig(ctx.cwd);
+function renderSandboxChip(context: ExtensionContext): void {
+	const config = loadConfig(context.cwd);
+
 	if (normalizeMode(config.mode) === "yolo") {
-		ctx.ui.setStatus("sandbox", ctx.ui.theme.fg("error", YOLO_STATUS));
+		context.ui.setStatus("sandbox", context.ui.theme.fg("error", YOLO_STATUS));
 		return;
 	}
-	if (!config.enabled) return;
-	const secure = config.mode === "advanced-secure";
-	const domains = config.network?.allowedDomains?.length ?? 0;
-	const paths = config.filesystem?.allowWrite?.length ?? 0;
-	const text = `Sandbox: ${secure ? "🧠" : "🔒"}  ${domains} domains, ${paths} paths`;
-	ctx.ui.setStatus("sandbox", ctx.ui.theme.fg(secure ? "success" : "accent", text));
+
+	if (!config.enabled) {
+		return;
+	}
+
+	const isSecureMode = config.mode === "advanced-secure";
+	const allowedDomainCount = config.network?.allowedDomains?.length ?? 0;
+	const allowedPathCount = config.filesystem?.allowWrite?.length ?? 0;
+	const modeIcon = isSecureMode ? "🧠" : "🔒";
+	const chipText = `Sandbox: ${modeIcon}  ${allowedDomainCount} domains, ${allowedPathCount} paths`;
+
+	context.ui.setStatus("sandbox", context.ui.theme.fg(isSecureMode ? "success" : "accent", chipText));
 }
 
 function modeNotice(mode: PermissionMode): { text: string; level: "info" | "warning" } {
-	if (mode === "yolo") return { text: "🚨  YOLO — all security layers disabled. Saved; new conversations start this way too.", level: "warning" };
-	if (mode === "advanced-secure") return { text: "🧠 Advanced Secure on. File reads, MCP calls, and tool output are checked for secrets.", level: "info" };
-	return { text: "🛡 Default mode. Rule-based policy only.", level: "info" };
+	if (mode === "yolo") {
+		return {
+			text: "🚨  YOLO — all security layers disabled. Saved; new conversations start this way too.",
+			level: "warning",
+		};
+	}
+
+	if (mode === "advanced-secure") {
+		return {
+			text: "🧠 Advanced Secure on. File reads, MCP calls, and tool output are checked for secrets.",
+			level: "info",
+		};
+	}
+
+	return {
+		text: "🛡 Default mode. Rule-based policy only.",
+		level: "info",
+	};
 }
 
-async function pickMode(pi: ExtensionAPI, ctx: ExtensionContext, yolo: { active: boolean }): Promise<void> {
-	const current: PermissionMode = yolo.active ? "yolo" : normalizeMode(loadPolicy(ctx.cwd).mode);
+async function pickMode(
+	pi: ExtensionAPI,
+	context: ExtensionContext,
+	yoloState: { active: boolean },
+): Promise<void> {
+	const currentMode: PermissionMode = yoloState.active
+		? "yolo"
+		: normalizeMode(loadPolicy(context.cwd).mode);
 
-	const options = MODE_DEFS.map((m) => {
-		const isActive = m.value === current;
-		const nameWithStatus = isActive ? `${m.name} (active)` : m.name;
-		const labelCol = nameWithStatus.padEnd(26);
-		return `${m.icon}  ${labelCol} —  ${m.desc}`;
+	const options = MODE_DEFINITIONS.map((definition) => {
+		const isActive = definition.value === currentMode;
+		const nameWithStatus = isActive ? `${definition.name} (active)` : definition.name;
+		const labelColumn = nameWithStatus.padEnd(MODE_LABEL_COLUMN_WIDTH);
+
+		return `${definition.icon}  ${labelColumn} —  ${definition.description}`;
 	});
 
-	const picked = await ctx.ui.select(
+	const pickedOption = await context.ui.select(
 		"Select permission mode:",
 		options,
-		{ timeout: 120_000 },
+		{ timeout: SELECTION_TIMEOUT_MILLISECONDS },
 	);
-	if (picked === undefined) return;
 
-	const pickedIndex = options.indexOf(picked);
-	const next = pickedIndex >= 0 ? MODE_DEFS[pickedIndex].value : current;
-	if (next === current) {
-		if (next === "yolo" && !yolo.active) {
-			yolo.active = true;
+	if (pickedOption === undefined) {
+		return;
+	}
+
+	const pickedIndex = options.indexOf(pickedOption);
+	const nextMode = pickedIndex >= 0 ? MODE_DEFINITIONS[pickedIndex].value : currentMode;
+
+	if (nextMode === currentMode) {
+		if (nextMode === "yolo" && !yoloState.active) {
+			yoloState.active = true;
 			emitYolo(pi.events, true);
-			audit({ layer: 0, event: "permission-mode", mode: "yolo", cwd: ctx.cwd, note: "runtime-sync" });
-			renderSandboxChip(ctx);
-			ctx.ui.notify("🚨  YOLO — all security layers disabled for this conversation.", "warning");
+
+			audit({
+				layer: 0,
+				event: "permission-mode",
+				mode: "yolo",
+				cwd: context.cwd,
+				note: "runtime-sync",
+			});
+
+			renderSandboxChip(context);
+			context.ui.notify("🚨  YOLO — all security layers disabled for this conversation.", "warning");
 			return;
 		}
-		ctx.ui.notify(`Permission mode is already ${modeLabel(next)}.`, "info");
+
+		context.ui.notify(`Permission mode is already ${modeLabel(nextMode)}.`, "info");
 		return;
 	}
 
 	try {
-		setPolicyMode(GLOBAL_POLICY, next);
-	} catch (e) {
-		ctx.ui.notify(`Could not save the permission mode: ${e instanceof Error ? e.message : e}`, "error");
+		setPolicyMode(GLOBAL_POLICY_PATH, nextMode);
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		context.ui.notify(`Could not save the permission mode: ${errorMessage}`, "error");
 		return;
 	}
-	yolo.active = next === "yolo";
-	emitYolo(pi.events, yolo.active);
-	audit({ layer: 0, event: "permission-mode", mode: next, cwd: ctx.cwd });
-	renderSandboxChip(ctx);
-	const notice = modeNotice(next);
-	ctx.ui.notify(notice.text, notice.level);
+
+	yoloState.active = nextMode === "yolo";
+	emitYolo(pi.events, yoloState.active);
+
+	audit({
+		layer: 0,
+		event: "permission-mode",
+		mode: nextMode,
+		cwd: context.cwd,
+	});
+
+	renderSandboxChip(context);
+
+	const notice = modeNotice(nextMode);
+	context.ui.notify(notice.text, notice.level);
 }
 
 export default function (pi: ExtensionAPI) {
-	const yolo = { active: false };
+	const yoloState = { active: false };
+
 	onYolo(pi.events, (enabled) => {
-		yolo.active = enabled;
+		yoloState.active = enabled;
 	});
 
 	pi.registerCommand?.("permission-mode", {
 		description: "Choose the permission mode: Default (rules), Advanced Secure (detection), or YOLO (all layers off). Saved to the global sandbox.json.",
-		handler: async (_args, ctx) => pickMode(pi, ctx, yolo),
+		handler: async (_args, context) => pickMode(pi, context, yoloState),
 	});
 }

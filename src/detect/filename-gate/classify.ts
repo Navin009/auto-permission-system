@@ -19,8 +19,8 @@ import {
   STRONG_PATH_REGEXES,
   STRONG_STEMS,
   WEAK_NAME_REGEXES,
-} from "./patterns";
-import { RISK_SCORES, type NameRisk, type NameVerdict } from "./types";
+} from "./patterns.ts";
+import { RISK_SCORES, type NameRisk, type NameVerdict } from "./types.ts";
 
 function tokensOf(value: string): Set<string> {
   return new Set(

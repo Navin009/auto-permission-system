@@ -3,7 +3,7 @@
  * the verdict types, the risk-score table, and the two entrypoints used
  * by the read scanner.
  */
-export type { NameRisk, NameVerdict } from "./types";
-export { RISK_SCORES } from "./types";
-export { SOURCE_EXTENSIONS } from "./patterns";
-export { isSourceExtension, classifyFilename } from "./classify";
+export type { NameRisk, NameVerdict } from "./types.ts";
+export { RISK_SCORES } from "./types.ts";
+export { SOURCE_EXTENSIONS } from "./patterns.ts";
+export { isSourceExtension, classifyFilename } from "./classify.ts";

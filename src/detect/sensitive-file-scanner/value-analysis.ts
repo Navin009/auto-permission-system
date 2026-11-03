@@ -3,9 +3,9 @@
  * identifier/path, or a real secret?
  */
 
-import { entropy } from "./entropy";
-import { PASSWORD_KEY_REGEX } from "./keys";
-import { COMMON_NON_SECRET_VALUES, FAKE_VALUE_REGEX } from "./patterns";
+import { entropy } from "./entropy.ts";
+import { PASSWORD_KEY_REGEX } from "./keys.ts";
+import { COMMON_NON_SECRET_VALUES, FAKE_VALUE_REGEX } from "./patterns.ts";
 
 export function isPlaceholder(value: string): boolean {
   const trimmed = value.trim();

@@ -6,14 +6,14 @@
  * every signal that raises or lowers risk.
  */
 
-import { MAX_STRING_SCAN, MCP_MAX_DEPTH, MCP_MAX_NODES } from "./constants";
+import { MAX_STRING_SCAN, MCP_MAX_DEPTH, MCP_MAX_NODES } from "./constants.ts";
 import type {
   JsonSchemaLike,
   McpClassification,
   McpFinding,
   McpSeverity,
-} from "./types";
-import { tokenize } from "./verbs";
+} from "./types.ts";
+import { tokenize } from "./verbs.ts";
 
 const FORCE_KEYS =
   /^(?:force|hard|recursive|recurse|cascade|purge|permanent|overwrite|skiptrash|no.?backup)$/;

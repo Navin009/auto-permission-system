@@ -1,0 +1,292 @@
+import { homedir } from "node:os";
+import { dirname } from "node:path";
+import {
+	askReadCandidates,
+	isSafeFolderGrant,
+	matchedAskCommands,
+	outsideProjectMode,
+	outsideProjectReadCandidates,
+} from "../core/index.ts";
+import { audit } from "../shared/audit.ts";
+import { canonicalize } from "../shared/canonicalize.ts";
+import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
+import { loadConfig, projectTrusted } from "./config.ts";
+
+export interface SandboxedBashOptions {
+	ctx?: {
+		cwd: string;
+		hasUI?: boolean;
+		ui?: {
+			select?: (title: string, options: string[], opts?: { timeout?: number }) => Promise<string | undefined>;
+			notify?: (message: string, level?: string) => void;
+		};
+	};
+	onAlways?: (absolutePath: string, scope: "cwd" | "global") => Promise<string>;
+	onAlwaysRead?: (absolutePath: string, scope: "cwd" | "global") => Promise<string>;
+}
+
+export type SandboxedBashOpts = SandboxedBashOptions;
+
+export function extractBinaryName(command: string): string {
+	return command.trim().split(/\s+/)[0] ?? command;
+}
+
+export function formatBlockedLine(action: "Read" | "Write", reason: string, outcome: "read" | "written" | "run"): string {
+	return `[Security Policy Notice] ${action} blocked by policy: ${reason}. Nothing was ${outcome}. Inform the user; do not attempt workarounds.`;
+}
+
+export const auditLayer1Bash = (entry: Record<string, unknown>) =>
+	audit({ layer: 1, tool: "bash", ...entry });
+
+export const sessionReadGrants: string[] = [];
+export const sessionWriteGrants: string[] = [];
+export const sessionAskReadGrants: string[] = [];
+
+export function clearFilesystemSessionGrants(): void {
+	sessionReadGrants.length = 0;
+	sessionWriteGrants.length = 0;
+	sessionAskReadGrants.length = 0;
+}
+
+export function filesystemSessionGrantSummary(): string {
+	const writes = sessionWriteGrants.map((entryPath) => `write:${entryPath}`);
+	const reads = sessionReadGrants.map((entryPath) => `read:${entryPath}`);
+	const askReads = sessionAskReadGrants.map((entryPath) => `askRead:${entryPath}`);
+
+	return [...writes, ...reads, ...askReads].join(", ");
+}
+
+export async function preflightSensitiveCommands(
+	command: string,
+	workingDirectory: string,
+	options: SandboxedBashOptions | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ exitCode: number } | undefined> {
+	const sensitiveCommandPatterns = loadConfig(workingDirectory).commands?.ask ?? [];
+
+	if (!sensitiveCommandPatterns.length || !options?.ctx?.hasUI || !options.ctx.ui?.select) {
+		return undefined;
+	}
+
+	const matchedCommands = matchedAskCommands(command, sensitiveCommandPatterns, workingDirectory, homedir());
+
+	if (!matchedCommands.length) {
+		return undefined;
+	}
+
+	const askContext = options.ctx as AskCtx;
+
+	const bodyLines: string[] = [
+		`Command  ${matchedCommands.join(", ")}`,
+		`Risk     environment variables often hold API keys and tokens`,
+		`Note     can only be allowed one run at a time`,
+	];
+
+	if (command.includes("\n")) {
+		bodyLines.push(`\nScript:\n${command}`);
+	}
+
+	const promptBody = bodyLines.join("\n");
+	const userChoice = await askMain(
+		askContext,
+		`Let ${matchedCommands[0]} print your environment variables?`,
+		promptBody,
+		{ once: true, remember: false, icon: "cred" },
+	);
+
+	const targetSubject = matchedCommands.join(", ");
+
+	if (userChoice === "once") {
+		auditLayer1Bash({ subject: targetSubject, decision: "once", note: "sensitive-command", cwd: workingDirectory });
+		return undefined;
+	}
+
+	auditLayer1Bash({ subject: targetSubject, decision: "no", note: "sensitive-command", cwd: workingDirectory });
+	onData(
+		Buffer.from(
+			`\n[Security Block] sandbox: command execution was denied by user: ${targetSubject}. Command was not executed.\n`,
+		),
+	);
+
+	return { exitCode: 1 };
+}
+
+export async function preflightAskReads(
+	command: string,
+	workingDirectory: string,
+	options: SandboxedBashOptions | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ exitCode: number } | undefined> {
+	const filesystemPolicy = loadConfig(workingDirectory).filesystem;
+
+	if (!filesystemPolicy?.askRead?.length) {
+		return undefined;
+	}
+
+	const candidatePaths = askReadCandidates(
+		command,
+		workingDirectory,
+		homedir(),
+		filesystemPolicy,
+		undefined,
+		(path) => canonicalize(path, workingDirectory),
+	);
+
+	if (!candidatePaths.length) {
+		return undefined;
+	}
+
+	const uniquePaths = Array.from(new Set(candidatePaths.map((path) => canonicalize(path, workingDirectory))));
+	const askContext = options?.ctx as AskCtx | undefined;
+
+	for (const absolutePath of uniquePaths) {
+		if (sessionAskReadGrants.includes(absolutePath)) {
+			continue;
+		}
+
+		if (!askContext?.hasUI || !askContext.ui?.select) {
+			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-read-headless", cwd: workingDirectory });
+			onData(
+				Buffer.from(
+					`\n[Security Block] sandbox: read access to ${absolutePath} was blocked (automated environment). Command was not executed.\n`,
+				),
+			);
+			return { exitCode: 1 };
+		}
+
+		const promptLines = [
+			`File     ${absolutePath}`,
+			`Why      .env files usually hold passwords and API keys`,
+			`Risk     the AI will see any keys in it`,
+			`Note     can't be saved as a permanent rule (it holds secrets)`,
+		];
+
+		const userChoice = await askMain(
+			askContext,
+			"Let this command read your .env file?",
+			promptLines.join("\n"),
+			{ session: true, remember: false, icon: "cred" },
+		);
+
+		if (userChoice === "once" || userChoice === "session") {
+			if (userChoice === "session") {
+				sessionAskReadGrants.push(absolutePath);
+			}
+
+			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-read", cwd: workingDirectory });
+			continue;
+		}
+
+		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-read", cwd: workingDirectory });
+		onData(
+			Buffer.from(`\n[Security Block] sandbox: read access to ${absolutePath} was denied by user. Command was not executed.\n`),
+		);
+		return { exitCode: 1 };
+	}
+
+	return undefined;
+}
+
+export async function preflightOutsideReads(
+	command: string,
+	workingDirectory: string,
+	options: SandboxedBashOptions | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ blocked: { exitCode: number } } | { once: string[] } | undefined> {
+	const filesystemPolicy = loadConfig(workingDirectory).filesystem;
+
+	if (
+		!filesystemPolicy ||
+		outsideProjectMode(filesystemPolicy) !== "ask" ||
+		!options?.ctx?.hasUI ||
+		!options.ctx.ui?.select ||
+		!options.onAlwaysRead
+	) {
+		return undefined;
+	}
+
+	const allowedOncePaths: string[] = [];
+
+	const candidatePaths = outsideProjectReadCandidates(
+		command,
+		workingDirectory,
+		homedir(),
+		filesystemPolicy,
+		undefined,
+		(path) => canonicalize(path, workingDirectory),
+	);
+
+	const uniquePaths = Array.from(new Set(candidatePaths.map((path) => canonicalize(path, workingDirectory))));
+
+	for (const absolutePath of uniquePaths) {
+		if (sessionReadGrants.includes(absolutePath)) {
+			continue;
+		}
+
+		const askContext = options.ctx as AskCtx;
+		const parentDirectory = dirname(absolutePath);
+		const folderGrant = isSafeFolderGrant(parentDirectory, homedir()) ? parentDirectory : null;
+
+		const mainPromptLines = [
+			`File     ${absolutePath}`,
+			`Command  ${command}`,
+			`Why      files outside your project need your OK`,
+		];
+
+		const rememberPromptLines = [
+			`File     ${absolutePath}`,
+			`Folder   ${parentDirectory}/`,
+			`Note     the rule works for any command, not just ${extractBinaryName(command)}`,
+		];
+
+		const { choice, grant } = await askMainWithRemember(
+			askContext,
+			"Let this command read a file outside your project?",
+			mainPromptLines.join("\n"),
+			{ session: true },
+			() =>
+				askRememberFile(
+					askContext,
+					"Always allow reading — what, and where?",
+					rememberPromptLines.join("\n"),
+					absolutePath,
+					folderGrant,
+					{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
+				),
+		);
+
+		if (choice === MainChoice.Once) {
+			auditLayer1Bash({ subject: absolutePath, decision: "once", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			allowedOncePaths.push(absolutePath);
+			continue;
+		}
+
+		if (choice === MainChoice.Session) {
+			sessionReadGrants.push(absolutePath);
+			auditLayer1Bash({ subject: absolutePath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			options.ctx.ui?.notify?.(`sandbox: allowed read of ${absolutePath} for this conversation (not saved)`, "info");
+			continue;
+		}
+
+		if (choice !== MainChoice.Remember || !grant) {
+			auditLayer1Bash({ subject: absolutePath, decision: "no", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			onData(Buffer.from(`\n${formatBlockedLine("Read", "outside the project", "run")}\n`));
+			return { blocked: { exitCode: 1 } };
+		}
+
+		const targetSubject = grant.folder ? parentDirectory : absolutePath;
+		const targetScope = grant.scope;
+
+		try {
+			const persistedPath = await options.onAlwaysRead(targetSubject, targetScope);
+			auditLayer1Bash({ subject: targetSubject, decision: targetScope === "cwd" ? "always-cwd" : "always-global", scope: targetScope, cwd: workingDirectory, persisted_to: persistedPath, note: "preflight" });
+			options.ctx.ui?.notify?.(`sandbox: allowed read of ${targetSubject} (${targetScope})`, "warning");
+		} catch (error) {
+			auditLayer1Bash({ subject: targetSubject, scope: targetScope, cwd: workingDirectory, error: String(error), note: "preflight" });
+			onData(Buffer.from(`\n❌ sandbox: could not save the permission (${error}). ${targetSubject} remains blocked.\n`));
+			return { blocked: { exitCode: 1 } };
+		}
+	}
+
+	return { once: allowedOncePaths };
+}

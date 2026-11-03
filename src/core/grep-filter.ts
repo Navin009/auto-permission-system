@@ -1,9 +1,4 @@
-/**
- * One line of pi's grep tool output: `path:N: text` for a match,
- * `path-N- text` for a context line. The separator is the same on both sides
- * of the line number, which keeps paths containing `-` or `:` parseable.
- */
-const GREP_LINE_RE = /^(.+?)([:-])(\d+)\2 /;
+const GREP_LINE_PATTERN = /^(.+?)([:-])(\d+)\2 /;
 
 export interface GrepFilterResult {
 	text: string;
@@ -11,35 +6,41 @@ export interface GrepFilterResult {
 	removedFiles: string[];
 }
 
-/**
- * Remove grep output lines that come from denied files.
- *
- * `isDenied` receives the path exactly as grep printed it (relative to the
- * search root for a directory search). Lines that are not match or context
- * lines (`--` separators, truncation notices) are kept. Decisions are cached
- * per path.
- */
-export function filterGrepOutput(text: string, isDenied: (printedPath: string) => boolean): GrepFilterResult {
-	const deniedByPath = new Map<string, boolean>();
-	const removedFiles = new Set<string>();
-	let removedLines = 0;
-	const keptLines: string[] = [];
-	for (const line of text.split("\n")) {
-		const match = GREP_LINE_RE.exec(line);
-		if (match) {
-			const printedPath = match[1];
-			let denied = deniedByPath.get(printedPath);
-			if (denied === undefined) {
-				denied = isDenied(printedPath);
-				deniedByPath.set(printedPath, denied);
+export function filterGrepOutput(
+	rawOutputText: string,
+	checkIsDenied: (printedPath: string) => boolean,
+): GrepFilterResult {
+	const denialCacheByPath = new Map<string, boolean>();
+	const removedFileNames = new Set<string>();
+	const preservedLines: string[] = [];
+
+	let removedLineCount = 0;
+
+	for (const outputLine of rawOutputText.split("\n")) {
+		const lineMatch = GREP_LINE_PATTERN.exec(outputLine);
+
+		if (lineMatch) {
+			const printedPath = lineMatch[1];
+			let isPathDenied = denialCacheByPath.get(printedPath);
+
+			if (isPathDenied === undefined) {
+				isPathDenied = checkIsDenied(printedPath);
+				denialCacheByPath.set(printedPath, isPathDenied);
 			}
-			if (denied) {
-				removedLines++;
-				removedFiles.add(printedPath);
+
+			if (isPathDenied) {
+				removedLineCount++;
+				removedFileNames.add(printedPath);
 				continue;
 			}
 		}
-		keptLines.push(line);
+
+		preservedLines.push(outputLine);
 	}
-	return { text: keptLines.join("\n"), removedLines, removedFiles: [...removedFiles] };
+
+	return {
+		text: preservedLines.join("\n"),
+		removedLines: removedLineCount,
+		removedFiles: [...removedFileNames],
+	};
 }

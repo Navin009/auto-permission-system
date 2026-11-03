@@ -14,7 +14,7 @@
  * policy explicitly opts in AND no destructive evidence exists.
  */
 
-import { MCP_DEFAULT_ASK_THRESHOLD, MCP_OPAQUE_TOOL_SCORE, MCP_UNKNOWN_BASE_SCORE } from "./constants";
+import { MCP_DEFAULT_ASK_THRESHOLD, MCP_OPAQUE_TOOL_SCORE, MCP_UNKNOWN_BASE_SCORE } from "./constants.ts";
 import {
   addFinding,
   analyzeSchema,
@@ -22,21 +22,21 @@ import {
   createState,
   isSimpleChange,
   walkArguments,
-} from "./signals";
+} from "./signals.ts";
 import type {
   McpClassification,
   McpDecision,
   McpFinding,
   McpGateInput,
   McpGateResult,
-} from "./types";
+} from "./types.ts";
 import {
   CLASSIFICATION_RANK,
   classifyDescription,
   classifyName,
   stripServerPrefix,
   tokenize,
-} from "./verbs";
+} from "./verbs.ts";
 
 export function evaluateMcpCall(input: McpGateInput): McpGateResult {
   const policy = input.policy ?? {};

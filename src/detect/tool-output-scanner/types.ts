@@ -7,7 +7,7 @@
  * tool request.
  */
 
-import type { Finding } from "../sensitive-file-scanner/index";
+import type { Finding } from "../sensitive-file-scanner/index.ts";
 
 export interface ToolOutputScanInput {
   /** The content to scan: string, object, array, or MCP result shape. */

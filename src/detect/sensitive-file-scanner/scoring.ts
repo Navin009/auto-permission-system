@@ -3,9 +3,9 @@
  * and the file gate.
  */
 
-import type { NameVerdict } from "../filename-gate/index";
-import { BASE_SCORES } from "./constants";
-import type { Finding, ReadDecision, ScanResult } from "./types";
+import type { NameVerdict } from "../filename-gate/index.ts";
+import { BASE_SCORES } from "./constants.ts";
+import type { Finding, ReadDecision, ScanResult } from "./types.ts";
 
 export function getSeverity(findingType: string): Finding["severity"] {
   if (

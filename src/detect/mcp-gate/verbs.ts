@@ -6,7 +6,7 @@
  * make the operation destructive; only a head/imperative position does.
  */
 
-import type { McpClassification } from "./types";
+import type { McpClassification } from "./types.ts";
 
 type VerbForm = "exact" | "third" | "gerund" | "past";
 

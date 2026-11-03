@@ -7,8 +7,8 @@ import {
   TOOL_OUTPUT_DEFAULT_MAX_BYTES,
   TOOL_OUTPUT_HARD_MAX_BYTES,
   TOOL_OUTPUT_MAX_NODES,
-} from "./constants";
-import type { SizeEstimate } from "./types";
+} from "./constants.ts";
+import type { SizeEstimate } from "./types.ts";
 
 export function clampLimit(value: number | undefined): number {
   const requested = value ?? TOOL_OUTPUT_DEFAULT_MAX_BYTES;

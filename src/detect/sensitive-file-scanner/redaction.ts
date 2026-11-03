@@ -6,12 +6,12 @@
  * text blob with markers.
  */
 
-import { analyzeAssignment } from "./assignment";
-import { isJwtToken, TOKEN_REGEX } from "./jwt";
-import { normalizeKey } from "./keys";
-import { KNOWN_SECRET_FORMATS } from "./patterns";
-import type { RedactedText } from "./types";
-import { looksLikeRealSecret } from "./value-analysis";
+import { analyzeAssignment } from "./assignment.ts";
+import { isJwtToken, TOKEN_REGEX } from "./jwt.ts";
+import { normalizeKey } from "./keys.ts";
+import { KNOWN_SECRET_FORMATS } from "./patterns.ts";
+import type { RedactedText } from "./types.ts";
+import { looksLikeRealSecret } from "./value-analysis.ts";
 
 /**
  * Build a preview that redacts the exact value span. The old quote-based

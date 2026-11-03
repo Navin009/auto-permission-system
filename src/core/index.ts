@@ -1,20 +1,16 @@
-/**
- * Core barrel: the pure, reusable policy logic. No pi, no OS, no UI imports.
- * Both layer adapters and the unit tests import from here.
- */
-export * from "./policy/defaults";
-export * from "./policy/domains";
-export * from "./policy/default-file";
-export * from "./policy/policy-file";
-export * from "./policy/merge";
-export * from "./policy/mode";
-export * from "./policy/overrides";
-export * from "./policy/paths";
-export * from "./policy/patterns";
-export * from "./policy/classify";
-export * from "./policy/commands";
-export * from "./policy/fence";
-export * from "./policy/subagent";
-export * from "./grep-filter";
-export * from "./trust";
-export * from "./user-named";
+export * from "./policy/defaults.ts";
+export * from "./policy/domains.ts";
+export * from "./policy/default-file.ts";
+export * from "./policy/policy-file.ts";
+export * from "./policy/merge.ts";
+export * from "./policy/mode.ts";
+export * from "./policy/overrides.ts";
+export * from "./policy/paths.ts";
+export * from "./policy/patterns.ts";
+export * from "./policy/classify.ts";
+export * from "./policy/commands.ts";
+export * from "./policy/fence.ts";
+export * from "./policy/subagent.ts";
+export * from "./grep-filter.ts";
+export * from "./trust.ts";
+export * from "./user-named.ts";

@@ -1,28 +1,18 @@
-/**
- * Ask-tier decision mapping shared by Layer 1 (network asks from the bash
- * sandbox proxy) and Layer 2 (in-process tool guards). ADR-009, ADR-010,
- * ADR-030.
- *
- * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
- * `Yes, for this conversation` / `Yes, always…`. Body uses the canonical field set
- * File / Folder / Site / Group / Command / Why / Risk / Note. Absolute-deny
- * (credentials) collapses to ONE screen with `No` preselected. Untrusted
- * project: screen 2 hides the `in this project` rows and adds a Note.
- *
- * Pure UI→decision logic: no pi, no fs, no audit. The caller supplies a
- * `ctx.ui.select`; this module only decides which option string means what.
- * The shared two-screen UI primitives live in `./ask-flow.ts`.
- */
-
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { isSafeFolderGrant, GrantScope, type OverrideKind } from "../core/index";
-import { askMainWithRemember, askRememberFile, askRememberHost, MainChoice, parentDomainWildcard, type AskCtx } from "./ask-flow";
+import { isSafeFolderGrant, GrantScope, type OverrideKind } from "../core/index.ts";
+import {
+	askMainWithRemember,
+	askRememberFile,
+	askRememberHost,
+	MainChoice,
+	parentDomainWildcard,
+	type AskCtx,
+} from "./ask-flow.ts";
 
-export type { AskCtx } from "./ask-flow";
+export type { AskCtx };
 export type { OverrideKind };
 
-/** Erasable enum for what the user picked on screen 1 and screen 2. */
 export const Decision = {
 	Yes: "yes",
 	No: "no",
@@ -33,14 +23,15 @@ export const Decision = {
 	AlwaysCwdFolder: "always-cwd-folder",
 	AlwaysGlobalFolder: "always-global-folder",
 } as const;
+
 export type Decision = (typeof Decision)[keyof typeof Decision];
 
-/** Erasable enum for which policy list an ask is about. */
 export const AskAction = {
 	Read: "read",
 	Write: "write",
 	Network: "network",
 } as const;
+
 export type AskAction = (typeof AskAction)[keyof typeof AskAction];
 
 export type AskKind = {
@@ -50,281 +41,468 @@ export type AskKind = {
 	reason: string;
 	overrideKind: OverrideKind;
 	overrideValue: string;
-	/** A read outside the project (ADR-012); only these may be allowed because the user named the path. */
 	outside?: boolean;
-	/** Absolute path as the call spelled it, before symlink resolution (/tmp vs /private/tmp). */
 	spelled?: string;
-	/** The bash command that triggered this ask (L1 only). Shown in the body as `Command`. */
 	command?: string;
-	/** True when the cwd's project sandbox.json isn't trusted (ADR-013). Screen 2 filters
-	 * `in this project` rows when true. */
 	projectTrusted?: boolean;
 };
 
-function actionOf(ask: AskKind): AskAction {
-	if (ask.overrideKind === "allowDomains") return AskAction.Network;
-	if (ask.overrideKind === "allowWrite") return AskAction.Write;
+const SYSTEM_DIRECTORIES = new Set([
+	"/etc",
+	"/var",
+	"/usr",
+	"/bin",
+	"/sbin",
+	"/boot",
+	"/lib",
+	"/lib64",
+	"/opt",
+	"/srv",
+	"/proc",
+	"/sys",
+	"/dev",
+]);
+
+function resolveActionFromAsk(askDetails: AskKind): AskAction {
+	if (askDetails.overrideKind === "allowDomains") {
+		return AskAction.Network;
+	}
+
+	if (askDetails.overrideKind === "allowWrite") {
+		return AskAction.Write;
+	}
+
 	return AskAction.Read;
 }
 
-/** Format the reason into plain, user-friendly language for non-technical users. */
-export function displayWhy(reason: string): string {
-	const raw = reason.replace(/\s*→\s*.*$/, "").trim();
+export function displayWhy(denialReason: string): string {
+	const rawReason = denialReason.replace(/\s*→\s*.*$/, "").trim();
 
-	if (raw.startsWith("absolute-deny matched")) {
-		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
-		if (pat.includes("ssh")) return `contains private SSH keys (${pat})`;
-		if (pat.includes("aws")) return `contains AWS credentials (${pat})`;
-		if (pat.includes("gnupg")) return `contains private encryption keys (${pat})`;
-		if (pat.includes("pem") || pat.includes("key")) return `contains private security keys (${pat})`;
-		if (pat.includes("auth.json")) return "holds login credentials";
-		return `contains sensitive credentials (${pat || "credentials"})`;
+	if (rawReason.startsWith("absolute-deny matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+
+		if (matchedPattern.includes("ssh")) {
+			return `contains private SSH keys (${matchedPattern})`;
+		}
+
+		if (matchedPattern.includes("aws")) {
+			return `contains AWS credentials (${matchedPattern})`;
+		}
+
+		if (matchedPattern.includes("gnupg")) {
+			return `contains private encryption keys (${matchedPattern})`;
+		}
+
+		if (matchedPattern.includes("pem") || matchedPattern.includes("key")) {
+			return `contains private security keys (${matchedPattern})`;
+		}
+
+		if (matchedPattern.includes("auth.json")) {
+			return "holds login credentials";
+		}
+
+		return `contains sensitive credentials (${matchedPattern || "credentials"})`;
 	}
 
-	if (raw.startsWith("askRead matched")) {
-		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
-		if (pat.includes(".env")) return ".env files usually hold passwords and API keys";
-		return `this file usually holds private passwords or API keys (${pat})`;
+	if (rawReason.startsWith("askRead matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+
+		if (matchedPattern.includes(".env")) {
+			return ".env files usually hold passwords and API keys";
+		}
+
+		return `this file usually holds private passwords or API keys (${matchedPattern})`;
 	}
 
-	if (raw.startsWith("denyRead matched")) {
-		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
-		if (pat.includes(".env")) return ".env files usually hold passwords and API keys";
-		return `protected by security rules from being read (${pat})`;
+	if (rawReason.startsWith("denyRead matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+
+		if (matchedPattern.includes(".env")) {
+			return ".env files usually hold passwords and API keys";
+		}
+
+		return `protected by security rules from being read (${matchedPattern})`;
 	}
 
-	if (raw.startsWith("modelDenyRead matched")) {
-		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
-		return `contains private data hidden from the AI (${pat})`;
+	if (rawReason.startsWith("modelDenyRead matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+		return `contains private data hidden from the AI (${matchedPattern})`;
 	}
 
-	if (raw.startsWith("denyWrite matched")) {
-		const pat = raw.match(/"([^"]+)"/)?.[1] ?? "";
-		return `protected file that cannot be modified (${pat})`;
+	if (rawReason.startsWith("denyWrite matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+		return `protected file that cannot be modified (${matchedPattern})`;
 	}
 
-	if (raw.includes("not under any allowWrite root") || raw.includes("not under an allowWrite root")) {
+	if (rawReason.includes("not under any allowWrite root") || rawReason.includes("not under an allowWrite root")) {
 		return "saving files outside your project workspace requires permission";
 	}
 
-	if (raw.startsWith("outside the project")) {
+	if (rawReason.startsWith("outside the project")) {
 		return "reading files outside your project folder requires permission";
 	}
 
-	if (raw.startsWith("domain not in allowlist")) {
+	if (rawReason.startsWith("domain not in allowlist")) {
 		return "this site isn't on your allowed list yet";
 	}
 
-	if (raw === "blocked by the sandbox filesystem policy") {
+	if (rawReason === "blocked by the sandbox filesystem policy") {
 		return "restricted by your project's security policy";
 	}
 
-	return raw;
+	return rawReason;
 }
 
-/** A domain reason without its `: host` suffix, so it can sit next to `Site:` without repeating it. */
-export function networkWhy(reason: string): string {
-	return reason.startsWith("domain not in allowlist") ? "this site isn't on your allowed list yet" : displayWhy(reason);
+export function networkWhy(denialReason: string): string {
+	if (denialReason.startsWith("domain not in allowlist")) {
+		return "this site isn't on your allowed list yet";
+	}
+
+	return displayWhy(denialReason);
 }
 
-/** The model-facing denial text: one pattern for every block. */
-export function denyMessage(overrideKind: OverrideKind, reason: string): string {
-	if (overrideKind === "allowDomains") return `Network blocked by policy: ${networkWhy(reason)}. Nothing was fetched \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
-	if (overrideKind === "allowWrite") return `Write blocked by policy: ${displayWhy(reason)}. Nothing was written \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
-	return `Read blocked by policy: ${displayWhy(reason)}. Nothing was read \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+export function denyMessage(overrideKind: OverrideKind, denialReason: string): string {
+	if (overrideKind === "allowDomains") {
+		return `Network blocked by policy: ${networkWhy(denialReason)}. Nothing was fetched — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+	}
+
+	if (overrideKind === "allowWrite") {
+		return `Write blocked by policy: ${displayWhy(denialReason)}. Nothing was written — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+	}
+
+	return `Read blocked by policy: ${displayWhy(denialReason)}. Nothing was read — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
 }
 
-/**
- * Render the canonical body fields (File / Folder / Site / Group / Command /
- * Why / Risk / Note). Aligns with two-space gaps so the body reads like a table.
- */
-function detailLines(ask: AskKind, action: AskAction, note?: string): string {
-	const lines: string[] = [];
+function buildDetailLines(askDetails: AskKind, action: AskAction, noteText?: string): string {
+	const detailLines: string[] = [];
+
 	if (action === AskAction.Network) {
-		const wildcard = parentDomainWildcard(ask.overrideValue);
-		lines.push(`Site     ${ask.overrideValue}`);
-		if (wildcard !== ask.overrideValue.toLowerCase()) {
-			const bare = wildcard.replace(/^\*\./, "");
-			lines.push(`Group    ${wildcard}   (every ${bare} site)`);
+		const wildcardDomain = parentDomainWildcard(askDetails.overrideValue);
+		detailLines.push(`Site     ${askDetails.overrideValue}`);
+
+		if (wildcardDomain !== askDetails.overrideValue.toLowerCase()) {
+			const rootDomain = wildcardDomain.replace(/^\*\./, "");
+			detailLines.push(`Group    ${wildcardDomain}   (every ${rootDomain} site)`);
 		}
 	} else {
-		const folder = dirname(ask.subject);
-		lines.push(`File     ${ask.subject}`);
-		if (folder !== ask.subject) lines.push(`Folder   ${folder}/`);
+		const parentFolder = dirname(askDetails.subject);
+		detailLines.push(`File     ${askDetails.subject}`);
+
+		if (parentFolder !== askDetails.subject) {
+			detailLines.push(`Folder   ${parentFolder}/`);
+		}
 	}
-	if (ask.command) lines.push(`Command  ${ask.command}`);
-	lines.push(`Why      ${action === AskAction.Network ? networkWhy(ask.reason) : displayWhy(ask.reason)}`);
-	if (note) lines.push(`Note     ${note}`);
-	return lines.join("\n");
-}
 
-/**
- * The header text per action type (no icon; caller prepends the icon).
- * Titles name the binary in the bash command (`Let composio save files in X?`,
- * `Let cat read X?`) and fall back to "this command" / "this tool" when no
- * command is set.
- */
-function headerFor(action: AskAction, subject: string, ask: AskKind): string {
-	if (action === AskAction.Network) {
-		const verb = ask.command ? firstWord(ask.command) : "this command";
-		return `Let ${verb} connect to ${ask.overrideValue}?`;
+	if (askDetails.command) {
+		detailLines.push(`Command  ${askDetails.command}`);
 	}
-	const verb = action === AskAction.Write ? "save files in" : "read";
-	const who = ask.command ? firstWord(ask.command) : `this ${action === AskAction.Write ? "command" : "tool"}`;
-	return `Let ${who} ${verb} ${subject}?`;
+
+	const reasonExplanation = action === AskAction.Network ? networkWhy(askDetails.reason) : displayWhy(askDetails.reason);
+	detailLines.push(`Why      ${reasonExplanation}`);
+
+	if (noteText) {
+		detailLines.push(`Note     ${noteText}`);
+	}
+
+	return detailLines.join("\n");
 }
 
-/**
- * Whether the parent folder of the path is unsafe to grant as a whole.
- * True for /, home, parents of home, and the system roots (etc, var, usr, ...).
- * Used to pick the ⚠ icon for screen 1 of unsafe writes.
- */
-function unsafeFolder(ask: AskKind): boolean {
-	if (ask.overrideKind === "allowDomains") return false;
-	const parent = dirname(ask.overrideValue);
-	const normalized = parent.replace(/\/$/, "");
-	if (SYSTEM_DIRS.has(normalized)) return true;
-	return !isSafeFolderGrant(parent, homedir());
-}
-
-const SYSTEM_DIRS = new Set(["/etc", "/var", "/usr", "/bin", "/sbin", "/boot", "/lib", "/lib64", "/opt", "/srv", "/proc", "/sys", "/dev"]);
-
-/**
- * The binary name in a bash command. Strips the `sudo` prefix and returns the
- * first one or two words so titles read naturally (`Let sudo tee save files in
- * X?`, `Let composio connect to X?`, `Let cat read X?`).
- */
-function firstWord(command: string): string {
+function extractBinaryOrSubject(command: string): string {
 	const words = command.trim().split(/\s+/);
-	if (words[0] === "sudo" && words[1]) return `${words[0]} ${words[1]}`;
+
+	if (words[0] === "sudo" && words[1]) {
+		return `${words[0]} ${words[1]}`;
+	}
+
 	return words[0] ?? command.trim();
 }
 
-/** Pick the icon for screen 1: 🌐 for network, ⚠ for unsafe-folder writes, 🛡 for the rest. */
-function pickIcon(action: AskAction, ask: AskKind): "net" | "warn" | "ask" {
-	if (action === AskAction.Network) return "net";
-	if (unsafeFolder(ask)) return "warn";
+function formatPromptHeader(action: AskAction, subject: string, askDetails: AskKind): string {
+	if (action === AskAction.Network) {
+		const commandBinary = askDetails.command ? extractBinaryOrSubject(askDetails.command) : "this command";
+		return `Let ${commandBinary} connect to ${askDetails.overrideValue}?`;
+	}
+
+	const actionVerb = action === AskAction.Write ? "save files in" : "read";
+	const defaultEntity = action === AskAction.Write ? "this command" : "this tool";
+	const actingEntity = askDetails.command ? extractBinaryOrSubject(askDetails.command) : defaultEntity;
+
+	return `Let ${actingEntity} ${actionVerb} ${subject}?`;
+}
+
+function isUnsafeTargetFolder(askDetails: AskKind): boolean {
+	if (askDetails.overrideKind === "allowDomains") {
+		return false;
+	}
+
+	const parentFolder = dirname(askDetails.overrideValue);
+	const normalizedPath = parentFolder.replace(/\/$/, "");
+
+	if (SYSTEM_DIRECTORIES.has(normalizedPath)) {
+		return true;
+	}
+
+	return !isSafeFolderGrant(parentFolder, homedir());
+}
+
+function selectPromptIcon(action: AskAction, askDetails: AskKind): "net" | "warn" | "ask" {
+	if (action === AskAction.Network) {
+		return "net";
+	}
+
+	if (isUnsafeTargetFolder(askDetails)) {
+		return "warn";
+	}
+
 	return "ask";
 }
 
-/** Body for the absolute-deny credential screen (one-shot). */
-function credentialBody(ask: AskKind, action: AskAction, risk: string, note: string): string {
-	const lines: string[] = [];
+function formatCredentialBody(askDetails: AskKind, action: AskAction, riskDescription: string, noteDescription: string): string {
+	const bodyLines: string[] = [];
+
 	if (action !== AskAction.Network) {
-		const folder = action === AskAction.Write ? dirname(ask.subject) : null;
-		lines.push(`File     ${ask.subject}`);
-		if (folder && folder !== ask.subject) lines.push(`Folder   ${folder}/`);
-		if (ask.command) lines.push(`Command  ${ask.command}`);
-	}
-	lines.push(`Risk     ${risk}`);
-	lines.push(`Note     ${note}`);
-	return lines.join("\n");
-}
+		const parentFolder = action === AskAction.Write ? dirname(askDetails.subject) : null;
+		bodyLines.push(`File     ${askDetails.subject}`);
 
-/**
- * Single-screen credential ask. The "No" option is preselected on Enter so the
- * default action stays block; the Risk line in the body is what makes the
- * decision reversible — the user has to ↓ then Enter to approve.
- */
-export async function askDecision(ctx: AskCtx, ask: AskKind, absoluteDenyPattern: string | null): Promise<Decision> {
-	if (ctx.hasUI === false) return Decision.No;
-	const action = actionOf(ask);
+		if (parentFolder && parentFolder !== askDetails.subject) {
+			bodyLines.push(`Folder   ${parentFolder}/`);
+		}
 
-	if (absoluteDenyPattern) {
-		const subject = credentialLabel(ask.subject);
-		const risk = credentialRisk(ask.subject, action);
-		const note = "can only be allowed for one read at a time";
-		const header = `Let this ${action} read your ${subject}?`;
-		const body = credentialBody(ask, action, risk, note);
-		const options = ["No   (recommended)", "Yes, allow this one read"];
-		const { picked } = await askSelectSafe(ctx, header, body, options, { icon: "cred" });
-		return picked === options[1] ? Decision.Yes : Decision.No;
+		if (askDetails.command) {
+			bodyLines.push(`Command  ${askDetails.command}`);
+		}
 	}
 
-	const header = headerFor(action, ask.subject, ask);
-	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
-	const untrusted = ask.projectTrusted === false;
-	const mainOpts = {
-		session: true,
-		sessionLabel,
-		allowFirst: action === AskAction.Network,
-		icon: pickIcon(action, ask),
-	};
+	bodyLines.push(`Risk     ${riskDescription}`);
+	bodyLines.push(`Note     ${noteDescription}`);
 
-	if (action === AskAction.Network) {
-		const host = ask.overrideValue;
-		const wildcard = parentDomainWildcard(host);
-		const { choice, grant } = await askMainWithRemember(ctx, header, detailLines(ask, action), mainOpts, async () => {
-			const body: string[] = [];
-			body.push(`Site     ${host}`);
-			if (wildcard !== host.toLowerCase()) {
-				const bare = wildcard.replace(/^\*\./, "");
-				body.push(`Group    ${wildcard}   (every ${bare} site)`);
-			}
-			body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
-			if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-			return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted });
-		});
-		if (choice === MainChoice.Block) return Decision.No;
-		if (choice === MainChoice.Once) return Decision.Yes;
-		if (choice === MainChoice.Session) return Decision.Session;
-		if (!grant) return Decision.No;
-		return grant.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
+	return bodyLines.join("\n");
+}
+
+function getCredentialLabel(subjectPath: string): string {
+	if (subjectPath.endsWith(".ssh/id_rsa") || subjectPath.endsWith(".ssh/id_ed25519")) {
+		return "SSH private key";
 	}
 
-	const parent = dirname(ask.subject);
-	const { choice, grant } = await askMainWithRemember(ctx, header, detailLines(ask, action), mainOpts, async () => {
-		const body: string[] = [];
-		body.push(`File     ${ask.subject}`);
-		if (parent !== ask.subject) body.push(`Folder   ${parent}/`);
-		body.push(`Note     the rule works for any command, not just ${firstWord(ask.command ?? "this one")}`);
-		if (untrusted) body.push(`Note     this project isn't trusted \u2014 run /security trust to save rules here`);
-		const title = `Always allow ${action === AskAction.Write ? "saving" : "reading"} \u2014 what, and where?`;
-		return askRememberFile(ctx, title, body.join("\n"), ask.subject, parent, { icon: "save", untrusted });
-	});
-	if (choice === MainChoice.Block) return Decision.No;
-	if (choice === MainChoice.Once) return Decision.Yes;
-	if (choice === MainChoice.Session) return Decision.Session;
-	if (!grant) return Decision.No;
-	if (grant.scope === GrantScope.Cwd) return grant.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;
-	return grant.folder ? Decision.AlwaysGlobalFolder : Decision.AlwaysGlobal;
-}
+	if (subjectPath.includes("/.aws/credentials")) {
+		return "AWS credentials file";
+	}
 
-/** Wraps askSelect with the icon prefix and footer — used by the single-screen credential flow. */
-async function askSelectSafe(
-	ctx: AskCtx,
-	header: string,
-	body: string,
-	labels: string[],
-	options: { icon?: "ask" | "warn" | "cred" | "net" | "save" },
-): Promise<{ picked: string | undefined; expired: boolean }> {
-	const { askSelect, ICON } = await import("./ask-flow");
-	const icon = options.icon ? ICON[options.icon] : undefined;
-	const iconPrefix = icon ? `${icon}  ` : "";
-	const title = [iconPrefix + header, body].filter(Boolean).join("\n");
-	return askSelect(ctx, title, labels, undefined, { footer: "Default: No" });
-}
+	if (subjectPath.includes("/.gnupg/")) {
+		return "GPG key";
+	}
 
-/** A short, recognizable name for a credential path so the title stays readable. */
-function credentialLabel(subject: string): string {
-	if (subject.endsWith(".ssh/id_rsa") || subject.endsWith(".ssh/id_ed25519")) return "SSH private key";
-	if (subject.includes("/.aws/credentials")) return "AWS credentials file";
-	if (subject.includes("/.gnupg/")) return "GPG key";
-	if (subject.endsWith(".pem") || subject.endsWith(".key")) return "private key file";
-	if (subject.includes("/mcp.json")) return "MCP settings file";
-	if (subject.includes("/.netrc")) return "netrc file";
-	if (subject.includes("/.npmrc")) return "npmrc file";
-	if (subject.endsWith(".env") || subject.includes("/.env.")) return ".env file";
+	if (subjectPath.endsWith(".pem") || subjectPath.endsWith(".key")) {
+		return "private key file";
+	}
+
+	if (subjectPath.includes("/mcp.json")) {
+		return "MCP settings file";
+	}
+
+	if (subjectPath.includes("/.netrc")) {
+		return "netrc file";
+	}
+
+	if (subjectPath.includes("/.npmrc")) {
+		return "npmrc file";
+	}
+
+	if (subjectPath.endsWith(".env") || subjectPath.includes("/.env.")) {
+		return ".env file";
+	}
+
 	return "credential file";
 }
 
-/** A risk sentence per credential type — used in the body of the credential prompt. */
-function credentialRisk(subject: string, action: AskAction): string {
-	if (subject.includes("/.ssh/")) return "anyone with this key can log in to your servers as you";
-	if (subject.includes("/.aws/")) return "AWS keys let you act as that IAM user";
-	if (subject.includes("/.gnupg/")) return "GPG keys let you sign or decrypt as that identity";
-	if (subject.includes("/mcp.json")) return "it holds API keys for your MCP servers";
-	if (subject.includes("/.netrc")) return "it holds plaintext credentials for git, ftp, curl";
-	if (subject.endsWith(".pem") || subject.endsWith(".key")) return "this is a private key in PEM format";
-	return action === AskAction.Write ? "writing here can change credential material" : "reading here exposes credential material";
+function getCredentialRisk(subjectPath: string, action: AskAction): string {
+	if (subjectPath.includes("/.ssh/")) {
+		return "anyone with this key can log in to your servers as you";
+	}
+
+	if (subjectPath.includes("/.aws/")) {
+		return "AWS keys let you act as that IAM user";
+	}
+
+	if (subjectPath.includes("/.gnupg/")) {
+		return "GPG keys let you sign or decrypt as that identity";
+	}
+
+	if (subjectPath.includes("/mcp.json")) {
+		return "it holds API keys for your MCP servers";
+	}
+
+	if (subjectPath.includes("/.netrc")) {
+		return "it holds plaintext credentials for git, ftp, curl";
+	}
+
+	if (subjectPath.endsWith(".pem") || subjectPath.endsWith(".key")) {
+		return "this is a private key in PEM format";
+	}
+
+	return action === AskAction.Write
+		? "writing here can change credential material"
+		: "reading here exposes credential material";
+}
+
+async function askSelectSafe(
+	context: AskCtx,
+	headerText: string,
+	bodyText: string,
+	choiceLabels: string[],
+	options: { icon?: "ask" | "warn" | "cred" | "net" | "save" },
+): Promise<{ picked: string | undefined; expired: boolean }> {
+	const { askSelect, ICON } = await import("./ask-flow.ts");
+	const iconSymbol = options.icon ? ICON[options.icon] : undefined;
+	const iconPrefix = iconSymbol ? `${iconSymbol}  ` : "";
+	const combinedTitle = [iconPrefix + headerText, bodyText].filter(Boolean).join("\n");
+
+	return askSelect(context, combinedTitle, choiceLabels, undefined, { footer: "Default: No" });
+}
+
+export async function askDecision(
+	context: AskCtx,
+	askDetails: AskKind,
+	absoluteDenyPattern: string | null,
+): Promise<Decision> {
+	if (context.hasUI === false) {
+		return Decision.No;
+	}
+
+	const action = resolveActionFromAsk(askDetails);
+
+	if (absoluteDenyPattern) {
+		const subjectName = getCredentialLabel(askDetails.subject);
+		const riskDescription = getCredentialRisk(askDetails.subject, action);
+		const noteDescription = "can only be allowed for one read at a time";
+		const promptHeader = `Let this ${action} read your ${subjectName}?`;
+		const promptBody = formatCredentialBody(askDetails, action, riskDescription, noteDescription);
+		const promptOptions = ["No   (recommended)", "Yes, allow this one read"];
+
+		const { picked } = await askSelectSafe(context, promptHeader, promptBody, promptOptions, { icon: "cred" });
+		return picked === promptOptions[1] ? Decision.Yes : Decision.No;
+	}
+
+	const promptHeader = formatPromptHeader(action, askDetails.subject, askDetails);
+	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
+	const isUntrustedProject = askDetails.projectTrusted === false;
+
+	const mainDialogOptions = {
+		session: true,
+		sessionLabel,
+		allowFirst: action === AskAction.Network,
+		icon: selectPromptIcon(action, askDetails),
+	};
+
+	if (action === AskAction.Network) {
+		const targetHostname = askDetails.overrideValue;
+		const wildcardDomain = parentDomainWildcard(targetHostname);
+
+		const { choice, grant } = await askMainWithRemember(
+			context,
+			promptHeader,
+			buildDetailLines(askDetails, action),
+			mainDialogOptions,
+			() => {
+				const rememberLines: string[] = [];
+				rememberLines.push(`Site     ${targetHostname}`);
+
+				if (wildcardDomain !== targetHostname.toLowerCase()) {
+					const rootDomain = wildcardDomain.replace(/^\*\./, "");
+					rememberLines.push(`Group    ${wildcardDomain}   (every ${rootDomain} site)`);
+				}
+
+				const commandName = extractBinaryOrSubject(askDetails.command ?? "this one");
+				rememberLines.push(`Note     the rule works for any command, not just ${commandName}`);
+
+				if (isUntrustedProject) {
+					rememberLines.push("Note     this project isn't trusted — run /security trust to save rules here");
+				}
+
+				return askRememberHost(
+					context,
+					"Always allow connecting — what, and where?",
+					rememberLines.join("\n"),
+					targetHostname,
+					{ icon: "save", untrusted: isUntrustedProject },
+				);
+			},
+		);
+
+		if (choice === MainChoice.Block) {
+			return Decision.No;
+		}
+
+		if (choice === MainChoice.Once) {
+			return Decision.Yes;
+		}
+
+		if (choice === MainChoice.Session) {
+			return Decision.Session;
+		}
+
+		if (!grant) {
+			return Decision.No;
+		}
+
+		return grant.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
+	}
+
+	const parentFolder = dirname(askDetails.subject);
+
+	const { choice, grant } = await askMainWithRemember(
+		context,
+		promptHeader,
+		buildDetailLines(askDetails, action),
+		mainDialogOptions,
+		() => {
+			const rememberLines: string[] = [];
+			rememberLines.push(`File     ${askDetails.subject}`);
+
+			if (parentFolder !== askDetails.subject) {
+				rememberLines.push(`Folder   ${parentFolder}/`);
+			}
+
+			const commandName = extractBinaryOrSubject(askDetails.command ?? "this one");
+			rememberLines.push(`Note     the rule works for any command, not just ${commandName}`);
+
+			if (isUntrustedProject) {
+				rememberLines.push("Note     this project isn't trusted — run /security trust to save rules here");
+			}
+
+			const actionVerb = action === AskAction.Write ? "saving" : "reading";
+			const titleText = `Always allow ${actionVerb} — what, and where?`;
+
+			return askRememberFile(
+				context,
+				titleText,
+				rememberLines.join("\n"),
+				askDetails.subject,
+				parentFolder,
+				{ icon: "save", untrusted: isUntrustedProject },
+			);
+		},
+	);
+
+	if (choice === MainChoice.Block) {
+		return Decision.No;
+	}
+
+	if (choice === MainChoice.Once) {
+		return Decision.Yes;
+	}
+
+	if (choice === MainChoice.Session) {
+		return Decision.Session;
+	}
+
+	if (!grant) {
+		return Decision.No;
+	}
+
+	if (grant.scope === GrantScope.Cwd) {
+		return grant.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;
+	}
+
+	return grant.folder ? Decision.AlwaysGlobalFolder : Decision.AlwaysGlobal;
 }
