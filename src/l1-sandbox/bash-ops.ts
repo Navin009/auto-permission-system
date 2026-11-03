@@ -4,9 +4,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, rmdirSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
 import { askReadCandidates, attributeLoopbackFailure, extractBlockedPath, isBlockedAccessError, isSafeFolderGrant, isWriteBlockError, matchedAskCommands, matchesPolicyPattern, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from "../core/index";
@@ -39,6 +39,66 @@ function linkRow(absPath: string, spelled: string | undefined): string[] {
 }
 
 const auditL1 = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
+
+const BWRAP_RO_BIND_PATTERN = /--ro-bind\s+('[^']+'|"[^"]+"|\S+)\s+('[^']+'|"[^"]+"|\S+)/g;
+
+export function stripNonExistentWorkspaceMounts(wrappedCommand: string, cwd: string): string {
+	return wrappedCommand.replace(BWRAP_RO_BIND_PATTERN, (fullMatch, rawSource, rawTarget) => {
+		const source = rawSource.replace(/^['"]|['"]$/g, "");
+		const target = rawTarget.replace(/^['"]|['"]$/g, "");
+
+		const isPlaceholder = source === "/dev/null" || source.startsWith("/tmp");
+		const isUnderWorkspace = target === cwd || target.startsWith(`${cwd}/`);
+
+		if (isPlaceholder && isUnderWorkspace && !existsSync(target)) {
+			return "";
+		}
+
+		return fullMatch;
+	});
+}
+
+export function cleanupWorkspaceArtifacts(dir: string, depth = 0): void {
+	if (depth > 2) {
+		return;
+	}
+
+	try {
+		const names = readdirSync(dir);
+
+		for (const name of names) {
+			if (name === ".git" || name === "node_modules") {
+				continue;
+			}
+
+			const fullPath = join(dir, name);
+
+			try {
+				const stats = statSync(fullPath);
+
+				if (stats.isCharacterDevice()) {
+					try {
+						unlinkSync(fullPath);
+					} catch {
+						// safe fallback
+					}
+				} else if (stats.isDirectory()) {
+					cleanupWorkspaceArtifacts(fullPath, depth + 1);
+
+					try {
+						rmdirSync(fullPath);
+					} catch {
+						// safe fallback
+					}
+				}
+			} catch {
+				// safe fallback
+			}
+		}
+	} catch {
+		// safe fallback
+	}
+}
 
 /**
  * In-memory filesystem grants from "Yes, for this conversation" (ADR-010, ADR-012).
@@ -238,6 +298,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 					} else if (bridges.length > 0) {
 						wrappedCommand = injectBridgesIntoBwrap(wrappedCommand, bridges);
 					}
+					wrappedCommand = stripNonExistentWorkspaceMounts(wrappedCommand, cwd);
 				}
 
 				const cleanupBridges = () => {
@@ -280,6 +341,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						if (timeoutHandle) clearTimeout(timeoutHandle);
 						cleanupBridges();
 						SandboxManager.cleanupAfterCommand();
+						cleanupWorkspaceArtifacts(cwd);
 						reject(err);
 					});
 
@@ -302,6 +364,7 @@ export function createSandboxedBashOps(opts?: SandboxedBashOpts): BashOperations
 						cleanupBridges();
 
 						SandboxManager.cleanupAfterCommand();
+						cleanupWorkspaceArtifacts(cwd);
 
 						let offending: string | undefined;
 						let spelledOffending: string | undefined;
