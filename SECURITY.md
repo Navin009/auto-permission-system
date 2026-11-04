@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-03T10:06:06.303Z
+Generated: 2026-11-04T18:39:14.324Z
 
 ## At a glance
 
@@ -30,11 +30,11 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 317 lines, mtime 2026-11-03
-- ✓ `src/l1-sandbox/` — dir, mtime 2026-11-03
-- ✓ `src/core/` — dir, mtime 2026-10-13
-- ✓ `src/shared/` — dir, mtime 2026-10-11
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 57 lines, mtime 2026-11-02
+- ✓ `extensions/sandbox.ts` — 317 lines, mtime 2026-11-04
+- ✓ `src/l1-sandbox/` — dir, mtime 2026-11-04
+- ✓ `src/core/` — dir, mtime 2026-11-04
+- ✓ `src/shared/` — dir, mtime 2026-11-04
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-11-04
 
 **Tests**
 
@@ -65,12 +65,12 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 273 lines, mtime 2026-11-03
-- ✓ `extensions/permission-mode.ts` — 171 lines, mtime 2026-11-03
-- ✓ `src/l2-guard/` — dir, mtime 2026-11-03
-- ✓ `src/detect/` — dir, mtime 2026-10-07
-- ✓ `src/core/` — dir, mtime 2026-10-13
-- ✓ `src/shared/` — dir, mtime 2026-10-11
+- ✓ `extensions/guard.ts` — 273 lines, mtime 2026-11-04
+- ✓ `extensions/permission-mode.ts` — 171 lines, mtime 2026-11-04
+- ✓ `src/l2-guard/` — dir, mtime 2026-11-04
+- ✓ `src/detect/` — dir, mtime 2026-11-04
+- ✓ `src/core/` — dir, mtime 2026-11-04
+- ✓ `src/shared/` — dir, mtime 2026-11-04
 
 **Tests**
 
@@ -137,7 +137,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 57 lines, mtime 2026-11-02
+- Global: `~/.pi/agent/extensions/sandbox.json` — 4 lines, mtime 2026-11-04
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 

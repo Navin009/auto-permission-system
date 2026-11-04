@@ -167,7 +167,6 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 
 						cleanupBridges();
 						SandboxManager.cleanupAfterCommand();
-						cleanupWorkspaceArtifacts(workingDirectory);
 						reject(error);
 					});
 
@@ -194,7 +193,6 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 						cleanupBridges();
 
 						SandboxManager.cleanupAfterCommand();
-						cleanupWorkspaceArtifacts(workingDirectory);
 
 						const outcome = await handleBlockedBashExecution({
 							exitCode,

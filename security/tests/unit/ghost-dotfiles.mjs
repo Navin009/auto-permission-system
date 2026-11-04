@@ -1,8 +1,10 @@
 // Verify suppression of ghost dotfiles in memory (src/l1-sandbox/manager.ts).
 import { suppressGhostDotfiles } from '../../../src/l1-sandbox/manager.ts';
-import { stripNonExistentWorkspaceMounts } from '../../../src/l1-sandbox/bash-ops.ts';
+import { stripNonExistentWorkspaceMounts, cleanupWorkspaceArtifacts } from '../../../src/l1-sandbox/bash-ops.ts';
 import { DANGEROUS_FILES, DANGEROUS_DIRECTORIES } from '@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js';
 import { SandboxManager } from '@anthropic-ai/sandbox-runtime';
+import { mkdirSync, existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => {
@@ -55,6 +57,20 @@ const stripped = stripNonExistentWorkspaceMounts(mockBwrap, fakeCwd);
 check('strip removes /dev/null bind for non-existent .claude', !stripped.includes(`${fakeCwd}/.claude`));
 check('strip removes /dev/null bind for non-existent .gitconfig', !stripped.includes(`${fakeCwd}/.gitconfig`));
 check('strip preserves real system bind /usr', stripped.includes('--ro-bind /usr /usr'));
+
+// Verify cleanupWorkspaceArtifacts never deletes empty workspace directories
+const testDir = join('/tmp', `aps-test-preserve-dirs-${Date.now()}`);
+try {
+	mkdirSync(join(testDir, 'src', 'components'), { recursive: true });
+	mkdirSync(join(testDir, 'docs'), { recursive: true });
+
+	cleanupWorkspaceArtifacts(testDir);
+
+	check('cleanupWorkspaceArtifacts preserves empty subdirectories', existsSync(join(testDir, 'src', 'components')));
+	check('cleanupWorkspaceArtifacts preserves empty top-level directories', existsSync(join(testDir, 'docs')));
+} finally {
+	rmSync(testDir, { recursive: true, force: true });
+}
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

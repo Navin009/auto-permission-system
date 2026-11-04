@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, rmdirSync, statSync, unlinkSync, type Stats } from "node:fs";
+import { existsSync, readdirSync, statSync, unlinkSync, type Stats } from "node:fs";
 import { join } from "node:path";
 
 const BWRAP_READ_ONLY_BIND_PATTERN = /--ro-bind\s+('[^']+'|"[^"]+"|\S+)\s+('[^']+'|"[^"]+"|\S+)/g;
@@ -28,14 +28,6 @@ function removeOrphanedDevice(devicePath: string): void {
 	}
 }
 
-function removeEmptyDirectory(directoryPath: string): void {
-	try {
-		rmdirSync(directoryPath);
-	} catch {
-		// safe fallback
-	}
-}
-
 function processDirectoryEntry(entryPath: string, currentDepth: number): void {
 	let entryStats: Stats;
 
@@ -50,9 +42,8 @@ function processDirectoryEntry(entryPath: string, currentDepth: number): void {
 		return;
 	}
 
-	if (entryStats.isDirectory()) {
+	if (entryStats.isDirectory() && currentDepth < MAXIMUM_ARTIFACT_CLEANUP_DEPTH) {
 		cleanupWorkspaceArtifacts(entryPath, currentDepth + 1);
-		removeEmptyDirectory(entryPath);
 	}
 }
 
