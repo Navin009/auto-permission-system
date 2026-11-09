@@ -24,9 +24,11 @@ export async function checkReadAccess(
 	const canonicalPath = canonicalize(rawPath, context.cwd);
 
 	let denialReason = isDeniedRead(rawPath, context.cwd, policy);
+	let isAskReadHit = false;
 
 	if (!denialReason) {
 		denialReason = isAskRead(rawPath, context.cwd, policy);
+		isAskReadHit = denialReason !== null;
 	}
 
 	let isOutsideProject = false;
@@ -69,6 +71,7 @@ export async function checkReadAccess(
 			overrideValue: canonicalPath,
 			outside: isOutsideProject,
 			spelled: spelledPath,
+			credentialOnly: isAskReadHit,
 		},
 		isAbsoluteDeny(canonicalPath, context.cwd),
 	);

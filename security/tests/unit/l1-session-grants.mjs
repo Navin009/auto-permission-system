@@ -150,11 +150,45 @@ check("askRead conversation grant audited", auditLog.includes('"decision":"sessi
 		},
 	});
 	const output = [];
-	r = await execRemember.exec("touch REMEMBER-PROBE", cwd, { onData: (chunk) => output.push(chunk.toString()), signal: undefined, timeout: 10 });
+	r = await execRemember.exec(`touch '${target}' REMEMBER-PROBE`, cwd, { onData: (chunk) => output.push(chunk.toString()), signal: undefined, timeout: 10 });
 	check("remember re-runs the command", r.exitCode === 0, `exit=${r.exitCode}`);
 	check("remember persisted one grant", persisted.length === 1, JSON.stringify(persisted));
 	check("remember announces the outcome, not a retry", output.join("").includes("Command output with the new permission follows") && !/retry the bash command|re-running the command/i.test(output.join("")), output.join(""));
 	check("remember hides the stale block hint", !output.join("").includes("filesystem access blocked"), output.join(""));
+}
+
+{
+	const forgedPrompts = [];
+	const forgedCtx = {
+		cwd,
+		hasUI: true,
+		ui: {
+			select: async (_title, options) => {
+				forgedPrompts.push(options);
+				return options.find((option) => option === "Yes, always\u2026") ?? options[0];
+			},
+			notify: () => {},
+		},
+	};
+	const forgedPersisted = [];
+	const execForged = createSandboxedBashOps({
+		ctx: forgedCtx,
+		onAlways: async (absPath, scope) => {
+			forgedPersisted.push([absPath, scope]);
+			return "/tmp/sandbox.json";
+		},
+		onAlwaysRead: async (absPath, scope) => {
+			forgedPersisted.push([absPath, scope]);
+			return "/tmp/sandbox.json";
+		},
+	});
+	r = await execForged.exec("touch UNNAMED-PROBE", cwd, { onData: () => {}, signal: undefined, timeout: 10 });
+	check("a path the command never named offers no permanent grant", forgedPersisted.length === 0, JSON.stringify(forgedPersisted));
+	check(
+		"a path the command never named hides the always option",
+		(forgedPrompts.at(-1) ?? []).every((option) => !String(option).startsWith("Yes, always")),
+		JSON.stringify(forgedPrompts.at(-1) ?? []),
+	);
 }
 
 {

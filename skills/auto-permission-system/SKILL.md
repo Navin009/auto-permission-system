@@ -34,7 +34,7 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 ## Policy files
 
 Merged in order (later wins):
-1. `sandbox.default.json` — shipped baseline (`outsideProject.read: "ask"`, full `denyRead`/`denyWrite`, `modelDenyRead`)
+1. `sandbox.default.json` — shipped baseline: credential folders hard-denied on read (`~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.gnupg`, `~/.kube`, `~/.pi/agent`), secret files hard-denied on write (`.env`, `.env.*`, `*.pem`, `*.key`, `~/.ssh`, `~/.gnupg`, `~/.pi/agent`), and `outsideProject.read: "allow"` (so `sandbox.claude.json` is what turns the boundary on)
 2. `sandbox.claude.json` — shipped Claude Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
 3. `~/.pi/agent/extensions/sandbox.json` — global user policy
 4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
@@ -54,11 +54,12 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "strictAllowlist": false               // true = deny unknown hosts instead of asking
   },
   "filesystem": {
-    "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block (defaults add ~/.aws, ~/.gnupg)
-    "askRead": [".env", ".env.*"],  // Layer 1 + 2: ask before reading (ADR-019)
+    "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block, no prompt (the shipped list also has ~/.aws, ~/.azure, ~/.config/gcloud, ~/.gnupg, ~/.kube)
+    "askRead": [".env", ".env.*"],  // Layer 1 + 2: ask before reading (ADR-019). One read at a time, never remembered (ADR-046)
     "modelDenyRead": ["~/.netrc"],    // Layer 2 only: model read blocked, subprocesses ok
     "allowWrite": [".", "/tmp"],      // Layer 2: write only inside these
-    "denyWrite": [".env", "*.pem"]   // Layer 1 + 2: always blocked
+    "denyWrite": [".env", "*.pem"],  // Layer 1 + 2: always blocked, no prompt (the shipped list also has `~/.ssh`, `~/.gnupg`, `~/.pi/agent`)
+    "askWrite": [".env", "~/.bashrc"] // Layer 1 + 2: ask before writing (ADR-045)
   },
   "subagent": { "network": "allow" },
   "mcp": {                           // Advanced Secure MCP gate tuning (ADR-032)
@@ -70,7 +71,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "askThreshold": 30                // risk score at which a call asks (lower = stricter)
   },
   "commands": {
-    "ask": ["printenv", "env", "/proc/*/environ"]  // bash: ask before these (they can print env tokens)
+    "ask": ["printenv", "env", "/proc/**/environ"]  // bash: ask before these (they can print env tokens). Shell wrappers are traversed, so `sh -c printenv` and `bash -c 'printenv'` are caught too
   },
   "overrides": {                      // written by ask-tier prompts or manual edits
     "allowRead": [],
@@ -79,6 +80,10 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
   }
 }
 ```
+
+## Path spellings
+
+Both layers normalise a spelled path the same way pi's own tools do before matching it (ADR-044): `~` / `~/x` expand to the home folder, one leading `@` is dropped, a `file://` URL becomes its path, and Unicode spaces fold. So `read ~/.ssh/id_rsa`, `read file:///home/me/.aws/config` and `read @/etc/passwd` are matched exactly like the absolute spelling — a rule cannot be walked past by spelling the same file differently. Relative or bare patterns (`.env`, `*.pem`) still match the file name anywhere.
 
 ## Absolute-deny tier
 
@@ -90,7 +95,7 @@ A project `.pi/sandbox.json` applies in full only after the user trusted its exa
 
 ## Reads outside the project
 
-`filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. Both layers enforce it. Layer 2 prompts (or blocks headless). Layer 1 fences the home dir for `bash`; because the OS layer cannot prompt mid-command, `"ask"` pre-flights the command (ADR-015): if it plainly names an outside path (a read-like command such as `ls`, `cat`, `find`, `grep`), you are prompted **before** it runs — `yes — this once` runs it once without saving, the `always` options persist the grant, and deny means the command does not run and you get an explicit refusal, never a silently trimmed listing. Reads the pre-flight cannot see (variable expansion, nested shells, scripts) still fall back to the fence and stay masked. The project, `allowWrite` roots, `outsideProject.allowRead` and pi's own package never ask — but `~/.pi/agent` is **not** exempt as a whole (it is in the default `denyRead`; `auth.json` stays absolute-denied), which is why `outsideProject.allowRead` explicitly re-allows `~/.pi/agent/install` and `~/.pi/agent/npm`. In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.
+`filesystem.outsideProject.read` is `"allow"` (default), `"ask"` or `"deny"`, with `filesystem.outsideProject.allowRead` for roots that never ask. Both layers enforce it. Layer 2 prompts (or blocks headless). Layer 1 fences the home dir for `bash`; because the OS layer cannot prompt mid-command, `"ask"` pre-flights the command (ADR-015): if it plainly names an outside path, you are prompted **before** it runs — `yes — this once` runs it once without saving, the `always` options persist the grant, and deny means the command does not run and you get an explicit refusal, never a silently trimmed listing. The pre-flight parses the shell rather than a short list of command names (ADR-045): shell wrappers (`sh -c`, `sudo`, `env`, `xargs`), command substitutions, globs (`cat .e*`), interpreter arguments (`node -e "…'.env'…"`) and folders named by a recursive search (`grep -r KEY .`) all contribute candidates. A path built at runtime (variable expansion, a compiled helper, a script file) is still invisible to it and falls back to the fence. The `always` rows are only offered when the command itself names the path; a grant target recovered from error output can be allowed once or for the conversation, never saved (ADR-046), and protected folders (`~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.pi`, `~/.config`, system dirs) are never offered as folder grants. The project, `allowWrite` roots, `outsideProject.allowRead` and pi's own package never ask — but `~/.pi/agent` is **not** exempt as a whole (it is in the default `denyRead`; `auth.json` stays absolute-denied), which is why `outsideProject.allowRead` explicitly re-allows `~/.pi/agent/install` and `~/.pi/agent/npm`. In interactive sessions a read of a path the user named in full (`/…` or `~/…`) in their own message runs once without a prompt (audited as `user-named`). If you need a file outside the project, name its full path when you ask the user, so their reply unlocks it. Headless runs block outside reads unless `allowRead` covers them.
 
 ## Ask-tier prompt options
 
@@ -105,7 +110,7 @@ When a normal (non-absolute-deny) call is blocked:
 
 A **network** (domain) ask keeps the same rows, but the *unanswered* default flips (ADR-024): the footer reads `Default: Yes, just this once (15s)`, and a countdown that runs out counts as **allow once for this bash command**. `No` is still preselected (Enter blocks) and Esc still denies. A domain in `deniedDomains` (or `network.strictAllowlist: true`) never prompts.
 
-For a Layer 1 bash **write** blocked after the command already ran, `yes — this once` re-runs the command once with the offending path's parent folder allowed for that invocation only (never saved); the same folder is not offered again within that invocation, and `denyWrite` still wins over the grant. The block is recognized from the error output either way it is reported — `EPERM`/`Operation not permitted` on macOS, `EROFS`/`Read-only file system` on Linux (ADR-022) — and a refused write is never offered as a read grant. If the output never names the operand, there is nothing to attribute and no prompt, so the command is simply refused.
+For a Layer 1 bash **write** blocked after the command already ran, `yes — this once` re-runs the command once with the offending path's parent folder allowed for that invocation only (never saved); the same folder is not offered again within that invocation, and `denyWrite` still wins over the grant. A write the pre-flight can see before it runs (`> .env`, `tee`, `cp x .env`, `sed -i .env`) is a hard block when it matches `denyWrite` and an `askWrite` prompt otherwise. The block is recognized from the error output either way it is reported — `EPERM`/`Operation not permitted` on macOS, `EROFS`/`Read-only file system` on Linux (ADR-022) — and a refused write is never offered as a read grant. If the output never names the operand, there is nothing to attribute and no prompt, so the command is simply refused. When the error text names a path the command itself never mentioned, the prompt keeps the one-off and conversation rows and drops `always`, so fabricated output cannot create a permanent rule (ADR-046).
 
 Every prompt waits **15 seconds** by default and shows it live as `Default: … (Ns)` under the body. For file reads/writes no answer means the safe default: **block / deny**, and Esc blocks. For a network ask, an unanswered countdown means **allow once** (Esc still denies) — ADR-024. In the TUI the `Default:` line disappears as soon as you press ↑/↓ and the timer restarts, so the hint never competes with an active choice (ADR-031). The prompt is keyboard-only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels — a mouse click or wheel over the prompt does nothing except scroll the body. A body longer than the terminal (a long command, a wrapped evidence line) scrolls instead of growing: `PgUp/PgDn`, `[`/`]`, Shift+↑/↓, or the wheel move it, and a compact indicator reads `[1–12/58]` (the help line gains `PgUp/PgDn scroll` while the body scrolls). The options and the help line are always kept on screen (ADR-041).
 
@@ -113,7 +118,7 @@ The same options apply to a bash command whose network request reaches a host ou
 
 ## Sensitive reads ask
 
-`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). Shipped default: `.env`, `.env.*`. Both layers ask — the `read` tool in `tool_call`, and the bash pre-flight before a command that plainly reads the file. Esc / 10s timeout blocks; headless blocks. `denyRead` wins over `askRead` (a path in both is denied), and the credential tier stays hard.
+`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). Shipped default: `.env`, `.env.*`, the credential file names (`id_rsa*`, `*.pem`, `auth.json`, …) and `~/.docker/config.json`. Both layers ask — the `read` tool in `tool_call`, and the bash pre-flight before a command that reads the file. The prompt is a **single read**: `No` / `Yes, allow this one read`, no `always` row, nothing written to `overrides` (ADR-046). Esc / 15s timeout blocks; headless blocks. `denyRead` wins over `askRead` (a path in both is denied), and the credential tier stays hard. A recursive grep over a folder redacts askRead lines from its output as well as denyRead ones.
 
 ## Permission modes
 

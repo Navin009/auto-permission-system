@@ -1,93 +1,64 @@
 import { existsSync } from "node:fs";
-import { dirname } from "node:path";
-import { matchesPolicyPattern, normalizeAbs, toSandboxPatterns } from "./patterns.ts";
+import { basename, dirname } from "node:path";
+import { normalizeAbs, somePatternMatches, toSandboxPatterns } from "./patterns.ts";
+import { commandHead, commandSegments, shellTokens } from "./shell-command.ts";
+import {
+	embeddedPathTokens,
+	listDirectoryFiles,
+	resolveTokenPaths,
+	type PathCandidateOptions,
+} from "./path-tokens.ts";
 import { ReadPosture, outsideProjectMode, outsideProjectReadDenied, type FilesystemPolicy } from "./classify.ts";
 
 const READ_COMMANDS = new Set([
-	"ls", "cat", "find", "grep", "rg", "fd", "head", "tail", "stat", "file",
-	"tree", "wc", "readlink", "realpath", "sed", "awk", "less", "more", "du",
-	"bat", "nl", "strings", "xxd", "od", "cd", "pushd", "popd", "dirname", "basename",
+	"ls", "cat", "find", "grep", "rg", "ag", "ack", "fd", "head", "tail", "stat", "file",
+	"tree", "wc", "readlink", "realpath", "sed", "awk", "less", "more", "du", "bat", "nl",
+	"strings", "xxd", "od", "cd", "pushd", "popd", "dirname", "basename", "cp", "mv",
+	"install", "dd", "tar", "zip", "unzip", "gzip", "gunzip", "zcat", "bzip2", "xz", "zstd",
+	"base64", "openssl", "gpg", "jq", "yq", "node", "deno", "bun", "python", "python2",
+	"python3", "perl", "ruby", "php", "lua", "git", "gh", "docker", "kubectl", "aws", "gcloud",
+	"az", "vault", "pass", "ssh", "scp", "rsync", "curl", "wget", "sqlite3", "psql", "mysql",
+	"mongosh", "redis-cli", "java", "dotnet", "cargo", "tee", "xargs", "parallel", "tr",
 ]);
 
-export function shellSegments(command: string): string[] {
-	return command
-		.split(/\s*(?:;|&&|\|\||\||\n)\s*/)
-		.map((segment) => segment.trim())
-		.filter(Boolean);
-}
+const RECURSIVE_SEARCH_COMMANDS = new Set(["grep", "rg", "ag", "ack", "find", "tree", "du", "fd"]);
 
-export function shellTokens(segment: string): string[] {
-	const tokens: string[] = [];
-	const tokenPattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
-	let match: RegExpExecArray | null;
-
-	while ((match = tokenPattern.exec(segment))) {
-		tokens.push(match[1] ?? match[2] ?? match[3] ?? "");
-	}
-
-	return tokens;
-}
-
-function expandHomeToken(token: string, homeDirectory: string): string {
-	if (token === "~") {
-		return homeDirectory;
-	}
-
-	if (token.startsWith("~/")) {
-		return `${homeDirectory}/${token.slice(2)}`;
-	}
-
-	return token;
-}
+export { shellSegments, shellTokens } from "./shell-command.ts";
+export type { PathCandidateOptions } from "./path-tokens.ts";
 
 function readPathCandidates(
 	command: string,
 	workingDirectory: string,
 	homeDirectory: string,
 	checkFileExists: (path: string) => boolean,
+	options: PathCandidateOptions,
 ): string[] {
 	const foundPaths = new Set<string>();
 
-	for (const segment of shellSegments(command)) {
+	for (const segment of commandSegments(command)) {
 		const tokens = shellTokens(segment);
-		const headCommand = (tokens[0] ?? "").split("/").pop() ?? "";
+		const { head, headIndex } = commandHead(tokens);
 
-		if (!READ_COMMANDS.has(headCommand)) {
-			continue;
-		}
+		if (!READ_COMMANDS.has(head)) continue;
 
-		for (const rawToken of tokens.slice(1)) {
-			const token = rawToken.trim();
+		const isRecursiveSearch = RECURSIVE_SEARCH_COMMANDS.has(head);
 
-			if (!token || token.startsWith("-") || /^[a-z][a-z0-9+.-]*:\/\//i.test(token)) {
-				continue;
-			}
+		for (const rawToken of tokens.slice(headIndex + 1)) {
+			for (const token of embeddedPathTokens(rawToken)) {
+				for (const absolutePath of resolveTokenPaths(token, workingDirectory, homeDirectory, options)) {
+					if (isRecursiveSearch) {
+						for (const listedFile of (options.listDirectory ?? listDirectoryFiles)(absolutePath)) {
+							foundPaths.add(normalizeAbs(listedFile));
+						}
+					}
 
-			const expandedPath = expandHomeToken(token, homeDirectory);
-			const absolutePath = expandedPath.startsWith("/")
-				? normalizeAbs(expandedPath)
-				: normalizeAbs(`${workingDirectory.replace(/\/+$/, "")}/${expandedPath}`);
-
-			if (checkFileExists(absolutePath)) {
-				foundPaths.add(absolutePath);
+					if (checkFileExists(absolutePath)) foundPaths.add(absolutePath);
+				}
 			}
 		}
 	}
 
 	return [...foundPaths];
-}
-
-function isNotDenied(
-	absolutePath: string,
-	workingDirectory: string,
-	homeDirectory: string,
-	filesystem: FilesystemPolicy,
-): boolean {
-	const hasDenial = filesystem.denyRead.some((pattern) =>
-		matchesPolicyPattern(absolutePath, pattern, workingDirectory, homeDirectory),
-	);
-
-	return !hasDenial;
 }
 
 export function outsideProjectReadCandidates(
@@ -97,12 +68,15 @@ export function outsideProjectReadCandidates(
 	filesystem: FilesystemPolicy,
 	checkFileExists: (path: string) => boolean = existsSync,
 	resolvePath: (path: string) => string = (path) => path,
+	options: PathCandidateOptions = {},
 ): string[] {
-	const candidates = new Set(readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists).map(resolvePath));
+	const candidates = new Set(
+		readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options).map(resolvePath),
+	);
 
 	return [...candidates].filter(
 		(candidatePath) =>
-			isNotDenied(candidatePath, workingDirectory, homeDirectory, filesystem) &&
+			!somePatternMatches(candidatePath, filesystem.denyRead, workingDirectory, homeDirectory) &&
 			outsideProjectReadDenied(candidatePath, workingDirectory, homeDirectory, filesystem),
 	);
 }
@@ -114,6 +88,7 @@ export function askReadCandidates(
 	filesystem: FilesystemPolicy,
 	checkFileExists: (path: string) => boolean = existsSync,
 	resolvePath: (path: string) => string = (path) => path,
+	options: PathCandidateOptions = {},
 ): string[] {
 	const askReadPatterns = filesystem.askRead ?? [];
 
@@ -121,13 +96,40 @@ export function askReadCandidates(
 		return [];
 	}
 
-	const candidates = new Set(readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists).map(resolvePath));
+	const candidates = new Set(
+		readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options).map(resolvePath),
+	);
 
 	return [...candidates].filter(
 		(candidatePath) =>
-			isNotDenied(candidatePath, workingDirectory, homeDirectory, filesystem) &&
-			askReadPatterns.some((pattern) => matchesPolicyPattern(candidatePath, pattern, workingDirectory, homeDirectory)),
+			!somePatternMatches(candidatePath, filesystem.denyRead, workingDirectory, homeDirectory) &&
+			somePatternMatches(candidatePath, askReadPatterns, workingDirectory, homeDirectory),
 	);
+}
+
+export function commandMentionsPath(
+	command: string,
+	absolutePath: string,
+	workingDirectory: string,
+	homeDirectory: string,
+	options: PathCandidateOptions = {},
+): boolean {
+	const targetPath = normalizeAbs(absolutePath);
+	const targetBasename = basename(targetPath);
+
+	for (const segment of commandSegments(command)) {
+		for (const rawToken of shellTokens(segment)) {
+			if (rawToken === targetBasename) return true;
+
+			for (const token of embeddedPathTokens(rawToken)) {
+				const matches = resolveTokenPaths(token, workingDirectory, homeDirectory, options);
+
+				if (matches.some((match) => match === targetPath)) return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 export function sandboxFilesystem(

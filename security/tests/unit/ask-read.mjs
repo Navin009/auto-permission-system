@@ -22,7 +22,8 @@ const d = loadDefaultPolicy()?.filesystem ?? {};
 check('default: .env is in askRead', (d.askRead ?? []).includes('.env'));
 check('default: .env is NOT in denyRead', !(d.denyRead ?? []).includes('.env'));
 check('default: .env is in askWrite', (d.askWrite ?? []).includes('.env'));
-check('default: nothing is hard-denied on write', (d.denyWrite ?? []).length === 0);
+check('default: .env is hard-denied on write', (d.denyWrite ?? []).includes('.env'));
+check('default: credential folders are hard-denied on write', (d.denyWrite ?? []).includes('~/.ssh'));
 
 const sandboxFs = sandboxFilesystem({ denyRead: ['~/.ssh'], allowWrite: ['.'], denyWrite: ['.env'], askRead: ['.env'] }, { cwd, home });
 check('sandbox-runtime never sees askRead', !JSON.stringify(sandboxFs).includes('askRead'));

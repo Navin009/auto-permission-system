@@ -43,7 +43,16 @@
         "~/.cache"
       ]
     },
-    "denyRead": [],
+    "denyRead": [
+      "~/.ssh",
+      "~/.aws",
+      "~/.azure",
+      "~/.config/gcloud",
+      "~/.gnupg",
+      "~/.kube",
+      "~/.pi/agent"
+    ],
+    "modelDenyRead": [],
     "askRead": [
       ".env",
       ".env.*",
@@ -74,14 +83,24 @@
       "models-store.json",
       "trust.json",
       "audit.log",
-      "sessions"
+      "sessions",
+      "~/.docker/config.json"
     ],
-    "modelDenyRead": [],
     "allowWrite": [
       ".",
       "/tmp"
     ],
-    "denyWrite": [],
+    "denyWrite": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.pi/agent"
+    ],
     "askWrite": [
       ".env",
       ".env.*",
@@ -117,7 +136,7 @@
     "ask": [
       "printenv",
       "env",
-      "/proc/*/environ"
+      "/proc/**/environ"
     ]
   },
   "overrides": {

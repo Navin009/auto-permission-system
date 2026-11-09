@@ -7,17 +7,15 @@
  */
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { ReadPosture } from "../core/index";
+import { normalizeUserPath } from "../core/policy/user-path";
 import { canonicalize } from "../shared/canonicalize";
 import type { Policy } from "./policy";
 
 export function expandHome(path: string): string {
-	if (path === "~") return homedir();
-	if (path.startsWith("~/")) return `${homedir()}/${path.slice(2)}`;
-	return path;
+	return normalizeUserPath(path);
 }
 
 /** Convert glob to RegExp. Supports `*`, `**`, `?`. */

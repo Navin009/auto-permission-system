@@ -16,6 +16,7 @@ import {
 	preflightAskReads,
 	preflightOutsideReads,
 	preflightSensitiveCommands,
+	preflightWriteAccess,
 	sessionReadGrants,
 	sessionWriteGrants,
 	type SandboxedBashOptions,
@@ -50,6 +51,12 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 
 			if (sensitiveCommandResult) {
 				return sensitiveCommandResult;
+			}
+
+			const writeAccessResult = await preflightWriteAccess(command, workingDirectory, options, onData);
+
+			if (writeAccessResult) {
+				return writeAccessResult;
 			}
 
 			const askReadResult = await preflightAskReads(command, workingDirectory, options, onData);

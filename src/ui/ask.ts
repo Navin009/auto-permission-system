@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { isSafeFolderGrant, GrantScope, type OverrideKind } from "../core/index.ts";
+import { isSafeFolderGrant, SYSTEM_FOLDERS, GrantScope, type OverrideKind } from "../core/index.ts";
 import {
 	askMainWithRemember,
 	askRememberFile,
@@ -45,23 +45,10 @@ export type AskKind = {
 	spelled?: string;
 	command?: string;
 	projectTrusted?: boolean;
+	credentialOnly?: boolean;
 };
 
-const SYSTEM_DIRECTORIES = new Set([
-	"/etc",
-	"/var",
-	"/usr",
-	"/bin",
-	"/sbin",
-	"/boot",
-	"/lib",
-	"/lib64",
-	"/opt",
-	"/srv",
-	"/proc",
-	"/sys",
-	"/dev",
-]);
+const SYSTEM_DIRECTORIES = SYSTEM_FOLDERS;
 
 function resolveActionFromAsk(askDetails: AskKind): AskAction {
 	if (askDetails.overrideKind === "allowDomains") {
@@ -371,7 +358,7 @@ export async function askDecision(
 
 	const action = resolveActionFromAsk(askDetails);
 
-	if (absoluteDenyPattern) {
+	if (absoluteDenyPattern || askDetails.credentialOnly) {
 		const subjectName = getCredentialLabel(askDetails.subject);
 		const riskDescription = getCredentialRisk(askDetails.subject, action);
 		const noteDescription = "can only be allowed for one read at a time";

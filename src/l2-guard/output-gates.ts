@@ -5,7 +5,7 @@ import { filterGrepOutput } from "../core/index.ts";
 import { collectExposure } from "./exposure.ts";
 import { askExposure, withheldNotice } from "../ui/ask-flow.ts";
 import { audit } from "../shared/audit.ts";
-import { canonicalize, isDeniedRead } from "./matching.ts";
+import { canonicalize, isAskRead, isDeniedRead } from "./matching.ts";
 import { grantProgramOutputSession, isProgramOutputGranted } from "./program-grants.ts";
 import type { Policy } from "./policy.ts";
 import type { UICtx } from "./prompts.ts";
@@ -52,8 +52,11 @@ export function filterGrepToolResult(
 			return contentBlock;
 		}
 
-		const filterResult = filterGrepOutput(contentBlock.text, (printed) =>
-			isDeniedRead(join(searchRoot, printed), context.cwd, policy) !== null,
+		const filterResult = filterGrepOutput(
+			contentBlock.text,
+			(printed) =>
+				isDeniedRead(join(searchRoot, printed), context.cwd, policy) !== null ||
+				isAskRead(join(searchRoot, printed), context.cwd, policy) !== null,
 		);
 
 		removedLineCount += filterResult.removedLines;

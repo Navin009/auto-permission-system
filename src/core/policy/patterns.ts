@@ -205,11 +205,56 @@ export function normalizeAbs(path: string): string {
 	return `/${parts.join("/")}`;
 }
 
-/** A folder Layer 1 may offer as a one-click write grant: never `/`, the home folder, or anything above it. */
+const PROTECTED_HOME_FOLDERS = [
+	".ssh",
+	".gnupg",
+	".aws",
+	".azure",
+	".kube",
+	".docker",
+	".pi",
+	".config",
+];
+
+export const SYSTEM_FOLDERS = new Set([
+	"/etc",
+	"/var",
+	"/usr",
+	"/bin",
+	"/sbin",
+	"/boot",
+	"/lib",
+	"/lib64",
+	"/opt",
+	"/srv",
+	"/proc",
+	"/sys",
+	"/dev",
+]);
+
+function isProtectedFolder(absoluteDirectory: string, absoluteHome: string): boolean {
+	const protectedFolders = [
+		...PROTECTED_HOME_FOLDERS.map((name) => `${absoluteHome}/${name}`),
+		...SYSTEM_FOLDERS,
+	];
+
+	return protectedFolders.some(
+		(folder) => absoluteDirectory === folder || absoluteDirectory.startsWith(`${folder}/`),
+	);
+}
+
+/**
+ * A folder Layer 1 may offer as a one-click write grant: never `/`, the home
+ * folder, anything above it, or a protected credential / system folder.
+ */
 export function isSafeFolderGrant(directory: string, home: string): boolean {
 	const normalizedDirectory = normalizeAbs(directory);
 	const normalizedHome = normalizeAbs(home);
-	return normalizedDirectory !== "/" && normalizedDirectory !== normalizedHome && !normalizedHome.startsWith(`${normalizedDirectory}/`);
+
+	if (normalizedDirectory === "/" || normalizedDirectory === normalizedHome) return false;
+	if (normalizedHome.startsWith(`${normalizedDirectory}/`)) return false;
+
+	return !isProtectedFolder(normalizedDirectory, normalizedHome);
 }
 
 /**
@@ -238,6 +283,15 @@ export function matchesPolicyPattern(absPath: string, pattern: string, cwd: stri
 	const basename = absPath.slice(absPath.lastIndexOf("/") + 1);
 	if (expandedPattern.includes("*")) return compileGlob(expandedPattern).test(basename);
 	return caseInsensitiveFlag ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+}
+
+export function somePatternMatches(
+	absolutePath: string,
+	patterns: readonly string[],
+	workingDirectory: string,
+	homeDirectory: string,
+): boolean {
+	return patterns.some((pattern) => matchesPolicyPattern(absolutePath, pattern, workingDirectory, homeDirectory));
 }
 
 /**

@@ -305,12 +305,13 @@ Policy files are merged hierarchically:
     "denyRead": [                       // Absolute denied reads (Layer 1 + Layer 2)
       "~/.ssh", "~/.aws", "~/.pi/agent"
     ],
-    "askRead": [                        // Sensitive files that prompt instead of hard-blocking
+    "askRead": [                        // Sensitive files that prompt instead of hard-blocking (one read, never remembered)
       ".env", ".env.*"
     ],
     "modelDenyRead": ["~/.netrc"],      // Hidden from LLM read tool; subprocesses can read
     "allowWrite": [".", "/tmp"],        // Writable roots for bash and edit/write tools
-    "denyWrite": [".env", "*.pem"]      // Writes always blocked
+    "denyWrite": [".env", "*.pem"],     // Writes always blocked (bash is pre-flighted before it runs)
+    "askWrite": [".env", "~/.bashrc"]  // Writes that prompt instead
   },
   "subagent": {
     "network": "allow"                  // "allow" | "deny" | "research-only"
@@ -320,7 +321,7 @@ Policy files are merged hierarchically:
     "askThreshold": 30                  // Risk score threshold to prompt (lower = stricter)
   },
   "commands": {
-    "ask": ["printenv", "env", "/proc/*/environ"] // Bash commands that prompt before running
+    "ask": ["printenv", "env", "/proc/**/environ"] // Bash commands that prompt before running (wrappers traversed)
   }
 }
 ```

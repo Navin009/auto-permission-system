@@ -32,13 +32,24 @@
   },
 
   "filesystem": {
-    "_comment_outsideProject": "Reads outside the working directory. read: allow (default) | ask | deny. allowRead = roots that never ask. IMPORTANT: askRead below is NOT scoped to this block — it applies both inside and outside the project.",
+    "_comment_outsideProject": "Reads outside the working directory. read: allow (default) | ask | deny. allowRead = roots that never ask. IMPORTANT: the deny and ask lists below are NOT scoped to this block — they apply both inside and outside the project.",
     "outsideProject": { "read": "allow", "allowRead": [] },
 
-    "_comment_denyRead": "Layer 1 (bash) AND Layer 2 (model read tool): hard block, no prompt, no 'always'. Empty by default — secrets ask via askRead instead. Add a path here to hard-deny it.",
-    "denyRead": [],
+    "_comment_denyRead": "Layer 1 (bash pre-flight AND the OS sandbox) and Layer 2 (model read tool): hard block, no prompt, no 'always'. The shipped list names the credential folders; add a path here to hard-deny anything else.",
+    "denyRead": [
+      "~/.ssh",
+      "~/.aws",
+      "~/.azure",
+      "~/.config/gcloud",
+      "~/.gnupg",
+      "~/.kube",
+      "~/.pi/agent"
+    ],
 
-    "_comment_askRead": "Layer 1 (bash pre-flight) AND Layer 2 (model read tool): ask before reading these, INSIDE and OUTSIDE the project. An entry without '/' matches the file name anywhere ('.env' matches <cwd>/.env and ~/x/.env); an entry with '/' or '~/' is a path pattern. denyRead wins over askRead. See ADR-019.",
+    "_comment_modelDenyRead": "Layer 2 ONLY: hard block for the model's read tool while subprocesses (gh, aws, kubectl, docker) still work.",
+    "modelDenyRead": [],
+
+    "_comment_askRead": "Layer 1 (bash pre-flight) AND Layer 2 (model read tool): ask before reading these, INSIDE and OUTSIDE the project. An entry without '/' matches the file name anywhere ('.env' matches <cwd>/.env and ~/x/.env); an entry with '/' or '~/' is a path pattern. denyRead wins over askRead. The prompt is a single read: one file, no 'always' (ADR-019, ADR-046).",
     "askRead": [
       ".env",
       ".env.*",
@@ -69,22 +80,30 @@
       "models-store.json",
       "trust.json",
       "audit.log",
-      "sessions"
+      "sessions",
+      "~/.docker/config.json"
     ],
 
-    "_comment_modelDenyRead": "Layer 2 ONLY: hard block for the model's read tool while subprocesses (gh, aws, kubectl, docker) still work. Empty by default — the askRead names cover the model too.",
-    "modelDenyRead": [],
-
-    "_comment_allowWrite": "Layer 2: the model's write/edit tools may only write inside these roots. '.' = cwd.",
+    "_comment_allowWrite": "Layer 2: the model's write/edit tools may only write inside these roots. '.' = cwd. Layer 1: the OS sandbox mounts only these writable.",
     "allowWrite": [
       ".",
       "/tmp"
     ],
 
-    "_comment_denyWrite": "Layer 1 + Layer 2: hard block, no prompt. Empty by default — sensitive writes ask via askWrite instead. Add a path here to hard-deny writes to it.",
-    "denyWrite": [],
+    "_comment_denyWrite": "Layer 1 (bash pre-flight AND the OS sandbox) and Layer 2: hard block, no prompt. The shipped list names the secret files and credential folders; a write the pre-flight can see ('> .env', tee, cp, sed -i) is refused before it runs.",
+    "denyWrite": [
+      ".env",
+      ".env.*",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.pi/agent"
+    ],
 
-    "_comment_askWrite": "Layer 1 + Layer 2: ask before writing these, inside and outside allowWrite. Same matching as askRead: no '/' means file name anywhere. denyWrite wins over askWrite.",
+    "_comment_askWrite": "Layer 1 (bash pre-flight) AND Layer 2: ask before writing these, inside and outside allowWrite. Same matching as askRead: no '/' means file name anywhere. denyWrite wins over askWrite.",
     "askWrite": [
       ".env",
       ".env.*",
@@ -119,6 +138,15 @@
     "network": "allow"
   },
 
+  "_comment_commands": "Layer 1: bash commands that can print environment variables (and so API keys) ask first, one run at a time. They fail closed when there is no UI. Shell wrappers are traversed: 'sh -c printenv' is detected, and 'env FOO=1 python app.py' is not a false positive.",
+  "commands": {
+    "ask": [
+      "printenv",
+      "env",
+      "/proc/**/environ"
+    ]
+  },
+
   "_comment_mcp": "Advanced Secure only. Tune the MCP tool-call gate (ADR-032). allowTools = exact tool names that never ask; allowPrefixes = name prefixes that never ask (e.g. 'mcp__ticktick__get_'); askTools = tool names that always ask; trustAnnotations = a server's readOnlyHint allows the call without asking; allowSimpleUpdates = narrow field updates skip the ask (default true); askThreshold = risk score at which calls ask (default 30, lower = stricter). Detected destructive calls always ask, unless an allowTools/allowPrefixes entry covers them (an explicit override). Unclassified names with a real description start at 25; a tool with no description counts as opaque and still asks. An untrusted project file may only tighten: it may add askTools, lower askThreshold, and turn allowSimpleUpdates/trustAnnotations off; allow lists need /security trust.",
   "mcp": {
     "allowTools": [],
@@ -129,7 +157,7 @@
     "askThreshold": 30
   },
 
-  "_comment_overrides": "Additive overrides written by ask-tier prompts. You can also edit by hand. These are merged on top of the main policy.",
+  "_comment_overrides": "Additive overrides written by ask-tier prompts. You can also edit by hand. These are merged on top of the main policy. A hand-written allowRead entry wins over askRead (explicit intent); the absolute-deny tier still wins over every override.",
   "overrides": {
     "allowRead": [],
     "allowWrite": [],

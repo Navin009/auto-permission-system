@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { shellSegments, shellTokens } from "./fence.ts";
+import { commandHead, commandSegments, shellTokens } from "./shell-command.ts";
 import { matchesPolicyPattern, normalizeAbs } from "./patterns.ts";
 
 function asAbsolutePath(rawToken: string, workingDirectory: string, homeDirectory: string): string | null {
@@ -36,9 +36,9 @@ export function matchedAskCommands(
 
 	const matchedEntries = new Set<string>();
 
-	for (const segment of shellSegments(command)) {
+	for (const segment of commandSegments(command)) {
 		const tokens = shellTokens(segment);
-		const headCommand = (tokens[0] ?? "").split("/").pop() ?? "";
+		const { head, headIndex } = commandHead(tokens);
 
 		for (const entry of askEntries) {
 			if (!entry) {
@@ -46,14 +46,14 @@ export function matchedAskCommands(
 			}
 
 			if (entry.includes("/") || entry.startsWith("~")) {
-				for (const rawToken of tokens.slice(1)) {
+				for (const rawToken of tokens.slice(headIndex + 1)) {
 					const absolutePath = asAbsolutePath(rawToken, workingDirectory, homeDirectory);
 
 					if (absolutePath && matchesPolicyPattern(absolutePath, entry, workingDirectory, homeDirectory)) {
-						matchedEntries.add(`${headCommand} ${rawToken}`.trim());
+						matchedEntries.add(`${head} ${rawToken}`.trim());
 					}
 				}
-			} else if (headCommand === entry) {
+			} else if (head === entry) {
 				matchedEntries.add(entry);
 			}
 		}

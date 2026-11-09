@@ -14,6 +14,7 @@ export interface FilesystemPolicy {
 	denyWrite: readonly string[];
 	allowRead?: readonly string[];
 	askRead?: readonly string[];
+	askWrite?: readonly string[];
 	outsideProject?: { read?: ReadPosture; allowRead?: string[] };
 }
 

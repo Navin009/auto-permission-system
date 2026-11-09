@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
 	attributeLoopbackFailure,
+	commandMentionsPath,
 	extractBlockedPath,
 	isBlockedAccessError,
 	isSafeFolderGrant,
@@ -170,6 +171,9 @@ export async function handleBlockedBashExecution(
 	};
 
 	const writeGrantParent = offendingPath ? dirname(offendingPath) : undefined;
+	const isNamedInCommand = offendingPath
+		? commandMentionsPath(command, offendingPath, workingDirectory, homedir())
+		: false;
 	const isWriteGrantRepeated =
 		offendingPath !== undefined &&
 		(grantedWriteFolders.has(dirname(offendingPath)) || grantedWriteFiles.has(offendingPath));
@@ -237,7 +241,7 @@ export async function handleBlockedBashExecution(
 				askContext,
 				"Let this command read a file outside your project?",
 				promptLines.join("\n"),
-				{ session: true },
+				{ session: true, remember: isNamedInCommand },
 				() =>
 					askRememberFile(
 						askContext,
@@ -418,7 +422,7 @@ export async function handleBlockedBashExecution(
 				askContext,
 				`Let ${extractBinaryName(command)} save files in ${parentDirectory}/?`,
 				promptLines.join("\n"),
-				{ session: true, once: !isAlreadyGranted },
+				{ session: true, once: !isAlreadyGranted, remember: isNamedInCommand },
 				() =>
 					askRememberFile(
 						askContext,

@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import {
 	askReadCandidates,
+	askWriteCandidates,
+	deniedWriteCandidates,
 	isSafeFolderGrant,
 	matchedAskCommands,
 	outsideProjectMode,
@@ -38,22 +40,59 @@ export function formatBlockedLine(action: "Read" | "Write", reason: string, outc
 export const auditLayer1Bash = (entry: Record<string, unknown>) =>
 	audit({ layer: 1, tool: "bash", ...entry });
 
+const deduplicatePaths = (paths: readonly string[]): string[] => [...new Set(paths)];
+
+type AutomatedBlockAction = "command" | "read" | "write";
+
+function blockAutomated(
+	action: AutomatedBlockAction,
+	subject: string,
+	onData: (chunk: Buffer) => void,
+): { exitCode: number } {
+	const blockedSubject =
+		action === "command"
+			? `command execution was blocked (automated environment): ${subject}`
+			: `${action} access to ${subject} was blocked (automated environment)`;
+
+	onData(Buffer.from(`\n[Security Block] sandbox: ${blockedSubject}. Command was not executed.\n`));
+
+	return { exitCode: 1 };
+}
+
+async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promise<string | undefined> {
+	const promptLines = [
+		`File     ${absolutePath}`,
+		`Why      this file usually holds passwords and API keys`,
+		`Risk     the AI can change what the app reads, or wipe a key`,
+		`Note     can't be saved as a permanent rule (it holds secrets)`,
+	];
+
+	return askMain(askContext, `Let this command write ${basename(absolutePath)}?`, promptLines.join("\n"), {
+		session: true,
+		remember: false,
+		icon: "cred",
+	});
+}
+
 export const sessionReadGrants: string[] = [];
 export const sessionWriteGrants: string[] = [];
 export const sessionAskReadGrants: string[] = [];
+export const sessionAskWriteGrants: string[] = [];
 
 export function clearFilesystemSessionGrants(): void {
 	sessionReadGrants.length = 0;
 	sessionWriteGrants.length = 0;
 	sessionAskReadGrants.length = 0;
+	sessionAskWriteGrants.length = 0;
 }
 
 export function filesystemSessionGrantSummary(): string {
 	const writes = sessionWriteGrants.map((entryPath) => `write:${entryPath}`);
 	const reads = sessionReadGrants.map((entryPath) => `read:${entryPath}`);
 	const askReads = sessionAskReadGrants.map((entryPath) => `askRead:${entryPath}`);
+	const askWrites = sessionAskWriteGrants.map((entryPath) => `askWrite:${entryPath}`);
 
-	return [...writes, ...reads, ...askReads].join(", ");
+	return [...writes, ...reads, ...askReads, ...askWrites].join(", ");
 }
 
 export async function preflightSensitiveCommands(
@@ -64,7 +103,7 @@ export async function preflightSensitiveCommands(
 ): Promise<{ exitCode: number } | undefined> {
 	const sensitiveCommandPatterns = loadConfig(workingDirectory).commands?.ask ?? [];
 
-	if (!sensitiveCommandPatterns.length || !options?.ctx?.hasUI || !options.ctx.ui?.select) {
+	if (!sensitiveCommandPatterns.length) {
 		return undefined;
 	}
 
@@ -72,6 +111,12 @@ export async function preflightSensitiveCommands(
 
 	if (!matchedCommands.length) {
 		return undefined;
+	}
+
+	if (!options?.ctx?.hasUI || !options.ctx.ui?.select) {
+		auditLayer1Bash({ subject: matchedCommands.join(", "), decision: "no", note: "sensitive-command-headless", cwd: workingDirectory });
+
+		return blockAutomated("command", matchedCommands.join(", "), onData);
 	}
 
 	const askContext = options.ctx as AskCtx;
@@ -111,6 +156,69 @@ export async function preflightSensitiveCommands(
 	return { exitCode: 1 };
 }
 
+export async function preflightWriteAccess(
+	command: string,
+	workingDirectory: string,
+	options: SandboxedBashOptions | undefined,
+	onData: (chunk: Buffer) => void,
+): Promise<{ exitCode: number } | undefined> {
+	const filesystemPolicy = loadConfig(workingDirectory).filesystem;
+
+	if (!filesystemPolicy) {
+		return undefined;
+	}
+
+	const resolvePath = (path: string) => canonicalize(path, workingDirectory);
+	const deniedPaths = deduplicatePaths(
+		deniedWriteCandidates(command, workingDirectory, homedir(), filesystemPolicy, resolvePath),
+	);
+
+	if (deniedPaths.length) {
+		auditLayer1Bash({ subject: deniedPaths.join(", "), decision: "no", note: "deny-write", cwd: workingDirectory });
+		onData(
+			Buffer.from(`\n${formatBlockedLine("Write", `denyWrite matched ${deniedPaths.join(", ")}`, "written")}\n`),
+		);
+
+		return { exitCode: 1 };
+	}
+
+	const askPaths = deduplicatePaths(
+		askWriteCandidates(command, workingDirectory, homedir(), filesystemPolicy, resolvePath),
+	);
+
+	for (const absolutePath of askPaths) {
+		if (sessionAskWriteGrants.includes(absolutePath)) {
+			continue;
+		}
+
+		const askContext = options?.ctx as AskCtx | undefined;
+
+		if (!askContext?.hasUI || !askContext.ui?.select) {
+			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write-headless", cwd: workingDirectory });
+
+			return blockAutomated("write", absolutePath, onData);
+		}
+
+		const userChoice = await confirmWritePath(askContext, absolutePath);
+
+		if (userChoice === "once" || userChoice === "session") {
+			if (userChoice === "session") {
+				sessionAskWriteGrants.push(absolutePath);
+			}
+
+			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-write", cwd: workingDirectory });
+			continue;
+		}
+
+		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write", cwd: workingDirectory });
+		onData(Buffer.from(`\n${formatBlockedLine("Write", `write access to ${absolutePath} was denied by user`, "written")}\n`));
+
+		return { exitCode: 1 };
+	}
+
+	return undefined;
+}
+
 export async function preflightAskReads(
 	command: string,
 	workingDirectory: string,
@@ -136,22 +244,17 @@ export async function preflightAskReads(
 		return undefined;
 	}
 
-	const uniquePaths = Array.from(new Set(candidatePaths.map((path) => canonicalize(path, workingDirectory))));
 	const askContext = options?.ctx as AskCtx | undefined;
 
-	for (const absolutePath of uniquePaths) {
+	for (const absolutePath of deduplicatePaths(candidatePaths.map((path) => canonicalize(path, workingDirectory)))) {
 		if (sessionAskReadGrants.includes(absolutePath)) {
 			continue;
 		}
 
 		if (!askContext?.hasUI || !askContext.ui?.select) {
 			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-read-headless", cwd: workingDirectory });
-			onData(
-				Buffer.from(
-					`\n[Security Block] sandbox: read access to ${absolutePath} was blocked (automated environment). Command was not executed.\n`,
-				),
-			);
-			return { exitCode: 1 };
+
+			return blockAutomated("read", absolutePath, onData);
 		}
 
 		const promptLines = [
@@ -216,9 +319,9 @@ export async function preflightOutsideReads(
 		(path) => canonicalize(path, workingDirectory),
 	);
 
-	const uniquePaths = Array.from(new Set(candidatePaths.map((path) => canonicalize(path, workingDirectory))));
+	const uniqueCandidatePaths = deduplicatePaths(candidatePaths.map((path) => canonicalize(path, workingDirectory)));
 
-	for (const absolutePath of uniquePaths) {
+	for (const absolutePath of uniqueCandidatePaths) {
 		if (sessionReadGrants.includes(absolutePath)) {
 			continue;
 		}

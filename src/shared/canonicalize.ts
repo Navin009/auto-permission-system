@@ -1,8 +1,9 @@
 import { realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
+import { normalizeUserPath } from "../core/policy/user-path.ts";
 
 export function canonicalize(targetPath: string, workingDirectory: string): string {
-	const absolutePath = isAbsolute(targetPath) ? targetPath : resolve(workingDirectory, targetPath);
+	const absolutePath = resolve(workingDirectory, normalizeUserPath(targetPath));
 	const unresolvableSuffixComponents: string[] = [];
 
 	let currentPath = absolutePath;
