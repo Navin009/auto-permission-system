@@ -21,7 +21,10 @@
  * a user who is choosing is never auto-answered and Enter/Esc alone decide
  * (ADR-039). Mouse events are swallowed before they reach the list — pi's
  * SelectList picks the clicked row and moves the highlight on wheel, which
- * could approve a row the user never read.
+ * could approve a row the user never read. The wheel scrolls the body only.
+ *
+ * The body is a viewport measured in wrapped rows and sized to the terminal
+ * (ADR-041).
  *
  * `askSelect` loads this module lazily and only in TUI mode
  * (`ctx.mode === "tui"`), so `src/ui/ask-flow.ts` and the contract tests stay
@@ -29,12 +32,23 @@
  * that resolves `undefined` immediately, which would silently deny.
  */
 
-import { Container, SelectList, Spacer, Text, type Component } from "@earendil-works/pi-tui";
+import { Container, SelectList, Spacer, Text, type Component, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 export type AskTheme = {
 	fg(color: string, text: string): string;
 	bold(text: string): string;
 };
+
+const BORDER_ROWS = 2;
+const SPACER_ROWS = 4;
+const HEADER_ROWS = 1;
+const HELP_ROWS = 1;
+const FOOTER_ROWS = 2;
+const CHROME_ROWS = BORDER_ROWS + SPACER_ROWS + HEADER_ROWS + HELP_ROWS;
+
+const SCROLL_INDICATOR_ROWS = 1;
+const HEADROOM_ROWS = 1;
+const BODY_RESERVED_ROWS = SCROLL_INDICATOR_ROWS + HEADROOM_ROWS;
 
 export type AskSelectorOptions = {
 	/** Header + body lines; the footer is passed separately so it can be hidden. */
@@ -44,7 +58,7 @@ export type AskSelectorOptions = {
 	options: string[];
 	/** 0 disables the countdown (the prompt stays open until pick/Esc). */
 	timeoutMs: number;
-	tui: { requestRender(): void };
+	tui: { requestRender(): void; terminal?: { rows: number; columns: number } };
 	theme: AskTheme;
 	keybindings: { matches(data: string, action: string): boolean };
 	/** Resolves the `ctx.ui.custom` promise; `undefined` means Esc/expiry. */
@@ -77,7 +91,7 @@ const SCROLL_DOWN_KEYS = new Set(["\x1b[6~", "]", "\x1b[1;2B"]);
 
 export class AskSelector extends Container {
 	private readonly theme: AskTheme;
-	private readonly tui: { requestRender(): void };
+	private readonly tui: { requestRender(): void; terminal?: { rows: number; columns: number } };
 	private readonly keybindings: { matches(data: string, action: string): boolean };
 	private readonly done: (result: string | undefined) => void;
 	private readonly onExpire: () => void;
@@ -102,6 +116,10 @@ export class AskSelector extends Container {
 	private readonly bodyComponent: Text | null = null;
 	private readonly indicatorComponent: Text | null = null;
 	private bodyScrollOffset = 0;
+	private wrappedRows: string[] = [];
+	private wrappedRowsWidth = -1;
+	private bodyViewportRows = 0;
+	private scrollable = false;
 
 	constructor(o: AskSelectorOptions) {
 		super();
@@ -132,17 +150,14 @@ export class AskSelector extends Container {
 		this.addChild(new Border((t) => this.theme.fg("border", t)));
 		this.addChild(new Spacer(1));
 
-		if (!this.isMultiLine) {
-			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
-		} else if (this.bodyLines.length <= this.maxBodyLines) {
-			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
-		} else {
+		if (this.isMultiLine) {
 			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
-			this.addChild(new Spacer(1));
-			this.bodyComponent = new Text(this.renderBodySlice(), 0, 0);
+			this.bodyComponent = new Text("", 0, 0);
 			this.addChild(this.bodyComponent);
-			this.indicatorComponent = new Text(this.renderScrollIndicator(), 0, 0);
+			this.indicatorComponent = new Text("", 0, 0);
 			this.addChild(this.indicatorComponent);
+		} else {
+			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
 		}
 
 		this.addChild(new Spacer(1));
@@ -181,11 +196,18 @@ export class AskSelector extends Container {
 		this.addChild(new Border((t) => this.theme.fg("border", t)));
 
 		if (this.timeoutMs > 0) this.startCountdown();
+
+		this.layoutBody(this.tui.terminal?.columns ?? 80);
+	}
+
+	render(width: number): string[] {
+		this.layoutBody(width);
+		return super.render(width);
 	}
 
 	handleInput(data: string): void {
-		if (this.bodyLines.length > this.maxBodyLines) {
-			const pageSize = Math.max(1, this.maxBodyLines - 2);
+		if (this.scrollable) {
+			const pageSize = Math.max(1, this.bodyViewportRows - 1);
 			if (this.keybindings.matches(data, "tui.select.pageUp") || SCROLL_UP_KEYS.has(data)) {
 				this.scrollBody(-pageSize);
 				return;
@@ -206,39 +228,79 @@ export class AskSelector extends Container {
 		this.list.handleInput(data);
 	}
 
-	private renderBodySlice(): string {
-		const slice = this.bodyLines.slice(this.bodyScrollOffset, this.bodyScrollOffset + this.maxBodyLines);
-		return this.theme.fg("accent", this.theme.bold(slice.join("\n")));
+	private layoutBody(width: number): void {
+		if (!this.bodyComponent) return;
+
+		this.measureBody(width);
+		this.bodyViewportRows = this.bodyBudget();
+		this.scrollable = this.wrappedRows.length > this.bodyViewportRows;
+
+		const maxOffset = Math.max(0, this.wrappedRows.length - this.bodyViewportRows);
+		this.bodyScrollOffset = Math.max(0, Math.min(this.bodyScrollOffset, maxOffset));
+		this.paintBody();
 	}
 
-	private renderScrollIndicator(): string {
-		const total = this.bodyLines.length;
+	private measureBody(width: number): void {
+		const contentWidth = Math.max(1, width);
+		if (width === this.wrappedRowsWidth) return;
+
+		const rows: string[] = [];
+
+		for (const line of this.bodyLines) {
+			const normalizedLine = line.replaceAll("\t", "   ");
+			const styled = this.theme.fg("accent", this.theme.bold(normalizedLine));
+
+			for (const row of wrapTextWithAnsi(styled, contentWidth)) rows.push(row);
+		}
+
+		this.wrappedRows = rows;
+		this.wrappedRowsWidth = width;
+	}
+
+	private bodyBudget(): number {
+		const rows = this.tui.terminal?.rows;
+		if (!rows || rows <= 0) return this.maxBodyLines;
+
+		const chrome = CHROME_ROWS + (this.footerVisible ? FOOTER_ROWS : 0) + this.labels.length;
+		const available = rows - chrome - BODY_RESERVED_ROWS;
+
+		return Math.max(1, Math.min(this.maxBodyLines, available));
+	}
+
+	private paintBody(): void {
+		const total = this.wrappedRows.length;
+		const sliceEnd = this.bodyScrollOffset + this.bodyViewportRows;
+		const slice = this.wrappedRows.slice(this.bodyScrollOffset, sliceEnd);
+
+		this.bodyComponent?.setText(slice.join("\n"));
+		this.indicatorComponent?.setText(this.scrollable ? this.renderScrollIndicator(total) : "");
+	}
+
+	private renderScrollIndicator(total: number): string {
 		const start = this.bodyScrollOffset + 1;
-		const end = Math.min(total, this.bodyScrollOffset + this.maxBodyLines);
-		return this.theme.fg("muted", `[${start}–${end} of ${total} lines | [/] or Shift+↑/↓ or Scroll Wheel]`);
+		const end = Math.min(total, this.bodyScrollOffset + this.bodyViewportRows);
+		return this.theme.fg("muted", `[${start}–${end} of ${total} rows | PgUp/PgDn · [/] · Shift+↑/↓ · wheel]`);
 	}
 
 	private scrollBody(delta: number): void {
-		if (this.bodyLines.length <= this.maxBodyLines) return;
-		const maxOffset = this.bodyLines.length - this.maxBodyLines;
+		if (!this.scrollable) return;
+
+		const maxOffset = Math.max(0, this.wrappedRows.length - this.bodyViewportRows);
 		const next = Math.max(0, Math.min(maxOffset, this.bodyScrollOffset + delta));
 		if (next === this.bodyScrollOffset) return;
+
 		this.bodyScrollOffset = next;
-		this.bodyComponent?.setText(this.renderBodySlice());
-		this.indicatorComponent?.setText(this.renderScrollIndicator());
+		this.paintBody();
 		this.onActivity();
 		this.tui.requestRender();
 	}
 
 	handleMouse(event: { type?: string; wheelDelta?: number }): undefined {
-		if (event?.type === "wheel" && Number.isFinite(event.wheelDelta)) {
-			if (this.bodyLines.length > this.maxBodyLines) {
-				const delta = event.wheelDelta;
-				if (delta !== undefined) {
-					this.scrollBody(delta > 0 ? 2 : -2);
-				}
-			}
+		if (event?.type === "wheel" && Number.isFinite(event.wheelDelta) && this.scrollable) {
+			const delta = event.wheelDelta;
+			if (delta !== undefined) this.scrollBody(delta > 0 ? 2 : -2);
 		}
+
 		return undefined;
 	}
 

@@ -251,5 +251,55 @@ const mouse = (overrides = {}) => ({
 	check('after PgUp: body scrolled back to line 1', t.includes('line 1') && t.includes('line 5') && !t.includes('line 6'));
 }
 
+const tuiRows = (rows, columns = 80) => ({ requestRender() {}, terminal: { rows, columns } });
+const wrappedRow = `Finding  1: ${'--setenv HTTPS_PROXY http://srt:tok@localhost:3128 '.repeat(60)}`;
+const wrappedTitle = [
+	'⚠  Sensitive information detected',
+	'',
+	'Tool     bash (ps aux | grep node)',
+	wrappedRow,
+	'',
+	'Question Should the AI be allowed to see it?',
+].join('\n');
+
+{
+	const s = mk({ title: wrappedTitle, footer: 'Default: No', tui: tuiRows(50) });
+	const lines = s.comp.render(80);
+	check('wrapped line: widget fits the terminal', lines.length <= 50);
+	check('wrapped line: options stay visible', lines.some((l) => l.includes('Yes, just this once')));
+	check('wrapped line: help line stays visible', lines.some((l) => l.includes('Esc cancel')));
+	check('wrapped line: scroll indicator appears', lines.some((l) => /of \d+ rows/.test(l)));
+
+	s.comp.handleInput('\x1b[6~');
+	const scrolled = s.comp.render(80);
+	check('wrapped line: PgDn scrolls the wrapped rows', scrolled.join('\n') !== lines.join('\n'));
+	check('wrapped line: options stay visible after scrolling', scrolled.some((l) => l.includes('Yes, just this once')));
+	const windowAfter = scrolled.map((l) => /\[(\d+)–\d+ of \d+ rows/.exec(l)).find(Boolean);
+	check('wrapped line: indicator moves to the new window', Boolean(windowAfter) && Number(windowAfter[1]) > 1, windowAfter?.[0]);
+
+	const highlightBefore = s.comp.render(80).join('\n');
+	s.comp.handleMouse({ type: 'wheel', wheelDelta: 1 });
+	const wheeled = s.comp.render(80);
+	check('wrapped line: wheel scrolls the body', wheeled.join('\n') !== highlightBefore);
+	check('wrapped line: wheel never moves the highlight', wheeled.some((l) => l.includes('→ No')));
+}
+
+{
+	const tall = mk({ title: wrappedTitle, footer: 'Default: No', tui: tuiRows(50) });
+	const short = mk({ title: wrappedTitle, footer: 'Default: No', tui: tuiRows(24) });
+	const tallLines = tall.comp.render(80);
+	const shortLines = short.comp.render(80);
+	check('short terminal: body viewport shrinks', shortLines.length < tallLines.length);
+	check('short terminal: widget still fits', shortLines.length <= 24);
+	check('short terminal: options stay visible', shortLines.some((l) => l.includes('Yes, just this once')));
+}
+
+{
+	const s = mk({ title: wrappedTitle, footer: null, options: OPTIONS, maxBodyLines: 6 });
+	const lines = s.comp.render(80);
+	check('no terminal height: body capped by maxBodyLines', lines.filter((l) => l.includes('setenv')).length <= 6);
+	check('no terminal height: still scrollable', lines.some((l) => /of \d+ rows/.test(l)));
+}
+
 console.log(`PASS=${pass} FAIL=${fail}`);
 if (fail) process.exit(1);

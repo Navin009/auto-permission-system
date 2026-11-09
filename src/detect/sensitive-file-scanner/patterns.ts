@@ -44,7 +44,7 @@ export const CONNECTION_STRING_REGEX =
  * URL query parameters carrying credentials.
  */
 export const URL_QUERY_CREDENTIAL_REGEX =
-  /[?&](?:password|passwd|pwd|pass|access_key|api_key|apikey|token)=([^&\s"']{6,256})/i;
+  /[?&](?:password|passwd|pwd|pass|access_key|api_key|apikey|token)=([^&\s"'`;)}<>]{6,256})/i;
 
 /**
  * Known high-confidence token formats. Every pattern is bounded or fixed

@@ -1,4 +1,4 @@
-/** Advanced Secure output gate (ADR-018). Pure: no pi, no fs. */
+/** Advanced Secure output gate (ADR-018, ADR-040). Pure: no pi, no fs. */
 
 import { scanToolOutput } from "../detect/index";
 
@@ -9,24 +9,96 @@ export interface Exposure {
 	hits: string[];
 }
 
-export function collectExposure(content: ReadonlyArray<{ type: string; text?: string }>, subject: string): Exposure {
-	const types = new Set<string>();
-	const lines: string[] = [];
-	for (const c of content) {
-		if (c.type !== "text" || typeof c.text !== "string") continue;
-		const r = scanToolOutput({ output: c.text });
-		if (r.decision !== "ask") continue;
-		for (const f of r.findings) types.add(f.type);
-		const before = c.text.split("\n");
-		const after = String(r.redactedOutput ?? "").split("\n");
-		const matchedIndices: number[] = [];
-		for (let i = 0; i < before.length; i++) {
-			if (after[i] !== before[i] && before[i].trim()) matchedIndices.push(i);
-		}
-		if (matchedIndices.length === 0) continue;
-		lines.push(`Tool     ${subject}`);
-		// One `Finding` row per detected line, showing the complete line (no clipping).
-		for (const idx of matchedIndices) lines.push(`Finding  ${idx + 1}: ${before[idx].trim()}`);
+const MAX_EVIDENCE_WIDTH = 160;
+const MAX_EVIDENCE_ROWS = 10;
+const ELLIPSIS = "\u2026";
+
+const ROW_LABEL = {
+	tool: "Tool     ",
+	finding: "Finding  ",
+	hidden: "Hidden   ",
+};
+
+function findFirstDifference(before: string, redacted: string): number {
+	const shortestLength = Math.min(before.length, redacted.length);
+
+	for (let index = 0; index < shortestLength; index++) {
+		if (before[index] !== redacted[index]) return index;
 	}
-	return { types: [...types], hits: lines.length ? [lines.join("\n")] : [] };
+
+	return shortestLength;
+}
+
+function clipLineAround(line: string, anchor: number): string {
+	if (line.length <= MAX_EVIDENCE_WIDTH) return line;
+
+	const windowWidth = MAX_EVIDENCE_WIDTH - ELLIPSIS.length * 2;
+	const start = Math.max(0, Math.min(anchor - Math.floor(windowWidth / 2), line.length - windowWidth));
+	const end = start + windowWidth;
+
+	const head = start > 0 ? ELLIPSIS : "";
+	const tail = end < line.length ? ELLIPSIS : "";
+
+	return `${head}${line.slice(start, end)}${tail}`;
+}
+
+export function collectExposure(
+	content: ReadonlyArray<{ type: string; text?: string }>,
+	subject: string,
+): Exposure {
+	const types = new Set<string>();
+	const evidenceRows: string[] = [];
+	const findingRows = new Set<string>();
+	let hiddenCount = 0;
+
+	for (const block of content) {
+		if (block.type !== "text" || typeof block.text !== "string") continue;
+
+		const scan = scanToolOutput({ output: block.text });
+
+		if (scan.decision !== "ask") continue;
+
+		for (const finding of scan.findings) types.add(finding.type);
+
+		const rawLines = block.text.split("\n");
+		const redactedLines = String(scan.redactedOutput ?? "").split("\n");
+		const canDiffByIndex = rawLines.length === redactedLines.length;
+		let locatedCount = 0;
+
+		if (canDiffByIndex) {
+			for (let index = 0; index < rawLines.length; index++) {
+				const rawLine = rawLines[index].trim();
+				const redactedLine = redactedLines[index].trim();
+
+				if (!rawLine || rawLine === redactedLine) continue;
+
+				locatedCount++;
+
+				if (evidenceRows.length >= MAX_EVIDENCE_ROWS) {
+					hiddenCount++;
+					continue;
+				}
+
+				const anchor = findFirstDifference(rawLine, redactedLine);
+				evidenceRows.push(`${ROW_LABEL.finding}${index + 1}: ${clipLineAround(rawLine, anchor)}`);
+			}
+		}
+
+		if (locatedCount > 0) continue;
+
+		for (const finding of scan.findings) {
+			const preview = finding.preview ? `: ${clipLineAround(finding.preview, 0)}` : "";
+			findingRows.add(`${ROW_LABEL.finding}${finding.label}${preview}`);
+		}
+	}
+
+	const visibleRows = evidenceRows.length > 0 ? evidenceRows : [...findingRows];
+
+	if (types.size === 0 || visibleRows.length === 0) return { types: [...types], hits: [] };
+
+	const lines = [`${ROW_LABEL.tool}${subject}`, ...visibleRows];
+
+	if (hiddenCount > 0) lines.push(`${ROW_LABEL.hidden}${hiddenCount} more detected line(s) not shown`);
+
+	return { types: [...types], hits: [lines.join("\n")] };
 }

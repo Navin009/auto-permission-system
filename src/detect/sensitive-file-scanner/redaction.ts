@@ -9,9 +9,11 @@
 import { analyzeAssignment } from "./assignment.ts";
 import { isJwtToken, TOKEN_REGEX } from "./jwt.ts";
 import { normalizeKey } from "./keys.ts";
-import { KNOWN_SECRET_FORMATS } from "./patterns.ts";
+import { KNOWN_SECRET_FORMATS, URL_QUERY_CREDENTIAL_REGEX } from "./patterns.ts";
 import type { RedactedText } from "./types.ts";
 import { looksLikeRealSecret } from "./value-analysis.ts";
+
+const QUERY_CREDENTIAL_GLOBAL = new RegExp(URL_QUERY_CREDENTIAL_REGEX.source, "gi");
 
 /**
  * Build a preview that redacts the exact value span. The old quote-based
@@ -111,6 +113,11 @@ export function redactText(content: string): RedactedText {
   text = text.replace(urlCredentials, (_match, prefix: string) => {
     redactions += 1;
     return `${prefix}:***REDACTED***@`;
+  });
+
+  text = text.replace(QUERY_CREDENTIAL_GLOBAL, (match, value: string) => {
+    redactions += 1;
+    return `${match.slice(0, match.length - value.length)}***REDACTED***`;
   });
 
   for (const format of KNOWN_SECRET_FORMATS) {

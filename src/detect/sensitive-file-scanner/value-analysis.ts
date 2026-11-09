@@ -18,9 +18,13 @@ export function isPlaceholder(value: string): boolean {
     return true;
   }
 
-  if (/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(trimmed)) {
-    return true;
-  }
+	if (/^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/.test(trimmed)) {
+		return true;
+	}
+
+	if (/^\$\{[^{}]*\}$/.test(trimmed) || trimmed.startsWith("${")) {
+		return true;
+	}
 
   if (/^\{\{[^{}]+\}\}$/.test(trimmed)) {
     return true;

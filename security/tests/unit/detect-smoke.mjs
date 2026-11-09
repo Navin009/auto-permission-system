@@ -44,5 +44,13 @@ check('a quoted random key value still flags', scanTextContent('key="Xk9pQ2mN7vR
 check('keyboard key name stays clean in output gate', scanToolOutput({ output: 'Successfully pressed key: Backspace' }).decision === 'allow');
 check('keyboard key name stays clean in text content scan', scanTextContent('key: Backspace').findings.length === 0);
 
+check('template interpolation is a placeholder', scanTextContent('const u = `/api/x?token=${encodeURIComponent(token)}`;').findings.length === 0);
+check('template interpolation stays clean in the output gate', scanToolOutput({ output: '  const res = await fetch(`/api/shiprocket/orders/${orderId}?token=${encodeURIComponent(token)}`);' }).decision === 'allow');
+check('a literal query credential still flags', scanTextContent('https://api.example.com/v1/items?api_key=9f8a7b6c5d4e3f2a1b').findings.some((f) => f.type === 'URL_CREDENTIAL'));
+check('a later real query credential is not skipped', scanTextContent('first?token=${x}\nsecond?token=9f8a7b6c5d4e3f2a1b').findings.some((f) => f.type === 'URL_CREDENTIAL'));
+
+const queryRedacted = scanToolOutput({ output: 'https://api.example.com/v1/items?api_key=9f8a7b6c5d4e3f2a1b' });
+check('query credential is redacted in the redacted copy', typeof queryRedacted.redactedOutput === 'string' && !queryRedacted.redactedOutput.includes('9f8a7b6c5d4e3f2a1b'));
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

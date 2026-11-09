@@ -33,6 +33,20 @@ import { isPlaceholder, looksLikeRealSecret } from "./value-analysis.ts";
 /**
  * Scan whole content for detectors that are not line-oriented.
  */
+
+function hasRealValue(regex: RegExp, content: string): boolean {
+  const globalFlags = regex.flags.includes("g") ? regex.flags : `${regex.flags}g`;
+  const global = new RegExp(regex.source, globalFlags);
+
+  for (const match of content.matchAll(global)) {
+    if (match[1] && !isPlaceholder(match[1])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function contentFindings(content: string): Finding[] {
   const findings: Finding[] = [];
 
@@ -68,9 +82,7 @@ function contentFindings(content: string): Finding[] {
     );
   }
 
-  const connection = CONNECTION_STRING_REGEX.exec(content);
-
-  if (connection && !isPlaceholder(connection[1])) {
+  if (hasRealValue(CONNECTION_STRING_REGEX, content)) {
     findings.push(
       contentFinding("DATABASE_CREDENTIAL", {
         preview: "Connection string contains a password",
@@ -78,9 +90,7 @@ function contentFindings(content: string): Finding[] {
     );
   }
 
-  const queryCredential = URL_QUERY_CREDENTIAL_REGEX.exec(content);
-
-  if (queryCredential && !isPlaceholder(queryCredential[1])) {
+  if (hasRealValue(URL_QUERY_CREDENTIAL_REGEX, content)) {
     findings.push(
       contentFinding("URL_CREDENTIAL", {
         preview: "URL query parameter contains a credential",
