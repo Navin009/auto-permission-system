@@ -1,6 +1,6 @@
 # ADR-040: The ask prompt bounds its evidence instead of dumping matched lines
 
-**Status:** Accepted
+**Status:** Superseded by ADR-042 (row windowing and the row cap)
 
 ## Context
 
