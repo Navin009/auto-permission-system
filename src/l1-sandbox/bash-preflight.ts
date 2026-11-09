@@ -5,6 +5,7 @@ import {
 	askWriteCandidates,
 	deniedWriteCandidates,
 	isSafeFolderGrant,
+	isSessionFolderGrant,
 	matchedAskCommands,
 	outsideProjectMode,
 	outsideProjectReadCandidates,
@@ -41,6 +42,15 @@ export const auditLayer1Bash = (entry: Record<string, unknown>) =>
 	audit({ layer: 1, tool: "bash", ...entry });
 
 const deduplicatePaths = (paths: readonly string[]): string[] => [...new Set(paths)];
+
+const sessionGrantCovers = (grants: readonly string[], absolutePath: string): boolean =>
+	grants.some((grant) => absolutePath === grant || absolutePath.startsWith(`${grant}/`));
+
+const recordSessionGrant = (grants: string[], absolutePath: string): void => {
+	const parentDirectory = dirname(absolutePath);
+
+	grants.push(isSessionFolderGrant(parentDirectory, homedir()) ? parentDirectory : absolutePath);
+};
 
 type AutomatedBlockAction = "command" | "read" | "write";
 
@@ -187,7 +197,7 @@ export async function preflightWriteAccess(
 	);
 
 	for (const absolutePath of askPaths) {
-		if (sessionAskWriteGrants.includes(absolutePath)) {
+		if (sessionGrantCovers(sessionAskWriteGrants, absolutePath)) {
 			continue;
 		}
 
@@ -203,7 +213,7 @@ export async function preflightWriteAccess(
 
 		if (userChoice === "once" || userChoice === "session") {
 			if (userChoice === "session") {
-				sessionAskWriteGrants.push(absolutePath);
+				recordSessionGrant(sessionAskWriteGrants, absolutePath);
 			}
 
 			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-write", cwd: workingDirectory });
@@ -247,7 +257,7 @@ export async function preflightAskReads(
 	const askContext = options?.ctx as AskCtx | undefined;
 
 	for (const absolutePath of deduplicatePaths(candidatePaths.map((path) => canonicalize(path, workingDirectory)))) {
-		if (sessionAskReadGrants.includes(absolutePath)) {
+		if (sessionGrantCovers(sessionAskReadGrants, absolutePath)) {
 			continue;
 		}
 
@@ -273,7 +283,7 @@ export async function preflightAskReads(
 
 		if (userChoice === "once" || userChoice === "session") {
 			if (userChoice === "session") {
-				sessionAskReadGrants.push(absolutePath);
+				recordSessionGrant(sessionAskReadGrants, absolutePath);
 			}
 
 			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-read", cwd: workingDirectory });

@@ -121,6 +121,16 @@ export function displayWhy(denialReason: string): string {
 		return `protected file that cannot be modified (${matchedPattern})`;
 	}
 
+	if (rawReason.startsWith("askWrite matched")) {
+		const matchedPattern = rawReason.match(/"([^"]+)"/)?.[1] ?? "";
+
+		if (matchedPattern.includes("bashrc") || matchedPattern.includes("zshrc") || matchedPattern.includes("profile")) {
+			return `a startup file that runs on every shell (${matchedPattern})`;
+		}
+
+		return `writing here usually means changing credentials or startup code (${matchedPattern})`;
+	}
+
 	if (rawReason.includes("not under any allowWrite root") || rawReason.includes("not under an allowWrite root")) {
 		return "saving files outside your project workspace requires permission";
 	}

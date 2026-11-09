@@ -7,7 +7,7 @@
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { addOverride, addProjectOverride, extractUserMessages, globalPolicyPath, isSafeFolderGrant, projectPolicyPath, userNamedFile, GrantScope, OverrideKind } from "../core/index";
+import { addOverride, addProjectOverride, extractUserMessages, globalPolicyPath, isSessionFolderGrant, projectPolicyPath, userNamedFile, GrantScope, OverrideKind } from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
@@ -99,7 +99,10 @@ export async function askOrBlock(
 	}
 	if (decision === Decision.Session || decision === Decision.SessionFolder) {
 		const parent = ask.overrideKind === OverrideKind.AllowDomains ? ask.overrideValue : dirname(ask.overrideValue);
-		const value = ask.overrideKind === OverrideKind.AllowDomains || isSafeFolderGrant(parent, homedir()) ? parent : ask.overrideValue;
+		const value =
+			ask.overrideKind === OverrideKind.AllowDomains || isSessionFolderGrant(parent, homedir())
+				? parent
+				: ask.overrideValue;
 		sessionGrants.push({ kind: ask.overrideKind, value });
 		audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, grant: value, cwd: ctx.cwd });
 		ctx.ui.notify(`Allowed for this conversation: ${value}`, "info");

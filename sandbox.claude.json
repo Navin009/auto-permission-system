@@ -31,7 +31,8 @@
     },
     "allowWrite": [
       ".",
-      "/tmp"
+      "/tmp",
+      "~"
     ],
     "denyRead": [
       "~/.ssh",
@@ -42,12 +43,26 @@
       "~/.pi/agent/auth.json"
     ],
     "denyWrite": [
+      "~/.ssh",
+      "~/.gnupg",
+      "~/.pi/agent/auth.json"
+    ],
+    "askWrite": [
       ".env",
       ".env.*",
-      "*.pem",
-      "*.key",
+      ".npmrc",
       ".pypirc",
-      ".npmrc"
+      ".git-credentials",
+      "credentials",
+      "hosts.yml",
+      "auth.json",
+      "mcp.json",
+      "mcp-auth.json",
+      "~/.bashrc",
+      "~/.zshrc",
+      "~/.profile",
+      "~/.bash_profile",
+      "~/.pi/agent/extensions"
     ]
   },
   "subagent": {
@@ -57,7 +72,8 @@
     "ask": [
       "printenv",
       "env",
-      "/proc/*/environ"
+      "/proc/**/environ",
+      "/proc/*/mem"
     ]
   }
 }

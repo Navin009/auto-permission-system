@@ -45,12 +45,8 @@
     },
     "denyRead": [
       "~/.ssh",
-      "~/.aws",
-      "~/.azure",
-      "~/.config/gcloud",
       "~/.gnupg",
-      "~/.kube",
-      "~/.pi/agent"
+      "~/.pi/agent/auth.json"
     ],
     "modelDenyRead": [],
     "askRead": [
@@ -84,49 +80,44 @@
       "trust.json",
       "audit.log",
       "sessions",
-      "~/.docker/config.json"
+      "~/.aws",
+      "~/.kube",
+      "~/.docker",
+      "~/.config/gcloud"
     ],
     "allowWrite": [
       ".",
-      "/tmp"
+      "/tmp",
+      "~"
     ],
     "denyWrite": [
-      ".env",
-      ".env.*",
-      "*.pem",
-      "*.key",
-      "*.p12",
-      "*.pfx",
       "~/.ssh",
       "~/.gnupg",
-      "~/.pi/agent"
+      "~/.pi/agent/auth.json"
     ],
     "askWrite": [
       ".env",
       ".env.*",
-      "*.pem",
-      "*.key",
-      "*.p12",
-      "*.pfx",
+      ".netrc",
+      ".npmrc",
+      ".pypirc",
+      ".git-credentials",
+      "credentials",
+      "credentials.toml",
+      "hosts.yml",
       "auth.json",
       "mcp.json",
       "mcp-auth.json",
-      "~/.gnupg",
-      "~/.ssh/**",
-      "~/.pi/agent/extensions",
-      "~/.pi/agent/extensions/**",
-      "~/.pi/agent/auth.json",
-      "~/.pi/agent/mcp.json",
-      "~/.pi/agent/mcp-auth.json",
-      "~/.pi/agent/trust.json",
-      "~/.pi/agent/models-store.json",
-      "~/.pi/agent/audit.log",
-      "~/.pi/agent/sessions",
-      "~/.pi/sessions",
+      "models-store.json",
+      "trust.json",
+      "audit.log",
+      "sessions",
       "~/.bashrc",
       "~/.zshrc",
       "~/.profile",
-      "~/.bash_profile"
+      "~/.bash_profile",
+      "~/.pi/agent/extensions",
+      "~/.pi/agent/extensions/**"
     ]
   },
   "subagent": {
@@ -136,7 +127,8 @@
     "ask": [
       "printenv",
       "env",
-      "/proc/**/environ"
+      "/proc/**/environ",
+      "/proc/*/mem"
     ]
   },
   "overrides": {

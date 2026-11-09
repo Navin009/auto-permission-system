@@ -8,15 +8,16 @@ const d = loadDefaultPolicy();
 check('sandbox.default.json is found', d !== null && typeof d === 'object');
 const fs = d?.filesystem ?? {};
 check('default: outsideProject.read = allow', fs.outsideProject?.read === 'allow');
-check('default: credential folders are hard-denied on read', ['~/.ssh', '~/.aws', '~/.gnupg'].every((p) => (fs.denyRead ?? []).includes(p)));
-check('default: agent data is hard-denied on read', (fs.denyRead ?? []).includes('~/.pi/agent'));
-check('default: secret files are hard-denied on write', ['.env', '.env.*', '*.pem', '*.key'].every((p) => (fs.denyWrite ?? []).includes(p)));
-check('default: credential folders are hard-denied on write', ['~/.ssh', '~/.gnupg'].every((p) => (fs.denyWrite ?? []).includes(p)));
+check('default: key material is hard-denied on read', ['~/.ssh', '~/.gnupg', '~/.pi/agent/auth.json'].every((p) => (fs.denyRead ?? []).includes(p)));
+check('default: credential stores ask on read as folders', ['~/.aws', '~/.kube', '~/.docker', '~/.config/gcloud'].every((p) => (fs.askRead ?? []).includes(p)));
+check('default: credential stores are not hard-denied on read', !(fs.denyRead ?? []).some((p) => p === '~/.aws'));
+check('default: key material is hard-denied on write', ['~/.ssh', '~/.gnupg', '~/.pi/agent/auth.json'].every((p) => (fs.denyWrite ?? []).includes(p)));
+check('default: project files are writable (a write is not a leak)', !(fs.denyWrite ?? []).includes('.env') && !(fs.denyWrite ?? []).includes('*.pem'));
 check('default: modelDenyRead is empty', (fs.modelDenyRead ?? []).length === 0);
 check('default: credential filenames ask on read', ['id_rsa', '*.pem', '*.key'].every((p) => (fs.askRead ?? []).includes(p)));
 check('default: agent secrets ask on read', ['auth.json', 'mcp.json', 'mcp-auth.json'].every((p) => (fs.askRead ?? []).includes(p)));
-check('default: write asks cover .env and shell rc', (fs.askWrite ?? []).includes('.env') && (fs.askWrite ?? []).includes('~/.bashrc'));
-check('default: allowWrite is project + /tmp', Array.isArray(fs.allowWrite) && fs.allowWrite.includes('.') && fs.allowWrite.includes('/tmp'));
+check('default: code-execution writes ask', ['~/.bashrc', '~/.pi/agent/extensions'].every((p) => (fs.askWrite ?? []).includes(p)));
+check('default: allowWrite is project, /tmp and home', ['.', '/tmp', '~'].every((p) => (fs.allowWrite ?? []).includes(p)));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
 
 const base = {

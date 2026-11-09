@@ -105,7 +105,7 @@ check("later command succeeds", r.exitCode === 0, `exit=${r.exitCode}`);
 const promptsBeforeAsk = prompts.length;
 r = await run("cat .env");
 check("askRead prompt offered the session option", prompts[promptsBeforeAsk]?.includes("Yes, for this conversation"));
-check("askRead conversation grant recorded", filesystemSessionGrantSummary().includes(`askRead:${envFile}`), filesystemSessionGrantSummary());
+check("askRead conversation grant covers the folder", filesystemSessionGrantSummary().includes(`askRead:${cwd}`), filesystemSessionGrantSummary());
 const promptsBeforeAsk2 = prompts.length;
 r = await run("cat .env");
 check("askRead is not re-asked in the session", prompts.length === promptsBeforeAsk2, `${prompts.length} vs ${promptsBeforeAsk2}`);

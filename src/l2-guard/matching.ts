@@ -95,6 +95,7 @@ export function isDeniedRead(rawPath: string, cwd: string, policy: Policy): stri
 export function isAskRead(rawPath: string, cwd: string, policy: Policy): string | null {
 	const absolute = canonicalize(rawPath, cwd);
 	if (isOverridden(absolute, cwd, policy.overrides?.allowRead)) return null;
+	if (isOverridden(absolute, cwd, policy.filesystem.allowRead)) return null;
 	for (const pattern of policy.filesystem.askRead ?? []) {
 		if (matchPattern(absolute, pattern, cwd)) return `askRead matched "${pattern}" → ${absolute}`;
 	}
@@ -108,6 +109,9 @@ export function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): str
 	if (isOverridden(absolute, cwd, policy.overrides?.allowWrite)) return null;
 	for (const pattern of policy.filesystem.denyWrite) {
 		if (matchPattern(absolute, pattern, cwd)) return `denyWrite matched "${pattern}" → ${absolute}`;
+	}
+	for (const pattern of policy.filesystem.askWrite ?? []) {
+		if (matchPattern(absolute, pattern, cwd)) return `askWrite matched "${pattern}" → ${absolute}`;
 	}
 	const allowed = policy.filesystem.allowWrite.some((pattern) => matchPattern(absolute, pattern, cwd));
 	if (!allowed) return `not under any allowWrite root → ${absolute}`;

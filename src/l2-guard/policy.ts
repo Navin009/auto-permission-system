@@ -22,6 +22,10 @@ export interface Policy {
 		denyWrite: string[];
 		/** Paths that prompt on read instead of being hard-denied (ADR-019). */
 		askRead?: string[];
+		/** Roots that never ask on read, even when an askRead folder covers them (ADR-047). */
+		allowRead?: string[];
+		/** Paths that prompt on write; wins over allowWrite, loses to denyWrite (ADR-045). */
+		askWrite?: string[];
 		/**
 		 * Reads outside the project directory (ADR-012). `allow` (default),
 		 * `ask` or `deny`. Never asked about: the project, allowWrite roots,

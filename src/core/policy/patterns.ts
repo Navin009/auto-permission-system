@@ -258,6 +258,20 @@ export function isSafeFolderGrant(directory: string, home: string): boolean {
 }
 
 /**
+ * A folder a conversation-scoped grant may cover: anything but `/` and the home
+ * folder itself. In memory only, so a credential folder is allowed here even
+ * when it can never be a permanent rule (ADR-047).
+ */
+export function isSessionFolderGrant(directory: string, home: string): boolean {
+	const normalizedDirectory = normalizeAbs(directory);
+	const normalizedHome = normalizeAbs(home);
+
+	if (normalizedDirectory === "/" || normalizedDirectory === normalizedHome) return false;
+
+	return !normalizedHome.startsWith(`${normalizedDirectory}/`);
+}
+
+/**
  * Whether an absolute path matches one of the policy's path patterns, with the
  * same semantics as Layer 2: `/…` and `~/…` are full-path prefixes or globs,
  * `.` is the project root, anything else matches the basename (glob allowed).

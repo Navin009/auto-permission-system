@@ -302,16 +302,17 @@ Policy files are merged hierarchically:
     "strictAllowlist": false            // true = fail closed on unknown domains without asking
   },
   "filesystem": {
-    "denyRead": [                       // Absolute denied reads (Layer 1 + Layer 2)
-      "~/.ssh", "~/.aws", "~/.pi/agent"
+    "denyRead": [                       // Hard-denied reads (Layer 1 + Layer 2). Key material only
+      "~/.ssh", "~/.gnupg", "~/.pi/agent/auth.json"
     ],
-    "askRead": [                        // Sensitive files that prompt instead of hard-blocking (one read, never remembered)
-      ".env", ".env.*"
+    "askRead": [                        // Prompt instead of blocking (one read, never remembered).
+      ".env", ".env.*", "~/.aws"      // Without "/" = file name anywhere; with "/" = that folder and everything below it
     ],
+    "allowRead": ["~/.aws/config"],    // Escape hatch: an explicit allow wins over an askRead folder
     "modelDenyRead": ["~/.netrc"],      // Hidden from LLM read tool; subprocesses can read
-    "allowWrite": [".", "/tmp"],        // Writable roots for bash and edit/write tools
-    "denyWrite": [".env", "*.pem"],     // Writes always blocked (bash is pre-flighted before it runs)
-    "askWrite": [".env", "~/.bashrc"]  // Writes that prompt instead
+    "allowWrite": [".", "/tmp", "~"],  // Writable roots for bash and edit/write tools (wide: a write is not a leak)
+    "denyWrite": ["~/.ssh", "~/.gnupg"], // Key material only, plus *.pem / *.key from the credential tier
+    "askWrite": [".env", "~/.bashrc"]  // Critical files: ask before a sudden update changes them
   },
   "subagent": {
     "network": "allow"                  // "allow" | "deny" | "research-only"

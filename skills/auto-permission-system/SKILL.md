@@ -34,7 +34,7 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 ## Policy files
 
 Merged in order (later wins):
-1. `sandbox.default.json` — shipped baseline: credential folders hard-denied on read (`~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.gnupg`, `~/.kube`, `~/.pi/agent`), secret files hard-denied on write (`.env`, `.env.*`, `*.pem`, `*.key`, `~/.ssh`, `~/.gnupg`, `~/.pi/agent`), and `outsideProject.read: "allow"` (so `sandbox.claude.json` is what turns the boundary on)
+1. `sandbox.default.json` — shipped baseline: key material hard-denied (`~/.ssh`, `~/.gnupg`, `~/.pi/agent/auth.json`, plus `*.pem`/`*.key` from the credential tier), credential stores asking on read as **folders** (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`), a wide write posture (`allowWrite` includes `~`) with critical files asking on write, and `outsideProject.read: "allow"` (so `sandbox.claude.json` is what turns the boundary on)
 2. `sandbox.claude.json` — shipped Claude Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
 3. `~/.pi/agent/extensions/sandbox.json` — global user policy
 4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
@@ -54,12 +54,13 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "strictAllowlist": false               // true = deny unknown hosts instead of asking
   },
   "filesystem": {
-    "denyRead": ["~/.ssh", "~/.pi/agent"],  // Layer 1 + 2: hard block, no prompt (the shipped list also has ~/.aws, ~/.azure, ~/.config/gcloud, ~/.gnupg, ~/.kube)
-    "askRead": [".env", ".env.*"],  // Layer 1 + 2: ask before reading (ADR-019). One read at a time, never remembered (ADR-046)
+    "denyRead": ["~/.ssh", "~/.pi/agent/auth.json"],  // Layer 1 + 2: hard block, no prompt. Key material only (the shipped list also has ~/.gnupg)
+    "askRead": [".env", "~/.aws"],  // Layer 1 + 2: ask before reading (ADR-019). A folder entry covers every file beneath it. One read at a time, never remembered (ADR-046)
+    "allowRead": ["~/.aws/config"],  // explicit allow wins over an askRead folder, so a noisy store can be silenced without editing the ask list
     "modelDenyRead": ["~/.netrc"],    // Layer 2 only: model read blocked, subprocesses ok
-    "allowWrite": [".", "/tmp"],      // Layer 2: write only inside these
-    "denyWrite": [".env", "*.pem"],  // Layer 1 + 2: always blocked, no prompt (the shipped list also has `~/.ssh`, `~/.gnupg`, `~/.pi/agent`)
-    "askWrite": [".env", "~/.bashrc"] // Layer 1 + 2: ask before writing (ADR-045)
+    "allowWrite": [".", "/tmp", "~"],  // Layer 2: write only inside these. A write does not leak a token, so this stays wide
+    "denyWrite": ["~/.ssh", "~/.gnupg"],  // Layer 1 + 2: always blocked. Key material only (the shipped list also has ~/.pi/agent/auth.json)
+    "askWrite": [".env", "~/.bashrc"] // Layer 1 + 2: ask before writing, so a critical file never changes under you (ADR-045, ADR-047)
   },
   "subagent": { "network": "allow" },
   "mcp": {                           // Advanced Secure MCP gate tuning (ADR-032)
@@ -118,7 +119,7 @@ The same options apply to a bash command whose network request reaches a host ou
 
 ## Sensitive reads ask
 
-`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). Shipped default: `.env`, `.env.*`, the credential file names (`id_rsa*`, `*.pem`, `auth.json`, …) and `~/.docker/config.json`. Both layers ask — the `read` tool in `tool_call`, and the bash pre-flight before a command that reads the file. The prompt is a **single read**: `No` / `Yes, allow this one read`, no `always` row, nothing written to `overrides` (ADR-046). Esc / 15s timeout blocks; headless blocks. `denyRead` wins over `askRead` (a path in both is denied), and the credential tier stays hard. A recursive grep over a folder redacts askRead lines from its output as well as denyRead ones.
+`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). It takes two kinds of entry: a **file name** without `/` (`.env` matches `<cwd>/.env` and `~/.env`), and a **folder** with `/` or `~/` (`~/.aws` covers every file beneath it, including ones that appear later). The shipped default uses both: the credential file names (`id_rsa*`, `*.pem`, `auth.json`, …) and the credential store folders everyone has (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`). There is deliberately **no per-vendor registry**: a tool with its own folder is one line away (`"~/.any-vendor": "ask"` — see `credentialFolders` examples in `sandbox.example.json`), and the content scan catches what the path list does not.
 
 ## Permission modes
 
