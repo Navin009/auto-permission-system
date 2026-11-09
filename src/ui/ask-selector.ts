@@ -40,10 +40,12 @@ export type AskTheme = {
 };
 
 const BORDER_ROWS = 2;
-const SPACER_ROWS = 4;
+const SPACER_ROWS = 6;
 const HEADER_ROWS = 1;
 const HELP_ROWS = 1;
-const FOOTER_ROWS = 2;
+const FOOTER_ROWS = 1;
+const QUESTION_ROWS = 1;
+const NOTE_ROWS = 1;
 const CHROME_ROWS = BORDER_ROWS + SPACER_ROWS + HEADER_ROWS + HELP_ROWS;
 
 const SCROLL_INDICATOR_ROWS = 1;
@@ -53,12 +55,26 @@ const BODY_RESERVED_ROWS = SCROLL_INDICATOR_ROWS + HEADROOM_ROWS;
 const HELP_KEYS = "↑↓ navigate   Enter select   Esc cancel";
 const HELP_KEYS_WITH_SCROLL = "↑↓ navigate   Enter select   Esc cancel   PgUp/PgDn scroll";
 
+function trimBlankEdges(lines: string[]): string[] {
+	let start = 0;
+	let end = lines.length;
+
+	while (start < end && lines[start].trim() === "") start++;
+	while (end > start && lines[end - 1].trim() === "") end--;
+
+	return lines.slice(start, end);
+}
+
 export type AskSelectorOptions = {
 	/** Header + body lines; the footer is passed separately so it can be hidden. */
 	title: string;
 	/** The `Default: …` line, or null when the prompt has no default hint. */
 	footer: string | null;
 	options: string[];
+	/** The question above the choices. Fixed: it never scrolls with the body. */
+	question?: string | null;
+	/** One muted line under the question, also fixed. */
+	note?: string | null;
 	/** 0 disables the countdown (the prompt stays open until pick/Esc). */
 	timeoutMs: number;
 	tui: { requestRender(): void; terminal?: { rows: number; columns: number } };
@@ -102,7 +118,6 @@ export class AskSelector extends Container {
 	private readonly tickMs: number;
 	private readonly footerBase: string | null;
 	private readonly footerText: Text | null = null;
-	private readonly footerSpacer: Spacer | null = null;
 	private readonly list: SelectList;
 	private readonly labels: string[];
 	private selected = 0;
@@ -119,6 +134,8 @@ export class AskSelector extends Container {
 	private readonly bodyComponent: Text | null = null;
 	private readonly indicatorComponent: Text | null = null;
 	private readonly helpComponent: Text;
+	/** Rows the fixed question and note take, when the prompt has them. */
+	private readonly extraChromeRows: number;
 	private bodyScrollOffset = 0;
 	private wrappedRows: string[] = [];
 	private wrappedRowsWidth = -1;
@@ -139,13 +156,14 @@ export class AskSelector extends Container {
 		this.footerVisible = o.footer !== null && o.footer !== "";
 		this.remaining = Math.ceil(o.timeoutMs / 1000);
 		this.maxBodyLines = o.maxBodyLines ?? 12;
+		this.extraChromeRows = (o.question ? QUESTION_ROWS : 0) + (o.note ? NOTE_ROWS : 0);
 
 		const allLines = o.title.split("\n");
 		this.isMultiLine = allLines.length > 1;
 
 		if (this.isMultiLine) {
 			this.headerText = allLines[0] ?? "";
-			this.bodyLines = allLines.slice(1);
+			this.bodyLines = trimBlankEdges(allLines.slice(1));
 		} else {
 			this.headerText = o.title;
 			this.bodyLines = [];
@@ -156,6 +174,7 @@ export class AskSelector extends Container {
 
 		if (this.isMultiLine) {
 			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
+			this.addChild(new Spacer(1));
 			this.bodyComponent = new Text("", 0, 0);
 			this.addChild(this.bodyComponent);
 			this.indicatorComponent = new Text("", 0, 0);
@@ -165,12 +184,16 @@ export class AskSelector extends Container {
 		}
 
 		this.addChild(new Spacer(1));
+
+		if (o.question) this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.question)), 0, 0));
+		if (o.note) this.addChild(new Text(this.theme.fg("muted", o.note), 0, 0));
+
 		if (this.footerVisible) {
 			this.footerText = new Text(this.footerValue(), 0, 0);
 			this.addChild(this.footerText);
-			this.footerSpacer = new Spacer(1);
-			this.addChild(this.footerSpacer);
 		}
+
+		this.addChild(new Spacer(1));
 
 		this.list = new SelectList(
 			o.options.map((label) => ({ value: label, label })),
@@ -266,7 +289,8 @@ export class AskSelector extends Container {
 		const rows = this.tui.terminal?.rows;
 		if (!rows || rows <= 0) return this.maxBodyLines;
 
-		const chrome = CHROME_ROWS + (this.footerVisible ? FOOTER_ROWS : 0) + this.labels.length;
+		const fixedRows = this.footerVisible ? FOOTER_ROWS : 0;
+		const chrome = CHROME_ROWS + fixedRows + this.extraChromeRows + this.labels.length;
 		const available = rows - chrome - BODY_RESERVED_ROWS;
 
 		return Math.max(1, Math.min(this.maxBodyLines, available));
@@ -367,7 +391,7 @@ export class AskSelector extends Container {
 	private hideFooter(): void {
 		this.footerVisible = false;
 		if (this.footerText) this.removeChild(this.footerText);
-		if (this.footerSpacer) this.removeChild(this.footerSpacer);
+
 		this.tui.requestRender();
 	}
 

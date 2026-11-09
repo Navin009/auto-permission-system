@@ -296,6 +296,26 @@ const wrappedTitle = [
 }
 
 {
+	const s = mk({
+		title: wrappedTitle,
+		footer: 'Default: No',
+		question: 'Question Should the AI be allowed to see it?',
+		note: "Note     you'll be asked again each time a secret shows up",
+		tui: tuiRows(50),
+	});
+	const lines = s.comp.render(80);
+	check('fixed question is shown', lines.some((l) => l.includes('Question Should the AI be allowed to see it?')));
+	check('fixed note is shown', lines.some((l) => l.includes("you'll be asked again each time")));
+
+	s.comp.handleInput('\x1b[6~');
+	const scrolled = s.comp.render(80);
+	check('fixed question survives scrolling', scrolled.some((l) => l.includes('Question Should the AI be allowed to see it?')));
+	check('fixed note survives scrolling', scrolled.some((l) => l.includes("you'll be asked again each time")));
+	check('question sits above the choices', scrolled.findIndex((l) => l.includes('Question Should')) < scrolled.findIndex((l) => l.includes('→ No')));
+	check('widget fits with question and note', scrolled.length <= 50);
+}
+
+{
 	const s = mk({ title: wrappedTitle, footer: null, options: OPTIONS, maxBodyLines: 6 });
 	const lines = s.comp.render(80);
 	check('no terminal height: body capped by maxBodyLines', lines.filter((l) => l.includes('setenv')).length <= 6);

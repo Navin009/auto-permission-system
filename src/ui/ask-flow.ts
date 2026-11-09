@@ -162,14 +162,18 @@ export async function askSelect(
 	title: string,
 	options: string[],
 	timeoutMs: number = ASK_TIMEOUT_MS,
-	opts: { footer?: string | null } = {},
+	opts: { footer?: string | null; question?: string | null; note?: string | null } = {},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const footer = opts.footer ?? null;
+	const question = opts.question ?? null;
+	const note = opts.note ?? null;
+
 	return enqueue(async () => {
 		if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
-			return askWithCustom(ctx, title, options, timeoutMs, footer);
+			return askWithCustom(ctx, title, options, timeoutMs, footer, question, note);
 		}
-		return askWithSelect(ctx, title, options, timeoutMs, footer);
+
+		return askWithSelect(ctx, title, options, timeoutMs, footer, question, note);
 	});
 }
 
@@ -184,6 +188,8 @@ async function askWithCustom(
 	options: string[],
 	timeoutMs: number,
 	footer: string | null,
+	question: string | null,
+	note: string | null,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const { AskSelector } = await import("./ask-selector");
 	let expired = false;
@@ -191,6 +197,8 @@ async function askWithCustom(
 		new AskSelector({
 			title,
 			footer,
+			question,
+			note,
 			options,
 			timeoutMs,
 			tui,
@@ -213,10 +221,15 @@ async function askWithSelect(
 	options: string[],
 	timeoutMs: number,
 	footer: string | null,
+	question: string | null,
+	note: string | null,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	// Guard against terminal overflow in non-custom/RPC mode for long scripts
-	let boundedTitle = title;
-	const lines = title.split("\n");
+	let boundedTitle = question ? `${title}\n\n${question}` : title;
+
+	if (note) boundedTitle = `${boundedTitle}\n\n${note}`;
+
+	const lines = boundedTitle.split("\n");
 	const MAX_FALLBACK_LINES = 16;
 	if (lines.length > MAX_FALLBACK_LINES) {
 		const header = lines[0];
@@ -462,16 +475,12 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		{ label: "Yes, show it this once", value: ExposureChoice.Allow },
 	];
 	if (programId) choices.push({ label: `Yes, all ${programId} output for this conversation`, value: ExposureChoice.ProgramSession });
-	const titleParts = [
-		`${ICON.warn}  Sensitive information detected`,
-		"",
-		hits.join("\n\n"),
-		"",
-		"Question Should the AI be allowed to see it?",
-		"",
-		"Note     you'll be asked again each time a secret shows up",
-	];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, { footer: "Default: No" });
+	const titleParts = [`${ICON.warn}  Sensitive information detected`, hits.join("\n\n")];
+	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, {
+		footer: "Default: No",
+		question: "Question Should the AI be allowed to see it?",
+		note: "Note     you'll be asked again each time a secret shows up",
+	});
 	return choices.find((c) => c.label === picked)?.value ?? ExposureChoice.Block;
 }
 
