@@ -45,11 +45,11 @@ scroll.
   `Container.render`. The constructor primes the layout with
   `tui.terminal.columns` so input arriving before the first frame still works.
 - **Scrolling works on what is visible.** Offset, page size
-  (`viewport − 1`), clamps, and the indicator are all in visual rows, and the
-  indicator reads `[1–12 of 58 rows | PgUp/PgDn · [/] · Shift+↑/↓ · wheel]`.
-  The offset is re-clamped on resize, so a grown viewport does not leave a stale
-  window. The wheel still scrolls only the body: it never moves the highlight
-  (ADR-036).
+  (`viewport − 1`), clamps, and the indicator are all in visual rows. The
+  indicator is compact — `[1–12/58]` — with the keys in the help line, which
+  gains `PgUp/PgDn scroll` while the body scrolls. The offset is re-clamped on
+  resize, so a grown viewport does not leave a stale window. The wheel still
+  scrolls only the body: it never moves the highlight (ADR-036).
 - **The body is always its own component.** Previously a short body was
   rendered as one `Text` containing header + body; now the header is a fixed
   row and the body is the viewport, which is what makes the sizing uniform. The

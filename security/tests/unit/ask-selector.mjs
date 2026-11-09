@@ -268,13 +268,14 @@ const wrappedTitle = [
 	check('wrapped line: widget fits the terminal', lines.length <= 50);
 	check('wrapped line: options stay visible', lines.some((l) => l.includes('Yes, just this once')));
 	check('wrapped line: help line stays visible', lines.some((l) => l.includes('Esc cancel')));
-	check('wrapped line: scroll indicator appears', lines.some((l) => /of \d+ rows/.test(l)));
+	check('wrapped line: scroll indicator appears', lines.some((l) => /\[1–\d+\/\d+\]/.test(l)));
+	check('wrapped line: scroll hint sits in the help line', lines.some((l) => l.includes('PgUp/PgDn scroll')));
 
 	s.comp.handleInput('\x1b[6~');
 	const scrolled = s.comp.render(80);
 	check('wrapped line: PgDn scrolls the wrapped rows', scrolled.join('\n') !== lines.join('\n'));
 	check('wrapped line: options stay visible after scrolling', scrolled.some((l) => l.includes('Yes, just this once')));
-	const windowAfter = scrolled.map((l) => /\[(\d+)–\d+ of \d+ rows/.exec(l)).find(Boolean);
+	const windowAfter = scrolled.map((l) => /\[(\d+)–\d+\/\d+\]/.exec(l)).find(Boolean);
 	check('wrapped line: indicator moves to the new window', Boolean(windowAfter) && Number(windowAfter[1]) > 1, windowAfter?.[0]);
 
 	const highlightBefore = s.comp.render(80).join('\n');
@@ -298,7 +299,7 @@ const wrappedTitle = [
 	const s = mk({ title: wrappedTitle, footer: null, options: OPTIONS, maxBodyLines: 6 });
 	const lines = s.comp.render(80);
 	check('no terminal height: body capped by maxBodyLines', lines.filter((l) => l.includes('setenv')).length <= 6);
-	check('no terminal height: still scrollable', lines.some((l) => /of \d+ rows/.test(l)));
+	check('no terminal height: still scrollable', lines.some((l) => /\[1–\d+\/\d+\]/.test(l)));
 }
 
 console.log(`PASS=${pass} FAIL=${fail}`);

@@ -50,6 +50,9 @@ const SCROLL_INDICATOR_ROWS = 1;
 const HEADROOM_ROWS = 1;
 const BODY_RESERVED_ROWS = SCROLL_INDICATOR_ROWS + HEADROOM_ROWS;
 
+const HELP_KEYS = "↑↓ navigate   Enter select   Esc cancel";
+const HELP_KEYS_WITH_SCROLL = "↑↓ navigate   Enter select   Esc cancel   PgUp/PgDn scroll";
+
 export type AskSelectorOptions = {
 	/** Header + body lines; the footer is passed separately so it can be hidden. */
 	title: string;
@@ -115,6 +118,7 @@ export class AskSelector extends Container {
 	private readonly maxBodyLines: number;
 	private readonly bodyComponent: Text | null = null;
 	private readonly indicatorComponent: Text | null = null;
+	private readonly helpComponent: Text;
 	private bodyScrollOffset = 0;
 	private wrappedRows: string[] = [];
 	private wrappedRowsWidth = -1;
@@ -191,7 +195,8 @@ export class AskSelector extends Container {
 		this.addChild(this.list);
 
 		this.addChild(new Spacer(1));
-		this.addChild(new Text(this.theme.fg("muted", "↑↓ navigate   Enter select   Esc cancel"), 0, 0));
+		this.helpComponent = new Text(this.helpText(), 0, 0);
+		this.addChild(this.helpComponent);
 		this.addChild(new Spacer(1));
 		this.addChild(new Border((t) => this.theme.fg("border", t)));
 
@@ -274,12 +279,20 @@ export class AskSelector extends Container {
 
 		this.bodyComponent?.setText(slice.join("\n"));
 		this.indicatorComponent?.setText(this.scrollable ? this.renderScrollIndicator(total) : "");
+		this.helpComponent.setText(this.helpText());
+	}
+
+	private helpText(): string {
+		const keys = this.scrollable ? HELP_KEYS_WITH_SCROLL : HELP_KEYS;
+
+		return this.theme.fg("muted", keys);
 	}
 
 	private renderScrollIndicator(total: number): string {
 		const start = this.bodyScrollOffset + 1;
 		const end = Math.min(total, this.bodyScrollOffset + this.bodyViewportRows);
-		return this.theme.fg("muted", `[${start}–${end} of ${total} rows | PgUp/PgDn · [/] · Shift+↑/↓ · wheel]`);
+
+		return this.theme.fg("muted", `[${start}–${end}/${total}]`);
 	}
 
 	private scrollBody(delta: number): void {

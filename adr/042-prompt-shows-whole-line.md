@@ -31,7 +31,7 @@ and "keep it hidden" could be decided on partial evidence.
   detected line, with the full line, however long. No clipping, no ellipsis, no
   row cap, no `Hidden   …` remainder row.
 - **The viewport does the bounding.** The body scrolls (PgUp/PgDn, `[`/`]`,
-  Shift+↑/↓, wheel) with a `[1–12 of 34 rows]` indicator, while the header, the
+  Shift+↑/↓, wheel) with a `[1–12/35]` indicator, while the header, the
   question, the choices and the help line stay on screen (ADR-041). A 5,500-char
   line becomes ~34 wrapped rows and is read by scrolling.
 - **The row still shows the raw text**, not the redacted copy: the user being
