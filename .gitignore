@@ -6,7 +6,10 @@ sandbox/package-lock.json
 *.bak.*
 .pi/sandbox.json
 .pi/audit.log
+.env
+.env.*
+!.env.example
+!.env.fixture
 # dummy test fixtures (not part of the package)
-.env.test
 test.pem
 pi-session-*.html

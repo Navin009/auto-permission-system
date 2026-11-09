@@ -4,7 +4,7 @@ This directory contains the testing environment, simulated attack & workflow sce
 
 ## Contents
 
-- **`test-workspace/`**: A mock project environment containing realistic configuration files, `.env` files with credential formats, and source code.
+- **`test-workspace/`**: A mock project environment containing realistic configuration files, source code, and `env-fixture.txt`. Copy that file to `.env` for the demo prop — `.env` files are never committed (see `.gitignore`).
 - **`simulate-session.py`**: An executable CLI simulation of the Pi coding agent interacting with the multi-layer security system in Secure Auto Mode.
 - **`run-demo.sh`**: One-command runner to execute the terminal demo.
 - **`generate-recording.py`**: High-fidelity terminal recording generator that produces:
