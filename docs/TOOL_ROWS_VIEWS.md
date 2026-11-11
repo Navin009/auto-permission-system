@@ -7,16 +7,29 @@ Simple version. Two views, one switch:
 | `full` | today's Pi output. Nothing changes, nothing is added. This is the "off" state. |
 | `compact` | tool calls squeezed into rows. Nothing else is added. |
 
+> **What `compact` draws today.** One row per call: `Reading 1 file (…)`, `Editing 1 file (…)`,
+> `Listing 1 directory (…)`, `Searching 1 pattern (…)`, `Running 1 command`. The count is always
+> 1, column 1 carries the mark and ticks while the call runs, and a settled call's single row
+> starts with `✓` / `✗` / `✗ blocked` / `✗ denied`. `ctrl+o` hands the call back to Pi's own
+> block; `write` is never
+> collapsed. Frames below that show a *shared* row (`Reading 2 files`), a command *group*
+> (`Running 2 commands` with several `└` lines under one header), a clickable `└` line or a
+> `~ Thought for 4s` row describe the target, not v1: per-call renderers cannot merge separate
+> tool executions, so `R10`–`R16` wait on the container hook held back in `D8` option B. What is
+> delivered and what is not is listed in
+> [`TOOL_ROWS_REQUIREMENTS.md`](./TOOL_ROWS_REQUIREMENTS.md) §10.
+
 Frames below assume a 100-column terminal. `<…>` = the real output, which is not shown to keep
 the example short.
 
 One row reads:
 
 ```text
-<gutter><Verb-ing> <count> <noun> (<target>) · <duration> <status> ctrl+o to expand
+<mark> <Verb-ing> <count> <noun> (<target>) · <duration> ctrl+o to expand
 ```
 
-The verb never flips when the call finishes — the line just stops ticking and gains `✓`.
+The verb never flips when the call finishes — the seconds stop ticking and the mark in column 1
+turns from `●` into `✓`.
 
 ---
 
@@ -59,17 +72,17 @@ Successfully replaced 1 block
 ### `compact`
 
 ```text
- Reading 2 files (src/loader.ts) · 3s ✓ ctrl+o to expand
+✓ Reading 2 files (src/loader.ts) · 3s ctrl+o to expand
 
- Running 1 command · 12s ✗
+✗ Running 1 command · 12s
    └ $ npm test
 
- Reading 1 file (src/settings.ts) · 1s ✓ ctrl+o to expand
+✓ Reading 1 file (src/settings.ts) · 1s ctrl+o to expand
 
- Running 1 command · 1s ✓
+✓ Running 1 command · 1s
    └ $ git status
 
- Editing 1 file (src/settings.ts) +5 -3 · 2s ✓ ctrl+o to expand
+✓ Editing 1 file (src/settings.ts) +5 -3 · 2s ctrl+o to expand
 ```
 
 That is the whole feature: 6 blocks → 5 rows (the two reads in a row share one), same
@@ -87,11 +100,11 @@ Two moments of one `bash` call:
    └ $ npm view hunk version
 ```
 ```text
- Running 1 command · 4s ✓
+✓ Running 1 command · 4s
    └ $ npm view hunk version
 ```
 
-- Column 1 is the gutter: `●` = still running, with the seconds ticking.
+- Column 1 is the mark: `●` = still running, with the seconds ticking.
 - `✓` = finished, seconds frozen. It stays until the next call replaces it — never a blank gap.
 - Thinking is its own one-line row (`~ Thought for 4s — click to read`). It is not part of a
   group, not counted with the commands, and it ends the group above it (§5).
@@ -104,16 +117,16 @@ Two moments of one `bash` call:
 
 | Case | `full` | `compact` |
 | --- | --- | --- |
-| one read | full block with file body | ` Reading 1 file (src/a.ts) · 1s ✓ ctrl+o to expand` |
-| 3 reads in a row | 3 blocks | ` Reading 3 files (src/c.ts) · 4s ✓ ctrl+o to expand` |
-| read + bash | 2 blocks | ` Reading 1 file & Running 1 command · 3s ✓` |
-| bash fails | block with error text | ` Running 1 command · 12s ✗` + `└ $ npm test` |
-| read blocked by policy | block with "blocked by policy" | ` Reading 1 file (id_rsa) ✗ blocked` |
-| user denies the ask | block with "denied by user" | ` Running 1 command ✗ denied` + `└ $ curl https://x` |
-| edit a file | block with the diff | ` Editing 1 file (src/a.ts) +5 -3 · 2s ✓ ctrl+o to expand` |
+| one read | full block with file body | `✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand` |
+| 3 reads in a row | 3 blocks | `✓ Reading 3 files (src/c.ts) · 4s ctrl+o to expand` |
+| read + bash | 2 blocks | `✓ Reading 1 file & Running 1 command · 3s` |
+| bash fails | block with error text | `✗ Running 1 command · 12s` + `└ $ npm test` |
+| read blocked by policy | block with "blocked by policy" | `✗ blocked Reading 1 file (id_rsa)` |
+| user denies the ask | block with "denied by user" | `✗ denied Running 1 command` + `└ $ curl https://x` |
+| edit a file | block with the diff | `✓ Editing 1 file (src/a.ts) +5 -3 · 2s ctrl+o to expand` |
 | write a file | block with full content | **same as `full`** — a write is never collapsed (below) |
-| codemode, 2 inner calls | 1 block with script + call log | ` Running codemode · 3s ✓` + 2 `└` lines (below) |
-| 3 shell commands in a row | 3 blocks | ` Running 3 commands · 5s ✓` + 3 `└` lines (below) |
+| codemode, 2 inner calls | 1 block with script + call log | `✓ Running codemode · 3s` + 2 `└` lines (below) |
+| 3 shell commands in a row | 3 blocks | `✓ Running 3 commands · 5s` + 3 `└` lines (below) |
 | thinking between commands | block, then block | own line `~ Thought for 4s — click to read`; the groups either side stay separate (§5) |
 | thinking, no tools | thinking block, then answer | nothing new is drawn |
 | ask is open | ask prompt | ` ● Waiting on your answer · 2s` (one line only) |
@@ -122,7 +135,7 @@ Two moments of one `bash` call:
 ### codemode with inner calls (`compact`)
 
 ```text
- Running codemode · 3s ✓
+✓ Running codemode · 3s
    └ await tools.searchTools("rank")
    └ ✓ mcp:dev-radius:search rank 120ms
    └ ✓ read src/config.ts 8ms
@@ -147,7 +160,7 @@ output under a finished command:
 When they finish, the output goes away and only the command lines stay:
 
 ```text
- Running 2 commands · 5s ✓
+✓ Running 2 commands · 5s
    └ ✓ $ npm test 1.2s
    └ ✓ $ npm run build 3.0s
 ```
@@ -161,7 +174,7 @@ command as Pi's own block, in the order it ran, full output, and the hint flips 
 `ctrl+o to collapse`:
 
 ```text
- Running 2 commands · 5s ✓ ctrl+o to collapse
+✓ Running 2 commands · 5s ctrl+o to collapse
 
 bash
   npm test
@@ -184,7 +197,7 @@ Clicking one `└` command line opens **only that command** — Pi's block for i
 lines stay as rows:
 
 ```text
- Running 2 commands · 5s ✓
+✓ Running 2 commands · 5s
    └ ✓ $ npm test 1.2s
 
 bash
@@ -204,12 +217,12 @@ list where it is.
   the line swaps it for Pi's full block for that call.
 - Output belongs to the call, not to the group: it is drawn under a command only while that
   command runs, and hidden once it finishes. Nothing is nested under a finished command line.
-- `✓` ok, `✗` failed, `…` still running, `✗ blocked` / `✗ denied` for our own gates.
+- `✓` ok, `✗` failed, `…` in a command line still running, `✗ blocked` / `✗ denied` for our own gates.
 - Newest 8 commands; older ones become `└ ... (2 earlier calls)`.
 - One command on its own is not grouped: it keeps a single row with a plain second line.
 
 ```text
- Running 1 command · 4s ✓
+✓ Running 1 command · 4s
    └ $ npm view hunk version
 ```
 
@@ -220,7 +233,7 @@ block — its own header, its own content — even in `compact`. It does not joi
 ends the current group: rows above stay, the next call starts a new one.
 
 ```text
- Reading 1 file (src/a.ts) · 1s ✓ ctrl+o to expand
+✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand
 
 write
   README.md
@@ -229,7 +242,7 @@ write
 
 …full file content, exactly as in `full` view…
 
- Running 1 command · 1s ✓
+✓ Running 1 command · 1s
    └ $ git status
 ```
 
@@ -266,11 +279,11 @@ Clicking a single `└` line inside the group opens only that command (§3.5).
 ### Visible text splits the group
 
 ```text
- Reading 2 files (src/b.ts) · 3s ✓ ctrl+o to expand
+✓ Reading 2 files (src/b.ts) · 3s ctrl+o to expand
 
 Here is what I found. The config lives in two files…
 
- Running 1 command · 1s ✓
+✓ Running 1 command · 1s
    └ $ ls
 ```
 
@@ -286,7 +299,7 @@ Input → thinking → command → thinking → command gives one line per thoug
 command:
 
 ```text
- Running 1 command · 6s ✓
+✓ Running 1 command · 6s
    └ ✓ $ npm test 1.2s
 
 ~ Thought for 4s — click to read
@@ -300,7 +313,7 @@ command:
 to `click to hide`:
 
 ```text
- Running 1 command · 6s ✓
+✓ Running 1 command · 6s
    └ ✓ $ npm test 1.2s
 
 ~ Thought for 4s — click to hide
@@ -342,7 +355,7 @@ When it lands mid-turn, the group above ends and the next command opens a new on
 `Running 2 commands`:
 
 ```text
- Running 1 command · 6s ✓
+✓ Running 1 command · 6s
    └ ✓ $ npm run build 3.0s
 
 stop after this build, run the linter next
@@ -397,11 +410,12 @@ bash
 
 ## 6. Rules, short
 
-1. Column 1 is the gutter: `●` while the call runs, a space once it has finished.
-2. A row reads `<Verb-ing> <count> <noun> (<target>) · <duration> <status>`. The verb never
-   flips when the call finishes — the line stops ticking and gains `✓`.
+1. Column 1 is the mark: `●` while the call runs, `✓` done, `✗` failed, `✗ blocked` / `✗ denied`
+   for our own gates.
+2. A row reads `<mark> <Verb-ing> <count> <noun> (<target>) · <duration> <hint>`. The verb never
+   flips when the call finishes — the seconds stop and the mark turns from `●` into `✓`.
 3. `✓` done, `✗` failed, `✗ blocked` / `✗ denied` for our own gates. A blocked or denied call
-   says so on the row — never silent.
+   says so in column 1 — never silent.
 4. A finished row stays on screen until the next call takes the line over.
 5. Rows holding a file body or more than one call end with `ctrl+o to expand`; a single command
    row does not, because its `└ $ cmd` line already shows what ran.

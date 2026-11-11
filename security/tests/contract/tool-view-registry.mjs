@@ -21,7 +21,7 @@ const context = (overrides = {}) => ({
 	toolCallId: 'call-1',
 	invalidate: () => {},
 	lastComponent: undefined,
-	state: undefined,
+	state: {},
 	cwd: '/work/project',
 	executionStarted: true,
 	argsComplete: true,
@@ -38,7 +38,7 @@ const context = (overrides = {}) => ({
 
 const lines = (component, width = 100) => component.render(width);
 const showsFallback = (component) => lines(component).some((line) => line.trim() === FALLBACK_TEXT);
-const callOf = (toolName, overrides) => toolViewRenderers(toolName, fallback).renderCall({ path: 'src/a.ts' }, theme, context(overrides));
+const callOf = (toolName, overrides) => toolViewRenderers(toolName, fallback).renderCall({ path: 'src/a.ts' }, theme, context({ durationMs: undefined, ...overrides }));
 const resultOf = (toolName, overrides) =>
 	toolViewRenderers(toolName, fallback).renderResult({ content: [{ type: 'text', text: 'ok' }] }, { expanded: false, isPartial: false }, theme, context(overrides));
 
@@ -50,9 +50,15 @@ setActiveViewMode('compact');
 check('compact view owns the shell too', toolViewRenderers('bash', fallback).renderShell === 'self');
 check('a read renders one row line', lines(callOf('read')).length === 1);
 check('the running read row', lines(callOf('read'))[0] === '● Reading 1 file (src/a.ts) · 0s ctrl+o to expand');
-check('the finished read row', lines(resultOf('read'))[0] === ' Reading 1 file (src/a.ts) · 1s ✓ ctrl+o to expand');
+check('the finished read row', lines(resultOf('read')).some((line) => line === '✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand'));
 
-const bashCall = toolViewRenderers('bash', fallback).renderCall({ command: 'npm test' }, theme, context({ toolCallId: 'call-bash' }));
+const settledCall = (overrides) => toolViewRenderers('read', fallback).renderCall({ path: 'src/a.ts' }, theme, context(overrides));
+check('a settled call leaves the row to the result', lines(settledCall({ durationMs: 1500 })).join('').trim() === '');
+check('a settled call does not draw a second row', !lines(settledCall({ durationMs: 1500 })).some((line) => line.includes('Reading')));
+check('a failed call leaves the row to the result', lines(settledCall({ durationMs: undefined, isError: true })).join('').trim() === '');
+check('a replayed settled call stays empty', lines(settledCall({ durationMs: undefined, state: { settled: true } })).join('').trim() === '');
+
+const bashCall = toolViewRenderers('bash', fallback).renderCall({ command: 'npm test' }, theme, context({ toolCallId: 'call-bash', durationMs: undefined }));
 check('a shell call renders two lines', lines(bashCall).length === 2);
 check('the shell row has no expand hint', lines(bashCall)[0] === '● Running 1 command · 0s');
 check('the shell row shows the command', lines(bashCall)[1] === '   └ $ npm test');
@@ -63,7 +69,7 @@ const failedBash = toolViewRenderers('bash', fallback).renderResult(
 	theme,
 	context({ toolCallId: 'call-bash', args: { command: 'npm test' }, isError: true }),
 );
-check('a failed shell row says so', lines(failedBash)[0] === ' Running 1 command · 1s ✗');
+check('a failed shell row says so', lines(failedBash)[0] === '✗ Running 1 command · 1s');
 
 const blockedRead = toolViewRenderers('read', fallback).renderResult(
 	{ content: [{ type: 'text', text: 'Read blocked by policy: sensitive file' }] },
@@ -71,7 +77,7 @@ const blockedRead = toolViewRenderers('read', fallback).renderResult(
 	theme,
 	context({ args: { path: 'id_rsa' }, isError: true }),
 );
-check('a blocked read keeps the word', lines(blockedRead)[0] === ' Reading 1 file (id_rsa) · 1s ✗ blocked ctrl+o to expand');
+check('a blocked read keeps the word', lines(blockedRead)[0] === '✗ blocked Reading 1 file (id_rsa) · 1s ctrl+o to expand');
 
 const deniedShell = toolViewRenderers('bash', fallback).renderResult(
 	{ content: [{ type: 'text', text: '[Security Block] sandbox: read access to /x was denied by user.' }] },
@@ -79,7 +85,7 @@ const deniedShell = toolViewRenderers('bash', fallback).renderResult(
 	theme,
 	context({ args: { command: 'curl https://x' }, isError: true }),
 );
-check('a denied call keeps the word', lines(deniedShell)[0] === ' Running 1 command · 1s ✗ denied');
+check('a denied call keeps the word', lines(deniedShell)[0] === '✗ denied Running 1 command · 1s');
 
 check('an expanded call is Pi own block', showsFallback(callOf('read', { expanded: true })));
 check('a call without complete args is Pi own block', showsFallback(callOf('read', { argsComplete: false })));

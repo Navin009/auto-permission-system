@@ -3,8 +3,10 @@ import { truncateToWidth, type Component } from "@earendil-works/pi-tui";
 import { buildRowText, type RowDescription } from "../core/tool-view/row-text.ts";
 import { StatusMark } from "../core/tool-view/status.ts";
 
-const GUTTER_LENGTH = 1;
+const MARK_SEPARATOR = " ";
 const ELLIPSIS = "…";
+
+type MarkColor = Parameters<Theme["fg"]>[0];
 
 export class ToolRowComponent implements Component {
 	private readonly description: RowDescription;
@@ -17,13 +19,9 @@ export class ToolRowComponent implements Component {
 
 	render(width: number): string[] {
 		const text = buildRowText(this.description);
-		const isRunning = this.description.status === StatusMark.Running;
-		const gutter = text.lead.slice(0, GUTTER_LENGTH);
-		const leadBody = text.lead.slice(GUTTER_LENGTH);
-		const coloredLead = `${this.colorGutter(gutter, isRunning)}${leadBody}`;
-		const statusPart = isRunning ? "" : ` ${this.colorStatus(text.status)}`;
+		const markPart = `${this.colorMark(text.mark, text.status)}${MARK_SEPARATOR}`;
 		const hintPart = text.hint ? ` ${this.theme.fg("dim", text.hint)}` : "";
-		const lines = [truncateToWidth(`${coloredLead}${statusPart}${hintPart}`, width, ELLIPSIS)];
+		const lines = [truncateToWidth(`${markPart}${text.body}${hintPart}`, width, ELLIPSIS)];
 
 		if (text.commandLine) {
 			lines.push(truncateToWidth(this.theme.fg("dim", text.commandLine), width, ELLIPSIS));
@@ -34,11 +32,19 @@ export class ToolRowComponent implements Component {
 
 	invalidate(): void {}
 
-	private colorGutter(gutter: string, isRunning: boolean): string {
-		return this.theme.fg(isRunning ? "accent" : "muted", gutter);
+	private colorMark(mark: string, status: StatusMark): string {
+		return this.theme.fg(colorForStatus(status), mark);
+	}
+}
+
+function colorForStatus(status: StatusMark): MarkColor {
+	if (status === StatusMark.Running) {
+		return "accent";
 	}
 
-	private colorStatus(status: StatusMark): string {
-		return this.theme.fg(status === StatusMark.Ok ? "success" : "error", status);
+	if (status === StatusMark.Ok) {
+		return "success";
 	}
+
+	return "error";
 }

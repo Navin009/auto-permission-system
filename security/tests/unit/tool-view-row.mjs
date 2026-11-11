@@ -29,20 +29,20 @@ check('pluralize: many adds s', pluralize('command', 3) === 'commands');
 check('pluralize: y becomes ies', pluralize('directory', 2) === 'directories');
 
 check('running read row', rowLine(buildRowText(row({ status: StatusMark.Running }))) === `● Reading 1 file (src/a.ts) · 1s ${HINT}`);
-check('finished read row', rowLine(buildRowText(row({}))) === ` Reading 1 file (src/a.ts) · 1s ✓ ${HINT}`);
-check('failed row', rowLine(buildRowText(row({ status: StatusMark.Failed }))) === ` Reading 1 file (src/a.ts) · 1s ✗ ${HINT}`);
+check('finished read row', rowLine(buildRowText(row({}))) === `✓ Reading 1 file (src/a.ts) · 1s ${HINT}`);
+check('failed row', rowLine(buildRowText(row({ status: StatusMark.Failed }))) === `✗ Reading 1 file (src/a.ts) · 1s ${HINT}`);
 check(
 	'blocked row',
-	rowLine(buildRowText(row({ status: StatusMark.Blocked, target: 'id_rsa' }))) === ` Reading 1 file (id_rsa) · 1s ✗ blocked ${HINT}`,
+	rowLine(buildRowText(row({ status: StatusMark.Blocked, target: 'id_rsa' }))) === `✗ blocked Reading 1 file (id_rsa) · 1s ${HINT}`,
 );
 check(
 	'denied row',
-	rowLine(buildRowText(row({ status: StatusMark.Denied, target: 'https://x' }))) === ` Reading 1 file (https://x) · 1s ✗ denied ${HINT}`,
+	rowLine(buildRowText(row({ status: StatusMark.Denied, target: 'https://x' }))) === `✗ denied Reading 1 file (https://x) · 1s ${HINT}`,
 );
-check('no target drops the parentheses', rowLine(buildRowText(row({ target: undefined }))) === ` Reading 1 file · 1s ✓ ${HINT}`);
-check('no duration drops the dot segment', rowLine(buildRowText(row({ durationMilliseconds: undefined }))) === ` Reading 1 file (src/a.ts) ✓ ${HINT}`);
-check('no hint when the label opts out', rowLine(buildRowText(row({ hint: undefined }))) === ' Reading 1 file (src/a.ts) · 1s ✓');
-check('count pluralizes the noun', rowLine(buildRowText(row({ verb: 'Listing', noun: 'directory', count: 2, target: 'src' }))) === ` Listing 2 directories (src) · 1s ✓ ${HINT}`);
+check('no target drops the parentheses', rowLine(buildRowText(row({ target: undefined }))) === `✓ Reading 1 file · 1s ${HINT}`);
+check('no duration drops the dot segment', rowLine(buildRowText(row({ durationMilliseconds: undefined }))) === `✓ Reading 1 file (src/a.ts) ${HINT}`);
+check('no hint when the label opts out', rowLine(buildRowText(row({ hint: undefined }))) === '✓ Reading 1 file (src/a.ts) · 1s');
+check('count pluralizes the noun', rowLine(buildRowText(row({ verb: 'Listing', noun: 'directory', count: 2, target: 'src' }))) === `✓ Listing 2 directories (src) · 1s ${HINT}`);
 
 const commandDescription = {
 	verb: 'Running',
@@ -55,12 +55,12 @@ const commandDescription = {
 	hint: undefined,
 };
 const commandRow = buildRowText(commandDescription);
-check('shell row keeps one line of text', rowLine(commandRow) === ' Running 1 command · 12s ✗');
+check('shell row keeps one line of text', rowLine(commandRow) === '✗ Running 1 command · 12s');
 check('shell row adds the command line', commandRow.commandLine === '   └ $ npm test');
 check('shell row renders two lines', rowLines(commandRow).length === 2);
 check('file row renders one line', rowLines(buildRowText(row({}))).length === 1);
 check(
-	'running shell row keeps the dot gutter',
+	'running shell row carries the dot mark',
 	rowLine(buildRowText({ ...commandDescription, status: StatusMark.Running })) === '● Running 1 command · 12s',
 );
 
@@ -68,7 +68,8 @@ check('ok result', statusFromResult(false, 'done') === StatusMark.Ok);
 check('error result', statusFromResult(true, 'boom') === StatusMark.Failed);
 check('policy block', statusFromResult(true, 'Read blocked by policy: sensitive file') === StatusMark.Blocked);
 check('user denial wins over the block marker', statusFromResult(true, '[Security Block] sandbox: read access to /x was denied by user.') === StatusMark.Denied);
-check('the word block marks a result as blocked', statusFromResult(false, 'no blocked hosts') === StatusMark.Blocked);
+check('a successful result is never a refusal', statusFromResult(false, 'the ResultContentBlock type') === StatusMark.Ok);
+check('a failing result that mentions block is a failure', statusFromResult(true, 'the ResultContentBlock type') === StatusMark.Failed);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

@@ -22,6 +22,9 @@ const EXPAND_KEYBINDING = "app.tools.expand";
 const EXPAND_HINT_DESCRIPTION = "to expand";
 const TEXT_BLOCK_TYPE = "text";
 const BLOCK_SEPARATOR = " ";
+const SETTLED_STATE_KEY = "settled";
+const EMPTY_LINE = "";
+const NO_PADDING = 0;
 
 export function toolViewRenderers(toolName: string, fallback: RendererFallback): ToolRenderers {
 	return {
@@ -37,6 +40,10 @@ function renderCall(toolName: string, fallback: RendererFallback, parameters: Ca
 
 	if (getActiveViewMode() !== ViewMode.Compact || context.expanded || !context.argsComplete) {
 		return fallbackCall(fallback, parameters);
+	}
+
+	if (isSettledCall(context)) {
+		return new Text(EMPTY_LINE, NO_PADDING, NO_PADDING);
 	}
 
 	beginCall(context.toolCallId, context.invalidate);
@@ -66,6 +73,7 @@ function renderResult(toolName: string, fallback: RendererFallback, parameters: 
 	}
 
 	endCall(context.toolCallId);
+	context.state[SETTLED_STATE_KEY] = true;
 
 	const description = describeRow({
 		toolName,
@@ -81,6 +89,10 @@ function renderResult(toolName: string, fallback: RendererFallback, parameters: 
 	}
 
 	return new ToolRowComponent(description, theme);
+}
+
+function isSettledCall(context: CallParameters[2]): boolean {
+	return context.durationMs !== undefined || context.isError || context.state[SETTLED_STATE_KEY] === true;
 }
 
 function fallbackCall(fallback: RendererFallback, parameters: CallParameters) {

@@ -154,8 +154,8 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 
     File     ~/workspace/app/.env
     Command  grep -r TOKEN .env
-    Why      .env files usually hold passwords and API keys
     Risk     the AI will see any keys in it
+    Why      .env files usually hold passwords and API keys
     Note     can't be saved as a permanent rule (secrets tier)
 
   > No
@@ -354,9 +354,9 @@ When cloning a repository with a `.pi/sandbox.json`:
 `compact` squeezes each tool call into one row, and shell calls get a second line with the command:
 
 ```text
- Reading 1 file (src/a.ts) · 1s ✓ ctrl+o to expand
+✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand
 
- Running 1 command · 12s ✗
+✗ Running 1 command · 12s
    └ $ npm test
 ```
 

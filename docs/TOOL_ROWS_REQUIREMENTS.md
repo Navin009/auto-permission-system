@@ -103,8 +103,8 @@ draws today). There is no summary band, no footer and no end-of-turn line in eit
 
 | # | P | Requirement |
 | --- | --- | --- |
-| R1 | M | A row reads `<gutter><Verb-ing> <count> <noun> (<target>) · <Ns> <status>`: column 1 is the gutter (`●` while it runs, a space once finished), the count wraps a run of same-kind calls, `(<target>)` names the most recent one. |
-| R2 | M | The verb never flips when the call finishes: a row keeps its words, gains `✓`/`✗`, and its duration freezes. No tense change, no relabelling on settle. |
+| R1 | M | A row reads `<mark> <Verb-ing> <count> <noun> (<target>) · <Ns>`: column 1 is the mark (`●` while it runs, `✓` / `✗` once finished), the count wraps a run of same-kind calls, `(<target>)` names the most recent one. |
+| R2 | M | The verb never flips when the call finishes: a row keeps its words, the mark in column 1 turns from `●` into `✓` / `✗`, and its duration freezes. No tense change, no relabelling on settle. |
 | R3 | M | A shell row carries a second line with what it runs: `└ <mark> $ <command>`. Other tools carry no second line. |
 | R4 | M | A call's row is drawn only once its arguments are complete or execution started — never a growing `Running… · 0s`. The previous row stays until then. |
 | R5 | M | While the turn is open, the activity area keeps a fixed height (gap + row + command line, raised for tall rows) so nothing below it jumps; the reservation is dropped at settle. |
@@ -119,11 +119,11 @@ draws today). There is no summary band, no footer and no end-of-turn line in eit
 | --- | --- | --- |
 | R10 | M | Consecutive shell commands (`bash` / `powershell`) with nothing between them are one group: a header `Running <N> commands · <Ns>` plus one `└ <mark> $ <command> <duration>` line per command, in the order they ran. There is no collapsed one-liner state. |
 | R11 | M | Output belongs to the call, not the group: it is drawn under a command only while that command runs, and it is hidden the moment that command finishes. Nothing is ever nested under a finished command line. |
-| R12 | M | `✓` ok, `✗` failed, `…` running, `✗ blocked` / `✗ denied` for our own gates. Newest eight commands; older ones collapse to `└ ... (<N> earlier calls)`. |
+| R12 | M | `✓` ok, `✗` failed, `…` in a command line still running, `✗ blocked` / `✗ denied` for our own gates. Newest eight commands; older ones collapse to `└ ... (<N> earlier calls)`. |
 | R13 | M | A single command is not grouped: it keeps its own row (`Running 1 command · <Ns> <status>`) with a plain `└ <mark> $ <command>` second line. |
 | R14 | M | Clicking one `└` command line renders that one call exactly as `full` renders it — Pi's own block, full command, full output — in place of the line; clicking again returns to the list. The other commands keep their list lines. |
 | R15 | M | `ctrl+o` on a group row opens the whole group: every command as Pi's own block, in order, and the row hint flips to `ctrl+o to collapse`. Pressing again returns to the list. |
-| R16 | M | Rows for `read` / `edit` / `ls` and other non-shell tools group by proximity: `Reading 3 files (<latest path>) · <Ns> ✓`, `Editing 1 file (<path>) +5 -3 · <Ns> ✓`. |
+| R16 | M | Rows for `read` / `edit` / `ls` and other non-shell tools group by proximity: `✓ Reading 3 files (<latest path>) · <Ns>`, `✓ Editing 1 file (<path>) +5 -3 · <Ns>`. |
 | R17 | M | `write` is never collapsed. In `compact` it keeps Pi's own block — header and full file content — never joins or contributes to a group row, and ends the current group so the next call starts a new one. |
 | R18 | M | The `ctrl+o to expand` hint appears only on rows that hold a file body or more than one call. A single command row carries no hint. |
 
@@ -146,7 +146,7 @@ draws today). There is no summary band, no footer and no end-of-turn line in eit
 
 | # | P | Requirement |
 | --- | --- | --- |
-| R24 | M | A blocked / denied / asked / errored call is labelled as such on its row (`✗ blocked`, `✗ denied`, per `C3`), the count reflects the attempt (`Reading 1 file (id_rsa) ✗ blocked`), and the audit log records the same decision it records today. |
+| R24 | M | A blocked / denied / asked / errored call is labelled as such on its row (`✗ blocked`, `✗ denied`, per `C3`), the count reflects the attempt (`✗ blocked Reading 1 file (id_rsa)`), and the audit log records the same decision it records today. |
 | R25 | M | The rendering never changes the model-facing prompt: schemas, descriptions, `promptSnippet` and `execute` stay stock. |
 
 ### Nested calls

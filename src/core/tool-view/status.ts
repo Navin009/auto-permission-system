@@ -7,19 +7,22 @@ export const StatusMark = {
 } as const;
 export type StatusMark = (typeof StatusMark)[keyof typeof StatusMark];
 
-const DENIED_BY_USER_MARKER = "denied by user";
-const BLOCKED_MARKER = "block";
+const DENIED_BY_USER_PATTERN = /denied by user/i;
+const BLOCKED_BY_POLICY_PATTERN =
+	/blocked by policy|security block|security policy notice|blocked \(automated environment\)/i;
 
 export function statusFromResult(isError: boolean, resultText: string): StatusMark {
-	const loweredText = resultText.toLowerCase();
+	if (!isError) {
+		return StatusMark.Ok;
+	}
 
-	if (loweredText.includes(DENIED_BY_USER_MARKER)) {
+	if (DENIED_BY_USER_PATTERN.test(resultText)) {
 		return StatusMark.Denied;
 	}
 
-	if (loweredText.includes(BLOCKED_MARKER)) {
+	if (BLOCKED_BY_POLICY_PATTERN.test(resultText)) {
 		return StatusMark.Blocked;
 	}
 
-	return isError ? StatusMark.Failed : StatusMark.Ok;
+	return StatusMark.Failed;
 }

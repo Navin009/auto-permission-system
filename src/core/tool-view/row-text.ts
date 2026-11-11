@@ -13,19 +13,24 @@ export interface RowDescription {
 }
 
 export interface RowText {
-	lead: string;
+	mark: string;
+	body: string;
 	status: StatusMark;
 	hint: string | undefined;
 	commandLine: string | undefined;
 }
 
-const GUTTER_RUNNING = "● ";
-const GUTTER_IDLE = " ";
+const RUNNING_MARK = "●";
+const MARK_SEPARATOR = " ";
 const COMMAND_LINE_INDENT = "   ";
 const COMMAND_LINE_BRANCH = "└";
 const COMMAND_PREFIX = "$";
 const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
+
+export function statusMark(status: StatusMark): string {
+	return status === StatusMark.Running ? RUNNING_MARK : status;
+}
 
 export function pluralize(noun: string, count: number): string {
 	if (count === 1) {
@@ -36,15 +41,14 @@ export function pluralize(noun: string, count: number): string {
 }
 
 export function buildRowText(description: RowDescription): RowText {
-	const isRunning = description.status === StatusMark.Running;
-	const gutter = isRunning ? GUTTER_RUNNING : GUTTER_IDLE;
 	const countedNoun = `${description.count} ${pluralize(description.noun, description.count)}`;
 	const targetPart = description.target ? ` (${description.target})` : "";
 	const duration = description.durationMilliseconds;
 	const durationPart = duration === undefined ? "" : ` · ${formatDuration(duration)}`;
 
 	return {
-		lead: `${gutter}${description.verb} ${countedNoun}${targetPart}${durationPart}`,
+		mark: statusMark(description.status),
+		body: `${description.verb} ${countedNoun}${targetPart}${durationPart}`,
 		status: description.status,
 		hint: description.hint,
 		commandLine: description.command
@@ -54,10 +58,9 @@ export function buildRowText(description: RowDescription): RowText {
 }
 
 export function rowLine(text: RowText): string {
-	const statusPart = text.status === StatusMark.Running ? "" : ` ${text.status}`;
 	const hintPart = text.hint ? ` ${text.hint}` : "";
 
-	return `${text.lead}${statusPart}${hintPart}`;
+	return `${text.mark}${MARK_SEPARATOR}${text.body}${hintPart}`;
 }
 
 export function rowLines(text: RowText): string[] {
