@@ -1,5 +1,7 @@
 const SEGMENT_SEPARATOR = /\s*(?:;|&&|\|\||\||\n|(?<![><&])&(?!&))\s*/;
 const TOKEN_PATTERN = /"([^"]*)"|'([^']*)'|(\S+)/g;
+const HEREDOC_TAIL_PATTERN = /^-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_][A-Za-z0-9_-]*))/;
+const QUOTE_CHARACTERS = new Set(['"', "'"]);
 const SUBSTITUTION_PATTERN = /\$\(([^()]*)\)|`([^`]*)`/g;
 const WRAPPING_PARENTHESES_START = /^\(+/;
 const WRAPPING_PARENTHESES_END = /\)+$/;
@@ -53,11 +55,67 @@ export function isShellCommand(binary: string): boolean {
 	return SHELL_COMMANDS.has(binary);
 }
 
+function heredocDelimiters(line: string): string[] {
+	const delimiters: string[] = [];
+	let openQuote: string | undefined;
+	let position = 0;
+
+	while (position < line.length) {
+		const character = line[position];
+
+		if (openQuote) {
+			if (character === openQuote) openQuote = undefined;
+			position++;
+			continue;
+		}
+
+		if (QUOTE_CHARACTERS.has(character)) {
+			openQuote = character;
+			position++;
+			continue;
+		}
+
+		if (character !== "<" || line[position + 1] !== "<" || line[position - 1] === "<" || line[position + 2] === "<") {
+			position++;
+			continue;
+		}
+
+		const match = HEREDOC_TAIL_PATTERN.exec(line.slice(position + 2));
+
+		if (!match) {
+			position++;
+			continue;
+		}
+
+		delimiters.push(match[1] ?? match[2] ?? match[3]);
+		position += 2 + match[0].length;
+	}
+
+	return delimiters;
+}
+
 export function shellSegments(command: string): string[] {
-	return command
-		.split(SEGMENT_SEPARATOR)
-		.map((segment) => segment.trim())
-		.filter(Boolean);
+	const segments: string[] = [];
+	const openDelimiters: string[] = [];
+
+	for (const line of command.split("\n")) {
+		const openDelimiter = openDelimiters[0];
+
+		if (openDelimiter !== undefined) {
+			if (line.trim() === openDelimiter) openDelimiters.shift();
+			continue;
+		}
+
+		openDelimiters.push(...heredocDelimiters(line));
+
+		for (const separatedSegment of line.split(SEGMENT_SEPARATOR)) {
+			const segment = separatedSegment.trim();
+
+			if (segment) segments.push(segment);
+		}
+	}
+
+	return segments;
 }
 
 function stripWrappingParentheses(token: string): string {

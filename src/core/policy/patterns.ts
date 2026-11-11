@@ -276,27 +276,43 @@ export function isSessionFolderGrant(directory: string, home: string): boolean {
  * same semantics as Layer 2: `/…` and `~/…` are full-path prefixes or globs,
  * `.` is the project root, anything else matches the basename (glob allowed).
  */
+const CASE_INSENSITIVE_PLATFORM = process.platform === "darwin";
+
+function compileGlob(source: string, caseInsensitive: boolean): RegExp {
+	const body = source
+		.replace(/[.+^${}()|[\]\\]/g, "\\$&")
+		.split("**")
+		.map((part) => part.replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]"))
+		.join(".*");
+
+	return new RegExp(`^${body}$`, caseInsensitive ? "i" : "");
+}
+
+export function matchesGlob(text: string, pattern: string, caseInsensitive = false): boolean {
+	return compileGlob(pattern, caseInsensitive).test(text);
+}
+
 export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
 	let expandedPattern = pattern;
 	if (expandedPattern === "~") expandedPattern = home;
 	else if (expandedPattern.startsWith("~/")) expandedPattern = `${home}/${expandedPattern.slice(2)}`;
-	const caseInsensitiveFlag = process.platform === "darwin" ? "i" : "";
-	const compileGlob = (source: string): RegExp => {
-		const body = source
-			.replace(/[.+^${}()|[\]\\]/g, "\\$&")
-			.split("**")
-			.map((part) => part.replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]"))
-			.join(".*");
-		return new RegExp(`^${body}$`, caseInsensitiveFlag);
-	};
 	if (expandedPattern === ".") return absPath === cwd || absPath.startsWith(`${cwd}/`);
 	if (expandedPattern.startsWith("/")) {
-		if (expandedPattern.includes("*")) return compileGlob(expandedPattern).test(absPath);
+		if (expandedPattern.includes("*")) return matchesGlob(absPath, expandedPattern, CASE_INSENSITIVE_PLATFORM);
 		return absPath === expandedPattern || absPath.startsWith(`${expandedPattern}/`);
 	}
 	const basename = absPath.slice(absPath.lastIndexOf("/") + 1);
-	if (expandedPattern.includes("*")) return compileGlob(expandedPattern).test(basename);
-	return caseInsensitiveFlag ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+	if (expandedPattern.includes("*")) return matchesGlob(basename, expandedPattern, CASE_INSENSITIVE_PLATFORM);
+	return CASE_INSENSITIVE_PLATFORM ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+}
+
+export function firstMatchingPattern(
+	absolutePath: string,
+	patterns: readonly string[],
+	workingDirectory: string,
+	homeDirectory: string,
+): string | undefined {
+	return patterns.find((pattern) => matchesPolicyPattern(absolutePath, pattern, workingDirectory, homeDirectory));
 }
 
 export function somePatternMatches(
@@ -305,7 +321,7 @@ export function somePatternMatches(
 	workingDirectory: string,
 	homeDirectory: string,
 ): boolean {
-	return patterns.some((pattern) => matchesPolicyPattern(absolutePath, pattern, workingDirectory, homeDirectory));
+	return firstMatchingPattern(absolutePath, patterns, workingDirectory, homeDirectory) !== undefined;
 }
 
 /**

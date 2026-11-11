@@ -276,7 +276,7 @@ function formatCredentialBody(askDetails: AskKind, action: AskAction, riskDescri
 	return bodyLines.join("\n");
 }
 
-function getCredentialLabel(subjectPath: string): string {
+export function getCredentialLabel(subjectPath: string): string {
 	if (subjectPath.endsWith(".ssh/id_rsa") || subjectPath.endsWith(".ssh/id_ed25519")) {
 		return "SSH private key";
 	}

@@ -156,7 +156,7 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
     Command  grep -r TOKEN .env
     Risk     the AI will see any keys in it
     Why      .env files usually hold passwords and API keys
-    Note     can't be saved as a permanent rule (secrets tier)
+    Note     this file holds secrets, so a saved rule is never offered
 
   > No
     Yes, just this once
@@ -166,6 +166,8 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 ```
 - **Preselected Default:** `No` is preselected. Pressing Enter immediately blocks the read.
 - **Expiry:** If unattended for 10 seconds, the prompt resolves safely to **No** (Block).
+- **Trigger shown:** the `Command` line names the part of the command that caused the ask, so a `find` or a `grep` is never guessed at.
+- **Name-only listings don't ask:** `find .`, `ls -R` and `tree` print names, not contents. Inside the project that is not a read (the AI can already list its own files); outside the project it still asks and says only the name is exposed (ADR-049).
 
 ### 2. Governed Network Egress Prompt
 ```

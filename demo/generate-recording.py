@@ -225,9 +225,10 @@ def create_frames():
     prompt1_title = [
         ("🔑  Let pi read your .env file?", FG_YELLOW, True),
         ("    File     ~/workspace/app/.env", FG_TEXT, False),
-        ("    Why      .env files usually hold passwords and API keys", FG_MUTED, False),
+        ("    Command  grep -r TOKEN .env", FG_MUTED, False),
         ("    Risk     the AI will see any keys in it", FG_RED, False),
-        ("    Note     cannot be saved as permanent rule (secrets tier)", FG_MUTED, False),
+        ("    Why      .env files usually hold passwords and API keys", FG_MUTED, False),
+        ("    Note     this file holds secrets, so a saved rule is never offered", FG_MUTED, False),
     ]
     prompt1_options = [
         "No",

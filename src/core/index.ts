@@ -12,6 +12,7 @@ export * from "./policy/patterns.ts";
 export * from "./policy/classify.ts";
 export * from "./policy/commands.ts";
 export * from "./policy/fence.ts";
+export * from "./policy/find-query.ts";
 export * from "./policy/write-fence.ts";
 export * from "./policy/subagent.ts";
 export * from "./grep-filter.ts";

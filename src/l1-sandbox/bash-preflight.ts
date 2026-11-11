@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
 import {
-	askReadCandidates,
+	askReadFindings,
 	askWriteCandidates,
 	deniedWriteCandidates,
 	isSafeFolderGrant,
@@ -9,11 +9,17 @@ import {
 	matchedAskCommands,
 	outsideProjectMode,
 	outsideProjectReadCandidates,
+	ReadExposure,
+	type AskReadFinding,
 } from "../core/index.ts";
 import { audit } from "../shared/audit.ts";
 import { canonicalize } from "../shared/canonicalize.ts";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
+import { displayWhy, getCredentialLabel } from "../ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
+
+const MAXIMUM_COMMAND_DISPLAY_LENGTH = 100;
+const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offered";
 
 export interface SandboxedBashOptions {
 	ctx?: {
@@ -46,6 +52,9 @@ const deduplicatePaths = (paths: readonly string[]): string[] => [...new Set(pat
 const sessionGrantCovers = (grants: readonly string[], absolutePath: string): boolean =>
 	grants.some((grant) => absolutePath === grant || absolutePath.startsWith(`${grant}/`));
 
+const isInsideProject = (absolutePath: string, workingDirectory: string): boolean =>
+	absolutePath === workingDirectory || absolutePath.startsWith(`${workingDirectory}/`);
+
 const recordSessionGrant = (grants: string[], absolutePath: string): void => {
 	const parentDirectory = dirname(absolutePath);
 
@@ -74,7 +83,7 @@ async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promi
 		`File     ${absolutePath}`,
 		`Why      this file usually holds passwords and API keys`,
 		`Risk     the AI can change what the app reads, or wipe a key`,
-		`Note     can't be saved as a permanent rule (it holds secrets)`,
+		`Note     ${CREDENTIAL_NOTE}`,
 	];
 
 	return askMain(askContext, `Let this command write ${basename(absolutePath)}?`, promptLines.join("\n"), {
@@ -82,6 +91,37 @@ async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promi
 		remember: false,
 		icon: "cred",
 	});
+}
+
+function shortenCommand(command: string): string {
+	const singleLineCommand = command.replace(/\s+/g, " ").trim();
+
+	if (singleLineCommand.length <= MAXIMUM_COMMAND_DISPLAY_LENGTH) return singleLineCommand;
+
+	return `${singleLineCommand.slice(0, MAXIMUM_COMMAND_DISPLAY_LENGTH - 1)}\u2026`;
+}
+
+function describeAskRead(finding: AskReadFinding, command: string): { title: string; body: string } {
+	const credentialLabel = getCredentialLabel(finding.path);
+	const isNameOnly = finding.exposure === ReadExposure.Name;
+
+	const title = isNameOnly
+		? `Let this command list your ${credentialLabel} by name?`
+		: `Let this command read your ${credentialLabel}?`;
+
+	const riskLine = isNameOnly
+		? "only the file name \u2014 this command never opens the file"
+		: "the AI will see any keys in it";
+
+	const bodyLines = [
+		`File     ${finding.path}`,
+		`Command  ${shortenCommand(command)}`,
+		`Risk     ${riskLine}`,
+		`Why      ${displayWhy(`askRead matched "${finding.pattern}"`)}`,
+		`Note     ${CREDENTIAL_NOTE}`,
+	];
+
+	return { title, body: bodyLines.join("\n") };
 }
 
 export const sessionReadGrants: string[] = [];
@@ -241,7 +281,7 @@ export async function preflightAskReads(
 		return undefined;
 	}
 
-	const candidatePaths = askReadCandidates(
+	const findings = askReadFindings(
 		command,
 		workingDirectory,
 		homedir(),
@@ -250,50 +290,50 @@ export async function preflightAskReads(
 		(path) => canonicalize(path, workingDirectory),
 	);
 
-	if (!candidatePaths.length) {
+	if (!findings.length) {
 		return undefined;
 	}
 
 	const askContext = options?.ctx as AskCtx | undefined;
 
-	for (const absolutePath of deduplicatePaths(candidatePaths.map((path) => canonicalize(path, workingDirectory)))) {
-		if (sessionGrantCovers(sessionAskReadGrants, absolutePath)) {
+	for (const finding of findings) {
+		if (finding.exposure === ReadExposure.Name && isInsideProject(finding.path, workingDirectory)) {
+			auditLayer1Bash({ subject: finding.path, decision: "allow", note: "ask-read-name-only", cwd: workingDirectory });
+			continue;
+		}
+
+		if (sessionGrantCovers(sessionAskReadGrants, finding.path)) {
 			continue;
 		}
 
 		if (!askContext?.hasUI || !askContext.ui?.select) {
-			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-read-headless", cwd: workingDirectory });
+			auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read-headless", cwd: workingDirectory });
 
-			return blockAutomated("read", absolutePath, onData);
+			return blockAutomated("read", finding.path, onData);
 		}
 
-		const promptLines = [
-			`File     ${absolutePath}`,
-			`Why      .env files usually hold passwords and API keys`,
-			`Risk     the AI will see any keys in it`,
-			`Note     can't be saved as a permanent rule (it holds secrets)`,
-		];
+		const prompt = describeAskRead(finding, command);
 
-		const userChoice = await askMain(
-			askContext,
-			"Let this command read your .env file?",
-			promptLines.join("\n"),
-			{ session: true, remember: false, icon: "cred" },
-		);
+		const userChoice = await askMain(askContext, prompt.title, prompt.body, {
+			session: true,
+			remember: false,
+			icon: "cred",
+		});
 
 		if (userChoice === "once" || userChoice === "session") {
 			if (userChoice === "session") {
-				recordSessionGrant(sessionAskReadGrants, absolutePath);
+				recordSessionGrant(sessionAskReadGrants, finding.path);
 			}
 
-			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-read", cwd: workingDirectory });
+			auditLayer1Bash({ subject: finding.path, decision: userChoice, note: "ask-read", cwd: workingDirectory });
 			continue;
 		}
 
-		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-read", cwd: workingDirectory });
+		auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read", cwd: workingDirectory });
 		onData(
-			Buffer.from(`\n[Security Block] sandbox: read access to ${absolutePath} was denied by user. Command was not executed.\n`),
+			Buffer.from(`\n[Security Block] sandbox: read access to ${finding.path} was denied by user. Command was not executed.\n`),
 		);
+
 		return { exitCode: 1 };
 	}
 

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname } from "node:path";
-import { normalizeAbs, somePatternMatches, toSandboxPatterns } from "./patterns.ts";
+import { firstMatchingPattern, normalizeAbs, somePatternMatches, toSandboxPatterns } from "./patterns.ts";
 import { commandHead, commandSegments, shellTokens } from "./shell-command.ts";
 import {
 	embeddedPathTokens,
@@ -8,6 +8,7 @@ import {
 	resolveTokenPaths,
 	type PathCandidateOptions,
 } from "./path-tokens.ts";
+import { findReadCandidates } from "./find-query.ts";
 import { ReadPosture, outsideProjectMode, outsideProjectReadDenied, type FilesystemPolicy } from "./classify.ts";
 
 const READ_COMMANDS = new Set([
@@ -23,8 +24,35 @@ const READ_COMMANDS = new Set([
 
 const RECURSIVE_SEARCH_COMMANDS = new Set(["grep", "rg", "ag", "ack", "find", "tree", "du", "fd"]);
 
+const NAME_ONLY_COMMANDS = new Set([
+	"ls", "find", "tree", "du", "stat", "readlink", "realpath", "dirname", "basename",
+	"cd", "pushd", "popd",
+]);
+
+export const ReadExposure = {
+	Name: "name",
+	Content: "content",
+} as const;
+
+export type ReadExposure = (typeof ReadExposure)[keyof typeof ReadExposure];
+
+export interface ReadCandidate {
+	path: string;
+	exposure: ReadExposure;
+}
+
+export interface AskReadFinding extends ReadCandidate {
+	pattern: string;
+}
+
 export { shellSegments, shellTokens } from "./shell-command.ts";
 export type { PathCandidateOptions } from "./path-tokens.ts";
+
+function recordCandidate(candidates: Map<string, ReadExposure>, absolutePath: string, exposure: ReadExposure): void {
+	if (candidates.get(absolutePath) === ReadExposure.Content) return;
+
+	candidates.set(absolutePath, exposure);
+}
 
 function readPathCandidates(
 	command: string,
@@ -32,8 +60,8 @@ function readPathCandidates(
 	homeDirectory: string,
 	checkFileExists: (path: string) => boolean,
 	options: PathCandidateOptions,
-): string[] {
-	const foundPaths = new Set<string>();
+): ReadCandidate[] {
+	const foundCandidates = new Map<string, ReadExposure>();
 
 	for (const segment of commandSegments(command)) {
 		const tokens = shellTokens(segment);
@@ -41,24 +69,36 @@ function readPathCandidates(
 
 		if (!READ_COMMANDS.has(head)) continue;
 
+		const exposure = NAME_ONLY_COMMANDS.has(head) ? ReadExposure.Name : ReadExposure.Content;
+
+		if (head === "find") {
+			const findCandidates = findReadCandidates(tokens.slice(headIndex + 1), workingDirectory, homeDirectory, checkFileExists, options);
+
+			if (findCandidates) {
+				for (const candidatePath of findCandidates) recordCandidate(foundCandidates, candidatePath, exposure);
+				continue;
+			}
+		}
+
 		const isRecursiveSearch = RECURSIVE_SEARCH_COMMANDS.has(head);
+		const listDirectory = options.listDirectory ?? listDirectoryFiles;
 
 		for (const rawToken of tokens.slice(headIndex + 1)) {
 			for (const token of embeddedPathTokens(rawToken)) {
 				for (const absolutePath of resolveTokenPaths(token, workingDirectory, homeDirectory, options)) {
 					if (isRecursiveSearch) {
-						for (const listedFile of (options.listDirectory ?? listDirectoryFiles)(absolutePath)) {
-							foundPaths.add(normalizeAbs(listedFile));
+						for (const listedFile of listDirectory(absolutePath)) {
+							recordCandidate(foundCandidates, normalizeAbs(listedFile), exposure);
 						}
 					}
 
-					if (checkFileExists(absolutePath)) foundPaths.add(absolutePath);
+					if (checkFileExists(absolutePath)) recordCandidate(foundCandidates, absolutePath, exposure);
 				}
 			}
 		}
 	}
 
-	return [...foundPaths];
+	return [...foundCandidates].map(([path, exposure]) => ({ path, exposure }));
 }
 
 export function outsideProjectReadCandidates(
@@ -71,7 +111,9 @@ export function outsideProjectReadCandidates(
 	options: PathCandidateOptions = {},
 ): string[] {
 	const candidates = new Set(
-		readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options).map(resolvePath),
+		readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options).map((candidate) =>
+			resolvePath(candidate.path),
+		),
 	);
 
 	return [...candidates].filter(
@@ -90,21 +132,53 @@ export function askReadCandidates(
 	resolvePath: (path: string) => string = (path) => path,
 	options: PathCandidateOptions = {},
 ): string[] {
+	const findings = askReadFindings(
+		command,
+		workingDirectory,
+		homeDirectory,
+		filesystem,
+		checkFileExists,
+		resolvePath,
+		options,
+	);
+
+	return findings.map((finding) => finding.path);
+}
+
+export function askReadFindings(
+	command: string,
+	workingDirectory: string,
+	homeDirectory: string,
+	filesystem: FilesystemPolicy,
+	checkFileExists: (path: string) => boolean = existsSync,
+	resolvePath: (path: string) => string = (path) => path,
+	options: PathCandidateOptions = {},
+): AskReadFinding[] {
 	const askReadPatterns = filesystem.askRead ?? [];
 
 	if (!askReadPatterns.length) {
 		return [];
 	}
 
-	const candidates = new Set(
-		readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options).map(resolvePath),
-	);
+	const findings = new Map<string, AskReadFinding>();
 
-	return [...candidates].filter(
-		(candidatePath) =>
-			!somePatternMatches(candidatePath, filesystem.denyRead, workingDirectory, homeDirectory) &&
-			somePatternMatches(candidatePath, askReadPatterns, workingDirectory, homeDirectory),
-	);
+	for (const candidate of readPathCandidates(command, workingDirectory, homeDirectory, checkFileExists, options)) {
+		const candidatePath = normalizeAbs(resolvePath(candidate.path));
+
+		if (somePatternMatches(candidatePath, filesystem.denyRead, workingDirectory, homeDirectory)) continue;
+
+		const pattern = firstMatchingPattern(candidatePath, askReadPatterns, workingDirectory, homeDirectory);
+
+		if (!pattern) continue;
+
+		const existing = findings.get(candidatePath);
+
+		if (existing && existing.exposure === ReadExposure.Content) continue;
+
+		findings.set(candidatePath, { path: candidatePath, exposure: candidate.exposure, pattern });
+	}
+
+	return [...findings.values()];
 }
 
 export function commandMentionsPath(

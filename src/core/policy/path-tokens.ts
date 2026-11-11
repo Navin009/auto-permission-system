@@ -22,10 +22,11 @@ const SKIPPED_DIRECTORY_NAMES = new Set([
 ]);
 
 const MAXIMUM_DIRECTORY_FILES = 1000;
+const UNLIMITED_DEPTH = Number.MAX_SAFE_INTEGER;
 
 export interface PathCandidateOptions {
 	expandGlob?: (absolutePattern: string) => string[];
-	listDirectory?: (absoluteDirectory: string) => string[];
+	listDirectory?: (absoluteDirectory: string, maximumDepth?: number) => string[];
 }
 
 export function looksLikePath(token: string): boolean {
@@ -76,12 +77,20 @@ function expandGlobPattern(absolutePattern: string): string[] {
 	}
 }
 
-export function listDirectoryFiles(absoluteDirectory: string): string[] {
+function entryDepth(entry: string): number {
+	return entry.split("/").length;
+}
+
+function isSkippedEntry(entry: string): boolean {
+	return entry.split("/").some((part) => SKIPPED_DIRECTORY_NAMES.has(part));
+}
+
+export function listDirectoryFiles(absoluteDirectory: string, maximumDepth: number = UNLIMITED_DEPTH): string[] {
 	try {
 		const entries = readdirSync(absoluteDirectory, { recursive: true, encoding: "utf8" });
 
 		return entries
-			.filter((entry) => !entry.split("/").some((part) => SKIPPED_DIRECTORY_NAMES.has(part)))
+			.filter((entry) => entryDepth(entry) <= maximumDepth && !isSkippedEntry(entry))
 			.map((entry) => `${absoluteDirectory.replace(TRAILING_SLASHES, "")}/${entry}`)
 			.slice(0, MAXIMUM_DIRECTORY_FILES);
 	} catch {

@@ -235,15 +235,35 @@ the command runs, so nothing has been read yet.
 
     File     ~/project/.env
     Command  grep -r TOKEN .env
-    Why      .env files usually hold passwords and API keys
     Risk     the AI will see any keys in it
-    Note     can't be saved as a permanent rule (it holds secrets)
+    Why      .env files usually hold passwords and API keys
+    Note     this file holds secrets, so a saved rule is never offered
 
   > No
     Yes, just this once
     Yes, for this conversation
 
   Default: No
+```
+
+Which file the title names comes from the path (`.env file`, `private key
+file`, `npmrc file`, ...), and `Why` names the `askRead` entry that matched, so
+the prompt describes the rule that fired rather than assuming `.env`.
+
+A command that only lists names (`find .`, `ls -R`, `tree`) is not a read. When
+the listed file is inside the project, no prompt appears at all — those names
+are already visible to the AI through ordinary listing — and the run goes to
+the audit log as `ask-read-name-only`. When it is outside the project, the
+prompt still fires and says so:
+
+```
+🔑  Let this command list your .env file by name?
+
+    File     /home/u/.env
+    Command  find ~ -name ".env"
+    Risk     only the file name — this command never opens the file
+    Why      .env files usually hold passwords and API keys
+    Note     this file holds secrets, so a saved rule is never offered
 ```
 
 | Answer                | What happens |
@@ -253,7 +273,7 @@ the command runs, so nothing has been read yet.
 | Yes, for this conversation | Any command can read this `.env` until you quit pi. Nothing is saved to disk. |
 
 There's no "Yes, always…": secrets should never be saved as a rule in a
-`sandbox.json`. `askRead` only ever prompts.
+`sandbox.json`. `askRead` only ever prompts (ADR-046).
 
 ---
 

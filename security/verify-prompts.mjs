@@ -165,10 +165,11 @@ console.log('═'.repeat(78));
 // ─── §4: askRead (.env) ─────────────────────────────────────────────────
 {
 	const ctx = mkCtx([(o) => o[0]]);
-	await askMain(ctx.ctx, 'Let this command read your .env file?', ['File     /home/u/project/.env', 'Why      .env files usually hold passwords and API keys', 'Risk     the AI will see any keys in it', 'Note     can\'t be saved as a permanent rule (it holds secrets)'].join('\n'), { remember: false, icon: 'cred' });
+	await askMain(ctx.ctx, 'Let this command read your .env file?', ['File     /home/u/project/.env', 'Command  grep -r TOKEN .env', 'Risk     the AI will see any keys in it', 'Why      .env files usually hold passwords and API keys', 'Note     this file holds secrets, so a saved rule is never offered'].join('\n'), { session: true, remember: false, icon: 'cred' });
 	const t = ctx.titles[0];
 	check('§4 title: 🔑 for .env', t.startsWith('🔑'), t[0], '🔑');
-	check('§4 body has Risk + Note', t.includes('Risk     ') && t.includes('Note     '), 'see body', 'Risk + Note present');
+	check('§4 body has Command + Risk + Note', t.includes('Command  ') && t.includes('Risk     ') && t.includes('Note     '), 'see body', 'Command + Risk + Note present');
+	check('§4 body never claims a permanent rule is possible', !t.includes('always…'), t.split('\n').find((l) => l.includes('Note')), 'no always row');
 }
 
 // ─── §2: session grant covers subsequent files ──────────────────────────

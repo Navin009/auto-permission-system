@@ -39,9 +39,10 @@ def main():
 
     print(f"\n{YELLOW}{BOLD}🔑  Let pi read your .env file?{RESET}")
     print("    File     ~/workspace/app/.env")
-    print("    Why      .env files usually hold passwords and API keys")
+    print("    Command  grep -r TOKEN .env")
     print(f"    {RED}Risk     the AI will see any keys in it{RESET}")
-    print("    Note     cannot be saved as permanent rule (secrets tier)")
+    print("    Why      .env files usually hold passwords and API keys")
+    print("    Note     this file holds secrets, so a saved rule is never offered")
     print(f"\n  {CYAN}{BOLD}→ No{RESET}")
     print("    Yes, just this once")
     print("    Yes, for this conversation")

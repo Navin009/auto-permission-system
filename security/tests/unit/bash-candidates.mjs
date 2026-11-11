@@ -50,6 +50,17 @@ const walkReads = (command) =>
 	askReadCandidates(command, cwd, home, filesystem, missing, (path) => path, walkOptions);
 check("a recursive search over a folder is walked", walkReads("grep -r KEY .").includes(envPath));
 check("a non-recursive command is not walked", walkReads("echo .").length === 0);
+check("a find name filter hides a file it never prints", walkReads('find . -name ".markdownlint*"').length === 0);
+check("a find without a filter still walks", walkReads("find .").includes(envPath));
+check("a find predicate value is not a read target", walkReads('find . -not -path "./node_modules/*"').includes(envPath));
+
+check("a heredoc body is data, not a command", reads("cat > notes.md <<'EOF'\ncat .env\nEOF").length === 0);
+check("an unquoted heredoc marker works", reads("cat > notes.md <<EOF\ncat .env\nEOF").length === 0);
+check("a tab-indented delimiter closes the heredoc", reads("cat > notes.md <<-EOF\ncat .env\n\tEOF\ncat .env").includes(envPath));
+check("a command after the heredoc still counts", reads("cat > notes.md <<'EOF'\ncat .env\nEOF\ncat .env").includes(envPath));
+check("a second heredoc on the same line is skipped too", reads("cat <<A <<B\ncat .env\nA\ncat .env\nB").length === 0);
+check("a quoted << is not a heredoc", reads('echo "a << b" && cat .env').includes(envPath));
+check("a herestring does not swallow the next line", reads('grep -q ok <<<"yes"\ncat .env').includes(envPath));
 
 check("echo alone is not a read", reads("echo .env").length === 0);
 check("a flag is not a path", reads("cat -- .env").includes(envPath));

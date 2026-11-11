@@ -1,5 +1,5 @@
 // askRead (ADR-019): sensitive paths ASK instead of being hard-denied.
-import { askReadCandidates, sandboxFilesystem, loadDefaultPolicy } from '../../../src/core/index.ts';
+import { askReadCandidates, askReadFindings, ReadExposure, sandboxFilesystem, loadDefaultPolicy } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };
@@ -17,6 +17,11 @@ check('an unrelated file is not a candidate', c('cat src/app.ts').length === 0);
 check('echo is not a read command', c('echo .env').length === 0);
 check('denyRead wins over askRead', askReadCandidates('cat ~/.ssh/x', cwd, home, { ...fs, askRead: ['~/.ssh'] }, exists).length === 0);
 check('an empty askRead list is a no-op', askReadCandidates('cat .env', cwd, home, { ...fs, askRead: [] }, exists).length === 0);
+
+const findings = (cmd) => askReadFindings(cmd, cwd, home, fs, exists);
+check('the matched askRead pattern is reported', findings('cat .env')[0]?.pattern === '.env');
+check('a content read is reported as content', findings('cat .env')[0]?.exposure === ReadExposure.Content);
+check('an askRead folder reports its folder pattern', askReadFindings('cat ~/.aws/config', cwd, home, { ...fs, askRead: ['~/.aws'] }, exists)[0]?.pattern === '~/.aws');
 
 const d = loadDefaultPolicy()?.filesystem ?? {};
 check('default: .env is in askRead', (d.askRead ?? []).includes('.env'));
