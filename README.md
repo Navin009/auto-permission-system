@@ -345,6 +345,31 @@ When cloning a repository with a `.pi/sandbox.json`:
 | `/permission-mode` | Switch between **Default**, **Advanced Secure**, and **YOLO** mid-session. |
 | `/security trust` | Inspect and trust project-local policy widening in `.pi/sandbox.json`. |
 | `/security untrust` | Revoke trust for the current project's policy file. |
+| `/tool-view compact` | Draw tool calls as one row each instead of a full block (display only). |
+| `/tool-view full` | Back to Pi's own output. Also the shipped default. |
+| `/tool-view` | Menu with both choices. |
+
+### Tool view (display only)
+
+`compact` squeezes each tool call into one row, and shell calls get a second line with the command:
+
+```text
+ Reading 1 file (src/a.ts) · 1s ✓ ctrl+o to expand
+
+ Running 1 command · 12s ✗
+   └ $ npm test
+```
+
+A finished command's output is collapsed — `ctrl+o` on the row gives Pi's own block back, and an
+expanded row is drawn exactly as Pi draws it. `write` is never collapsed (the file content is the
+point), and a call our guard blocked or a prompt you denied keeps its word: `✗ blocked`,
+`✗ denied`.
+
+- The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
+  agrees. Missing or unparsable file → `full`.
+- Default: `full`. Nothing changes until you switch it on.
+- Display only: the row renderer never reads or writes the policy, and every security decision —
+  sandbox, guard, ask prompt, audit log — is identical in both views.
 
 ---
 

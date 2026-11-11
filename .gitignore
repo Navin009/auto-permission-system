@@ -1,4 +1,6 @@
 .DS_Store
+# reference checkouts of other pi extensions (study material, never committed)
+.ref/
 node_modules/
 sandbox/node_modules/
 package-lock.json

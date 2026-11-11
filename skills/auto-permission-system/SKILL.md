@@ -31,6 +31,10 @@ Hooks `tool_call` for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_cont
 **Layer 3 — Subagent posture & Claude Auto Mode**
 When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the `subagent.network` policy: `allow` (default) | `deny` | `research-only`. In Claude Auto Mode, unapproved prompts fail closed.
 
+## Tool view (display only)
+
+`/tool-view compact` draws tool calls as one row each, `/tool-view full` returns Pi's own output, and the choice is saved in `~/.pi/agent/tool-view.json`. It is a renderer and nothing else: it never reads or writes `sandbox.json`, and a blocked or denied call keeps its `✗ blocked` / `✗ denied` mark on the row. Never treat the tool view as a security setting, and never suggest switching it as a way around a block.
+
 ## Policy files
 
 Merged in order (later wins):

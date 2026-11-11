@@ -2,7 +2,7 @@
 
 Pi coding agent extension: two-layer security sandbox + skill docs. Package manifest is the source of truth for what's wired up — see `package.json` → `pi` field:
 
-- `pi.extensions`: `extensions/guard.ts` (L2 in-process tool guard), `extensions/sandbox.ts` (L1 OS sandbox via sandbox-exec/bubblewrap)
+- `pi.extensions`: `extensions/guard.ts` (L2 in-process tool guard), `extensions/sandbox.ts` (L1 OS sandbox via sandbox-exec/bubblewrap), `extensions/permission-mode.ts` (mode switch), `extensions/tool-view.ts` (display-only tool rows, independent of the security layers)
 - `pi.skills`: `skills/auto-permission-system/SKILL.md` (agent-facing how-to, auto-loaded by pi when relevant)
 
 Shared pure logic lives in `src/core/` (the reusable part, no pi/OS imports); the two entrypoints stay thin.
@@ -23,6 +23,8 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 | `skills/auto-permission-system/SKILL.md` | pi's own context when helping a user configure/debug the sandbox | Yes, hand-edit |
 | `README.md` | human install/config reference | Yes, hand-edit |
 | `adr/*.md` | why a design decision was made | Append new ADRs, don't rewrite old ones |
+| `docs/TOOL_ROWS_VIEWS.md` | how the `compact` / `full` tool view looks, frame by frame | Yes, hand-edit |
+| `docs/TOOL_ROWS_REQUIREMENTS.md` | requirements, decisions and what v1 does not draw | Yes, hand-edit |
 
 ## Conventions
 
