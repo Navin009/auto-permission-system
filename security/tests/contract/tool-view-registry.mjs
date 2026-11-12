@@ -110,15 +110,16 @@ const repaintedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCal
 check('the group row counts both commands', repaintedGroup[0].startsWith('● Running 2 commands · '));
 check('the group row takes the last command mark', repaintedGroup[0].startsWith('●'));
 check('an open group carries no expand hint', !repaintedGroup[0].includes('ctrl+o'));
-check('the first command keeps its mark and duration', repaintedGroup[1] === '  └ ✗ $ npm test 1.5s');
+check('the first command keeps its mark and duration', repaintedGroup[1].startsWith('  └ ✗ $ npm test') && repaintedGroup[1].endsWith('1.5s'));
 check('the running command reads with an ellipsis', repaintedGroup[2] === '  └ … $ npm run build');
+check('a settled command pads its duration to the right edge', repaintedGroup[1].length === 100);
 
 const settledSecond = resultOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build', durationMs: 3000 });
 check('a settled member leaves the drawing to the head', lines(settledSecond).length === 0);
 
 const settledGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
 check('the settled group ends on the last command', settledGroup[0].startsWith('✓ Running 2 commands · '));
-check('the second command line settles with its duration', settledGroup[2] === '  └ ✓ $ npm run build 3s');
+check('the second command line settles with its duration', settledGroup[2].startsWith('  └ ✓ $ npm run build') && settledGroup[2].endsWith('3s'));
 
 closeRowGroup();
 const foldedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));

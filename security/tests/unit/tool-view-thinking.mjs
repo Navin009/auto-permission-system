@@ -1,6 +1,5 @@
 import { carriesStreamingThought, carriesVisibleText } from '../../../src/core/tool-view/message-text.ts';
-import { elapsedSeconds, hiddenThinkingLabel, thinkingPart } from '../../../src/core/tool-view/thinking.ts';
-import { ViewMode } from '../../../src/core/tool-view/view-mode.ts';
+import { elapsedSeconds, thinkingPart } from '../../../src/core/tool-view/thinking.ts';
 import { beginThinking, endThinking, resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
@@ -14,8 +13,6 @@ check('a thought counts whole seconds', thinkingPart(state(3400)) === '(thinking
 check('a thought truncates a part second', thinkingPart(state(3999)) === '(thinking 3s)');
 check('a thought never counts backwards', thinkingPart(state(-5000)) === '(thinking 0s)');
 check('a thought survives a broken clock', elapsedSeconds({ startedAt: Number.NaN, now: 10 }) === 0);
-check('compact hides Pi hidden thinking', hiddenThinkingLabel(ViewMode.Compact) === '');
-check('full keeps Pi hidden thinking label', hiddenThinkingLabel(ViewMode.Full) === undefined);
 
 check('a streaming thought is the last block', carriesStreamingThought(message([{ type: 'thinking', thinking: 'hmm' }])) === true);
 check('a thought followed by text is done', carriesStreamingThought(message([{ type: 'thinking', thinking: 'hmm' }, { type: 'text', text: 'hi' }])) === false);

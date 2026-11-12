@@ -11,7 +11,6 @@ import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
 import {
-	applyThinkingLabel,
 	beginThinking,
 	endThinking,
 	resetThinking,
@@ -35,9 +34,8 @@ export default function (pi: ExtensionAPI) {
 	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
-	pi.on("session_start", (_event, context) => {
+	pi.on("session_start", () => {
 		startSession();
-		applyThinkingLabel(context);
 	});
 
 	pi.on("turn_end", (event) => {

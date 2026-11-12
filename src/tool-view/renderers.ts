@@ -70,7 +70,7 @@ function renderRowCall(toolName: string, fallback: RendererFallback, parameters:
 	const group = rowGroupOfCall(context.toolCallId);
 	const level = expansionLevelOf(group, context);
 
-	if (level !== ExpansionLevel.Row) {
+	if (isNativeLevel(level)) {
 		return nativeCallBlock(fallback, parameters, level, group);
 	}
 
@@ -105,7 +105,7 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 	const group = rowGroupOfCall(context.toolCallId);
 	const level = expansionLevelOf(group, context);
 
-	if (level !== ExpansionLevel.Row) {
+	if (isNativeLevel(level)) {
 		return nativeResultBlock(fallback, parameters, level);
 	}
 
@@ -147,6 +147,10 @@ function rowComponent(group: RowGroup, context: RenderContext, theme: RenderThem
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {
 	return resolvedExpansionLevel(group?.expansionLevel ?? ExpansionLevel.Row, context.expanded);
+}
+
+function isNativeLevel(level: ExpansionLevel): boolean {
+	return level === ExpansionLevel.Collapsed || level === ExpansionLevel.Full;
 }
 
 function nativeCallBlock(

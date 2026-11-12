@@ -1,6 +1,6 @@
 import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
-import type { RowKind } from "../core/tool-view/row-kind.ts";
+import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 import { thinkingState } from "./thinking-clock.ts";
 
@@ -90,7 +90,7 @@ export function rowGroupOfCall(toolCallId: string): RowGroup | undefined {
 }
 
 export function advanceGroupExpansion(group: RowGroup): void {
-	group.expansionLevel = nextExpansionLevel(group.expansionLevel);
+	group.expansionLevel = nextExpansionLevel(group.expansionLevel, hasGroupStep(group));
 
 	for (const member of group.members) {
 		safelyInvalidate(member);
@@ -133,10 +133,14 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		kind: group.kind,
 		rows: group.members.map(rowSummary),
 		durationMilliseconds,
-		folded: group !== currentGroup,
+		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
 		thinking,
 	};
+}
+
+function hasGroupStep(group: RowGroup): boolean {
+	return group !== currentGroup && rowLabelOf(group.kind).showsChildLines;
 }
 
 function liveEndMilliseconds(group: RowGroup, isLive: boolean): number | undefined {

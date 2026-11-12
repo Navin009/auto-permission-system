@@ -1,7 +1,7 @@
 import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import { statusMark, statusWord, ToolStatus } from "./status.ts";
-import { fitTarget, summarizeShellCommand } from "./target-summary.ts";
+import { fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
 
 export interface RowSummary {
@@ -28,6 +28,7 @@ export interface RowLine {
 	indent: string;
 	mark: RowMark | undefined;
 	text: string;
+	duration: string | undefined;
 	hint: string | undefined;
 	isDim: boolean;
 }
@@ -47,6 +48,8 @@ const WHITESPACE_PATTERN = /\s+/g;
 const MARK_COLUMN_WIDTH = 2;
 const TARGET_PARENTHESES_WIDTH = 3;
 const MINIMUM_TARGET_WIDTH = 12;
+const COMMAND_COLUMN_PERCENT = 70;
+const PERCENT = 100;
 
 export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[] {
 	const showsChildLines = rowLabelOf(summary.kind).showsChildLines;
@@ -58,7 +61,7 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 		return lines;
 	}
 
-	return [...lines, ...childLines(summary.rows)];
+	return [...lines, ...childLines(summary.rows, summary.kind, width)];
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -91,6 +94,7 @@ function headerLine(
 		indent: "",
 		mark: { glyph: statusMark(status), status },
 		text: headerText(summary, status, folded, hint, width),
+		duration: undefined,
 		hint,
 		isDim: false,
 	};
@@ -159,24 +163,30 @@ function wordText(status: ToolStatus, isShown: boolean): string {
 	return word ? `${SPACE}${word}` : "";
 }
 
-function childLines(rows: readonly RowSummary[]): RowLine[] {
+function childLines(rows: readonly RowSummary[], kind: RowKind, width: number): RowLine[] {
 	const hiddenCount = Math.max(0, rows.length - NEWEST_ROW_LIMIT);
 	const visibleRows = hiddenCount > 0 ? rows.slice(hiddenCount) : rows;
 	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
 	const isSingle = rows.length === SINGLE_ROW_COUNT;
+	const commandColumn = commandColumnWidth(width);
 
 	for (const row of visibleRows) {
-		lines.push(childLine(row, isSingle));
+		lines.push(childLine(row, isSingle, kind, commandColumn));
 	}
 
 	return lines;
 }
 
-function childLine(row: RowSummary, isSingle: boolean): RowLine {
+function childLine(row: RowSummary, isSingle: boolean, kind: RowKind, commandColumn: number): RowLine {
+	const markWidth = isSingle ? 0 : MARK_COLUMN_WIDTH;
+	const wordPart = isSingle ? "" : wordText(row.status, true);
+	const budget = commandColumn - LINE_INDENT.length - markWidth - wordPart.length;
+
 	return {
 		indent: LINE_INDENT,
 		mark: isSingle ? undefined : { glyph: childMark(row.status), status: row.status },
-		text: childLineText(row, isSingle),
+		text: childLineText(row, kind, budget, wordPart),
+		duration: childDuration(row, isSingle),
 		hint: undefined,
 		isDim: true,
 	};
@@ -186,17 +196,26 @@ function childMark(status: ToolStatus): string {
 	return status === ToolStatus.Running ? RUNNING_LINE_MARK : statusMark(status);
 }
 
-function childLineText(row: RowSummary, isSingle: boolean): string {
-	const targetPart = `${SHELL_PROMPT}${SPACE}${toSingleLine(row.target)}`;
+function childLineText(row: RowSummary, kind: RowKind, budget: number, wordPart: string): string {
+	const command = kind === RowKind.Shell ? summarizeShellCommand(row.target) : toSingleLine(row.target);
+	const promptPart = `${SHELL_PROMPT}${SPACE}`;
+	const commandPart = fitCommand(command, budget - promptPart.length);
 
-	if (isSingle) {
-		return targetPart;
+	return `${promptPart}${commandPart}${wordPart}`;
+}
+
+function childDuration(row: RowSummary, isSingle: boolean): string | undefined {
+	if (isSingle || row.status === ToolStatus.Running || row.durationMilliseconds === undefined) {
+		return undefined;
 	}
 
-	const duration = row.status === ToolStatus.Running ? undefined : row.durationMilliseconds;
-	const durationPart = duration === undefined ? "" : `${SPACE}${formatCommandDuration(duration)}`;
+	return formatCommandDuration(row.durationMilliseconds);
+}
 
-	return `${targetPart}${durationPart}${wordText(row.status, true)}`;
+function commandColumnWidth(width: number): number {
+	const scaled = Math.floor((width * COMMAND_COLUMN_PERCENT) / PERCENT);
+
+	return Math.max(0, Math.min(scaled, width));
 }
 
 function overflowLine(hiddenCount: number): RowLine {
@@ -204,6 +223,7 @@ function overflowLine(hiddenCount: number): RowLine {
 		indent: LINE_INDENT,
 		mark: undefined,
 		text: `${OVERFLOW_MARK} (${hiddenCount} earlier ${pluralize(EARLIER_CALL_NOUN, hiddenCount)})`,
+		duration: undefined,
 		hint: undefined,
 		isDim: true,
 	};

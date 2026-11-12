@@ -395,6 +395,21 @@ Newest eight commands; older ones collapse to `  └ ... (2 earlier calls)`. Any
 assistant reply that carries text and a new user message all end the group, so two commands are only
 ever grouped when they really ran next to each other.
 
+```text
+✓ Running 4 commands · 1.2s
+  └ ✓ pytest -k "not slow" tests/unit                                 320ms
+  └ ✓ ruff check src                                                  180ms
+  └ ✗ scripts/seed.py --force                                         700ms
+  └ … $ python3 -m uvicorn app.main:app                              120ms
+```
+
+A `└` line is a summary: the command's noise is dropped (`cd <cwd> &&`, `sudo`, `uv run`, `env
+A=1`), the last segment of an `&&` / `||` / `;` / `|` chain is named, and `python -m <module> `
+becomes the module (`pytest`, `ruff`, `pip`). The command may take up to 70 % of the width; past
+that the middle collapses (`program arg … last-path`), then the arguments go (`program … tail`),
+and only the program is left when nothing else fits. The duration sits in its own right-aligned
+column, so a group's timings line up; `blocked` / `denied` ride with the command, left of it.
+
 A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
 (`  └ ✗ $ cat id_rsa blocked`).
@@ -409,14 +424,17 @@ A streaming thought rides on the live row in brackets and leaves no block of its
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. `compact` hides Pi's repeated
-hidden-thinking labels so a thought leaves exactly one trace; `/tool-view full` restores Pi's label.
-With thinking set to visible, Pi's italic thought text is Pi's own — the extension never rewrites it.
+freezes only when the row settles — so a live row never looks stopped. Pi's own `Thinking...` label
+stays exactly as Pi draws it in `full`, and clicking it still reveals that thought; the bracket is
+only the live timer. With thinking set to visible, Pi's italic thought text is Pi's own — the
+extension never rewrites it.
 
-Expanding is Pi's too — `compact` never redraws Pi's block. Click or `ctrl+o` a row and Pi draws its
-own block for every call in the group — same frame, same padding, same background, same preview line
-as `full` — then click or `ctrl+o` again for the full output. The compact row is only the collapsed
-level of that same view.
+Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
+`└` lines first; click again and Pi draws its own block for every call in the group — same frame,
+same padding, same background, same preview line as `full` — then click again for the full output,
+and once more to fold it back. A group that is already the newest row shows its `└` lines, so its
+first click goes straight to Pi's block. The compact row is only the collapsed level of that same
+view.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
   agrees. Missing or unparsable file → `full`.

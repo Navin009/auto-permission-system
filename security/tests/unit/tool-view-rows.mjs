@@ -8,7 +8,7 @@ const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FA
 
 const HINT = 'ctrl+o to expand';
 const WIDTH = 100;
-const lineText = (line) => `${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}`;
+const lineText = (line) => `${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.duration ? ` ${line.duration}` : ''}${line.hint ? ` ${line.hint}` : ''}`;
 const row = (overrides) => ({ target: 'npm test', status: ToolStatus.Ok, durationMilliseconds: 1200, ...overrides });
 const summary = (rows, overrides) => ({
 	kind: RowKind.Shell,
@@ -60,10 +60,10 @@ check('an earlier failure never turns the row red', failedFirst[0].mark.glyph ==
 check('a failure is never hidden by an ok neighbour', body(failedFirst)[0] === '  └ ✗ $ npm test 1.2s');
 
 const blockedLine = group([row({}), row({ status: ToolStatus.Blocked })]);
-check('a blocked line names its gate', body(blockedLine)[1] === '  └ ✗ $ npm test 1.2s blocked');
+check('a blocked line names its gate', body(blockedLine)[1] === '  └ ✗ $ npm test blocked 1.2s');
 
 const deniedLine = group([row({}), row({ status: ToolStatus.Denied })]);
-check('a denied line names its gate', body(deniedLine)[1] === '  └ ✗ $ npm test 1.2s denied');
+check('a denied line names its gate', body(deniedLine)[1] === '  └ ✗ $ npm test denied 1.2s');
 
 const singleDenied = group([row({ status: ToolStatus.Denied })]);
 check('a single denied row names its gate on the header', header(singleDenied) === '✗ Running 1 command · 5s denied');
@@ -138,6 +138,20 @@ check('a short target is never cut', foldedAt(200).includes('(sed -n 660,700p pl
 
 const longRead = readGroup([row({ target: 'src/core/tool-view/row-group.ts' })], {}, 70);
 check('a long read path keeps its file name', header(longRead) === '✓ Reading 1 file (… core/tool-view/row-group.ts) · 5s ctrl+o to expand');
+
+const LONG_CHILD = "rg -n 'tool-view|row-group' src/core plan security/tests --glob '*.ts' --glob '*.mjs'";
+const childAt = (width, target = LONG_CHILD) => group([row({ target }), row({ target })], {}, width)[1];
+const wideChild = childAt(200);
+check('a fitting child command is untouched', wideChild.text === `$ ${LONG_CHILD}`);
+check('a child duration travels in its own column', wideChild.duration === '1.2s');
+
+const cappedChild = childAt(100);
+check('the child command column stops at 70% of the width', cappedChild.text.length + '  └ ✓ '.length <= 70);
+check('a cut child keeps its program and its tail', cappedChild.text.startsWith('$ rg ') && cappedChild.text.includes(' … ') && cappedChild.text.endsWith("'*.mjs'"));
+
+const tinyChild = childAt(30, 'src/core/tool-view/row-group.ts --flag');
+check('a tiny column still names the tail', tinyChild.text === '$ … --flag');
+check('a single command row carries no duration column', body(one)[0] === '  └ $ npm test' && group([row({})])[1].duration === undefined);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

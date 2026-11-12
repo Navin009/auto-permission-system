@@ -44,18 +44,31 @@ export class RowGroupComponent implements Component {
 	render(width: number): string[] {
 		const lines = rowGroupLines(this.summary(), width);
 
-		return lines.map((line) => truncateToWidth(this.lineText(line), width, ELLIPSIS));
+		return lines.map((line) => truncateToWidth(this.lineText(line, width), width, ELLIPSIS));
 	}
 
 	invalidate(): void {}
 
-	private lineText(line: RowLine): string {
+	private lineText(line: RowLine, width: number): string {
 		const indent = line.indent ? this.theme.fg("dim", line.indent) : "";
 		const mark = line.mark ? this.markText(line.mark) : "";
 		const text = line.isDim ? this.theme.fg("dim", line.text) : line.text;
+		const duration = this.durationColumn(line, width);
 		const hint = line.hint ? `${SPACE}${this.theme.fg("dim", line.hint)}` : "";
 
-		return `${indent}${mark}${text}${hint}`;
+		return `${indent}${mark}${text}${duration}${hint}`;
+	}
+
+	private durationColumn(line: RowLine, width: number): string {
+		if (!line.duration) {
+			return "";
+		}
+
+		const markWidth = line.mark ? line.mark.glyph.length + SPACE.length : 0;
+		const usedWidth = line.indent.length + markWidth + line.text.length;
+		const padding = Math.max(SPACE.length, width - usedWidth - line.duration.length);
+
+		return `${SPACE.repeat(padding)}${this.theme.fg("dim", line.duration)}`;
 	}
 
 	private markText(mark: RowMark): string {

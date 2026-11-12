@@ -1,7 +1,7 @@
 import { Container, Text } from '@earendil-works/pi-tui';
 import { ExpansionLevel, nextExpansionLevel, resolvedExpansionLevel } from '../../../src/core/tool-view/expansion-level.ts';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetRowGroups } from '../../../src/tool-view/row-groups.ts';
+import { resetRowGroups, closeRowGroup } from '../../../src/tool-view/row-groups.ts';
 import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
 import { RowGroupComponent } from '../../../src/tool-view/row-group-component.ts';
 
@@ -47,11 +47,13 @@ const base = {
 	keyHint: () => 'ctrl+o to expand',
 };
 
-check('a row opens Pi collapsed view', nextExpansionLevel(ExpansionLevel.Row) === ExpansionLevel.Collapsed);
-check('a collapsed block opens Pi full view', nextExpansionLevel(ExpansionLevel.Collapsed) === ExpansionLevel.Full);
-check('a full block returns to the row', nextExpansionLevel(ExpansionLevel.Full) === ExpansionLevel.Row);
-check('the expand key jumps straight to the full view', resolvedExpansionLevel(ExpansionLevel.Collapsed, true) === ExpansionLevel.Full);
-check('the expand key off keeps the clicked level', resolvedExpansionLevel(ExpansionLevel.Collapsed, false) === ExpansionLevel.Collapsed);
+check('a current row opens Pi collapsed view', nextExpansionLevel(ExpansionLevel.Row, false) === ExpansionLevel.Collapsed);
+check('a folded row unfolds to the group view first', nextExpansionLevel(ExpansionLevel.Row, true) === ExpansionLevel.Group);
+check('the group view opens Pi collapsed view', nextExpansionLevel(ExpansionLevel.Group, true) === ExpansionLevel.Collapsed);
+check('a collapsed block opens Pi full view', nextExpansionLevel(ExpansionLevel.Collapsed, true) === ExpansionLevel.Full);
+check('a full block returns to the row', nextExpansionLevel(ExpansionLevel.Full, true) === ExpansionLevel.Row);
+check('the expand key jumps straight to the full view', resolvedExpansionLevel(ExpansionLevel.Group, true) === ExpansionLevel.Full);
+check('the expand key off keeps the clicked level', resolvedExpansionLevel(ExpansionLevel.Group, false) === ExpansionLevel.Group);
 
 const lines = (component) => component?.render(WIDTH) ?? [];
 const state = {};
@@ -105,6 +107,26 @@ check('a right click is left to Pi', clickable().handleMouse({ ...CLICK, button:
 
 repaint(true);
 check('the expand key still opens Pi full view', drawnText().includes('full output'));
+
+resetRowGroups();
+repaint(false);
+closeRowGroup();
+repaint(false);
+check('a closed group folds to one line', drawsRow() && !drawnText().includes('  └ $ npm test'));
+check('the folded row carries the expand hint', drawnText().includes('ctrl+o to expand'));
+
+check('a click on the folded row is handled', click()?.handled === true);
+check('the first click draws the group command view', drawsRow() && drawnText().includes('  └ $ npm test'));
+check('the group view carries no expand hint', !drawnText().includes('ctrl+o to expand'));
+
+check('a click on the group view is handled', click()?.handled === true);
+check('the second click opens Pi own collapsed block', drawsPiView() && resultLevels.at(-1) === false);
+
+check('a click on the collapsed block is handled', click()?.handled === true);
+check('the third click opens the full result', resultLevels.at(-1) === true);
+
+check('a click on the full block is handled', click()?.handled === true);
+check('the fourth click folds the row back', drawsRow() && !drawnText().includes('  └ $ npm test'));
 
 resetRowGroups();
 setActiveViewMode('full');
