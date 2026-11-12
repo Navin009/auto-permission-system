@@ -13,7 +13,6 @@ import {
 	joinRowGroup,
 	rowGroupOfCall,
 	settleRowGroup,
-	toggleThoughtAt,
 	type RowGroup,
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
@@ -142,9 +141,8 @@ function rowComponent(group: RowGroup, context: RenderContext, theme: RenderThem
 	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
-	const onThoughtClick = (thoughtIndex: number) => toggleThoughtAt(group, thoughtIndex);
 
-	return new RowGroupComponent(summary, theme, onClick, onThoughtClick);
+	return new RowGroupComponent(summary, theme, onClick);
 }
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {

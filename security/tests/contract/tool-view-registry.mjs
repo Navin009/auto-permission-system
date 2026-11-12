@@ -113,7 +113,8 @@ check('the group row takes the last command mark', headerShape(repaintedGroup[0]
 check('an open group carries no expand hint', !repaintedGroup[0].includes('ctrl+o'));
 check('the first command keeps its mark and duration', repaintedGroup[1].startsWith('  └ ✗ $ npm test') && repaintedGroup[1].endsWith('1.5s'));
 check('the running command reads with an ellipsis', repaintedGroup[2] === '  └ … $ npm run build');
-check('a settled command pads its duration to the right edge', repaintedGroup[1].length === 100);
+check('a settled command keeps its duration next to the command', repaintedGroup[1] === '  └ ✗ $ npm test 1.5s');
+check('a duration never pads out to the right edge', repaintedGroup[1].length < 40);
 
 const settledSecond = resultOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build', durationMs: 3000 });
 check('a settled member leaves the drawing to the head', lines(settledSecond).length === 0);
@@ -127,6 +128,7 @@ const foldedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId
 check('a closed group folds to one line', foldedGroup.length === 1);
 check('the folded row names the last command', foldedGroup[0].includes('(npm run build)'));
 check('the folded row carries the expand hint', headerShape(foldedGroup[0]).endsWith('ctrl+o to expand · 1.5s'));
+check('a folded row ends where its text ends, not at the width', foldedGroup[0].length < 100);
 
 resetRowGroups();
 const thinkingCall = callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' });

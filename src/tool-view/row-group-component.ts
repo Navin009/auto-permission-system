@@ -25,19 +25,11 @@ export class RowGroupComponent implements Component {
 	private readonly summary: () => RowGroupSummary;
 	private readonly theme: Theme;
 	private readonly onClick: () => void;
-	private readonly onThoughtClick: (thoughtIndex: number) => void;
-	private lines: readonly RowLine[] = [];
 
-	constructor(
-		summary: () => RowGroupSummary,
-		theme: Theme,
-		onClick: () => void,
-		onThoughtClick: (thoughtIndex: number) => void,
-	) {
+	constructor(summary: () => RowGroupSummary, theme: Theme, onClick: () => void) {
 		this.summary = summary;
 		this.theme = theme;
 		this.onClick = onClick;
-		this.onThoughtClick = onThoughtClick;
 	}
 
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -45,37 +37,29 @@ export class RowGroupComponent implements Component {
 			return undefined;
 		}
 
-		const thoughtIndex = this.lines[event.y]?.thoughtIndex;
-
-		if (thoughtIndex === undefined) {
-			this.onClick();
-			return { handled: true };
-		}
-
-		this.onThoughtClick(thoughtIndex);
+		this.onClick();
 
 		return { handled: true };
 	}
 
 	render(width: number): string[] {
-		this.lines = rowGroupLines(this.summary(), width);
-
-		return this.lines.map((line) => this.lineText(line, width));
+		return rowGroupLines(this.summary(), width).map((line) => this.lineText(line, width));
 	}
 
 	invalidate(): void {}
 
 	private lineText(line: RowLine, width: number): string {
 		const tail = this.tailText(line);
-		const head = truncateToWidth(this.headText(line), Math.max(1, width - visibleWidth(tail)), ELLIPSIS);
 
 		if (!tail) {
-			return head;
+			return truncateToWidth(this.headText(line), width, ELLIPSIS);
 		}
 
-		const padding = SPACE.repeat(Math.max(SPACE.length, width - visibleWidth(head) - visibleWidth(tail)));
+		const tailSeparator = SPACE;
+		const headWidth = Math.max(1, width - visibleWidth(tail) - tailSeparator.length);
+		const head = truncateToWidth(this.headText(line), headWidth, ELLIPSIS);
 
-		return `${head}${padding}${tail}`;
+		return `${head}${tailSeparator}${tail}`;
 	}
 
 	private headText(line: RowLine): string {
@@ -86,10 +70,6 @@ export class RowGroupComponent implements Component {
 	}
 
 	private bodyText(line: RowLine): string {
-		if (line.isItalic) {
-			return this.theme.italic(this.theme.fg("thinkingText", line.text));
-		}
-
 		return line.isDim ? this.theme.fg("dim", line.text) : line.text;
 	}
 

@@ -10,10 +10,9 @@ const HINT = 'ctrl+o to expand';
 const WIDTH = 100;
 const lineText = (line) => `${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}${line.duration ? ` ${line.duration}` : ''}`;
 const row = (overrides) => ({ target: 'npm test', status: ToolStatus.Ok, durationMilliseconds: 1200, ...overrides });
-const command = (entry) => ({ type: 'command', row: entry });
 const summary = (rows, overrides) => ({
 	kind: RowKind.Shell,
-	children: rows.map(command),
+	rows,
 	durationMilliseconds: 5000,
 	folded: false,
 	hint: HINT,

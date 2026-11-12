@@ -397,10 +397,10 @@ ever grouped when they really ran next to each other.
 
 ```text
 ✓ Running 4 commands · 1.2s
-  └ ✓ pytest -k "not slow" tests/unit                                 320ms
-  └ ✓ ruff check src                                                  180ms
-  └ ✗ scripts/seed.py --force                                         700ms
-  └ … $ python3 -m uvicorn app.main:app                              120ms
+  └ ✓ pytest -k "not slow" tests/unit 320ms
+  └ ✓ ruff check src 180ms
+  └ ✗ scripts/seed.py --force 700ms
+  └ … $ python3 -m uvicorn app.main:app
 ```
 
 A `└` line keeps the command, minus noise: a leading `cd <cwd> &&` is dropped, so are wrappers
@@ -408,9 +408,9 @@ A `└` line keeps the command, minus noise: a leading `cd <cwd> &&` is dropped,
 `pip`). A pipeline or a chain is **not** reduced to its last stage — `head -40 src/a.ts | head`
 still reads as that. The command may take up to 70 % of the width; past that the middle collapses
 (`program arg … last-path`), then the arguments go (`program … tail`), and only the program is left
-when nothing else fits. The duration sits in its own right-aligned column, so a group's timings
-line up; `blocked` / `denied` ride with the command, left of it. Only the folded header names the
-last segment.
+when nothing else fits. A duration is the last thing on the text, never pushed out to the right
+edge of the row, so a row ends where its text ends; `blocked` / `denied` ride with the command,
+left of it. Only the folded header names the last segment.
 
 A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
@@ -426,11 +426,11 @@ A streaming thought rides on the live row in brackets and leaves no block of its
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. While a row is on screen
-Pi's own `Thinking...` label is hidden, so the row and its `└` lines stay one block; with no live
-row Pi's `Thinking...` is back, exactly as `full` draws it, and clicking it reveals that thought.
-With thinking set to visible, Pi's italic thought text is Pi's own — the extension never rewrites
-it.
+freezes only when the row settles — so a live row never looks stopped. The thought itself is never
+folded into a row: Pi draws it, exactly as `full` draws it, at the point where it happened — Pi's
+`Thinking...` line with its click-to-reveal, or its italic thought text when thinking is set to
+visible. `compact` never blanks that label, never rewrites the text and never adds a thinking line
+of its own, so a thought can never end up inside a collapsed group.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first; click again and Pi draws its own block for every call in the group — same frame,

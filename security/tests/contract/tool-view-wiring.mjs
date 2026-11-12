@@ -126,7 +126,7 @@ const contextFor = (mode, notices) => ({
 });
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a session start with no row keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
+check('a session start leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 const printNotices = [];
 await registered.handlers[0]('compact', contextFor('print', printNotices));
@@ -137,22 +137,22 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('a compact view with no row keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
+check('a switch never touches Pi own thinking label', thinkingLabels.length === 0);
 
 resolver('bash', () => fallbackRenderers)
 	.renderCall({ command: 'npm test' }, theme, renderContext({ toolCallId: 'call-label' }))
 	.render(100);
-check('a live row hides Pi own thinking label', thinkingLabels.at(-1) === '');
+check('a live row leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 closeRowGroup();
-check('a closed row keeps Pi own thinking label hidden while its group is on screen', thinkingLabels.at(-1) === '');
+check('a closed row leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 resetRowGroups();
-check('a reset hands Pi own thinking label back', thinkingLabels.at(-1) === undefined);
+check('a reset leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('full keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
+check('full leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

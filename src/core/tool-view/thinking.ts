@@ -1,12 +1,9 @@
-import { ViewMode } from "./view-mode.ts";
-
 const THINKING_WORD = "thinking";
 const WORD_SEPARATOR = " ";
 const SECOND_SUFFIX = "s";
 const MILLISECONDS_PER_SECOND = 1000;
 const BRACKET_OPEN = "(";
 const BRACKET_CLOSE = ")";
-const HIDDEN_THINKING_LABEL = "";
 
 export interface ThinkingState {
 	startedAt: number;
@@ -25,8 +22,4 @@ export function elapsedSeconds(state: ThinkingState): number {
 	}
 
 	return Math.max(0, Math.floor(elapsed / MILLISECONDS_PER_SECOND));
-}
-
-export function hiddenThinkingLabel(viewMode: ViewMode, takesOverThinking: boolean): string | undefined {
-	return viewMode === ViewMode.Compact && takesOverThinking ? HIDDEN_THINKING_LABEL : undefined;
 }
