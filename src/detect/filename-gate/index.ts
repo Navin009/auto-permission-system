@@ -6,4 +6,4 @@
 export type { NameRisk, NameVerdict } from "./types.ts";
 export { RISK_SCORES } from "./types.ts";
 export { SOURCE_EXTENSIONS } from "./patterns.ts";
-export { isSourceExtension, classifyFilename } from "./classify.ts";
+export { isSourceExtension, classifyFilename, isEnvTemplateFile } from "./classify.ts";

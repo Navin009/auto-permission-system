@@ -10,6 +10,7 @@ import path from "node:path";
 import {
   CONFIG_EXTENSIONS,
   CONFIG_NAME_REGEXES,
+  ENV_TEMPLATE_REGEX,
   KEY_EXTENSIONS,
   NAME_PHRASES,
   NAME_TOKENS,
@@ -67,11 +68,23 @@ export function isSourceExtension(ext: string): boolean {
   return SOURCE_EXTENSIONS.has(ext.toLowerCase());
 }
 
+/** True for a committed placeholder such as `.env.example` (content decides). */
+export function isEnvTemplateFile(filePath: string): boolean {
+  const normalized = filePath.replaceAll("\\", "/");
+  const base = normalized.slice(normalized.lastIndexOf("/") + 1) || normalized;
+
+  return ENV_TEMPLATE_REGEX.test(base.toLowerCase());
+}
+
 export function classifyFilename(filePath: string): NameVerdict {
   const normalized = filePath.replaceAll("\\", "/");
   const base = normalized.slice(normalized.lastIndexOf("/") + 1) || normalized;
   const lower = base.toLowerCase();
   const ext = path.extname(lower);
+
+  if (isEnvTemplateFile(lower)) {
+    return verdictOf("weak", "env template (content decides)");
+  }
 
   for (const [pattern, reason] of STRONG_NAME_REGEXES) {
     if (pattern.test(lower)) {

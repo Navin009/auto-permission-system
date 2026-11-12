@@ -1,6 +1,7 @@
+import { statSync } from "node:fs";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { policyFileError, isProjectFileDeclined } from "../src/core/index.ts";
+import { policyFileError, isProjectFileDeclined, ReadExposure } from "../src/core/index.ts";
 import { classifyFilename } from "../src/detect/index.ts";
 import {
 	loadPolicy,
@@ -35,6 +36,24 @@ import {
 	recordProgramIdForCall,
 } from "../src/l2-guard/output-gates.ts";
 import { formatSecurityGuardReport, handleProjectTrustCommand } from "../src/l2-guard/report.ts";
+
+/** Tools that print names and never open the file they name. */
+const NAME_ONLY_SEARCH_TOOLS = new Set(["ls", "find"]);
+
+/**
+ * What the search tool can actually see. `ls`/`find` list names; a `grep` over
+ * a folder is name-only at the root too (its hits are filtered per file), and
+ * only a file operand is a content read (ADR-050).
+ */
+function searchExposure(toolName: string, searchRoot: string, cwd: string): ReadExposure {
+	if (NAME_ONLY_SEARCH_TOOLS.has(toolName)) return ReadExposure.Name;
+
+	try {
+		return statSync(canonicalize(searchRoot, cwd)).isDirectory() ? ReadExposure.Name : ReadExposure.Content;
+	} catch {
+		return ReadExposure.Content;
+	}
+}
 
 export default function (pi: ExtensionAPI) {
 	let isGuardActive = false;
@@ -159,7 +178,13 @@ export default function (pi: ExtensionAPI) {
 				: null;
 
 		if (searchRoot !== null) {
-			const result = await checkReadAccess(searchRoot, event.toolName, context, policy);
+			const result = await checkReadAccess(
+				searchRoot,
+				event.toolName,
+				context,
+				policy,
+				searchExposure(event.toolName, searchRoot, context.cwd),
+			);
 
 			if (result) {
 				return result;

@@ -9,6 +9,7 @@ import {
 	type PathCandidateOptions,
 } from "./path-tokens.ts";
 import { findReadCandidates } from "./find-query.ts";
+import { readTargetTokens } from "./operands.ts";
 import { ReadPosture, outsideProjectMode, outsideProjectReadDenied, type FilesystemPolicy } from "./classify.ts";
 
 const READ_COMMANDS = new Set([
@@ -23,6 +24,28 @@ const READ_COMMANDS = new Set([
 ]);
 
 const RECURSIVE_SEARCH_COMMANDS = new Set(["grep", "rg", "ag", "ack", "find", "tree", "du", "fd"]);
+
+/**
+ * Search tools that skip dotfiles unless told otherwise. `rg` and `fd` honour
+ * hidden-file and ignore rules, so a walk of `.` that names `.env` is a
+ * candidate the command will never open (ADR-050). `grep` and `ack` read
+ * dotfiles, so they keep the file.
+ */
+const HIDDEN_SKIPPING_COMMANDS = new Set(["rg", "fd"]);
+
+/** Flags that make a hidden-skipping command walk dotfiles too. */
+const HIDDEN_VISIBILITY_FLAGS = new Set([
+	"-u",
+	"-uu",
+	"-uuu",
+	"--hidden",
+	"--unrestricted",
+	"--no-ignore",
+	"--no-ignore-dot",
+	"--no-ignore-global",
+	"--no-ignore-parent",
+	"--no-ignore-vcs",
+]);
 
 const NAME_ONLY_COMMANDS = new Set([
 	"ls", "find", "tree", "du", "stat", "readlink", "realpath", "dirname", "basename",
@@ -54,6 +77,24 @@ function recordCandidate(candidates: Map<string, ReadExposure>, absolutePath: st
 	candidates.set(absolutePath, exposure);
 }
 
+function isHiddenEntry(entryPath: string): boolean {
+	return entryPath.slice(entryPath.lastIndexOf("/") + 1).startsWith(".");
+}
+
+function recordListedFiles(
+	candidates: Map<string, ReadExposure>,
+	absolutePath: string,
+	exposure: ReadExposure,
+	listDirectory: (absoluteDirectory: string) => string[],
+	skipsHiddenEntries: boolean,
+): void {
+	for (const listedFile of listDirectory(absolutePath)) {
+		if (skipsHiddenEntries && isHiddenEntry(listedFile)) continue;
+
+		recordCandidate(candidates, normalizeAbs(listedFile), exposure);
+	}
+}
+
 function readPathCandidates(
 	command: string,
 	workingDirectory: string,
@@ -82,14 +123,14 @@ function readPathCandidates(
 
 		const isRecursiveSearch = RECURSIVE_SEARCH_COMMANDS.has(head);
 		const listDirectory = options.listDirectory ?? listDirectoryFiles;
+		const skipsHiddenEntries =
+			HIDDEN_SKIPPING_COMMANDS.has(head) && !tokens.some((token) => HIDDEN_VISIBILITY_FLAGS.has(token));
 
-		for (const rawToken of tokens.slice(headIndex + 1)) {
+		for (const rawToken of readTargetTokens(head, tokens.slice(headIndex + 1))) {
 			for (const token of embeddedPathTokens(rawToken)) {
 				for (const absolutePath of resolveTokenPaths(token, workingDirectory, homeDirectory, options)) {
 					if (isRecursiveSearch) {
-						for (const listedFile of listDirectory(absolutePath)) {
-							recordCandidate(foundCandidates, normalizeAbs(listedFile), exposure);
-						}
+						recordListedFiles(foundCandidates, absolutePath, exposure, listDirectory, skipsHiddenEntries);
 					}
 
 					if (checkFileExists(absolutePath)) recordCandidate(foundCandidates, absolutePath, exposure);

@@ -12,6 +12,8 @@ const outerFolder = realpathSync(mkdtempSync(join(tmpdir(), "aps-ask-read-outer-
 mkdirSync(join(project, "src"));
 writeFileSync(join(project, "src", "app.ts"), "export const value = 1;\n");
 writeFileSync(join(project, ".env"), "API_TOKEN=abc123\n");
+writeFileSync(join(project, ".env.example"), "# documented keys, no values\nAPI_TOKEN=\nDB_HOST=localhost\n");
+writeFileSync(join(project, ".env.sample"), "OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123456789\n");
 writeFileSync(join(outerFolder, ".env"), "API_TOKEN=abc123\n");
 
 const prompts = [];
@@ -56,6 +58,22 @@ check("a filtered name-only listing does not ask either", prompts.length === 0, 
 
 await run("ls -a");
 check("a dotfile listing does not ask", prompts.length === 0, prompts[0]);
+
+await run("ls -a | grep -v '\\.env'");
+check("a grep pattern that names .env does not ask", prompts.length === 0, prompts[0]);
+
+await run("rg -n 'API_TOKEN' .");
+check("rg does not ask for the dotfile it never opens", prompts.length === 0, prompts[0]);
+
+await run("grep -rn 'API_TOKEN' .");
+check("grep -r still asks for the dotfile it reads", prompts.length === 1, prompts.length);
+
+await run("cat .env.example");
+check("a clean env template does not ask", prompts.length === 0, prompts[0]);
+check("the clean template is not blocked", blocks.length === 0);
+
+await run("cat .env.sample");
+check("a template that carries a real key still asks", prompts.length === 1, prompts.length);
 
 await run(`find ${outerFolder} -name .env`);
 check("a name-only listing outside the project still asks", prompts.length === 1, prompts.length);

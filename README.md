@@ -168,6 +168,7 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 - **Expiry:** If unattended for 10 seconds, the prompt resolves safely to **No** (Block).
 - **Trigger shown:** the `Command` line names the part of the command that caused the ask, so a `find` or a `grep` is never guessed at.
 - **Name-only listings don't ask:** `find .`, `ls -R` and `tree` print names, not contents. Inside the project that is not a read (the AI can already list its own files); outside the project it still asks and says only the name is exposed (ADR-049).
+- **Patterns and templates aren't reads either:** `ls -a | grep -v '\.env'` asks nothing — after `grep`/`rg`/`ag`/`ack` the first free word is a pattern, not a file. `rg`/`fd` never prompt for the dotfiles they skip, and `.env.example` asks only when its content really holds a key (ADR-050).
 
 ### 2. Governed Network Egress Prompt
 ```

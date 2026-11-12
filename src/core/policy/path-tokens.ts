@@ -7,6 +7,16 @@ const FLAG_PATTERN = /^-/;
 const URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 const GLOB_PATTERN = /[*?]/;
 const EMBEDDED_SEPARATOR_PATTERN = /[^A-Za-z0-9_.~/@%+-]+/;
+
+/**
+ * Regex and shell-expression markers. A token that carries one is data (a
+ * grep pattern, a code string), so only its quoted parts and its whole
+ * spelling can name a file: splitting `'\.env'` on the backslash fabricated
+ * the path `.env` and asked for a read of a file the command never opened
+ * (ADR-050). A code string keeps working because its paths are quoted:
+ * `readFileSync('.env')` still yields `.env`.
+ */
+const REGEX_METACHARACTER_PATTERN = /[\\^$[\]()|+]/;
 const QUOTED_SPAN_PATTERN = /['"]([^'"]+)['"]/g;
 const TRAILING_SLASHES = /\/+$/;
 
@@ -40,11 +50,17 @@ export function looksLikePath(token: string): boolean {
 }
 
 export function embeddedPathTokens(token: string): string[] {
+	const quotedFragments = [...token.matchAll(QUOTED_SPAN_PATTERN)].map((match) => match[1] as string);
+
+	if (REGEX_METACHARACTER_PATTERN.test(token)) {
+		return [token, ...quotedFragments].filter(looksLikePath);
+	}
+
 	if (!looksLikePath(token) && !token.includes(".")) return [];
 
 	const candidates = new Set<string>([token]);
 
-	for (const match of token.matchAll(QUOTED_SPAN_PATTERN)) candidates.add(match[1]);
+	for (const fragment of quotedFragments) candidates.add(fragment);
 
 	for (const piece of token.split(EMBEDDED_SEPARATOR_PATTERN)) candidates.add(piece);
 

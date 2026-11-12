@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { ReadExposure } from "../core/index.ts";
 import {
 	canonicalize,
 	expandHome,
@@ -15,18 +16,28 @@ import { askOrBlock, type UICtx } from "./prompts.ts";
 import { denyMessage } from "../ui/ask.ts";
 import type { Policy } from "./policy.ts";
 
+/**
+ * Check a read.
+ *
+ * `exposure` says what the tool can actually see: `name` for a directory
+ * listing (`ls`, `find`, `grep` over a folder), `content` for a file that is
+ * opened. The askRead tier is about file CONTENTS, so a name-only listing
+ * never asks for it — the denyRead tier and the outside-project boundary still
+ * apply, and its grep hits are filtered per file (ADR-049, ADR-050).
+ */
 export async function checkReadAccess(
 	rawPath: string,
 	toolName: string,
 	context: ExtensionContext,
 	policy: Policy,
+	exposure: ReadExposure = ReadExposure.Content,
 ): Promise<{ block: true; reason: string } | undefined> {
 	const canonicalPath = canonicalize(rawPath, context.cwd);
 
 	let denialReason = isDeniedRead(rawPath, context.cwd, policy);
 	let isAskReadHit = false;
 
-	if (!denialReason) {
+	if (!denialReason && exposure === ReadExposure.Content) {
 		denialReason = isAskRead(rawPath, context.cwd, policy);
 		isAskReadHit = denialReason !== null;
 	}

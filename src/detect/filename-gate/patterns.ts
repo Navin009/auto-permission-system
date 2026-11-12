@@ -109,6 +109,13 @@ export const STRONG_STEMS = new Set([
   "secret",
 ]);
 
+/**
+ * Placeholder env templates. Committed to the repository with documented keys
+ * and empty values, so the NAME is not a secret — the content decides
+ * (ADR-050). Any other `.env.*` variant stays a strong name.
+ */
+export const ENV_TEMPLATE_REGEX = /^\.env\.(example|sample|template|dist|tpl)$/;
+
 /** Exact, high-confidence filenames (tested against the lowercased basename). */
 export const STRONG_NAME_REGEXES: Array<[RegExp, string]> = [
   [/^\.env(\..+)?$/, "environment file"],

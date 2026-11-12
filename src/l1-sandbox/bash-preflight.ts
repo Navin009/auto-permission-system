@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
 import {
@@ -14,11 +15,15 @@ import {
 } from "../core/index.ts";
 import { audit } from "../shared/audit.ts";
 import { canonicalize } from "../shared/canonicalize.ts";
+import { isEnvTemplateFile, scanTextContent } from "../detect/index.ts";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
 import { displayWhy, getCredentialLabel } from "../ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 
 const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offered";
+
+/** Templates are read whole; anything larger is not a template, so it asks. */
+const MAXIMUM_TEMPLATE_BYTES = 64 * 1024;
 
 export interface SandboxedBashOptions {
 	ctx?: {
@@ -50,6 +55,24 @@ const deduplicatePaths = (paths: readonly string[]): string[] => [...new Set(pat
 
 const sessionGrantCovers = (grants: readonly string[], absolutePath: string): boolean =>
 	grants.some((grant) => absolutePath === grant || absolutePath.startsWith(`${grant}/`));
+
+/**
+ * A committed env template (`.env.example`) documents keys with empty values,
+ * so the name alone must not ask. The content decides: reading the file here
+ * is the guard's own read, and a template that really carries a value asks
+ * like any other env file (ADR-050).
+ */
+function templateHasNoSecrets(absolutePath: string): boolean {
+	try {
+		const text = readFileSync(absolutePath, "utf8");
+
+		if (text.length > MAXIMUM_TEMPLATE_BYTES) return false;
+
+		return scanTextContent(text, { allowUnquoted: true, maxFindings: 1 }).findings.length === 0;
+	} catch {
+		return false;
+	}
+}
 
 const isInsideProject = (absolutePath: string, workingDirectory: string): boolean =>
 	absolutePath === workingDirectory || absolutePath.startsWith(`${workingDirectory}/`);
@@ -290,6 +313,11 @@ export async function preflightAskReads(
 	for (const finding of findings) {
 		if (finding.exposure === ReadExposure.Name && isInsideProject(finding.path, workingDirectory)) {
 			auditLayer1Bash({ subject: finding.path, decision: "allow", note: "ask-read-name-only", cwd: workingDirectory });
+			continue;
+		}
+
+		if (isEnvTemplateFile(finding.path) && templateHasNoSecrets(finding.path)) {
+			auditLayer1Bash({ subject: finding.path, decision: "allow", note: "ask-read-template", cwd: workingDirectory });
 			continue;
 		}
 
