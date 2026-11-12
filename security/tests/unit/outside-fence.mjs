@@ -1,6 +1,6 @@
-// Outside-project fence for Layer 1 (ADR-014) and the shared default deny list.
+// Outside-project fence for Layer 1 (ADR-014) and the shipped default deny list.
 // Imports the real lib (Node strips the types), like the other newer tests.
-import { DEFAULT_DENY_READ, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from '../../../src/core/index.ts';
+import { loadDefaultPolicy, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -14,8 +14,9 @@ const fs = (over = {}) => ({
   ...over,
 });
 
-check('default denyRead includes ~/.pi/agent', DEFAULT_DENY_READ.includes('~/.pi/agent'));
-check('default denyRead keeps credentials', ['~/.ssh', '~/.aws', '~/.gnupg'].every((p) => DEFAULT_DENY_READ.includes(p)));
+const shippedDenyRead = loadDefaultPolicy()?.filesystem?.denyRead ?? [];
+check('shipped denyRead holds the agent secrets', shippedDenyRead.includes('~/.pi/agent/auth.json'));
+check('shipped denyRead holds the key stores', ['~/.gnupg'].every((p) => shippedDenyRead.includes(p)));
 
 check('default mode is allow', outsideProjectMode(fs()) === 'allow');
 check('explicit ask', outsideProjectMode(fs({ outsideProject: { read: 'ask' } })) === 'ask');

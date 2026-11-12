@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, createProjectTrust, describeLoosening, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_ALLOW_WRITE, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, ReadPosture, SubagentNetwork, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
+import { applyUntrustedProject, createProjectTrust, describeLoosening, shippedPolicy, overlayPolicy, normalizeMode, ReadPosture, SubagentNetwork, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
 import type { McpPolicy } from "../detect";
 
 export interface Policy {
@@ -53,23 +53,9 @@ export interface Policy {
 	subagent?: { network?: SubagentNetwork };
 }
 
-const BUILTIN_POLICY: Policy = {
-	enabled: true,
-	mode: DEFAULT_MODE,
-	network: {
-		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
-		deniedDomains: [],
-	},
-	filesystem: {
-		denyRead: [...DEFAULT_DENY_READ],
-		allowWrite: [...DEFAULT_ALLOW_WRITE],
-		denyWrite: [...DEFAULT_DENY_WRITE],
-	},
-	subagent: { network: SubagentNetwork.Allow },
-};
-
-/** Baseline = the shipped sandbox.default.json layered over the built-in constants. */
-const DEFAULT_POLICY: Policy = overlayPolicy(BUILTIN_POLICY, (loadDefaultPolicy() ?? {}) as Partial<Policy>);
+/** Baseline = the shipped `sandbox.default.json`, the one place default lists live. */
+/* SAFETY: shippedPolicy() is parsed JSON plus the closed shape, which carries exactly the keys Policy reads. */
+const DEFAULT_POLICY: Policy = shippedPolicy() as unknown as Policy;
 
 export const TRUST_STORE = trustStorePath(getAgentDir());
 

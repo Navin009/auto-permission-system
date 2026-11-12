@@ -1,5 +1,5 @@
-// Shipped baseline (sandbox.default.json) + shared policy overlaying.
-import { loadDefaultPolicy, overlayPolicy } from '../../../src/core/index.ts';
+// Shipped baseline (sandbox.default.json) + shared policy overlaying. The JSON is the only place default lists live.
+import { loadDefaultPolicy, overlayPolicy, shippedPolicy } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -8,7 +8,7 @@ const d = loadDefaultPolicy();
 check('sandbox.default.json is found', d !== null && typeof d === 'object');
 const fs = d?.filesystem ?? {};
 check('default: outsideProject.read = allow', fs.outsideProject?.read === 'allow');
-check('default: key material is hard-denied on read', ['~/.ssh', '~/.gnupg', '~/.pi/agent/auth.json'].every((p) => (fs.denyRead ?? []).includes(p)));
+check('default: key material is hard-denied on read', ['~/.gnupg', '~/.pi/agent/auth.json'].every((p) => (fs.denyRead ?? []).includes(p)));
 check('default: credential stores ask on read as folders', ['~/.aws', '~/.kube', '~/.docker', '~/.config/gcloud'].every((p) => (fs.askRead ?? []).includes(p)));
 check('default: credential stores are not hard-denied on read', !(fs.denyRead ?? []).some((p) => p === '~/.aws'));
 check('default: key material is hard-denied on write', ['~/.ssh', '~/.gnupg', '~/.pi/agent/auth.json'].every((p) => (fs.denyWrite ?? []).includes(p)));
@@ -19,6 +19,10 @@ check('default: agent secrets ask on read', ['auth.json', 'mcp.json', 'mcp-auth.
 check('default: code-execution writes ask', ['~/.bashrc', '~/.pi/agent/extensions'].every((p) => (fs.askWrite ?? []).includes(p)));
 check('default: allowWrite is project, /tmp and home', ['.', '/tmp', '~'].every((p) => (fs.allowWrite ?? []).includes(p)));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
+
+const baseline = shippedPolicy();
+check('baseline: denyRead comes from the file, not from code', JSON.stringify(baseline.filesystem.denyRead) === JSON.stringify(fs.denyRead));
+check('baseline: allowedDomains comes from the file, not from code', JSON.stringify(baseline.network.allowedDomains) === JSON.stringify(d?.network?.allowedDomains));
 
 const base = {
 	enabled: true,

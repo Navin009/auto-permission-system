@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, createProjectTrust, loadDefaultPolicy, overlayPolicy, normalizeMode, DEFAULT_DENY_READ, DEFAULT_DENY_WRITE, DEFAULT_ALLOW_WRITE, DEFAULT_MODE, BUILTIN_NETWORK_ALLOWED, ReadPosture, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
+import { applyUntrustedProject, createProjectTrust, shippedPolicy, overlayPolicy, normalizeMode, ReadPosture, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -58,24 +58,9 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem" |
 	bridgeHostPorts?: number[];
 }
 
-const BUILTIN_CONFIG: SandboxConfig = {
-	enabled: true,
-	mode: DEFAULT_MODE,
-	network: {
-		allowedDomains: [...BUILTIN_NETWORK_ALLOWED],
-		deniedDomains: [],
-		allowLocalhost: true,
-		allowAllUnixSockets: true,
-	},
-	filesystem: {
-		denyRead: [...DEFAULT_DENY_READ],
-		allowWrite: [...DEFAULT_ALLOW_WRITE],
-		denyWrite: [...DEFAULT_DENY_WRITE],
-	},
-};
-
-/** Baseline = the shipped sandbox.default.json layered over the built-in constants. */
-const DEFAULT_CONFIG: SandboxConfig = overlayPolicy(BUILTIN_CONFIG, (loadDefaultPolicy() ?? {}) as Partial<SandboxConfig>);
+/** Baseline = the shipped `sandbox.default.json`, the one place default lists live. */
+/* SAFETY: shippedPolicy() is parsed JSON plus the closed shape, which carries exactly the keys SandboxConfig reads. */
+const DEFAULT_CONFIG: SandboxConfig = shippedPolicy() as unknown as SandboxConfig;
 
 export const TRUST_STORE = trustStorePath(getAgentDir());
 

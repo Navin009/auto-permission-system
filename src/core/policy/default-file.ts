@@ -1,21 +1,35 @@
 /**
- * Loads the shipped baseline policy (`sandbox.default.json`) that sits at the
- * package root. This is the lowest-priority layer: install = protected, and the
- * global/project files tune it on top.
+ * The shipped baseline policy (`sandbox.default.json` at the package root) is
+ * the only place the default lists live — denyRead, allowWrite, denyWrite,
+ * allowedDomains, askRead/askWrite. No list is repeated in code, so editing the
+ * JSON is the one way to change a default and the two layers cannot drift.
  *
- * Robust by design: if the file is missing or unparseable the caller falls back
- * to the constants in `defaults.ts`, so a broken package layout never leaves
- * the sandbox wide open.
+ * A policy still needs a shape when the file cannot be read: the closed shape
+ * below states no path, domain or command, so a broken package layout leaves
+ * the sandbox with nothing allowed rather than everything allowed.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { overlayPolicy } from "./merge.ts";
+import { DEFAULT_MODE } from "./mode.ts";
+import { SubagentNetwork } from "./subagent.ts";
+
+const CLOSED_POLICY: Record<string, unknown> = {
+	enabled: true,
+	mode: DEFAULT_MODE,
+	network: { allowedDomains: [], deniedDomains: [] },
+	filesystem: { denyRead: [], allowWrite: [], denyWrite: [] },
+	subagent: { network: SubagentNetwork.Allow },
+};
+
+const MAXIMUM_PARENT_DEPTH = 6;
 
 /** Walk up from this module looking for the file the package ships. */
 function findDefaultFile(): string | null {
 	let directory = dirname(fileURLToPath(import.meta.url));
-	for (let depth = 0; depth < 6; depth++) {
+	for (let depth = 0; depth < MAXIMUM_PARENT_DEPTH; depth++) {
 		const candidate = join(directory, "sandbox.default.json");
 		if (existsSync(candidate)) return candidate;
 		const parent = dirname(directory);
@@ -41,4 +55,9 @@ export function loadDefaultPolicy(): Record<string, unknown> | null {
 	}
 	cached = resolved;
 	return resolved;
+}
+
+/** The baseline both layers start from: the shipped file over the closed shape. */
+export function shippedPolicy(): Record<string, unknown> {
+	return overlayPolicy(CLOSED_POLICY, loadDefaultPolicy() ?? {});
 }

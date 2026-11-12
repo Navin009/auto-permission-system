@@ -1,4 +1,3 @@
-export * from "./policy/defaults.ts";
 export * from "./policy/domains.ts";
 export * from "./policy/default-file.ts";
 export * from "./policy/policy-file.ts";

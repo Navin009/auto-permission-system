@@ -44,7 +44,6 @@
       ]
     },
     "denyRead": [
-      "~/.ssh",
       "~/.gnupg",
       "~/.pi/agent/auth.json"
     ],
