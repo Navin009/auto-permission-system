@@ -27,16 +27,13 @@ type MarkColor = Parameters<Theme["fg"]>[0];
 
 interface HeaderVariant {
 	hint: boolean;
-	thinking: boolean;
 	duration: boolean;
 }
 
-const FULL_HEADER: HeaderVariant = { hint: true, thinking: true, duration: true };
 const HEADER_VARIANTS: readonly HeaderVariant[] = [
-	FULL_HEADER,
-	{ hint: false, thinking: true, duration: true },
-	{ hint: false, thinking: false, duration: true },
-	{ hint: false, thinking: false, duration: false },
+	{ hint: true, duration: true },
+	{ hint: false, duration: true },
+	{ hint: false, duration: false },
 ];
 
 export class CommandGroupComponent implements Component {
@@ -86,13 +83,12 @@ export class CommandGroupComponent implements Component {
 			}
 		}
 
-		return this.composeHeader(text, { hint: false, thinking: false, duration: false });
+		return this.composeHeader(text, { hint: false, duration: false });
 	}
 
 	private composeHeader(text: CommandGroupText, variant: HeaderVariant): string {
 		const parts: HeaderParts = {
 			count: text.count,
-			thinking: variant.thinking ? text.thinking : undefined,
 			duration: variant.duration ? text.duration : undefined,
 		};
 		const markPart = `${this.colorMark(text.mark, text.status)}${MARK_SEPARATOR}`;

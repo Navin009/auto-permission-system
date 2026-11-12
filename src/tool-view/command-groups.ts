@@ -1,7 +1,6 @@
 import type { CommandGroupSummary, CommandSummary } from "../core/tool-view/command-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { StatusMark } from "../core/tool-view/status.ts";
-import { thinkingState } from "./thinking.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -111,18 +110,7 @@ export function groupSummary(group: CommandGroup, hint: string | undefined): Com
 		commands: group.members.map(commandSummary),
 		totalDurationMilliseconds,
 		hint,
-		thinking: group === currentGroup ? thinkingState() : undefined,
 	};
-}
-
-export function repaintCommandGroups(): void {
-	for (const group of openGroups) {
-		const head = group.members[0];
-
-		if (head) {
-			safelyInvalidate(head);
-		}
-	}
 }
 
 function createGroup(): CommandGroup {

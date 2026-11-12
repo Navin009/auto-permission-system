@@ -6,21 +6,14 @@ import {
 	readToolViewSettings,
 	TOOL_VIEW_SETTINGS_FILE_NAME,
 } from "../src/core/tool-view/settings.ts";
-import { closeCommandGroup, repaintCommandGroups, resetCommandGroups } from "../src/tool-view/command-groups.ts";
+import { closeCommandGroup, resetCommandGroups } from "../src/tool-view/command-groups.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
-import {
-	beginThinking,
-	endThinking,
-	resetThinking,
-	setThinkingRepaint,
-} from "../src/tool-view/thinking.ts";
+import { applyThinkingLabel } from "../src/tool-view/thinking-label.ts";
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
-const THINKING_START_EVENTS = ["thinking_start", "thinking_delta"];
-const THINKING_END_EVENTS = ["thinking_end", "text_start", "text_delta", "toolcall_start", "done"];
 
 function reloadViewMode(): void {
 	setActiveViewMode(readToolViewSettings(SETTINGS_FILE_PATH).viewMode);
@@ -28,15 +21,16 @@ function reloadViewMode(): void {
 
 function startSession(): void {
 	resetCommandGroups();
-	resetThinking();
-	setThinkingRepaint(repaintCommandGroups);
 	reloadViewMode();
 }
 
 export default function (pi: ExtensionAPI) {
 	startSession();
 
-	pi.on("session_start", startSession);
+	pi.on("session_start", (_event, context) => {
+		startSession();
+		applyThinkingLabel(context);
+	});
 
 	pi.on("turn_end", (event) => {
 		if (carriesVisibleText(event.message)) {
@@ -50,27 +44,8 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("message_update", (event) => {
-		const kind = event.assistantMessageEvent?.type;
-
-		if (THINKING_START_EVENTS.includes(kind)) {
-			beginThinking();
-
-			return;
-		}
-
-		if (THINKING_END_EVENTS.includes(kind)) {
-			endThinking();
-		}
-	});
-
-	pi.on("message_end", () => {
-		endThinking();
-	});
-
 	pi.on("session_shutdown", () => {
 		resetCommandGroups();
-		resetThinking();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {

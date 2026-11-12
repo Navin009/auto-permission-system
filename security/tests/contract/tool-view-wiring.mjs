@@ -96,9 +96,14 @@ check('a tool we do not own ends the group', afterWrite.join(' ').includes('Runn
 resetCommandGroups();
 setActiveViewMode('full');
 
+const thinkingLabels = [];
 const contextFor = (mode, notices) => ({
 	mode,
-	ui: { notify: (message) => notices.push(message), select: async () => undefined },
+	ui: {
+		notify: (message) => notices.push(message),
+		select: async () => undefined,
+		setHiddenThinkingLabel: (label) => thinkingLabels.push(label),
+	},
 });
 
 const printNotices = [];
@@ -110,9 +115,11 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
+check('compact gives a hidden thought its own one line', thinkingLabels.at(-1) === '~ Thought — click to read');
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
+check('full hands the thinking label back to Pi', thinkingLabels.at(-1) === undefined);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

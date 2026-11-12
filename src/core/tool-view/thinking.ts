@@ -1,24 +1,7 @@
-const THINKING_WORD = "thinking";
-const ELLIPSIS = "…";
-const SECOND_SUFFIX = "s";
-const WORD_SEPARATOR = " ";
-const MILLISECONDS_PER_SECOND = 1000;
+import { ViewMode } from "./view-mode.ts";
 
-export interface ThinkingState {
-	startedAt: number;
-	now: number;
-}
+const COMPACT_THINKING_LABEL = "~ Thought — click to read";
 
-export function thinkingPart(state: ThinkingState): string {
-	return `${THINKING_WORD}${ELLIPSIS}${WORD_SEPARATOR}${elapsedSeconds(state)}${SECOND_SUFFIX}`;
-}
-
-export function elapsedSeconds(state: ThinkingState): number {
-	const elapsed = state.now - state.startedAt;
-
-	if (!Number.isFinite(elapsed)) {
-		return 0;
-	}
-
-	return Math.max(0, Math.floor(elapsed / MILLISECONDS_PER_SECOND));
+export function hiddenThinkingLabel(viewMode: ViewMode): string | undefined {
+	return viewMode === ViewMode.Compact ? COMPACT_THINKING_LABEL : undefined;
 }
