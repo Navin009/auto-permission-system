@@ -204,6 +204,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		return existing;
 	}
 
+	const previousDrawer = newestMember(group);
 	const member: RowMember = {
 		toolCallId: input.toolCallId,
 		target: input.target,
@@ -216,6 +217,10 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 
 	group.members.push(member);
 	groupsByCall.set(member.toolCallId, group);
+
+	if (previousDrawer) {
+		safelyInvalidate(previousDrawer);
+	}
 
 	return member;
 }
