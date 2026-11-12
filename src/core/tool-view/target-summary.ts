@@ -33,13 +33,13 @@ export function summarizeShellCommand(command: string): string {
 	const oneLine = collapseWhitespace(command);
 	const segment = collapseWhitespace(lastSegment(command));
 
-	return hoistProgram(tokenize(segment || oneLine)).join(SPACE);
+	return hoistProgram(tokenize(segment || oneLine), inlineScriptLine(command)).join(SPACE);
 }
 
 export function displayShellCommand(command: string): string {
 	const tokens = tokenize(collapseWhitespace(command));
 
-	return hoistProgram(withoutLeadingCd(tokens)).join(SPACE);
+	return hoistProgram(withoutLeadingCd(tokens), inlineScriptLine(command)).join(SPACE);
 }
 
 export function fitCommand(command: string, budget: number): string {
@@ -214,8 +214,8 @@ function tokenize(text: string): string[] {
 	return tokens;
 }
 
-function hoistProgram(tokens: readonly string[]): string[] {
-	return hoistInterpreter(dropPrefixes(tokens));
+function hoistProgram(tokens: readonly string[], scriptLine: string | undefined): string[] {
+	return hoistInterpreter(dropPrefixes(tokens), scriptLine);
 }
 
 function dropPrefixes(tokens: readonly string[]): string[] {
@@ -240,7 +240,7 @@ function dropPrefixes(tokens: readonly string[]): string[] {
 	return tokens.slice(index);
 }
 
-function hoistInterpreter(tokens: readonly string[]): string[] {
+function hoistInterpreter(tokens: readonly string[], scriptLine: string | undefined): string[] {
 	const program = tokens[0];
 
 	if (!program || !isPython(program)) {
@@ -256,13 +256,13 @@ function hoistInterpreter(tokens: readonly string[]): string[] {
 	const codeIndex = tokens.indexOf(CODE_FLAG, 1);
 
 	if (codeIndex > 0) {
-		return [program, CODE_FLAG, ELLIPSIS];
+		return scriptLine ? [program, scriptLine] : [program, CODE_FLAG, ELLIPSIS];
 	}
 
 	const stdinIndex = tokens.indexOf(STDIN_FLAG, 1);
 
 	if (stdinIndex > 0) {
-		return [program, STDIN_LABEL];
+		return scriptLine ? [program, scriptLine] : [program, STDIN_LABEL];
 	}
 
 	const scriptIndex = tokens.findIndex((token, index) => index > 0 && token.endsWith(PYTHON_SCRIPT_SUFFIX));
@@ -332,6 +332,10 @@ function pathTail(path: string, tailBudget: number): string | undefined {
 	return tail;
 }
 
+const HEREDOC_PATTERN = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n([\s\S]*?)\n\s*\2\b/;
+const INLINE_CODE_PATTERN = /(?:^|\s)(?:-c|-e)\s+(?:'([\s\S]*?)'|"((?:[^"\\]|\\.)*)")/;
+const LINE_BREAK_PATTERN = /\r?\n/;
+const SCRIPT_LINE_LIMIT = 40;
 const HINT_LENGTH_LIMIT = 24;
 const URL_PATTERN = /^https?:\/\//;
 const FLAG_PREFIX = "-";
@@ -344,6 +348,10 @@ export function programHint(command: string): string {
 
 	if (!program) {
 		return "";
+	}
+
+	if (inlineScriptLine(command)) {
+		return program;
 	}
 
 	const ownSegments = segments.filter((segment) => pathName(segment[0] ?? "") === program);
@@ -391,6 +399,25 @@ function normalizeHint(token: string): string {
 
 function shortenHint(hint: string): string {
 	return hint.length > HINT_LENGTH_LIMIT ? `${hint.slice(0, HINT_LENGTH_LIMIT - 1)}${ELLIPSIS}` : hint;
+}
+
+function inlineScriptLine(command: string): string | undefined {
+	const heredoc = HEREDOC_PATTERN.exec(command);
+	const inline = INLINE_CODE_PATTERN.exec(command);
+	const script = heredoc?.[3] ?? inline?.[1] ?? inline?.[2];
+
+	if (!script) {
+		return undefined;
+	}
+
+	const firstLine = script.split(LINE_BREAK_PATTERN).find((line) => line.trim().length > 0);
+	const oneLine = firstLine?.replace(WHITESPACE_PATTERN, SPACE).trim();
+
+	if (!oneLine) {
+		return undefined;
+	}
+
+	return oneLine.length > SCRIPT_LINE_LIMIT ? `${oneLine.slice(0, SCRIPT_LINE_LIMIT - 1)}${ELLIPSIS}` : oneLine;
 }
 
 function pathName(token: string): string {

@@ -1,4 +1,4 @@
-import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
+import { displayShellCommand, fitCommand, fitTarget, programHint, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -27,8 +27,24 @@ check('flags before -m are still hoisted', summarizeShellCommand('python3 -X fau
 check('python -m ruff names ruff', summarizeShellCommand('python -m ruff check src') === 'ruff check src');
 check('python -m pip names pip', summarizeShellCommand('python3 -m pip install -r requirements.txt') === 'pip install -r requirements.txt');
 check('a python script replaces the interpreter', summarizeShellCommand('python3 scripts/seed.py --force') === 'scripts/seed.py --force');
-check('python -c keeps the flag and drops the code', summarizeShellCommand('python3 -c "import sys; print(sys.version)"') === 'python3 -c …');
-check('a heredoc reads as stdin', summarizeShellCommand("python3 - <<'EOF'\nprint(1)\nEOF") === 'python3 (stdin)');
+check(
+	'python -c shows the first line of the script',
+	summarizeShellCommand('python3 -c "import sys; print(sys.version)"') === 'python3 import sys; print(sys.version)',
+);
+check(
+	'a heredoc shows the first line of the script',
+	summarizeShellCommand("python3 - <<'EOF'\nprint(1)\nEOF") === 'python3 print(1)',
+);
+check(
+	'a multi-line heredoc takes its first non-empty line',
+	summarizeShellCommand("python3 - <<'PY'\n\nimport json\nprint(json.dumps({}))\nPY") === 'python3 import json',
+);
+check(
+	'a long inline script is shortened',
+	summarizeShellCommand(`python3 -c "${'x' + ' = 1; '.repeat(10)}"`).length <= 'python3 '.length + 40,
+);
+check('a script-less -c keeps the ellipsis', summarizeShellCommand('python3 -c "$CMD"') === 'python3 $CMD');
+check('a plain node -e is left alone', summarizeShellCommand('node -e "console.log(1)"') === 'node -e "console.log(1)"');
 check('a plain python call is untouched', summarizeShellCommand('python3 --version') === 'python3 --version');
 check('a non-python program is untouched', summarizeShellCommand('node scripts/seed.js --force') === 'node scripts/seed.js --force');
 
@@ -56,6 +72,9 @@ check('an even narrower budget keeps only the tail', fitCommand('rg -n "tool-vie
 check('the program survives when the tail cannot', fitCommand('rg -n "tool-view" src/core plan', 3) === 'rg');
 check('a single long token keeps its path tail', fitCommand('a/very/long/path/file.ts', 12) === '… file.ts');
 check('the tail carries exactly one ellipsis', fitCommand('awk \'length > 110 {printf "%s:%d"}\' src/a.ts src/b.ts', 12) === '… src/b.ts');
+
+check('an inline script names no hint', programHint("python3 - <<'PY'\nimport json\nPY") === 'python3');
+check('a flag command still names its hint', programHint('git log --oneline -1') === 'git log');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);
