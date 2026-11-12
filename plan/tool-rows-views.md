@@ -8,8 +8,10 @@ its own text, the group's `└` lines as the first click level (§4), `Reading N
 `read` with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps
 Pi's own components in Pi's own frame and never redraws them. Thinking is a live line inside the
 row: while a thought streams the open row shows one `  Thinking...` under its last command in
-Pi's own style — `thinkingText` colour, italic — and the line is gone the moment the thought
-completes — the row never breaks at a thought and never grows above one (§5).
+Pi's own style — `thinkingText` colour, italic — and a click on that line opens the streamed
+thought under it without touching the row's ladder. A command joining the row hides the line; the
+next thought brings it back, collapsed. The row never breaks at a thought and never grows above one
+(§5).
 Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
@@ -52,7 +54,8 @@ The newest group always keeps its `└` lines. Everything above it has already b
 the transcript reads as one line per finished group and the live group only opened up.
 
 Thinking rides on the row while it streams — `● Running 1 command (thinking 4s) · 1s` — and leaves
-nothing behind: the bracket goes when the thought completes, and the row itself never moves (§5).
+nothing behind once the thought completes or a command joins the row: the line and the bracket go
+their separate ways, and the row itself never moves (§5).
 
 ---
 
@@ -281,7 +284,7 @@ Three moments of one `bash` call, with a thought in the middle:
 | 3 shell commands in a row | 3 blocks | `✓ Running 3 commands · 5s` + 3 `└` lines (below) |
 | 3 shell commands, folded | 3 blocks | `✓ Running 3 commands (git status) ctrl+o to expand · 4s` — click the row to unfold |
 | 3 shell commands at once | 3 blocks | `● Running 3 commands · 1s` + 3 `…` lines (below) |
-| thinking between commands | block, then block | the thought leaves no line; the commands around it stay in one row, and the row never moves (§5) |
+| thinking between commands | block, then block | the thought is a live line inside the row while it streams, openable with a click; a command joining the row hides it, and the commands around it stay in one row, which never moves (§5) |
 | thinking, no tools | thinking block, then answer | nothing new is drawn |
 | ask is open | ask prompt | `● Waiting on your answer · 2s` (one line only) |
 | long command, 40 cols | Pi wraps it | `● Running 1 command · 4s` + truncated `└ $ rg -n "toolTitle…` |
@@ -545,8 +548,11 @@ bash
   never rewrites the block, it only decides where the block sits.
 - `ctrl+o` on the **row** walks the whole group: level 3 for every command at once, then level 4,
   then back to the row.
-- A thought has no click and no level: it is one live line while it streams, then it is gone, so
-  there is nothing to open in this view. `/tool-view full` brings Pi's blocks back.
+- A thought has a click of its own and no rung in the row's ladder: a click on `  Thinking...`
+  opens the streamed thought under it and a second click closes it; a click on the header still
+  walks the row, and a click on a `└` line still belongs to that call. The line is live only — once
+  the thought completes, or a command joins the row, the text is gone, so `/tool-view full` is the
+  way to read Pi's blocks.
 - Nothing is remembered across a new call: whichever level you left a row on, the next call takes
   the row over and the finished group falls back to level 1.
 
@@ -579,9 +585,11 @@ carry no hint — click the row or the line instead.
 
 **Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
 `● Running 2 commands (thinking 4s) · 26s` — and the row's timer keeps running for as long as the
-thought streams. The thought itself takes **no space**: in `compact` the hidden-thinking label is
-blanked for the session, so a thought leaves no `Thinking...` line, no blank gap and no record
-inside a row. A row is never drawn above a thought, because there is nothing there to draw above.
+thought streams. The thought itself is one live line at the bottom of the open row (§below): it
+shows in Pi's own style, a click opens the streamed text under it, a command joining the row hides
+it, and the next thought brings it back. Pi's hidden thinking blocks are blanked for the session
+in `compact`, so the line is the only copy, and a row is never drawn above a thought because there
+is nothing there to draw above.
 
 One exception, because it cannot be helped: if Pi is set to **show** thinking, the label does not
 apply, the italic thought is drawn, and `compact` then ends a row at the thought instead of spanning
@@ -602,7 +610,8 @@ A row sits where its calls ran — it never slides below the text that came afte
 
 ### Thinking is a live line
 
-While a thought streams, the row ends with one dim line:
+While a thought streams, the row ends with one line in Pi's own thinking style —
+`thinkingText` colour, italic:
 
 ```text
 ● Running 1 command (thinking 4s) · 1s
@@ -612,6 +621,21 @@ While a thought streams, the row ends with one dim line:
 
 When the thought completes the line goes, and the next command simply adds its own line — one row,
 same place, nothing left behind for the thought:
+
+If a command joins the row while the thought is still streaming, the line and any opened text go
+the same way; only the header's bracket stays up, because the model may still be thinking. The
+next thought opens a fresh line, collapsed:
+
+```text
+● Running 2 commands (thinking 1s) · 4s
+  └ ✓ $ npm run build 2s
+  └ … $ npm test
+  Thinking...
+```
+
+- A click on `  Thinking...` opens the streamed thought under it as at most six wrapped lines, with
+  `…` on top when the text was cut. A click on the opened text closes it again. The header and the
+  `└` lines keep their own clicks, so the thought never advances the row's ladder.
 
 ```text
 ● Running 2 commands · 3s
@@ -737,12 +761,16 @@ stop after this build, run the linter next
    that bracket is dropped the moment the thought completes. It is never counted as a call and
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
    freezes only when it settles.
-8. A thought is one live line inside the row: `  Thinking...` at the bottom while it streams, never
-   counted, never marked with `$`, and gone the moment the thought completes. A row is drawn from
-   its **first** command and never moves, so no `└` line can ever appear above a block that arrived
-   later. Pi's hidden thinking blocks are blanked in `compact`, so the line is drawn once. With Pi
-   set to show thinking the block is on screen already, `compact` adds no line, and the row folds at
-   the thought.
+8. A thought is one live line inside the row: `  Thinking...` at the bottom while it streams,
+   never counted, never marked with `$`, and never drawn above a `└` line. It carries its own click
+   — open the streamed text under it, click again to close — and it never advances the row's
+   ladder, which a click on the header still does. A command joining the row hides the line and its
+   opened text; the next thought brings it back collapsed. The bracket on the header stays up while
+   the thought streams even after that, and a drawn thought is never counted or timed. A row is
+   drawn from its **first** command and never moves, so no `└` line can ever appear above a block
+   that arrived later. Pi's hidden thinking blocks are blanked in `compact`, so the line is drawn
+   once. With Pi set to show thinking the block is on screen already, `compact` adds no line, and
+   the row folds at the thought.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.

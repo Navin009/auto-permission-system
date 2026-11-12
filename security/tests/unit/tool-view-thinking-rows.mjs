@@ -8,7 +8,7 @@ import {
 	resetRowGroups,
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
-import { beginThinking, endThinking, resetThinking } from '../../../src/tool-view/thinking-clock.ts';
+import { beginThinking, endThinking, resetThinking, toggleThoughtExpansion } from '../../../src/tool-view/thinking-clock.ts';
 import {
 	noteThinkingRendered,
 	resetThinkingVisibility,
@@ -39,12 +39,18 @@ resetThinkingVisibility();
 const running = join('call-a', 'npm test');
 check('a plain row draws only the command line', body(group(running)).join('|') === '  └ $ npm test');
 
-beginThinking();
+beginThinking('reading the row code');
 now += 4_000;
 const streaming = group(running);
 check('a streaming thought adds a line at the bottom', body(streaming).join('|') === '  └ $ npm test|  Thinking...');
 check('the thought line is styled like Pi and has no mark or prompt', streaming[2].isThought === true && !streaming[2].isDim && streaming[2].mark === undefined && !streaming[2].text.includes('$'));
 check('a streaming thought keeps the header bracket', lineText(streaming[0]) === '● Running 1 command (thinking 4s) · 4s');
+check('the thought line carries the thought text, collapsed to one line', streaming[2].thoughtText === 'reading the row code');
+check('a fresh thought line starts collapsed', streaming[2].thoughtExpanded === false);
+toggleThoughtExpansion();
+check('a thought line expands on its own', group(running)[2].thoughtExpanded === true);
+toggleThoughtExpansion();
+check('a second click collapses it again', group(running)[2].thoughtExpanded === false);
 
 endThinking();
 const dropped = group(running);
@@ -64,6 +70,24 @@ check('a thought is never counted as a row', groupSummary(running, HINT).rows.le
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 check('the thought leaves no child line once everything settles', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ ✓ $ npm run build 1s');
+
+resetRowGroups();
+resetThinking();
+
+const merged = join('call-merge', 'npm test');
+settle('call-merge', 'npm test', ToolStatus.Ok, 2_000);
+beginThinking('a thought that a command later interrupts');
+check('the line shows while the thought streams alone', body(group(merged)).join('|') === '  └ $ npm test|  Thinking...');
+toggleThoughtExpansion();
+const next = join('call-merge-next', 'npm run build');
+check('a command joining the row hides the thought line', body(group(next)).join('|') === '  └ ✓ $ npm test 2s|  └ … $ npm run build');
+check('hiding drops the expansion too', group(next).at(-1).thoughtExpanded === undefined);
+check('the bracket keeps the row running while the thought streams', lineText(group(next)[0]).includes('(thinking 0s)'));
+endThinking();
+beginThinking('the next thought');
+check('the next thought brings the line back', body(group(next)).join('|') === '  └ ✓ $ npm test 2s|  └ … $ npm run build|  Thinking...');
+check('the next thought comes back collapsed', group(next).at(-1).thoughtExpanded === false);
+endThinking();
 
 resetRowGroups();
 resetThinking();

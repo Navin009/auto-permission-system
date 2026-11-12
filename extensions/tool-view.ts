@@ -1,6 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { carriesStreamingThought, carriesVisibleText } from "../src/core/tool-view/message-text.ts";
+import {
+	carriesStreamingThought,
+	carriesVisibleText,
+	streamingThoughtText,
+} from "../src/core/tool-view/message-text.ts";
 import { rowKindOf } from "../src/core/tool-view/row-kind.ts";
 import {
 	readToolViewSettings,
@@ -64,7 +68,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("message_update", (event) => {
 		if (carriesStreamingThought(event.message)) {
-			beginThinking();
+			beginThinking(streamingThoughtText(event.message));
 			return;
 		}
 

@@ -2,7 +2,14 @@ import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
-import { thoughtRevision, thinkingState } from "./thinking-clock.ts";
+import {
+	hideThoughtLine,
+	thinkingState,
+	thoughtExpanded,
+	thoughtLineHidden,
+	thoughtRevision,
+	thoughtText,
+} from "./thinking-clock.ts";
 import { thoughtsRenderAsBlocks } from "./thinking-visibility.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
@@ -130,6 +137,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 	const endMilliseconds = liveEndMilliseconds(group, isLive);
 	const durationMilliseconds =
 		first && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - first.startedAt) : undefined;
+	const drawsLiveThought = thinking !== undefined && !thoughtLineHidden() && !thoughtsRenderAsBlocks();
 
 	return {
 		kind: group.kind,
@@ -138,7 +146,9 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
 		thinking,
-		liveThought: thinking !== undefined && !thoughtsRenderAsBlocks(),
+		liveThought: drawsLiveThought,
+		liveThoughtText: thoughtText(),
+		liveThoughtExpanded: drawsLiveThought && thoughtExpanded(),
 	};
 }
 
@@ -222,6 +232,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		return existing;
 	}
 
+	const joinsExistingRow = group.members.length > 0;
 	const member: RowMember = {
 		toolCallId: input.toolCallId,
 		target: input.target,
@@ -235,6 +246,10 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 	group.members.push(member);
 	groupsByCall.set(member.toolCallId, group);
 	group.thoughtRevisionAtNewestMember = thoughtRevision();
+
+	if (joinsExistingRow) {
+		hideThoughtLine();
+	}
 
 	return member;
 }

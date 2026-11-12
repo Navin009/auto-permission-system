@@ -2,7 +2,7 @@ import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import { statusMark, statusWord, ToolStatus } from "./status.ts";
 import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
-import { thinkingPart, type ThinkingState } from "./thinking.ts";
+import { collapseThought, thinkingPart, type ThinkingState } from "./thinking.ts";
 
 export interface RowSummary {
 	target: string;
@@ -18,6 +18,8 @@ export interface RowGroupSummary {
 	hint: string | undefined;
 	thinking: ThinkingState | undefined;
 	liveThought: boolean;
+	liveThoughtText: string;
+	liveThoughtExpanded: boolean;
 }
 
 export interface RowMark {
@@ -33,6 +35,8 @@ export interface RowLine {
 	hint: string | undefined;
 	isDim: boolean;
 	isThought?: boolean;
+	thoughtText?: string;
+	thoughtExpanded?: boolean;
 }
 
 const NEWEST_ROW_LIMIT = 8;
@@ -195,10 +199,10 @@ function thoughtLines(summary: RowGroupSummary, showsChildLines: boolean): RowLi
 		return [];
 	}
 
-	return [thoughtLine()];
+	return [thoughtLine(summary)];
 }
 
-function thoughtLine(): RowLine {
+function thoughtLine(summary: RowGroupSummary): RowLine {
 	return {
 		indent: THOUGHT_LINE_INDENT,
 		mark: undefined,
@@ -207,6 +211,8 @@ function thoughtLine(): RowLine {
 		hint: undefined,
 		isDim: false,
 		isThought: true,
+		thoughtText: collapseThought(summary.liveThoughtText),
+		thoughtExpanded: summary.liveThoughtExpanded,
 	};
 }
 

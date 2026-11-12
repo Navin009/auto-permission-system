@@ -6,6 +6,7 @@ import { rowKindOf } from "../core/tool-view/row-kind.ts";
 import { statusFromResult } from "../core/tool-view/status.ts";
 import { ViewMode } from "../core/tool-view/view-mode.ts";
 import { RowGroupComponent } from "./row-group-component.ts";
+import { toggleThoughtExpansion } from "./thinking-clock.ts";
 import {
 	advanceGroupExpansion,
 	groupSummary,
@@ -141,8 +142,9 @@ function rowComponent(group: RowGroup, context: RenderContext, theme: RenderThem
 	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
+	const onThoughtClick = () => toggleThoughtExpansion();
 
-	return new RowGroupComponent(summary, theme, onClick);
+	return new RowGroupComponent(summary, theme, onClick, onThoughtClick);
 }
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {
