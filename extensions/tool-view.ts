@@ -10,6 +10,10 @@ import {
 	TOOL_VIEW_SETTINGS_FILE_NAME,
 } from "../src/core/tool-view/settings.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
+import {
+	installNativeThinkingCapture,
+	resetNativeThinking,
+} from "../src/tool-view/native-thinking.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
@@ -28,12 +32,14 @@ function reloadViewMode(): void {
 }
 
 function startSession(): void {
+	resetNativeThinking();
 	resetRowGroups();
 	resetThinking();
 	reloadViewMode();
 }
 
 export default function (pi: ExtensionAPI) {
+	installNativeThinkingCapture();
 	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
@@ -58,8 +64,8 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_update", (event) => {
-		if (carriesStreamingThought(event.message)) {
-			beginThinking();
+		if (event.message.role === "assistant" && carriesStreamingThought(event.message)) {
+			beginThinking(event.message);
 			return;
 		}
 
@@ -71,6 +77,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", () => {
+		resetNativeThinking();
 		resetRowGroups();
 		resetThinking();
 	});

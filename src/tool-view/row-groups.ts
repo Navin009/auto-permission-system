@@ -1,3 +1,4 @@
+import type { Component } from "@earendil-works/pi-tui";
 import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
@@ -6,6 +7,7 @@ import {
 	thinkingState,
 	thoughtRevision,
 } from "./thinking-clock.ts";
+import { suppressNativeThoughtsAfter } from "./native-thinking.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -17,6 +19,7 @@ export interface RowMember {
 	startedAt: number;
 	settledAt: number | undefined;
 	invalidate: (() => void) | undefined;
+	nativeThoughts: Component[];
 }
 
 export interface RowGroup {
@@ -40,14 +43,19 @@ export interface RowSettleInput extends RowCallInput {
 	durationMilliseconds: number | undefined;
 }
 
+interface RowGroupPlacement {
+	group: RowGroup;
+	nativeThoughts: readonly Component[];
+}
+
 const openGroups = new Set<RowGroup>();
 const groupsByCall = new Map<string, RowGroup>();
 let currentGroup: RowGroup | undefined;
 let invalidating = false;
 
 export function joinRowGroup(input: RowCallInput): RowGroup {
-	const group = groupForCall(input);
-	const member = ensureMember(group, input);
+	const { group, nativeThoughts } = groupForCall(input);
+	const member = ensureMember(group, input, nativeThoughts);
 
 	member.target = input.target;
 	member.invalidate = input.invalidate;
@@ -59,8 +67,8 @@ export function joinRowGroup(input: RowCallInput): RowGroup {
 }
 
 export function settleRowGroup(input: RowSettleInput): RowGroup {
-	const group = groupForCall(input);
-	const member = ensureMember(group, input);
+	const { group, nativeThoughts } = groupForCall(input);
+	const member = ensureMember(group, input, nativeThoughts);
 
 	member.target = input.target;
 	member.invalidate = input.invalidate;
@@ -91,6 +99,10 @@ export function closeRowGroup(): void {
 
 export function rowGroupOfCall(toolCallId: string): RowGroup | undefined {
 	return groupsByCall.get(toolCallId);
+}
+
+export function nativeThoughtsForCall(group: RowGroup, toolCallId: string): readonly Component[] {
+	return group.members.find((member) => member.toolCallId === toolCallId)?.nativeThoughts ?? [];
 }
 
 export function advanceGroupExpansion(group: RowGroup): void {
@@ -159,24 +171,31 @@ function liveEndMilliseconds(group: RowGroup, isLive: boolean): number | undefin
 	return group.lastActivityAt;
 }
 
-function groupForCall(input: RowCallInput): RowGroup {
+function groupForCall(input: RowCallInput): RowGroupPlacement {
 	const existingGroup = rowGroupOfCall(input.toolCallId);
 
 	if (existingGroup) {
-		return existingGroup;
+		return { group: existingGroup, nativeThoughts: [] };
 	}
 
 	if (currentGroup?.kind === input.kind) {
-		return splitsAfterThought(currentGroup) ? createGroup(input.kind) : currentGroup;
+		const thoughtArrived = thoughtRevision() > currentGroup.thoughtRevisionAtNewestMember;
+
+		if (!thoughtArrived || hasRunningMember(currentGroup)) {
+			return { group: currentGroup, nativeThoughts: [] };
+		}
+
+		const nativeThoughts = suppressNativeThoughtsAfter(
+			currentGroup.thoughtRevisionAtNewestMember,
+			thoughtRevision(),
+		);
+
+		if (nativeThoughts) {
+			return { group: currentGroup, nativeThoughts };
+		}
 	}
 
-	return createGroup(input.kind);
-}
-
-function splitsAfterThought(group: RowGroup): boolean {
-	const thoughtArrived = thoughtRevision() > group.thoughtRevisionAtNewestMember;
-
-	return thoughtArrived && !hasRunningMember(group);
+	return { group: createGroup(input.kind), nativeThoughts: [] };
 }
 
 function hasRunningMember(group: RowGroup): boolean {
@@ -212,11 +231,21 @@ function foldGroup(group: RowGroup): void {
 	}
 }
 
-function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
+function ensureMember(
+	group: RowGroup,
+	input: RowCallInput,
+	nativeThoughts: readonly Component[],
+): RowMember {
 	const existing = group.members.find((member) => member.toolCallId === input.toolCallId);
 
 	if (existing) {
 		return existing;
+	}
+
+	const previousMember = group.members.at(-1);
+
+	if (previousMember) {
+		previousMember.nativeThoughts.push(...nativeThoughts);
 	}
 
 	const member: RowMember = {
@@ -227,6 +256,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		startedAt: Date.now(),
 		settledAt: undefined,
 		invalidate: input.invalidate,
+		nativeThoughts: [],
 	};
 
 	group.members.push(member);
