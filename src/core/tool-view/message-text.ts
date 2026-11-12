@@ -1,12 +1,10 @@
 const TEXT_BLOCK_TYPE = "text";
 const THINKING_BLOCK_TYPE = "thinking";
 const BLANK_TEXT = "";
-const BLOCK_SEPARATOR = "\n\n";
 
 export interface MessageBlock {
 	type: string;
 	text?: string;
-	thinking?: string;
 }
 
 export interface MessageContent {
@@ -30,13 +28,6 @@ export function carriesVisibleText(message: MessageContent): boolean {
 
 export function carriesStreamingThought(message: MessageContent): boolean {
 	return trailingThoughtBlocks(message).length > 0;
-}
-
-export function streamingThoughtText(message: MessageContent): string {
-	return trailingThoughtBlocks(message)
-		.map((block) => block.thinking ?? BLANK_TEXT)
-		.join(BLOCK_SEPARATOR)
-		.trim();
 }
 
 function trailingThoughtBlocks(message: MessageContent): MessageBlock[] {

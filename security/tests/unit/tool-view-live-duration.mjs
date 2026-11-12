@@ -51,11 +51,11 @@ check('a finished row stays frozen', header(running) === '✓ Running 1 command 
 
 const afterThoughtRow = join('call-b', 'npm run build');
 now += 1_000;
-check('a second command keeps the group count going', header(running) === '● Running 2 commands · 8s');
-check('the joining command reads the same group', header(afterThoughtRow) === '● Running 2 commands · 8s');
+check('a command after a thought opens its own row', header(afterThoughtRow) === '● Running 1 command · 1s');
+check('the row above the thought folds to its own command', header(running) === '✓ Running 1 command (npm test) ctrl+o to expand · 5s');
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
-check('the group ends on the last settle', header(running) === '✓ Running 2 commands · 8s');
+check('the new row ends on its own settle', header(afterThoughtRow) === '✓ Running 1 command · 1s');
 
 const read = join('call-read', 'src/a.ts', RowKind.Read);
 now += 1_500;

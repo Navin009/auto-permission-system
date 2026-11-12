@@ -4,7 +4,6 @@ import { TOOL_VIEW_SETTINGS_FILE_NAME, writeToolViewMode } from "../core/tool-vi
 import { ViewMode, viewModeLabel } from "../core/tool-view/view-mode.ts";
 import { closeRowGroup, resetRowGroups } from "./row-groups.ts";
 import { getActiveViewMode, setActiveViewMode } from "./session.ts";
-import { applyThinkingVisibility } from "./thinking-visibility.ts";
 
 export const TOOL_VIEW_COMMAND_NAME = "tool-view";
 
@@ -106,7 +105,6 @@ function applyViewMode(
 
 	const writeError = writeToolViewMode(settingsFilePath, viewMode);
 	setActiveViewMode(viewMode);
-	applyThinkingVisibility(viewMode, context.ui);
 	closeGroupsFor(viewMode);
 
 	if (writeError) {

@@ -164,32 +164,14 @@ beginThinking();
 const thinkingRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('a streaming thought rides on the row', thinkingRow[0].includes('(thinking 0s)'));
 check('a thinking row marks itself running', headerShape(thinkingRow[0]).startsWith('● Running 1 command (thinking 0s) · '));
-check('a streaming thought draws one line under the command', thinkingRow.at(-1) === '  Thinking...');
-check('the thought line takes Pi own thinking colour', thoughtColourCalls.includes('Thinking...'));
+check('a streaming thought draws no line inside the row', thinkingRow.length === 2 && thinkingRow[1] === '  └ $ npm view hunk');
+check('the row never writes the thought text itself', thinkingRow.every((line) => !line.includes('Thinking')));
+check('a thought never borrows a colour of ours', !thoughtColourCalls.some((text) => text.includes('Thinking')));
 endThinking();
 
-const clickAt = (component, row) => component.handleMouse({ type: 'click', button: 'left', y: row });
-const THOUGHT_TEXT = 'weighing the hunk package against its peer deps';
-beginThinking(THOUGHT_TEXT);
-const thoughtComponent = callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' });
-const collapsedThought = lines(thoughtComponent);
-const thoughtRow = collapsedThought.length - 1;
-check('a thought line ends the row', collapsedThought[thoughtRow] === '  Thinking...');
-clickAt(thoughtComponent, thoughtRow);
-const openedThought = lines(thoughtComponent);
-check('a click on the thought line opens the thought', openedThought.length > collapsedThought.length);
-check('the opened thought sits under the Thinking line', openedThought[thoughtRow + 1].startsWith('    ') && openedThought[thoughtRow + 1].includes(THOUGHT_TEXT));
-check('the opened thought takes Pi own thinking colour', thoughtColourCalls.some((text) => text.includes(THOUGHT_TEXT)));
-check('opening the thought leaves the header alone', openedThought[0] === collapsedThought[0]);
-check('opening the thought never expands the row', !openedThought[0].includes('ctrl+o') && !showsFallback(thoughtComponent));
-clickAt(thoughtComponent, thoughtRow + 1);
-check('a click on the opened thought closes it', lines(thoughtComponent).length === collapsedThought.length);
-clickAt(thoughtComponent, 0);
-check('a click on the header still advances the row ladder', showsFallback(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' })));
-endThinking();
 const quietRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('the bracket leaves with the thought', !quietRow[0].includes('thinking'));
-check('the thought line leaves with it', quietRow.every((line) => !line.includes('Thinking...')));
+check('the row stays the same row after the thought', quietRow[1] === '  └ $ npm view hunk');
 
 resetRowGroups();
 const deniedShell = resultOf(

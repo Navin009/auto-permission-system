@@ -423,7 +423,7 @@ A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
 (`  └ ✗ $ cat id_rsa blocked`).
 
-A streaming thought rides on the live row in brackets and leaves no block of its own:
+A streaming thought rides on the live row in brackets and stays Pi's own block otherwise:
 
 ```text
 ● Running 2 commands (thinking 4s) · 26s
@@ -433,15 +433,13 @@ A streaming thought rides on the live row in brackets and leaves no block of its
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. The thought itself is one
-`  Thinking...` line at the bottom of the open row while it streams, drawn in Pi's own thinking
-style (italic, `thinkingText` colour). Click that line and the streamed thought opens under it — up
-to six wrapped lines, `…` on top when it was cut — click again and it closes; the header and the
-`└` lines keep their own clicks, so the thought never walks the row's ladder. A command joining the
-row hides the line and any opened text, and the next thought brings it back collapsed. Pi's hidden
-thinking blocks are blanked in `compact`, so the line is drawn once, and the row is anchored at its
-first command and never moves. With Pi set to show thinking the italic block is on screen already,
-so `compact` adds no line and the row folds at the thought.
+freezes only when the row settles — so a live row never looks stopped. The thought itself is Pi's
+own block, drawn exactly as Pi draws it, with Pi's own text and Pi's own click; `compact` never
+hides it, relabels it or draws a copy of it. A row and a visible thought cannot share a slot — the
+row is one component mounted at a tool call, the thought is a different child of the same container
+— so a row ends where a thought starts: the row above folds to one line and the command after the
+thought opens a new row. A thought that arrives while a command is still running waits for it, so no
+running call is ever folded away.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first — for a read run those lines are its files — click again and Pi draws its own block

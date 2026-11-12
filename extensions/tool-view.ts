@@ -3,7 +3,6 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	carriesStreamingThought,
 	carriesVisibleText,
-	streamingThoughtText,
 } from "../src/core/tool-view/message-text.ts";
 import { rowKindOf } from "../src/core/tool-view/row-kind.ts";
 import {
@@ -13,12 +12,7 @@ import {
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
-import { setActiveViewMode, getActiveViewMode } from "../src/tool-view/session.ts";
-import {
-	applyThinkingVisibility,
-	noteThinkingRendered,
-	resetThinkingVisibility,
-} from "../src/tool-view/thinking-visibility.ts";
+import { setActiveViewMode } from "../src/tool-view/session.ts";
 import {
 	beginThinking,
 	endThinking,
@@ -28,7 +22,6 @@ import {
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
-const THINKING_MESSAGE_TYPE = "assistant-thinking";
 
 function reloadViewMode(): void {
 	setActiveViewMode(readToolViewSettings(SETTINGS_FILE_PATH).viewMode);
@@ -37,7 +30,6 @@ function reloadViewMode(): void {
 function startSession(): void {
 	resetRowGroups();
 	resetThinking();
-	resetThinkingVisibility();
 	reloadViewMode();
 }
 
@@ -45,9 +37,8 @@ export default function (pi: ExtensionAPI) {
 	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
-	pi.on("session_start", (_event, context) => {
+	pi.on("session_start", () => {
 		startSession();
-		applyThinkingVisibility(getActiveViewMode(), context.ui);
 	});
 
 	pi.on("turn_end", (event) => {
@@ -68,7 +59,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("message_update", (event) => {
 		if (carriesStreamingThought(event.message)) {
-			beginThinking(streamingThoughtText(event.message));
+			beginThinking();
 			return;
 		}
 
@@ -82,14 +73,6 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", () => {
 		resetRowGroups();
 		resetThinking();
-	});
-
-	pi.registerMarkdownTransformer?.((markdown, context) => {
-		if (context.messageType === THINKING_MESSAGE_TYPE) {
-			noteThinkingRendered();
-		}
-
-		return markdown;
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {

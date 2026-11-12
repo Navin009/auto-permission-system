@@ -2,7 +2,7 @@ import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import { statusMark, statusWord, ToolStatus } from "./status.ts";
 import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
-import { collapseThought, thinkingPart, type ThinkingState } from "./thinking.ts";
+import { thinkingPart, type ThinkingState } from "./thinking.ts";
 
 export interface RowSummary {
 	target: string;
@@ -17,9 +17,6 @@ export interface RowGroupSummary {
 	folded: boolean;
 	hint: string | undefined;
 	thinking: ThinkingState | undefined;
-	liveThought: boolean;
-	liveThoughtText: string;
-	liveThoughtExpanded: boolean;
 }
 
 export interface RowMark {
@@ -34,17 +31,12 @@ export interface RowLine {
 	duration: string | undefined;
 	hint: string | undefined;
 	isDim: boolean;
-	isThought?: boolean;
-	thoughtText?: string;
-	thoughtExpanded?: boolean;
 }
 
 const NEWEST_ROW_LIMIT = 8;
 const SINGLE_ROW_COUNT = 1;
 const EARLIER_CALL_NOUN = "call";
 const LINE_INDENT = "  └ ";
-const THOUGHT_LINE_INDENT = "  ";
-const THOUGHT_LINE_TEXT = "Thinking...";
 const SHELL_PROMPT = "$";
 const RUNNING_LINE_MARK = "…";
 const OVERFLOW_MARK = "...";
@@ -71,7 +63,7 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 		return [header];
 	}
 
-	return [header, ...childLines(summary, width, showsChildLines), ...thoughtLines(summary, showsChildLines)];
+	return [header, ...childLines(summary, width, showsChildLines)];
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -192,28 +184,6 @@ function childLines(summary: RowGroupSummary, width: number, showsChildLines: bo
 	}
 
 	return lines;
-}
-
-function thoughtLines(summary: RowGroupSummary, showsChildLines: boolean): RowLine[] {
-	if (!summary.liveThought || !showsChildLines) {
-		return [];
-	}
-
-	return [thoughtLine(summary)];
-}
-
-function thoughtLine(summary: RowGroupSummary): RowLine {
-	return {
-		indent: THOUGHT_LINE_INDENT,
-		mark: undefined,
-		text: THOUGHT_LINE_TEXT,
-		duration: undefined,
-		hint: undefined,
-		isDim: false,
-		isThought: true,
-		thoughtText: collapseThought(summary.liveThoughtText),
-		thoughtExpanded: summary.liveThoughtExpanded,
-	};
 }
 
 function newestRows(rows: readonly RowSummary[]): readonly RowSummary[] {

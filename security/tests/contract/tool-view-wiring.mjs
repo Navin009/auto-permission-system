@@ -127,9 +127,9 @@ settleCommand('call-thought-a', 'ls');
 registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }] } });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a hidden thought joins the same row', afterThought.length === 0);
+check('a command after a thought opens its own row', afterThought.join(' ').includes('Running 1 command'));
 const [thoughtDrawer] = renderCommands([['call-thought-a', 'ls']]);
-check('the row keeps both commands', thoughtDrawer.join(' ').includes('Running 2 commands'));
+check('the row above the thought keeps one command', !thoughtDrawer.join(' ').includes('Running 2 commands'));
 
 resetRowGroups();
 resetThinking();
@@ -159,10 +159,10 @@ const contextFor = (mode, notices) => ({
 });
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a session start applies the saved view label', thinkingLabels.length === 1 && thinkingLabels[0] === undefined);
+check('a session start never relabels Pi own thinking', thinkingLabels.length === 0);
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('every session start re-applies the label', thinkingLabels.length === 2 && thinkingLabels[1] === undefined);
+check('a second session start never relabels it either', thinkingLabels.length === 0);
 
 const printNotices = [];
 await registered.handlers[0]('compact', contextFor('print', printNotices));
@@ -173,22 +173,22 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('compact hides Pi own thinking blocks', thinkingLabels.length === 3 && thinkingLabels[2] === '');
+check('switching to compact leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 resolver('bash', () => fallbackRenderers)
 	.renderCall({ command: 'npm test' }, theme, renderContext({ toolCallId: 'call-label' }))
 	.render(100);
-check('a live row writes no thinking label', thinkingLabels.length === 3);
+check('a live row writes no thinking label', thinkingLabels.length === 0);
 
 closeRowGroup();
-check('a closed row writes no thinking label', thinkingLabels.length === 3);
+check('a closed row writes no thinking label', thinkingLabels.length === 0);
 
 resetRowGroups();
-check('a reset writes no thinking label', thinkingLabels.length === 3);
+check('a reset writes no thinking label', thinkingLabels.length === 0);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('full restores Pi own thinking label', thinkingLabels.length === 4 && thinkingLabels[3] === undefined);
+check('switching to full leaves Pi own thinking label alone', thinkingLabels.length === 0);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

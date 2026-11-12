@@ -1,198 +1,146 @@
-# Thinking inside the group
+# Thinking stays Pi's, the row never spans it
 
 **Status: shipped.** `src/core/tool-view/row-group.ts`, `src/tool-view/row-groups.ts`, plus
-`security/tests/unit/tool-view-thinking-rows.mjs` and `tool-view-thinking-regimes.mjs`.
-Supersedes `399bc61` ("a thought takes no line at all"). `plan/tool-rows-views.md` §5 and rules 7-8
-follow it.
+`security/tests/unit/tool-view-thinking-rows.mjs` and `tool-view-wiring.mjs`. Supersedes `8e2d824`
+("a streaming thought is a line inside the row") and `399bc61` ("a thought takes no line at all").
+`plan/tool-rows-views.md` §5 and rules 7-8 follow it.
 
-The rule, in one line: **`Thinking...` is a live line of its own at the bottom of the open row, a
-click opens the streamed thought under it, and a command joining the row hides it.**
+The rule, in one line: **the thought is Pi's block, drawn exactly as Pi draws it; our row ends where
+the thought starts and a new row begins after it.**
 
-- The row never breaks at a thought. One row per run of commands, whatever happens in between.
-- While a thought streams, the open row shows one `  Thinking...` line under its last command,
-  drawn in Pi's own style — `thinkingText` colour, italic.
-- The line carries its own click and its own state: a click on it opens the streamed thought under
-  it, a second click closes it. It never advances the row's ladder — a click on the header does
-  that, and a click on a `└` line still belongs to the ladder too.
-- A command joining the row hides the line and its opened text, even while the thought is still
-  streaming; the bracket keeps ticking on the header, which is the row's other live signal.
-- The next thought starts a fresh line, collapsed, in the same row.
-- Pi's own thinking block is blanked (`setHiddenThinkingLabel("")`, session-wide in compact) so the
-  line is the only copy; the text reaches the row through the `message_update` deltas.
+- Nothing of ours draws, hides, relabels or re-styles a thought: no `setHiddenThinkingLabel`, no
+  markdown transformer, no `Thinking...` line, no captured thought text, no click of our own.
+- A command that arrives after a thought opens a **new** row. The row above the thought folds to
+  one line and stays where it was.
+- The only thing we add is the `(thinking Ns)` bracket on the live row's header, so a row that is
+  waiting on the model does not look frozen.
+- A thought that arrives while a command is still running never folds that command away: the row
+  waits for the running call to settle before it lets go.
 
 Words used here: **row** (or frame/group) = the block that starts with `✓ Running 8 commands · 40s`
 and owns the lines under it.
 
 ---
 
-## 1. What you saw, twice
+## 1. Why the row and the thought cannot be one thing
 
-Rows drawn above a later thought (the original fault):
+This is the constraint that decided the design, and it is worth stating plainly because three
+earlier commits tried to work around it:
 
-```text
-✓ Running 4 commands · 12s
-  └ ✓ $ git log --oneline -12 && ls 81ms
-  └ ✗ $ ls src/core extensions security tests 2>/dev/null 105ms
-  └ ✓ $ ls src/core/policy && grep -rn "\.env" … 3.4s
-  └ ✓ $ grep -rn "env" sandbox.default.json 42ms
+1. **The row is one mounted component.** It is created by a tool call's renderer and inserted into
+   the transcript as a single child, at the position of that tool call. Everything it draws —
+   header, `└` lines, and previously the `Thinking...` line — must be inside that one child's
+   `render()` output.
+2. **A thought is a different child, at a different position.** Pi inserts its thinking block into
+   the same transcript container, after the assistant message that carried it. It is not ours, and
+   a component cannot draw into a sibling's slot: there is no API to mount anything between them.
+3. Therefore a row and a visible thought can only relate in one of three ways, and each has a cost:
 
- Thinking...
-```
+| Option | What it looks like | Why we did not ship it |
+| --- | --- | --- |
+| Row grows past the thought | `└` lines appear above the block that arrived after them | reads backwards; the transcript lies about order |
+| Row is re-mounted at its newest command | the row moves down past the thought; every thought piles up above it | thoughts stack at the top of the transcript, one row sinks below them |
+| Thought takes no line at all | cleanest rows, one row per run | needs `setHiddenThinkingLabel("")` — it removes Pi's own block, its click and its text |
 
-Thoughts piled up after the row was moved to its newest command:
+`8e2d824` tried a fourth way — draw our own `Thinking...` line inside the row — which looked fine
+until you clicked it: it could show that something was being thought, but not what, and it was not
+Pi's block, so it could not behave like it either. That line is gone.
 
-```text
- Thinking...
-
- Thinking...
-
- Thinking...
-
- Thinking...
-
-● Running 8 commands (thinking 10s) · 40s
-  └ ✗ $ sed -n 1,60p plan/scrollable-script-plan.md; echo ---; ls extensions src/core tests 2>/dev/null 137ms
-  └ ✓ $ wc -l extensions/*.ts src/core/*.ts tests/*.mjs 2>/dev/null | tail -30; echo ---; grep -rn "Reading" … -40 149ms
-  …
-```
-
-Both exist because a visible pi block cannot sit inside a row: a row that spans one has to grow past
-it or move past it. Take the block away and neither can happen.
+The shipped answer is the honest one: **do not fight for the same space.** The thought keeps its own
+slot, unchanged; the row keeps its own, and ends where the other begins.
 
 ## 2. The model
 
 ```text
 Row
-  members: RowMember[]         commands only, unchanged
-  liveThought: boolean         true while a thought streams and no command has joined it
-  liveThoughtText: string      the streamed text, collapsed to one line
-  liveThoughtExpanded: boolean the thought line's own open state
+  members: RowMember[]                   commands only, unchanged
+  thoughtRevisionAtNewestMember: number  the thought count when the row last took a command
 ```
 
-`rowGroupLines` appends the live line after the command lines — `  Thinking...`, no mark, no
-`$`, no duration, not counted — and only for a kind that draws child lines at all (`shell`,
-`read`). The line carries `thoughtText` and `thoughtExpanded`, and `RowGroupComponent` wraps that
-text into at most six body lines under the line when it is open, styled like Pi's block.
+`groupForCall()` asks `splitsAfterThought(currentGroup)` before joining a command to the open row:
+if `thoughtRevision()` has moved past the row's recorded revision and no command in the row is still
+running, the call starts a new group, and `createGroup` folds the previous one to a single line.
 
-The flag is `thinkingState() !== undefined && !thoughtLineHidden() && !thoughtsRenderAsBlocks()`.
-Hiding is `thinking-clock`'s `hideThoughtLine()`, fired when a call joins the group's member list;
-`beginThinking()` clears it, so the next thought draws the line again. The third term matters for
-the visible-thinking regime (§5): when pi is set to show thinking, the italic block is on screen
-already and compact must not add a second copy.
+`groupSummary` passes the live thought only for the open row, so the bracket cannot light up on a
+row that is already finished.
 
 ## 3. Your transcript, after the change
 
-**A thought streams while the row is open** — the state you called fine, drawn by the row instead of
-by pi:
+**A thought between two commands** — one row above it, folded, and a new row for the command after:
 
 ```text
-● Running 4 commands (thinking 10s) · 40s
-  └ ✓ $ sed -n 1,60p plan/scrollable-script-plan.md; echo ---; ls … 137ms
-  └ ✓ $ wc -l extensions/*.ts … | tail -30; echo ---; grep -rn "Reading" … 149ms
-  └ ✓ $ ls -la src/core/tool-view && wc -l … 134ms
-  └ ✓ $ sed -n 1,120p src/core/tool-view/row-group.ts 159ms
+✓ Running 3 commands (npm run build) ctrl+o to expand · 12s
 
-  Thinking...
+ Thinking...
+   The split rule only fires when the row's recorded revision is older than the
+   current thought count, so a thought that arrives mid-command changes nothing.
+
+● Running 1 command · 1s
+  └ … $ npm run lint
 ```
 
-**Click the line** — the thought opens under it, and the row around it does not move; a second
-click puts it back:
+**A thought while a command is still running** — no split, because a running call must never be
+folded out of sight; the header keeps counting and carries the bracket:
 
 ```text
-● Running 4 commands (thinking 10s) · 40s
-  └ ✓ $ sed -n 1,60p plan/scrollable-script-plan.md; echo ---; ls … 137ms
-  └ ✓ $ sed -n 1,120p src/core/tool-view/row-group.ts 159ms
-
-  Thinking...
-    The row needs one line it can open on its own, so the thought text has to
-    come from the stream and the click must not walk the row's ladder…
+● Running 2 commands (thinking 4s) · 6s
+  └ ✓ $ npm test 1.4s
+  └ … $ npm run build
 ```
 
-**A command joins the row** — the line and its opened text go; the bracket keeps the header live:
+**A thought with nothing after it** — the row stays exactly as it was, folded or open:
 
 ```text
-● Running 8 commands · 40s
-  └ ✓ $ sed -n 1,60p plan/scrollable-script-plan.md; echo ---; ls … 137ms
-  └ ✓ $ wc -l extensions/*.ts … | tail -30; echo ---; grep -rn "Reading" … 149ms
-  └ ✓ $ ls -la src/core/tool-view && wc -l … 134ms
-  └ ✓ $ sed -n 1,120p src/core/tool-view/row-group.ts 159ms
-  └ ✓ $ cat src/core/tool-view/expansion-level.ts && … 197ms
-  └ ✓ $ sed -n 120,249p src/core/tool-view/row-group.ts; … 143ms
-  └ ✓ $ sed -n 1,91p extensions/tool-view.ts; … 464ms
-  └ … $ wc -l src/tool-view/*.ts && sed -n 1,80p … 128ms
+✓ Running 3 commands (npm run build) ctrl+o to expand · 12s
 ```
 
-Compare with your paste: no ` Thinking...` blocks stacked above, no second header, no line inside the
-row for a thought that has finished. Four thoughts happened; none of them left a mark.
-
-**A thought completes with no command after it** — the line still goes, and the row waits as it is:
-
-```text
-✓ Running 8 commands (sed -n 1,80p src/tool-view/row-groups.ts) · 40s
-  └ … $ wc -l src/tool-view/*.ts && sed -n 1,80p src/tool-view/row-groups.ts 128ms
-```
-
-**The answer starts streaming** — text closes the row and it folds to one line; nothing was left
-behind to fold:
-
-```text
-✓ Running 8 commands (sed -n 1,80p src/tool-view/row-groups.ts) ctrl+o to expand · 40s
-
-Here is what I found. The row code lives in three files…
-```
-
-**The start of a turn, before any command** — this is the one place the live line cannot appear:
-there is no row yet to hold it, and pi's block is blanked. Pi's working indicator still animates.
+**The answer starts streaming** — text closes the row as it always did; Pi's thought block stays
+where it streamed, readable and clickable as Pi made it.
 
 ## 4. What this needs in the code
 
 | Piece | Where | Change |
 | --- | --- | --- |
-| thought text | `src/core/tool-view/message-text.ts` | `streamingThoughtText()` reads the trailing thinking blocks, joined with a blank line |
-| line state | `src/tool-view/thinking-clock.ts` | `beginThinking(text)` keeps the newest text; `thoughtExpanded()` / `toggleThoughtExpansion()` hold the line's own open state; `hideThoughtLine()` is cleared by the next thought |
-| hide on join | `src/tool-view/row-groups.ts` | `ensureMember` calls `hideThoughtLine()` when a call joins a row that already has members, so the line ends where the command lands |
-| live flag | `src/tool-view/row-groups.ts` | `groupSummary` passes `liveThought`, `liveThoughtText` and `liveThoughtExpanded` for the open row only |
-| one line + body | `src/core/tool-view/row-group.ts` | `rowGroupLines` appends `  Thinking...` when the flag is set and the row is not folded, carrying the text and its open state |
-| own click | `src/tool-view/row-group-component.ts` | the rendered line kinds are remembered, so a click on a thought line or its body toggles the thought and a click anywhere else advances the row's ladder |
-| repaint | `src/tool-view/renderers.ts` | the row already repaints on the 1 s thinking tick; `endThinking()` / `hideThoughtLine()` repaint once |
-| label + anchor | already shipped in `399bc61` | `setHiddenThinkingLabel("")` for compact (default restored for full); the row is drawn from its first command and never moves |
+| split rule | `src/tool-view/row-groups.ts` | `splitsAfterThought()` no longer waits for Pi to render a block; it is the only rule, for every kind |
+| bracket | `src/tool-view/thinking-clock.ts` | `beginThinking`/`endThinking`/`thoughtRevision`/`thinkingState` only — no text, no expansion, no hidden flag |
+| header | `src/core/tool-view/row-group.ts` | `(thinking Ns)` in the target slot while the open row waits; no thought line of any kind |
+| Pi's block | — | untouched: no label write, no transformer, no re-style |
+| click | `src/tool-view/row-group-component.ts` | one handler again: a click anywhere in the row walks the row's ladder |
 
-Small on purpose: no `└` line of its own, no text stored past the live thought, no ordering, no
-split.
+What was deleted with the previous design: `thinking-visibility.ts` entirely, `streamingThoughtText`,
+`collapseThought`, the thought-line fields on `RowGroupSummary`/`RowLine`, the body wrapper in the
+component, and the hit test that routed a click to `toggleThoughtExpansion()`.
 
 ## 5. What it costs
 
-- **The opened thought is not remembered.** It is a view of the live stream: once the thought
-  completes, or a command joins the row, the text is dropped and compact cannot bring it back.
-  (`/tool-view full` shows Pi's blocks as always.)
-- **The start of a turn shows no thinking line**, because no row exists yet. Pi's spinner is the
-  only feedback for that first stretch.
-- **The body is capped at six wrapped lines**, tail first, with `…` above when it was cut. It is a
-  glance at what the model is doing, not a transcript.
-- A thought between two *different* kinds of call ends with the row it streamed under: the line
-  goes, the new row starts after it.
+- **A run can show several rows.** One thought between commands means one extra row header; a busy
+  turn can show three or four. This is the price of leaving Pi's block alone, and it is visible at a
+  glance: a folded row is one line.
+- **A row's timer covers only its own commands.** The seconds do not span a thought, so two rows in
+  one turn add up to less than the turn.
+- **The bracket is ours and it is brief.** It is the only thinking signal we add; Pi's block below
+  the row is the thing you read and open.
 
 ## 6. The header bracket stays
 
-Both signals are on screen while a thought streams — that is the shipped choice:
+It survives a folded row, which is exactly when it is needed — the row is one line and the model is
+still working:
 
 ```text
-● Running 4 commands (thinking 10s) · 40s
-  Thinking...
+● Running 1 command (thinking 10s) · 40s
+  └ … $ npm run build
 ```
 
-The bracket is the live timer and survives a folded row, where the body line is hidden; the body
-line is the thing you read and open. They appear together at `beginThinking()`, and they part ways
-on the two different endings: `endThinking()` drops both, while a command joining the row drops
-only the body line — the bracket stays up because the model may still be thinking.
+It appears at `beginThinking()` and leaves at `endThinking()`; it is never counted, never timed, and
+never restarts the row's own `· Ns`.
 
 ## 7. Tests this needs
 
 | Test | Asserts |
 | --- | --- |
-| `unit/tool-view-thinking-rows.mjs` | a streaming thought adds `  Thinking...` at the bottom, in Pi's style, with no mark and no `$`; the line carries the collapsed thought text and starts closed; `toggleThoughtExpansion()` opens and closes it; a joining command hides the line and drops its text, the bracket stays, and the next thought brings the line back collapsed; `endThinking()` removes both; a command after a thought adds one `└` line and no thought line; the thought is never counted; a read row draws the line too; no body line in the visible regime |
-| `unit/tool-view-thinking.mjs` | the streamed text is readable, two blocks join, a finished thought has none, and the clock holds hide/expand state per thought |
-| `unit/tool-view-thinking-regimes.mjs` | hidden: one row across a thought; visible: a rendered thought ends the row and folds it, and never folds away a running command |
-| `unit/tool-view-frame-ownership.mjs` | the row is owned by its first command across any number of thoughts |
-| `contract/tool-view-registry.mjs` | a click on the thought line opens and closes the thought without touching the header or the row's ladder, a click on the header still advances the ladder, and the opened body takes `thinkingText` |
-| `contract/tool-view-wiring.mjs` | the label is blanked once per session in compact and restored in full; a hidden thought never opens a new row |
+| `unit/tool-view-thinking-rows.mjs` | a thought draws no line inside the row and the row never writes `Thinking`; the bracket rides the open row and leaves with the thought; a thought between two commands ends the row, folds it, and starts the next at its own command; a thought while a command runs never splits; a thought with no command after it changes nothing; a read run behaves the same |
+| `unit/tool-view-thinking.mjs` | the stream is detected, the thinking part ticks, and the revision the split rule reads moves once per thought |
+| `unit/tool-view-live-duration.mjs` | a row counts while a thought streams and resumes after it; the row above a thought folds on its own command |
+| `unit/tool-view-frame-ownership.mjs` | a row is owned by its first command for as long as it lasts |
+| `contract/tool-view-wiring.mjs` | a command after a thought opens its own row; the extension never writes `setHiddenThinkingLabel` on session start, view switch or render |
+| `contract/tool-view-registry.mjs` | a streaming thought adds no line to the row, and no `thinkingText` styling comes from us |

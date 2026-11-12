@@ -8,7 +8,6 @@ import {
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
 import { resetThinking } from '../../../src/tool-view/thinking-clock.ts';
-import { resetThinkingVisibility } from '../../../src/tool-view/thinking-visibility.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -26,7 +25,6 @@ const settle = (toolCallId, target, status = ToolStatus.Ok, durationMilliseconds
 	settleRowGroup({ toolCallId, kind, target, status, durationMilliseconds, invalidate: paint(toolCallId) });
 
 resetThinking();
-resetThinkingVisibility();
 resetRowGroups();
 
 const first = join('a', 'ls');
@@ -69,7 +67,6 @@ check('the drawer was repainted once per join', painted.sort().join(',') === 'x1
 
 Date.now = realNow;
 resetThinking();
-resetThinkingVisibility();
 resetRowGroups();
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
