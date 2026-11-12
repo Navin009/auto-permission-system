@@ -45,7 +45,7 @@ check('hands write back to Pi', handsBackToPi('write'));
 check('hands an MCP tool back to Pi', handsBackToPi('mcp__docs__search'));
 check('hands an unknown tool back to Pi', handsBackToPi('some-future-tool'));
 
-const theme = { fg: (color, text) => text };
+const theme = { fg: (_color, text) => text };
 const fallbackRenderers = { renderShell: 'default', renderCall: () => new Text('pi-renderer'), renderResult: () => new Text('pi-renderer') };
 const renderContext = (overrides) => ({
 	args: {},
@@ -169,10 +169,10 @@ const contextFor = (mode, notices) => ({
 });
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a session start never relabels Pi own thinking', thinkingLabels.length === 0);
+check('a session start restores Pi own label in full', thinkingLabels.length === 1 && thinkingLabels[0] === undefined);
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a second session start never relabels it either', thinkingLabels.length === 0);
+check('a second session start restores the label again', thinkingLabels.length === 2 && thinkingLabels[1] === undefined);
 
 const printNotices = [];
 await registered.handlers[0]('compact', contextFor('print', printNotices));
@@ -183,22 +183,22 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('switching to compact leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('switching to compact hides the thought label', thinkingLabels.length === 3 && thinkingLabels[2] === '');
 
 resolver('bash', () => fallbackRenderers)
 	.renderCall({ command: 'npm test' }, theme, renderContext({ toolCallId: 'call-label' }))
 	.render(100);
-check('a live row writes no thinking label', thinkingLabels.length === 0);
+check('a live row writes no thinking label', thinkingLabels.length === 3);
 
 closeRowGroup();
-check('a closed row writes no thinking label', thinkingLabels.length === 0);
+check('a closed row writes no thinking label', thinkingLabels.length === 3);
 
 resetRowGroups();
-check('a reset writes no thinking label', thinkingLabels.length === 0);
+check('a reset writes no thinking label', thinkingLabels.length === 3);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('switching to full leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('switching to full restores Pi hidden thinking label', thinkingLabels.length === 4 && thinkingLabels[3] === undefined);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

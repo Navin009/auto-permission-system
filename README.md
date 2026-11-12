@@ -433,16 +433,12 @@ A streaming thought rides on the live row in brackets and stays Pi's own block o
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. A thought is Pi's own block,
-with Pi's own text, click and spacing. The run's header is drawn once at its first call and each
-later call draws its own `└` line in its own slot, so a thought between two commands stays inside
-the same run instead of starting another row. Text, `write`, another tool kind or a user message
-still ends the group.
-
-Expanding the group to Pi's native output draws each call's own Pi block in order, with the
-thoughts left exactly as Pi rendered them; clicking a `Thinking...` row opens the real text. The
-compact `└` list still contains tools only. Pi's thought rows cannot be hidden per thought without
-Pi exposing a per-run visibility API, so `compact` keeps them native.
+freezes only when the row settles — so a live row never looks stopped. In `compact` a hidden thought
+takes no space at all: Pi's hidden-thinking label is blanked for the session, so no `Thinking...`
+line and no gap appear between commands, and the run keeps one header. `full` restores the label, so
+thinking reads exactly as Pi renders it. If you set Pi to show thinking, the block renders and each
+call still draws its own `└` line in its own slot, so the run stays in order. Text, `write`, another
+tool kind or a user message still ends the group.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first — for a read run those lines are its files — click again and Pi draws its own block

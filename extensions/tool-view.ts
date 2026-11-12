@@ -12,7 +12,11 @@ import {
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
-import { setActiveViewMode } from "../src/tool-view/session.ts";
+import { getActiveViewMode, setActiveViewMode } from "../src/tool-view/session.ts";
+import {
+	applyThinkingVisibility,
+	resetThinkingVisibility,
+} from "../src/tool-view/thinking-visibility.ts";
 import {
 	beginThinking,
 	endThinking,
@@ -30,6 +34,7 @@ function reloadViewMode(): void {
 function startSession(): void {
 	resetRowGroups();
 	resetThinking();
+	resetThinkingVisibility();
 	reloadViewMode();
 }
 
@@ -37,8 +42,9 @@ export default function (pi: ExtensionAPI) {
 	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
-	pi.on("session_start", () => {
+	pi.on("session_start", (_event, context) => {
 		startSession();
+		applyThinkingVisibility(getActiveViewMode(), context.ui);
 	});
 
 	pi.on("turn_end", (event) => {
@@ -73,6 +79,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", () => {
 		resetRowGroups();
 		resetThinking();
+		resetThinkingVisibility();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {

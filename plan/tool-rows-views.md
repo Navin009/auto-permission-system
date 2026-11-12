@@ -6,11 +6,11 @@ later call starts, the `(last command)` target, `blocked` / `denied` on the row,
 `(thinking Ns)` bracket on the live row, a 70 %-wide command column, every duration at the end of
 its own text, the group's `└` lines as the first click level (§4), `Reading N files` rows for
 `read` with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps
-Pi's own components in Pi's own frame and never redraws them. Active thinking is Pi's own block,
-including its text, click and spacing. The header is drawn once at the first call of a run and each
-later call draws its own `└` line in its own slot, so a thought between commands never splits the
-run and never has to be hidden or copied (§5). Compact children stay command-only; the only live
-thinking signal we add is the `(thinking Ns)` bracket on the row.
+Pi's own components in Pi's own frame and never redraws them. In `compact` Pi's hidden-thinking
+label is blanked, so a hidden thought takes no line and no gap; while one streams the row carries the
+`(thinking Ns)` bracket and keeps counting. The header is drawn once at the first call and each
+later call draws its own `└` line in its own slot, so even a thought Pi renders visibly cannot push a
+command line above it (§5). Compact children stay command-only.
 Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
@@ -53,9 +53,8 @@ The newest group always keeps its `└` lines. Everything above it has already b
 the transcript reads as one line per finished group and the live group only opened up.
 
 Thinking rides on the row while it streams — `● Running 1 command (thinking 4s) · 1s` — and the
-bracket leaves when the thought completes. The thought itself is Pi's own block, in Pi's place. The
-header is drawn once at the first call and each later call draws its own `└` line in its own slot,
-so a thought between two commands stays inside the same run (§5).
+bracket leaves when the thought completes. The thought itself takes no space in `compact`: Pi's
+hidden-thinking label is blanked, so its run is skipped whole (§5). The label comes back in `full`.
 
 ---
 
@@ -283,7 +282,7 @@ Three moments of one `bash` call, with a thought in the middle:
 | 3 shell commands in a row | 3 blocks | `✓ Running 3 commands · 5s` + 3 `└` lines (below) |
 | 3 shell commands, folded | 3 blocks | `✓ Running 3 commands (git status) ctrl+o to expand · 4s` — click the row to unfold |
 | 3 shell commands at once | 3 blocks | `● Running 3 commands · 1s` + 3 `…` lines (below) |
-| thinking between commands | block, then block | Pi's block stays in place between two lines of the same run (§5) |
+| thinking between commands | block, then block | nothing in `compact` (label blanked, zero height); `full` shows Pi's block (§5) |
 | thinking, no tools | thinking block, then answer | nothing new is drawn |
 | ask is open | ask prompt | `● Waiting on your answer · 2s` (one line only) |
 | long command, 40 cols | Pi wraps it | `● Running 1 command · 4s` + truncated `└ $ rg -n "toolTitle…` |
@@ -582,14 +581,14 @@ carry no hint — click the row or the line instead.
 
 **Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
 `● Running 2 commands (thinking 4s) · 26s` — and the row's timer keeps running for as long as the
-thought streams. A thought is **Pi's block**, with Pi's own label, text, click and spacing. We add
-no compact thought line, never write the global `setHiddenThinkingLabel`, and keep no copy of a
-thought.
+thought streams. In `compact` the hidden-thinking label is blanked for the session, so a hidden
+thought renders nothing: no label, no spacer, no gap. `full` restores the label, and a thinking-only
+turn draws nothing in `compact` beyond the bracket.
 
 A run is drawn by its **slots**, not by one mount: the first call draws the header, and every later
-call draws its own `└` line at its own transcript position. Pi's thought therefore sits between two
-lines of the same run instead of pushing a new header out. The full model is in
-`plan/thinking-in-frame.md`.
+call draws its own `└` line at its own transcript position. That matters when Pi is set to show
+thinking — the italic block renders, nothing is hidden, and the run still reads in order. The full
+model, the label rule and their costs are in `plan/thinking-in-frame.md`.
 
 ### Visible text splits the group
 
@@ -765,10 +764,11 @@ stop after this build, run the linter next
    that bracket is dropped the moment the thought completes. It is never counted as a call and
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
    freezes only when it settles.
-8. Active thinking stays Pi-native and clickable, and never splits a run: the header is drawn once
-   at the first call, each later call draws its own `└` line in its own slot, so Pi's block stays
-   where Pi drew it. Compact child lines never include a thought, the global label is untouched, and
-   no thought is copied or hidden.
+8. In `compact`, hidden thinking takes no space: Pi's hidden-thinking label is blanked, so its run
+   renders nothing and no command line can cross it. The `(thinking Ns)` bracket and the running
+   timer are the only live signal. If Pi is set to show thinking, the block renders and each call
+   still draws its own line, so order holds without splitting the run. Compact children never
+   include a thought.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.
@@ -778,8 +778,8 @@ stop after this build, run the linter next
     a shell **and** a read run; a row that is already open, and an edit (no `└` lines), go straight
     to level 3. The row's mark, count, target and duration never change on the way.
 13. No summary line, no footer, no "done" line. Nothing is drawn when the turn ends.
-14. `full` looks exactly like Pi does today: no rows, no thought changes. `compact` leaves Pi's
-    labels and clicks alone in both modes; it never hides or re-renders a thought.
+14. `full` looks exactly like Pi does today: no rows, and Pi's own hidden-thinking label is
+    restored, so thinking reads as Pi renders it.
 15. Wide or narrow terminal, the row is cut with `…` instead of wrapping.
 16. Clicking the group row folds its `└` list to one line (`3 commands (<last>)`) and back;
     clicking a command line swaps that line for Pi's `full`-mode block, and `ctrl+o` on the

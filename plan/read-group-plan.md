@@ -236,7 +236,8 @@ The active thought is Pi's own block in its own place; the row carries only the 
 ```
 
 After those reads settle, the next read draws its own file line in its own slot and the run keeps
-one header; the thought stays where Pi drew it. The compact file list never includes it.
+one header. The thought itself leaves nothing in `compact`; `full` shows Pi's block. The compact
+file list never includes it.
 
 ### Visible text between reads
 
@@ -368,9 +369,9 @@ no `$`" note in the body, per this repo's conventions.
 10. A blocked or denied read keeps its word on its own line; the header follows the last read's
     mark, never "any failure".
 11. Newest 8 lines; older ones are `└ ... (N earlier calls)`.
-12. Thinking is never a child line: it borrows the header's bracket while it streams and stays
-    Pi's own block in its own place. A read after it draws its own file line in its own slot, so the
-    run keeps one header.
+12. Thinking is never a child line: it borrows the header's bracket while it streams, and in
+    `compact` its hidden run is skipped whole, so it takes no space. A read after it draws its own
+    file line; the run keeps one header.
 13. Visible text, a queued message, `write`, or a different tool kind ends the run; a read after it
     starts a new group.
 14. Paths are cut with `…` from the left so the file name survives; below 40 columns the group is
