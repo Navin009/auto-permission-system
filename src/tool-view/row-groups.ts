@@ -1,6 +1,7 @@
 import type { RowGroupSummary, RowSummary, SubLineSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
-import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
+import { rowLabelOf, RowKind } from "../core/tool-view/row-kind.ts";
+import { programHint } from "../core/tool-view/target-summary.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
 import { thoughtsVisibleInTranscript } from "./session.ts";
@@ -187,7 +188,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 
 	return {
 		kind: group.kind,
-		rows: group.members.map(rowSummary),
+		rows: group.members.map((member) => rowSummary(group.kind, member)),
 		durationMilliseconds,
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
@@ -280,12 +281,13 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 	return member;
 }
 
-function rowSummary(member: RowMember): RowSummary {
+function rowSummary(kind: RowKind, member: RowMember): RowSummary {
 	const runningDuration =
 		member.status === ToolStatus.Running ? Date.now() - member.startedAt : undefined;
 
 	return {
 		target: member.target,
+		hint: kind === RowKind.Shell ? programHint(member.target) : undefined,
 		status: member.status,
 		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
 		segmentIndex: member.segmentIndex,

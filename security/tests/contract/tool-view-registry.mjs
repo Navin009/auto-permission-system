@@ -153,8 +153,8 @@ check('the settled header ends on the last command', headerShape(settledGroup[0]
 closeRowGroup();
 const foldedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
 check('a closed group folds to one line', foldedGroup.length === 1);
-check('the folded row names the last command', foldedGroup[0].includes('(npm run build)'));
-check('the folded row carries the expand hint', headerShape(foldedGroup[0]).includes('ctrl+o to expand · '));
+check('the folded row names the programs it ran', foldedGroup[0].includes('(npm test, npm build)'));
+check('a folded group spends its line on names, not the hint', foldedGroup[0].includes('(npm test, npm build)') && !foldedGroup[0].includes('ctrl+o'));
 check('a folded row ends where its text ends, not at the width', foldedGroup[0].length < 100);
 
 resetRowGroups();

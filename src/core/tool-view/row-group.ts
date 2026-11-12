@@ -14,6 +14,7 @@ export interface RowSummary {
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 	segmentIndex: number;
+	hint?: string;
 	subLines?: readonly SubLineSummary[];
 }
 
@@ -58,7 +59,12 @@ const WHITESPACE_PATTERN = /\s+/g;
 const BLANK = "";
 const MARK_COLUMN_WIDTH = 2;
 const TARGET_PARENTHESES_WIDTH = 3;
-const MINIMUM_TARGET_WIDTH = 12;
+const MINIMUM_TARGET_WIDTH = 4;
+const NAME_LIMITS: readonly number[] = [4, 3, 2, 1];
+const NAME_SEPARATOR = ", ";
+const OVERFLOW_PREFIX = "+";
+const HIDDEN_TIME_OPEN = " (";
+const HIDDEN_TIME_CLOSE = ")";
 const COMMAND_COLUMN_PERCENT = 70;
 const PERCENT = 100;
 const DRAWING_MEMBER_INDEX = 0;
@@ -124,7 +130,7 @@ function headerLine(
 	hintsFolded: boolean,
 	width: number,
 ): RowLine {
-	const hint = hintsFolded ? summary.hint : undefined;
+	const hint = hintsFolded && !showsCommandNames(summary) ? summary.hint : undefined;
 	const duration = headerDuration(summary.durationMilliseconds);
 	const tail = tailWidth(hint, duration);
 
@@ -165,10 +171,19 @@ function countText(summary: RowGroupSummary): string {
 }
 
 function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: number): string {
-	const target = folded ? summary.rows.at(-1)?.target : undefined;
 	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
 
-	if (!target || budget < MINIMUM_TARGET_WIDTH) {
+	if (!folded || budget < MINIMUM_TARGET_WIDTH) {
+		return BLANK;
+	}
+
+	if (showsCommandNames(summary)) {
+		return namesText(summary, budget);
+	}
+
+	const target = summary.rows.at(-1)?.target;
+
+	if (!target) {
 		return BLANK;
 	}
 
@@ -176,6 +191,81 @@ function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: n
 	const fitted = fitTarget(label, budget);
 
 	return fitted ? `${SPACE}(${fitted})` : BLANK;
+}
+
+function showsCommandNames(summary: RowGroupSummary): boolean {
+	return summary.folded && summary.kind === RowKind.Shell && summary.rows.length > 1;
+}
+
+function namesText(summary: RowGroupSummary, budget: number): string {
+	for (const withHints of [true, false]) {
+		for (const limit of NAME_LIMITS) {
+			const candidate = namesCandidate(summary, withHints, limit);
+
+			if (candidate && candidate.length <= budget) {
+				return `${SPACE}(${candidate})`;
+			}
+		}
+	}
+
+	for (const withTime of [true, false]) {
+		const overflow = overflowText(summary, summary.rows.length, withTime);
+
+		if (overflow && overflow.trim().length <= budget) {
+			return `${SPACE}(${overflow.trim()})`;
+		}
+	}
+
+	return BLANK;
+}
+
+function namesCandidate(
+	summary: RowGroupSummary,
+	withHints: boolean,
+	limit: number,
+): string | undefined {
+	const shown = Math.min(limit, summary.rows.length);
+
+	if (shown === 0) {
+		return undefined;
+	}
+
+	const names = summary.rows
+		.slice(0, shown)
+		.map((row) => (withHints ? row.hint ?? row.target : row.target));
+
+	const namesPart = names.join(NAME_SEPARATOR);
+	const overflowCount = summary.rows.length - shown;
+
+	if (overflowCount === 0) {
+		return namesPart;
+	}
+
+	const withTime = overflowText(summary, overflowCount, true);
+
+	return withTime ? `${namesPart}${withTime}` : `${namesPart}${overflowText(summary, overflowCount, false)}`;
+}
+
+function overflowText(
+	summary: RowGroupSummary,
+	hiddenCount: number,
+	withTime: boolean,
+): string | undefined {
+	const overflowPart = `${OVERFLOW_PREFIX}${hiddenCount}`;
+
+	if (!withTime) {
+		return `${SPACE}${overflowPart}`;
+	}
+
+	const hiddenMilliseconds = summary.rows
+		.slice(summary.rows.length - hiddenCount)
+		.reduce((total, row) => total + (row.durationMilliseconds ?? 0), 0);
+
+	if (hiddenMilliseconds === 0) {
+		return undefined;
+	}
+
+	return `${SPACE}${overflowPart}${HIDDEN_TIME_OPEN}${formatCommandDuration(hiddenMilliseconds)}${HIDDEN_TIME_CLOSE}`;
 }
 
 function headerDuration(durationMilliseconds: number | undefined): string | undefined {

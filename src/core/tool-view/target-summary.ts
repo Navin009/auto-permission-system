@@ -331,3 +331,68 @@ function pathTail(path: string, tailBudget: number): string | undefined {
 
 	return tail;
 }
+
+const HINT_LENGTH_LIMIT = 24;
+const URL_PATTERN = /^https?:\/\//;
+const FLAG_PREFIX = "-";
+const NAME_SEPARATOR = " ";
+
+export function programHint(command: string): string {
+	const tokens = tokenize(displayShellCommand(command));
+	const segments = splitSegments(tokens);
+	const program = pathName(segments[0]?.[0] ?? "");
+
+	if (!program) {
+		return "";
+	}
+
+	const ownSegments = segments.filter((segment) => pathName(segment[0] ?? "") === program);
+	const hint = hintToken(ownSegments.at(-1) ?? tokens.slice(1));
+
+	return hint ? `${program}${NAME_SEPARATOR}${hint}` : program;
+}
+
+function splitSegments(tokens: readonly string[]): string[][] {
+	const segments: string[][] = [[]];
+
+	for (const token of tokens) {
+		if (SEPARATOR_TOKENS.includes(token)) {
+			segments.push([]);
+			continue;
+		}
+
+		segments[segments.length - 1].push(token);
+	}
+
+	return segments.filter((segment) => segment.length > 0);
+}
+
+function hintToken(segment: readonly string[]): string {
+	const candidates = segment
+		.slice(1)
+		.filter((token) => !token.startsWith(FLAG_PREFIX))
+		.filter((token) => !QUOTE_CHARACTERS.includes(token[0] ?? ""));
+	const chosen = candidates.at(-1);
+
+	return chosen ? shortenHint(normalizeHint(chosen)) : "";
+}
+
+function normalizeHint(token: string): string {
+	if (URL_PATTERN.test(token)) {
+		try {
+			return new URL(token).host;
+		} catch {
+			return token;
+		}
+	}
+
+	return token;
+}
+
+function shortenHint(hint: string): string {
+	return hint.length > HINT_LENGTH_LIMIT ? `${hint.slice(0, HINT_LENGTH_LIMIT - 1)}${ELLIPSIS}` : hint;
+}
+
+function pathName(token: string): string {
+	return token.split(PATH_SEPARATOR).at(-1) ?? token;
+}

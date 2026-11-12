@@ -77,7 +77,32 @@ check('the hint stays with the text, before the duration column', foldedSingle[0
 
 const foldedGroup = group([row({}), row({ target: 'npm run build' }), row({ target: 'git status' })], { folded: true });
 check('a folded group is one line', foldedGroup.length === 1);
-check('a folded group names the last command', header(foldedGroup) === '✓ Running 3 commands (git status) ctrl+o to expand · 5s');
+check(
+	'a folded group names every program it ran',
+	header(foldedGroup) === '✓ Running 3 commands (npm test, npm run build, git status) · 5s',
+);
+
+const tooMany = Array.from({ length: 6 }, (_, index) =>
+	row({ target: `cmd${index} arg${index}.json`, hint: `cmd${index} arg${index}.json`, durationMilliseconds: 2000 }),
+);
+const ladderRows = [
+	row({ target: 'tsc -p tsconfig.json', hint: 'tsc tsconfig.json', durationMilliseconds: 41_000 }),
+	row({ target: 'npm test', hint: 'npm test', durationMilliseconds: 3000 }),
+	row({ target: 'eslint src/core --fix', hint: 'eslint src/core', durationMilliseconds: 2000 }),
+	row({ target: 'git add -A && git commit -m x', hint: 'git commit', durationMilliseconds: 4000 }),
+	...tooMany.slice(0, 4).map((extra) => row({ ...extra, durationMilliseconds: 1500 })),
+];
+const ladder = (width) => header(group(ladderRows, { folded: true, durationMilliseconds: 55_000 }, width));
+
+const wide = ladder(100);
+check('wide columns name several programs with their hints', wide.includes('tsc tsconfig.json') && wide.includes('npm test'));
+check('wide columns count what they hid', /\+\d+ \(\d+(\.\d+)?s\)/.test(wide));
+check('wide columns never overflow their width', wide.length <= 100);
+const middle = ladder(72);
+check('narrower columns show fewer programs', middle.length <= 72 && middle.includes('+'));
+const narrow = ladder(56);
+check('a very narrow header falls back to the overflow count', narrow.includes('+') && narrow.length <= 56);
+check('an overflow never starts with a space', !narrow.includes('( +') && !wide.includes('( +'));
 
 const foldedDenied = group([row({ status: ToolStatus.Denied })], { folded: true });
 check('a folded denial stays named', header(foldedDenied) === '✗ Running 1 command (npm test) denied ctrl+o to expand · 5s');
