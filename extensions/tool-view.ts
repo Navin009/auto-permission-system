@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { isCommandTool } from "../src/core/tool-view/labels.ts";
+import { carriesVisibleText } from "../src/core/tool-view/message-text.ts";
 import {
 	readToolViewSettings,
 	TOOL_VIEW_SETTINGS_FILE_NAME,
@@ -27,8 +28,10 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", startSession);
 
-	pi.on("turn_start", () => {
-		closeCommandGroup();
+	pi.on("turn_end", (event) => {
+		if (carriesVisibleText(event.message)) {
+			closeCommandGroup();
+		}
 	});
 
 	pi.on("message_start", (event) => {

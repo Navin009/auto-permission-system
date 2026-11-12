@@ -14,9 +14,9 @@ process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 const settingsFilePath = join(scratchAgentDir, 'tool-view.json');
 const extension = await import('../../../extensions/tool-view.ts');
 
-const registered = { resolvers: [], commands: [], handlers: [], events: [] };
+const registered = { resolvers: [], commands: [], handlers: [], events: [], eventHandlers: new Map() };
 const pi = {
-	on: (event) => { registered.events.push(event); return () => {}; },
+	on: (event, handler) => { registered.events.push(event); registered.eventHandlers.set(event, handler); return () => {}; },
 	registerToolRenderer: (resolver) => { registered.resolvers.push(resolver); },
 	registerCommand: (name, options) => { registered.commands.push(name); registered.handlers.push(options.handler); },
 };
@@ -28,7 +28,8 @@ check('the command is tool-view', registered.commands.length === 1 && registered
 check('one command handler is registered', registered.handlers.length === 1);
 check('session_start is handled', registered.events.includes('session_start'));
 check('session_shutdown is handled', registered.events.includes('session_shutdown'));
-check('turn_start closes a command group', registered.events.includes('turn_start'));
+check('turn_end is handled', registered.events.includes('turn_end'));
+check('a turn boundary alone no longer closes a group', !registered.events.includes('turn_start'));
 check('a user message closes a command group', registered.events.includes('message_start'));
 
 const resolver = registered.resolvers[0];
@@ -74,6 +75,15 @@ setActiveViewMode('compact');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
 check('a following shell call joins it silently', secondGroup.length === 0);
+
+const endTurn = (content) => registered.eventHandlers.get('turn_end')({ message: { role: 'assistant', content } });
+endTurn([{ type: 'toolCall', id: 'call-b', name: 'bash' }]);
+const [afterToolOnlyTurn] = renderCommands([['call-turn', 'git diff']]);
+check('a tool-only turn keeps the group open', afterToolOnlyTurn.length === 0);
+
+endTurn([{ type: 'text', text: 'Here is what I found.' }]);
+const [afterProseTurn] = renderCommands([['call-prose', 'git status']]);
+check('an assistant reply with text closes the group', afterProseTurn.join(' ').includes('Running 1 command'));
 
 resolver('read', () => fallbackRenderers);
 const [afterRead] = renderCommands([['call-c', 'git status']]);

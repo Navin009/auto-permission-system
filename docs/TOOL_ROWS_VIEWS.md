@@ -122,7 +122,9 @@ Two commands are only ever grouped when they really ran next to each other. The 
 - any other tool call — `read`, `edit`, `write`, `ls`, `grep`, `find`, `codemode`, an MCP tool, an
   unknown tool;
 - a user message (`Steering:` / `Follow-up:` included), drawn exactly as Pi draws it;
-- the next turn;
+- an assistant reply that carries text. A reply that only calls tools keeps the group open, so a
+  command in the next turn joins the same row — Pi's turn is one model response, and this is the
+  rule that makes three `bash` calls drawn over three turns one `Running 3 commands` row;
 - `/tool-view full`, or the end of the session.
 
 ```text
