@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AssistantMessageComponent, initTheme } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
 import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
@@ -125,27 +124,12 @@ resetRowGroups();
 resetThinking();
 renderCommands([['call-thought-a', 'ls']]);
 settleCommand('call-thought-a', 'ls');
-const thoughtMessage = {
-	role: 'assistant',
-	content: [{ type: 'thinking', thinking: 'hmm' }],
-	stopReason: 'stop',
-};
-initTheme(undefined, false);
-const nativeThought = new AssistantMessageComponent(thoughtMessage, true);
-nativeThought.updateContent(thoughtMessage, true);
-registered.eventHandlers.get('message_update')({ message: thoughtMessage });
+registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }] } });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a captured thought joins without redrawing', afterThought.length === 0);
-check(
-	'the joined command suppresses the original thought',
-	nativeThought.render(100).every((line) => !line.trim()),
-);
+check('a command after a thought opens its own row', afterThought.join(' ').includes('Running 1 command'));
 const [thoughtDrawer] = renderCommands([['call-thought-a', 'ls']]);
-check(
-	'the row above the captured thought counts both commands',
-	thoughtDrawer.join(' ').includes('Running 2 commands'),
-);
+check('the row above the thought keeps one command', !thoughtDrawer.join(' ').includes('Running 2 commands'));
 
 resetRowGroups();
 resetThinking();

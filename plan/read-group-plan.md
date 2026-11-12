@@ -227,17 +227,17 @@ rule applies to reads unchanged.
 
 ### Thinking between two reads
 
-The active thought is Pi's own block in its own place; the row carries only the bracket:
+The thought is Pi's own block in its own place; the row carries only the bracket:
 
 ```text
 ● Reading 2 files (thinking 3s) · 2s
   └ ✓ src/a.ts 0.4s
-  └ ✓ src/b.ts 0.2s
+  └ … src/b.ts
 ```
 
-After those reads settle, the next read suppresses the thought in the ordinary transcript and joins
-this same group. At native expansion, the saved `Thinking...` row follows the second file's Pi
-block and can still be clicked to reveal its real text. The compact file list never includes it.
+When the thought completes the bracket goes and nothing else moves. When Pi renders a thought as a
+visible block, it splits the group exactly as it splits a command group: the reads before it keep
+their lines and finish, the reads after it open a new group.
 
 ### Visible text between reads
 
@@ -369,9 +369,8 @@ no `$`" note in the body, per this repo's conventions.
 10. A blocked or denied read keeps its word on its own line; the header follows the last read's
     mark, never "any failure".
 11. Newest 8 lines; older ones are `└ ... (N earlier calls)`.
-12. Thinking is never a child line: it borrows the header's bracket while it streams, then a
-    compatible next read suppresses it in the ordinary transcript and joins this run. Native
-    expansion retains the clickable Pi thought after the preceding file's block.
+12. Thinking is never a child line: it borrows the header's bracket while it streams and stays
+    Pi's own block in its own place.
 13. Visible text, a queued message, `write`, or a different tool kind ends the run; a read after it
     starts a new group.
 14. Paths are cut with `…` from the left so the file name survives; below 40 columns the group is

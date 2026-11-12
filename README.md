@@ -433,16 +433,13 @@ A streaming thought rides on the live row in brackets and stays Pi's own block o
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. An active thought is Pi's
-own block, with Pi's own text, click and spacing. Once the group's commands settle, a compatible next
-shell command or read suppresses that transcript thought and joins the existing group rather than
-starting another row. Text, `write`, another tool kind or a user message still ends the group and
-leaves Pi's thought in place. A thought never folds away a running command.
-
-Expanding the group to Pi's native output retains those intervening thoughts in order: a real
-`Thinking...` row follows the preceding tool's Pi block, and clicking it opens the saved thought
-with Pi's own rendering. The compact `└` list still contains tools only. Switching back to `full`
-restores any suppressed transcript thoughts.
+freezes only when the row settles — so a live row never looks stopped. The thought itself is Pi's
+own block, drawn exactly as Pi draws it, with Pi's own text and Pi's own click; `compact` never
+hides it, relabels it or draws a copy of it. A row and a visible thought cannot share a slot — the
+row is one component mounted at a tool call, the thought is a different child of the same container
+— so a row ends where a thought starts: the row above folds to one line and the command after the
+thought opens a new row. A thought that arrives while a command is still running waits for it, so no
+running call is ever folded away.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first — for a read run those lines are its files — click again and Pi draws its own block

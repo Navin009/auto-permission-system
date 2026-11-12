@@ -56,7 +56,7 @@ settle('call-a', 'npm test', ToolStatus.Ok, 1_000);
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 thoughtBetween(3);
 const afterThought = join('call-c', 'npm run lint');
-check('an uncaptured thought between commands splits safely', afterThought !== running);
+check('a thought between two commands ends the row', afterThought !== running);
 check('the row above the thought folds to one line', group(running).length === 1);
 check('the folded row names its last command', group(running)[0].text.includes('(npm run build)'));
 check('the new row starts at the command after the thought', drawsFrame(afterThought, 'call-c') && !drawsFrame(afterThought, 'call-a'));
@@ -81,7 +81,7 @@ check('a read row draws no thought line either', body(readRow).join('|') === '  
 endThinking();
 thoughtBetween(1);
 const readAfterThought = join('call-read-2', 'src/b.ts', RowKind.Read);
-check('an uncaptured thought between reads splits safely', readAfterThought !== read);
+check('a thought between two reads ends the read row', readAfterThought !== read);
 check('the next read run starts at its own file', body(group(readAfterThought)).join('|') === '  └ src/b.ts');
 
 resetRowGroups();
