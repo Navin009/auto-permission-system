@@ -9,7 +9,8 @@ The rule, in one line: **`Thinking...` is a live line at the bottom of the open 
 the moment the thought completes.**
 
 - The row never breaks at a thought. One row per run of commands, whatever happens in between.
-- While a thought streams, the open row shows one dim `  Thinking...` line under its last command.
+- While a thought streams, the open row shows one `  Thinking...` line under its last command,
+  drawn in Pi's own style — `thinkingText` colour, italic.
 - The moment the thought completes, that line is dropped. The next command simply adds its line —
   the thought leaves no trace inside the row.
 - Nothing accumulates at the top, nothing is drawn above a block that arrived later, and the row
@@ -64,7 +65,7 @@ Row
   liveThought: boolean        true while a thought streams (and pi is not drawing it itself)
 ```
 
-`rowGroupLines` appends the live line after the command lines — `  Thinking...`, dim, no mark, no
+`rowGroupLines` appends the live line after the command lines — `  Thinking...`, no mark, no
 `$`, no duration, not counted — and only for a kind that draws child lines at all (`shell`,
 `powershell`). A `read` row is one line by design, so there it is the bracket alone.
 

@@ -24,6 +24,7 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 | `README.md` | human install/config reference | Yes, hand-edit |
 | `plan/tool-rows-views.md` | how the `compact` / `full` tool view looks, frame by frame | Yes, hand-edit |
 | `plan/scrollable-script-plan.md` | scrollable script/transcript rendering plan | Yes, hand-edit |
+| `plan/read-group-plan.md` | combined view for file reads: one `└` line per file in a read run | Yes, hand-edit |
 
 ## Conventions
 

@@ -8,7 +8,16 @@ import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-const theme = { fg: (name, text) => text, bold: (text) => text, bg: (name, text) => text };
+const thoughtColourCalls = [];
+const theme = {
+	fg: (name, text) => {
+		if (name === 'thinkingText') thoughtColourCalls.push(text);
+		return text;
+	},
+	bold: (text) => text,
+	bg: (_color, text) => text,
+	italic: (text) => text,
+};
 const FALLBACK_TEXT = 'pi-renderer';
 const DENIAL_TEXT = '[Security Block] sandbox: read access to /x was denied by user.';
 
@@ -139,9 +148,12 @@ beginThinking();
 const thinkingRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('a streaming thought rides on the row', thinkingRow[0].includes('(thinking 0s)'));
 check('a thinking row marks itself running', headerShape(thinkingRow[0]).startsWith('● Running 1 command (thinking 0s) · '));
+check('a streaming thought draws one line under the command', thinkingRow.at(-1) === '  Thinking...');
+check('the thought line takes Pi own thinking colour', thoughtColourCalls.includes('Thinking...'));
 endThinking();
 const quietRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('the bracket leaves with the thought', !quietRow[0].includes('thinking'));
+check('the thought line leaves with it', quietRow.every((line) => !line.includes('Thinking...')));
 
 resetRowGroups();
 const deniedShell = resultOf(

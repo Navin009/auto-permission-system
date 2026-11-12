@@ -427,7 +427,8 @@ A streaming thought rides on the live row in brackets and leaves no block of its
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
 freezes only when the row settles — so a live row never looks stopped. The thought itself is one dim
-`  Thinking...` line at the bottom of the open row while it streams, and that line is gone the moment
+`  Thinking...` line at the bottom of the open row while it streams, drawn in Pi's own thinking
+style (italic, `thinkingText` colour), and that line is gone the moment
 the thought completes: the next command simply adds its own `└` line, in the same row, with nothing
 left behind for the thought. Pi's hidden thinking blocks are blanked in `compact`, so the line is
 drawn once, and the row is anchored at its first command and never moves. With Pi set to show

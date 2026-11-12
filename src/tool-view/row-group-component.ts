@@ -70,6 +70,10 @@ export class RowGroupComponent implements Component {
 	}
 
 	private bodyText(line: RowLine): string {
+		if (line.isThought) {
+			return this.theme.italic(this.theme.fg("thinkingText", line.text));
+		}
+
 		return line.isDim ? this.theme.fg("dim", line.text) : line.text;
 	}
 

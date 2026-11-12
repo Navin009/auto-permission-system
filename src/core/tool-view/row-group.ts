@@ -32,6 +32,7 @@ export interface RowLine {
 	duration: string | undefined;
 	hint: string | undefined;
 	isDim: boolean;
+	isThought?: boolean;
 }
 
 const NEWEST_ROW_LIMIT = 8;
@@ -203,7 +204,8 @@ function thoughtLine(): RowLine {
 		text: THOUGHT_LINE_TEXT,
 		duration: undefined,
 		hint: undefined,
-		isDim: true,
+		isDim: false,
+		isThought: true,
 	};
 }
 

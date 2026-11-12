@@ -7,7 +7,8 @@ later call starts, the `(last command)` target, `blocked` / `denied` on the row,
 its own text, the group's `└` lines as the first click level (§4), `Reading N files` rows for
 `read`, and Pi's own block on expand — `compact` wraps Pi's own components in Pi's own frame and
 never redraws them. Thinking is a live line inside the row: while a thought streams the open row
-shows one dim `  Thinking...` under its last command, and the line is gone the moment the thought
+shows one `  Thinking...` under its last command in Pi's own style — `thinkingText` colour, italic —
+and the line is gone the moment the thought
 completes — the row never breaks at a thought and never grows above one (§5).
 Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks
 (§4).
@@ -232,8 +233,9 @@ Three moments of one `bash` call, with a thought in the middle:
   everything else, then the moment the thought completes the bracket is dropped and the row is
   back to `● Running 1 command · 1s`. A thought never changes the count, and the row's timer keeps
   running while it streams, so a live row never looks frozen; the timer freezes only when the row
-  settles. The thought itself is one dim `  Thinking...` line at the bottom of the open row while it
-  streams, and it is gone when the thought completes — nothing is left inside the row (§5).
+  settles. The thought itself is one `  Thinking...` line at the bottom of the open row while it
+  streams — styled exactly as Pi styles it, `thinkingText` colour and italic — and it is gone when the
+  thought completes, so nothing is left inside the row (§5).
 - The `└` line keeps the command, minus noise: `cd <cwd> && `, wrappers (`sudo`, `uv run`,
   `env A=1`) and the interpreter are dropped (`python3 -m pytest …` reads `pytest …`), and a
   pipeline or chain is kept whole — only the folded header names the last segment. The command

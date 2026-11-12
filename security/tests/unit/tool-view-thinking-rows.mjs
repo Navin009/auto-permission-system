@@ -43,7 +43,7 @@ beginThinking();
 now += 4_000;
 const streaming = group(running);
 check('a streaming thought adds a line at the bottom', body(streaming).join('|') === '  └ $ npm test|  Thinking...');
-check('the thought line is dim and has no mark or prompt', streaming[2].isDim && streaming[2].mark === undefined && !streaming[2].text.includes('$'));
+check('the thought line is styled like Pi and has no mark or prompt', streaming[2].isThought === true && !streaming[2].isDim && streaming[2].mark === undefined && !streaming[2].text.includes('$'));
 check('a streaming thought keeps the header bracket', lineText(streaming[0]) === '● Running 1 command (thinking 4s) · 4s');
 
 endThinking();
