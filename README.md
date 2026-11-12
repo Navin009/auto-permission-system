@@ -370,6 +370,10 @@ Newest eight commands; older ones collapse to `└ ... (2 earlier calls)`. Any o
 an assistant reply that carries text and a new user message all end the group, so two commands are
 only ever grouped when they really ran next to each other.
 
+Thinking does not get a line of its own: while a thought runs the open row carries it in its header,
+`✓ Running 2 commands (thinking… 3s) · 5s`, and the parens disappear the moment it ends. It is never
+counted as a command and never splits the group.
+
 Expanding is Pi's: a click shows Pi's own collapsed block for each call, a second click the full
 output, and `ctrl+o` jumps straight to the full output — exactly as `full` draws them. Nothing about
 a blocked or denied call is lost — the

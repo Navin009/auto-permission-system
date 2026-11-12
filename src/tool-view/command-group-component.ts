@@ -1,11 +1,19 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, type Component, type TuiMouseEvent, type TuiMouseEventResult } from "@earendil-works/pi-tui";
+import {
+	truncateToWidth,
+	visibleWidth,
+	type Component,
+	type TuiMouseEvent,
+	type TuiMouseEventResult,
+} from "@earendil-works/pi-tui";
 import {
 	commandGroupText,
 	commandLinePrefix,
+	headerBody,
 	type CommandGroupSummary,
 	type CommandGroupText,
 	type CommandLine,
+	type HeaderParts,
 } from "../core/tool-view/command-group.ts";
 import { StatusMark } from "../core/tool-view/status.ts";
 
@@ -16,6 +24,20 @@ const CLICK_TYPE = "click";
 const LEFT_BUTTON = "left";
 
 type MarkColor = Parameters<Theme["fg"]>[0];
+
+interface HeaderVariant {
+	hint: boolean;
+	thinking: boolean;
+	duration: boolean;
+}
+
+const FULL_HEADER: HeaderVariant = { hint: true, thinking: true, duration: true };
+const HEADER_VARIANTS: readonly HeaderVariant[] = [
+	FULL_HEADER,
+	{ hint: false, thinking: true, duration: true },
+	{ hint: false, thinking: false, duration: true },
+	{ hint: false, thinking: false, duration: false },
+];
 
 export class CommandGroupComponent implements Component {
 	private readonly summary: () => CommandGroupSummary;
@@ -40,7 +62,7 @@ export class CommandGroupComponent implements Component {
 
 	render(width: number): string[] {
 		const text = commandGroupText(this.summary());
-		const lines = [this.headerLine(text)];
+		const lines = [this.headerLine(text, width)];
 
 		if (text.overflowLine) {
 			lines.push(this.theme.fg("dim", text.overflowLine));
@@ -55,11 +77,28 @@ export class CommandGroupComponent implements Component {
 
 	invalidate(): void {}
 
-	private headerLine(text: CommandGroupText): string {
-		const markPart = `${this.colorMark(text.mark, text.status)}${MARK_SEPARATOR}`;
-		const hintPart = text.hint ? `${HINT_SEPARATOR}${this.theme.fg("dim", text.hint)}` : "";
+	private headerLine(text: CommandGroupText, width: number): string {
+		for (const variant of HEADER_VARIANTS) {
+			const line = this.composeHeader(text, variant);
 
-		return `${markPart}${text.body}${hintPart}`;
+			if (visibleWidth(line) <= width) {
+				return line;
+			}
+		}
+
+		return this.composeHeader(text, { hint: false, thinking: false, duration: false });
+	}
+
+	private composeHeader(text: CommandGroupText, variant: HeaderVariant): string {
+		const parts: HeaderParts = {
+			count: text.count,
+			thinking: variant.thinking ? text.thinking : undefined,
+			duration: variant.duration ? text.duration : undefined,
+		};
+		const markPart = `${this.colorMark(text.mark, text.status)}${MARK_SEPARATOR}`;
+		const hintPart = variant.hint && text.hint ? `${HINT_SEPARATOR}${this.theme.fg("dim", text.hint)}` : "";
+
+		return `${markPart}${headerBody(parts)}${hintPart}`;
 	}
 
 	private commandLine(line: CommandLine): string {

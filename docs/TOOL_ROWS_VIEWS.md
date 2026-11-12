@@ -95,6 +95,39 @@ not own. Only the two commands in the middle were compacted into one row.
 - A row stays on screen until a later call takes its place. When the turn ends nothing new is
   drawn — no footer, no summary, no "done" line.
 
+### While a thought runs
+
+A thought does not get a line of its own. It rides in the header of the open row, in parens, before
+the duration, and the number counts the seconds it has been running (ADR-054):
+
+```text
+● Running 2 commands (thinking… 0s) · 0.4s
+   └ … $ npm test · 1.4s
+```
+
+```text
+● Running 2 commands (thinking… 3s) · 4.2s
+   └ … $ npm test · 1.4s
+```
+
+When the thought ends the parens go with it, with nothing left behind:
+
+```text
+✓ Running 2 commands · 49s ctrl+o to expand
+   └ ✓ $ npm test · 1.4s
+   └ ✓ $ npm run build · 47s
+```
+
+- The word `thinking` and the `…` never change; only the number does, once a second.
+- A thought is never counted in `Running <N> commands`, never becomes a `└` line, and never breaks
+  the group — a second thought in the same turn brings the parens back starting at `0s`.
+- Only the open row carries it. A row already closed by an assistant reply or another tool stays
+  closed.
+- Narrower than the whole header, it goes in this order: the `ctrl+o` hint, then the parens, then
+  the duration. `● Running 2 commands` is the last thing standing.
+- Expanded, the row is Pi's own block, so the parens are gone and Pi's thinking block is drawn
+  exactly as Pi draws it — its italic text, or its `Thinking...` label.
+
 ---
 
 ## 3. Small cases

@@ -133,7 +133,7 @@ draws today). There is no summary band, no footer and no end-of-turn line in eit
 
 | # | P | Requirement |
 | --- | --- | --- |
-| R19 | M | Thinking is a line of its own — `~ Thought for <Ns> — click to read` — with no status glyph and no `└`. It is never part of a group, never counted with the commands, and it ends the group above it. The text appears on a click (D5), wrapped to the width; clicking again hides it. An in-flight thought reads `~ Thinking… — click to read`. A turn with no tool calls draws nothing. |
+| R19 | M | A running thought rides in the header of the open row, in parens and before the duration: `Running <N> commands (thinking… <Ns>) · <total>`. The counter starts at `0s` and moves once a second; the word `thinking` and the `…` never change. When the thought ends the parens are removed entirely — no `thought 3s`, no history line, no click target. Thinking is never counted in `<N>`, never becomes a `└` line, and never ends the group. Only the newest row carries it, and every expanded level leaves thinking to Pi (ADR-054). |
 | R20 | M | A user message that arrives mid-turn (queued `Steering:` / `Follow-up:`) is drawn exactly as Pi draws it, is never folded into a row or a count, and ends the group above it. No group ever spans a message, and a row's expansion covers only the calls on its own side of it. |
 
 ### Views
@@ -179,9 +179,9 @@ draws today). There is no summary band, no footer and no end-of-turn line in eit
 | D2 | Default view: `full` in the first release — existing users see no change. `compact` is discoverable through the README. | `R21`, `C5` |
 | D3 | No `○` summary band, ever — not even as an opt-in. `compact` is rows only. | `R23` |
 | D4 | `write` passthrough is fixed, not a setting: `write` always keeps Pi's block. | `R17` |
-| D5 | Per-line opening is a click (thinking text, one command); `ctrl+o` keeps Pi's meaning and opens the whole group. | `R14`, `R15`, `R19` |
+| D5 | Per-line opening is a click (one command); `ctrl+o` keeps Pi's meaning and opens the whole group. | `R14`, `R15` |
 | D6 | Command name is `/tool-view`. | `R30` |
-| D7 | Thinking is its own line, never a group member; group output is hidden once the command finishes. | `R19`, `R11` |
+| D7 | Thinking rides in the open row's header and never counts as a group member; group output is hidden once the command finishes. | `R19`, `R11` |
 
 ### Still open — close these, then write the ADR
 
@@ -328,10 +328,10 @@ Pi's. Every requirement below that describes a file row (`R1`, `R2`, `R16`) ther
 dropped v1 rows, not the shipped view.
 
 Shipped for shell commands: `R3`, `R4`, `R10`, `R12`, `R13`, `R15`, `R17` (a `write` still ends a
-group), `R21`–`R25`, `R28`–`R30`. Three behaviours are worth naming: consecutive shell calls share
-one `Running <N> commands` row with a `└` line per command (ADR-050), `ctrl+o` and a click hand the
-calls back to Pi's own renderers untouched and open every command of the group, and a call whose
-arguments are still streaming is left to Pi rather than drawn as `Running … · 0s` (`R4`).
+group), `R19`, `R21`–`R25`, `R28`–`R30`. Three behaviours are worth naming: consecutive shell calls
+share one `Running <N> commands` row with a `└` line per command (ADR-050), `ctrl+o` and a click hand
+the calls back to Pi's own renderers untouched and open every command of the group, and a running
+thought shows as `(thinking… <Ns>)` inside that header without splitting the group (ADR-054).
 
 Not delivered, and why:
 
@@ -340,7 +340,7 @@ Not delivered, and why:
 | Compacting file and search tools into rows | `R1`, `R2`, `R16`, `R18` | Out of scope after ADR-050: those tools keep Pi's block so their styling stays Pi's |
 | Output drawn under the one command that is still running | `R11` | A row never draws a tool's output; the running command's block is one `ctrl+o` away |
 | Clicking one `└` line to open that command alone | `R14` | A group line has no mouse region of its own; `ctrl+o` opens every command in the group (`R15`) |
-| `~ Thought for Ns — click to read` | `R19` | Thinking stays Pi's own block in both views; the renderer never touches it |
+| A thought line of its own (`~ Thought for Ns — click to read`) | `R19` | Superseded by ADR-054: the thought rides in the row header as `(thinking… <Ns>)` and leaves nothing behind when it ends |
 | A queued message breaking a group | `R20` | A user message closes the group, so no group spans one by construction |
 | Nested `codemode` calls listed under the row | `R26`, `R27` | `codemode` keeps Pi's block; its inner calls are Pi's to draw |
 | `PI_<X>_DEBUG` tracing | `R31` | Not started |
