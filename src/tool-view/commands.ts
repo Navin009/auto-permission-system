@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { menuOptionLine, SELECTION_TIMEOUT_MILLISECONDS } from "../core/selection-menu.ts";
 import { TOOL_VIEW_SETTINGS_FILE_NAME, writeToolViewMode } from "../core/tool-view/settings.ts";
+import { resetNativeThinking } from "./native-thinking.ts";
 import { ViewMode, viewModeLabel } from "../core/tool-view/view-mode.ts";
 import { closeRowGroup, resetRowGroups } from "./row-groups.ts";
 import { getActiveViewMode, setActiveViewMode } from "./session.ts";
@@ -125,4 +126,5 @@ function closeGroupsFor(viewMode: ViewMode): void {
 	}
 
 	resetRowGroups();
+	resetNativeThinking();
 }
