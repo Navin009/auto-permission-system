@@ -2,6 +2,7 @@ import { rowGroupLines } from '../../../src/core/tool-view/row-group.ts';
 import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
 import { ToolStatus } from '../../../src/core/tool-view/status.ts';
 import {
+	drawsFrame,
 	groupSummary,
 	joinRowGroup,
 	resetRowGroups,
@@ -47,20 +48,18 @@ now += 3_000;
 endThinking();
 now += 1_000;
 const afterThought = join('call-b', 'npm run build');
-check('a command after a thought does not join the row above it', afterThought !== running);
-check('the row above the thought folds to one line', body(group(running)).length === 0);
-check('the folded row keeps its own count', group(running)[0].text.startsWith('Running 1 command'));
-check('the folded row keeps its own command', lineText(group(running)[0]).includes('(npm test)'));
-check('the command after the thought opens its own row', body(group(afterThought)).join('|') === '  └ $ npm run build');
+check('a command after a thought joins the row above it', afterThought === running);
+check('a command after a thought keeps one row for the run', group(running)[0].text.startsWith('Running 2 commands'));
+check('a command after a thought leaves no line for the thought', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ … $ npm run build');
+check('the newest command draws the row', drawsFrame(running, 'call-b') && !drawsFrame(running, 'call-a'));
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
-const settledSecond = group(afterThought);
-check('the second row counts only its own command', settledSecond[0].text.startsWith('Running 1 command'));
-check('the second row draws only its own command', body(settledSecond).join('|') === '  └ $ npm run build');
+const settledSecond = group(running);
+check('both commands keep their own line', body(settledSecond).join('|') === '  └ ✓ $ npm test 4s|  └ ✓ $ npm run build 1s');
 
-const secondRows = groupSummary(afterThought, HINT).rows;
+const secondRows = groupSummary(running, HINT).rows;
 check('a group holds commands only', secondRows.every((row) => 'target' in row && 'status' in row));
-check('a thought is never counted as a row', secondRows.length === 1);
+check('a thought is never counted as a row', secondRows.length === 2);
 
 resetRowGroups();
 resetThinking();

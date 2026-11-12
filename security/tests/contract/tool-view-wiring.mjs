@@ -88,12 +88,14 @@ setActiveViewMode('compact');
 check('compact owns the shell', resolver('bash', () => fallbackRenderers).renderShell === 'self');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
-check('a second command joins it silently', secondGroup.length === 0);
+check('a second command joins the same row', secondGroup.join(' ').includes('Running 2 commands'));
+const [firstGroupAgain] = renderCommands([['call-a', 'ls']]);
+check('the older command goes empty when the newest takes over', firstGroupAgain.length === 0);
 
 const endTurn = (content) => registered.eventHandlers.get('turn_end')({ message: { role: 'assistant', content } });
 endTurn([{ type: 'toolCall', id: 'call-b', name: 'bash' }]);
 const [afterToolOnlyTurn] = renderCommands([['call-turn', 'git diff']]);
-check('a tool-only turn keeps the group open', afterToolOnlyTurn.length === 0);
+check('a tool-only turn keeps the group open', afterToolOnlyTurn.join(' ').includes('Running 3 commands'));
 
 endTurn([{ type: 'text', text: 'Here is what I found.' }]);
 const [afterProseTurn] = renderCommands([['call-prose', 'git status']]);
@@ -123,9 +125,9 @@ settleCommand('call-thought-a', 'ls');
 registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }] } });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a thought opens its own group', afterThought.join(' ').includes('Running 1 command'));
-const [foldedThoughtGroup] = renderCommands([['call-thought-a', 'ls']]);
-check('the group above the thought folds to one line', foldedThoughtGroup.length === 1 && foldedThoughtGroup[0].includes('(ls)'));
+check('a command after a thought joins the same row', afterThought.join(' ').includes('Running 2 commands'));
+const [olderThoughtGroup] = renderCommands([['call-thought-a', 'ls']]);
+check('the older command leaves the drawing to the newest', olderThoughtGroup.length === 0);
 
 resetRowGroups();
 resetThinking();

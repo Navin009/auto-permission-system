@@ -430,9 +430,10 @@ freezes only when the row settles — so a live row never looks stopped. The tho
 folded into a row: Pi draws it, exactly as `full` draws it, at the point where it happened — Pi's
 `Thinking...` line with its click-to-reveal, or its italic thought text when thinking is set to
 visible. `compact` never blanks that label, never rewrites the text and never adds a thinking line
-of its own, so a thought can never end up inside a collapsed group. A thought also ends the row:
-the command after it opens a new row instead of growing the one above the thought, so no `└` line is
-ever drawn above a block that arrived after it.
+of its own, so a thought can never end up inside a collapsed group. A row is drawn from its
+**newest** command instead, so it always sits just below the thought and never above one: the
+commands that ran before the thought keep their `└` lines and move down with the row when the next
+command joins.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first; click again and Pi draws its own block for every call in the group — same frame,

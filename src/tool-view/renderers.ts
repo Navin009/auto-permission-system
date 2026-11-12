@@ -9,7 +9,7 @@ import { RowGroupComponent } from "./row-group-component.ts";
 import {
 	advanceGroupExpansion,
 	groupSummary,
-	isGroupHead,
+	drawsFrame,
 	joinRowGroup,
 	rowGroupOfCall,
 	settleRowGroup,
@@ -134,7 +134,7 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 }
 
 function rowComponent(group: RowGroup, context: RenderContext, theme: RenderTheme) {
-	if (!isGroupHead(group, context.toolCallId)) {
+	if (!drawsFrame(group, context.toolCallId)) {
 		return emptyComponent();
 	}
 

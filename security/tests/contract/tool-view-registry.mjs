@@ -88,13 +88,16 @@ const readResult = resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-re
 check('a read row settles with its path', headerShape(lines(readResult)[0]) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 800ms');
 
 const secondRead = callOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-read-2' });
-check('a second read joins silently', lines(secondRead).length === 0);
+const secondReadLines = lines(secondRead);
+check('a second read takes the drawing', secondReadLines.length === 1);
+check('the newest read counts both files', headerShape(secondReadLines[0]).startsWith('● Reading 2 files (src/b.ts) ctrl+o to expand · '));
 
-const settledSecondRead = resultOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-read-2', durationMs: 700 });
-check('a settled read member leaves the drawing to the head', lines(settledSecondRead).length === 0);
-const readGroup = lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 }));
-check('consecutive reads are one row', readGroup.length === 1);
-check('the read row counts both files', headerShape(readGroup[0]).startsWith('✓ Reading 2 files (src/b.ts) ctrl+o to expand · '));
+const settledSecondRead = lines(resultOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-read-2', durationMs: 700 }));
+check('a settled newest read keeps the drawing', headerShape(settledSecondRead[0]).startsWith('✓ Reading 2 files (src/b.ts) ctrl+o to expand · '));
+check(
+	'an older read leaves the drawing to the newest',
+	lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 })).length === 0,
+);
 
 closeRowGroup();
 const mixedCall = callOf('bash', { command: 'git status' }, { toolCallId: 'call-mixed' });
@@ -105,29 +108,27 @@ check('a failed command row says so', headerShape(lines(failedBash)[0]) === '✗
 check('a single failed command keeps its one line', lines(failedBash)[1] === '  └ $ npm test');
 
 const joinedBash = callOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build' });
-check('a second command joins the running group silently', lines(joinedBash).length === 0);
+const joinedLines = lines(joinedBash);
+check('a second command takes the drawing', joinedLines.length === 3);
+check('the group row counts both commands', headerShape(joinedLines[0]).startsWith('● Running 2 commands · '));
+check('the group row takes the last command mark', headerShape(joinedLines[0]).startsWith('●'));
+check('an open group carries no expand hint', !joinedLines[0].includes('ctrl+o'));
+check('the first command keeps its mark and duration', joinedLines[1] === '  └ ✗ $ npm test 1.5s');
+check('the running command reads with an ellipsis', joinedLines[2] === '  └ … $ npm run build');
 
-const repaintedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
-check('the group row counts both commands', headerShape(repaintedGroup[0]).startsWith('● Running 2 commands · '));
-check('the group row takes the last command mark', headerShape(repaintedGroup[0]).startsWith('●'));
-check('an open group carries no expand hint', !repaintedGroup[0].includes('ctrl+o'));
-check('the first command keeps its mark and duration', repaintedGroup[1].startsWith('  └ ✗ $ npm test') && repaintedGroup[1].endsWith('1.5s'));
-check('the running command reads with an ellipsis', repaintedGroup[2] === '  └ … $ npm run build');
-check('a settled command keeps its duration next to the command', repaintedGroup[1] === '  └ ✗ $ npm test 1.5s');
-check('a duration never pads out to the right edge', repaintedGroup[1].length < 40);
+const olderBash = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
+check('an older command leaves the drawing to the newest', olderBash.length === 0);
 
 const settledSecond = resultOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build', durationMs: 3000 });
-check('a settled member leaves the drawing to the head', lines(settledSecond).length === 0);
-
-const settledGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
+const settledGroup = lines(settledSecond);
 check('the settled group ends on the last command', headerShape(settledGroup[0]).startsWith('✓ Running 2 commands · '));
-check('the second command line settles with its duration', settledGroup[2].startsWith('  └ ✓ $ npm run build') && settledGroup[2].endsWith('3s'));
+check('the second command line settles with its duration', settledGroup[2] === '  └ ✓ $ npm run build 3s');
 
 closeRowGroup();
-const foldedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
+const foldedGroup = lines(resultOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build', durationMs: 3000 }));
 check('a closed group folds to one line', foldedGroup.length === 1);
 check('the folded row names the last command', foldedGroup[0].includes('(npm run build)'));
-check('the folded row carries the expand hint', headerShape(foldedGroup[0]).endsWith('ctrl+o to expand · 1.5s'));
+check('the folded row carries the expand hint', headerShape(foldedGroup[0]).includes('ctrl+o to expand · '));
 check('a folded row ends where its text ends, not at the width', foldedGroup[0].length < 100);
 
 resetRowGroups();
