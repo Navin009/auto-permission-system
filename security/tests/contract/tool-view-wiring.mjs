@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Text } from '@earendil-works/pi-tui';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
+import { setActiveViewMode, setThoughtsVisibleLookup } from '../../../src/tool-view/session.ts';
 import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
 import { resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
 
@@ -89,8 +89,7 @@ setActiveViewMode('compact');
 check('compact owns the shell', resolver('bash', () => fallbackRenderers).renderShell === 'self');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
-check('a second command draws its own line', secondGroup.join(' ').includes('$ pwd'));
-check('the second command carries no header', !secondGroup.join(' ').includes('Running'));
+check('a second command joins its segment silently', secondGroup.length === 0);
 const [firstGroupAgain] = renderCommands([['call-a', 'ls']]);
 check('the first command keeps drawing the row', firstGroupAgain.join(' ').includes('Running 2 commands'));
 
@@ -133,13 +132,30 @@ const thoughtMessage = {
 registered.eventHandlers.get('message_update')({ message: thoughtMessage });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a thought draws its own line', afterThought.join(' ').includes('$ pwd'));
+check('with hidden thinking the next command joins silently', afterThought.join(' ').length === 0);
 check('the thought does not split the group', !afterThought.join(' ').includes('Running 1 command'));
 const [thoughtHeader] = renderCommands([['call-thought-a', 'ls']]);
 check(
 	'the first command keeps the one header for the run',
 	thoughtHeader.join(' ').includes('Running 2 commands'),
 );
+check(
+	'hidden thinking leaves no gap between the run lines',
+	thoughtHeader.filter((line) => line.includes('$ ')).length === 2,
+);
+
+resetRowGroups();
+resetThinking();
+setThoughtsVisibleLookup(() => true);
+renderCommands([['call-visible-a', 'ls']]);
+settleCommand('call-visible-a', 'ls');
+registered.eventHandlers.get('message_update')({ message: thoughtMessage });
+const [afterVisibleThought] = renderCommands([['call-visible-b', 'pwd']]);
+check(
+	'visible thinking makes the next command draw its own segment',
+	afterVisibleThought.join(' ').includes('$ pwd'),
+);
+setThoughtsVisibleLookup(undefined);
 
 resetRowGroups();
 resetThinking();

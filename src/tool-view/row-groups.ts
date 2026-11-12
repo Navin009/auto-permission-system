@@ -2,7 +2,8 @@ import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
-import { thinkingState } from "./thinking-clock.ts";
+import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
+import { thoughtsVisibleInTranscript } from "./session.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -14,6 +15,7 @@ export interface RowMember {
 	startedAt: number;
 	settledAt: number | undefined;
 	invalidate: (() => void) | undefined;
+	segmentIndex: number;
 }
 
 export interface RowGroup {
@@ -22,6 +24,7 @@ export interface RowGroup {
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
 	lastActivityAt: number;
+	epochAtNewestMember: number;
 }
 
 export interface RowCallInput {
@@ -125,6 +128,32 @@ export function memberIndexOf(group: RowGroup, toolCallId: string): number | und
 	return index === -1 ? undefined : index;
 }
 
+export function segmentOfCall(group: RowGroup, toolCallId: string): number | undefined {
+	return group.members.find((member) => member.toolCallId === toolCallId)?.segmentIndex;
+}
+
+export function drawsSegment(group: RowGroup, toolCallId: string): boolean {
+	const index = group.members.findIndex((member) => member.toolCallId === toolCallId);
+
+	if (index < 0) {
+		return false;
+	}
+
+	return index === 0 || group.members[index - 1].segmentIndex !== group.members[index].segmentIndex;
+}
+
+function nextSegmentIndex(group: RowGroup): number {
+	const previous = group.members.at(-1);
+
+	if (!previous || !thoughtsVisibleInTranscript()) {
+		return 0;
+	}
+
+	return thinkingEpoch() > group.epochAtNewestMember
+		? previous.segmentIndex + 1
+		: previous.segmentIndex;
+}
+
 export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
 	const first = frameMember(group);
 	const thinking = group === currentGroup ? thinkingState() : undefined;
@@ -183,6 +212,7 @@ function createGroup(kind: RowKind): RowGroup {
 		ticker: undefined,
 		expansionLevel: ExpansionLevel.Row,
 		lastActivityAt: Date.now(),
+		epochAtNewestMember: thinkingEpoch(),
 	};
 
 	openGroups.add(group);
@@ -218,10 +248,12 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		startedAt: Date.now(),
 		settledAt: undefined,
 		invalidate: input.invalidate,
+		segmentIndex: nextSegmentIndex(group),
 	};
 
 	group.members.push(member);
 	groupsByCall.set(member.toolCallId, group);
+	group.epochAtNewestMember = thinkingEpoch();
 
 	return member;
 }
@@ -234,6 +266,7 @@ function rowSummary(member: RowMember): RowSummary {
 		target: member.target,
 		status: member.status,
 		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
+		segmentIndex: member.segmentIndex,
 	};
 }
 

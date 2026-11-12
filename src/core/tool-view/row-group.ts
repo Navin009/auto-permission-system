@@ -8,6 +8,7 @@ export interface RowSummary {
 	target: string;
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
+	segmentIndex: number;
 }
 
 export interface RowGroupSummary {
@@ -32,6 +33,7 @@ export interface RowLine {
 	hint: string | undefined;
 	isDim: boolean;
 	memberIndex?: number;
+	segmentIndex?: number;
 }
 
 const NEWEST_ROW_LIMIT = 8;
@@ -75,6 +77,16 @@ export function rowGroupLinesForMember(
 ): RowLine[] {
 	return rowGroupLines(summary, width).filter(
 		(line) => (line.memberIndex ?? DRAWING_MEMBER_INDEX) === memberIndex,
+	);
+}
+
+export function rowGroupLinesForSegment(
+	summary: RowGroupSummary,
+	width: number,
+	segmentIndex: number,
+): RowLine[] {
+	return rowGroupLines(summary, width).filter(
+		(line) => (line.segmentIndex ?? DRAWING_MEMBER_INDEX) === segmentIndex,
 	);
 }
 
@@ -192,7 +204,9 @@ function childLines(summary: RowGroupSummary, width: number, showsChildLines: bo
 	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
 
 	visibleRows.forEach((row, offset) => {
-		lines.push(childLine(summary.kind, row, isSingle, childColumn, hiddenCount + offset));
+		lines.push(
+			childLine(summary.kind, row, isSingle, childColumn, hiddenCount + offset, row.segmentIndex),
+		);
 	});
 
 	return lines;
@@ -212,6 +226,7 @@ function childLine(
 	isSingle: boolean,
 	childColumn: number,
 	memberIndex: number,
+	segmentIndex: number,
 ): RowLine {
 	const mark = isSingle ? undefined : { glyph: childMark(row.status), status: row.status };
 	const wordPart = isSingle ? BLANK : wordText(row.status, true);
@@ -225,6 +240,7 @@ function childLine(
 		hint: undefined,
 		isDim: true,
 		memberIndex,
+		segmentIndex,
 	};
 }
 

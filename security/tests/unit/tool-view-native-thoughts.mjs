@@ -1,7 +1,7 @@
 import { Text } from '@earendil-works/pi-tui';
 import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
 import { ToolStatus } from '../../../src/core/tool-view/status.ts';
-import { nativeThoughtForCall } from '../../../src/tool-view/native-thought.ts';
+import { nativeThoughtForCall, resetNativeThoughts } from '../../../src/tool-view/native-thought.ts';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
 import {
 	advanceGroupExpansion,
@@ -45,6 +45,11 @@ const plain = (component) =>
 		.map((line) => line.replace(/\x1b\[[0-9;]*m/g, '').replace(/\x1b\]133;[ABC]\x07/g, '').trimEnd())
 		.filter((line) => line.trim().length > 0);
 
+const raw = (component) =>
+	component
+		.render(WIDTH)
+		.map((line) => line.replace(/\x1b\[[0-9;]*m/g, '').replace(/\x1b\]133;[ABC]\x07/g, '').trimEnd());
+
 resetThoughts();
 rememberAssistantMessage(message('I should read the plan doc first.', 'call-thought'));
 rememberAssistantMessage({ role: 'assistant', content: [{ type: 'text', text: 'no thought here' }] });
@@ -58,13 +63,20 @@ check('a message without thinking is ignored', thoughtForCall('call-plain') === 
 check('an unknown call has no thought', thoughtForCall('call-unknown') === undefined);
 
 const rendered = nativeThoughtForCall('call-thought');
-check('a stored thought renders as a Pi component', plain(rendered).join(' ').includes('read the plan doc'));
+check('a stored thought starts collapsed as Pi label', plain(rendered).join(' ').includes('Thinking...'));
+check('the collapsed label hides the text', !plain(rendered).join(' ').includes('read the plan doc'));
 check('an unknown call renders nothing', nativeThoughtForCall('call-unknown') === undefined);
 
+rendered.handleMouse?.({ type: 'click', button: 'left', x: 2, y: 1, width: WIDTH, height: 4, shift: false, alt: false, ctrl: false });
+check('a click expands the thought', plain(rendered).join(' ').includes('read the plan doc'));
+check('the same component keeps its state', nativeThoughtForCall('call-thought') === rendered);
+
 resetThoughts();
+resetNativeThoughts();
 check('a reset forgets every thought', thoughtForCall('call-thought') === undefined);
 
 resetThoughts();
+resetNativeThoughts();
 const theme = { fg: (_colour, text) => text, bg: (_colour, text) => text, bold: (text) => text };
 const fallback = {
 	renderShell: 'default',
@@ -123,16 +135,28 @@ check('the compact row still draws its command', compactLines.join(' ').includes
 
 advanceGroupExpansion(group);
 const piLines = paint();
-check('the Pi view shows the thought', piLines.join(' ').includes('Hidden while the row is compact.'));
+check('the Pi view shows the collapsed Pi label', piLines.join(' ').includes('Thinking...'));
+check('the Pi view does not dump the thought text', !piLines.join(' ').includes('Hidden while'));
 check(
-	'the thought comes before the call block',
-	piLines.findIndex((line) => line.includes('Hidden while')) <
+	'the thought label comes before the call block',
+	piLines.findIndex((line) => line.includes('Thinking...')) <
 		piLines.findIndex((line) => line.includes('PI-CALL')),
+);
+const spacingLines = raw(renderers.renderCall(context.args, theme, context));
+const labelIndex = spacingLines.findIndex((line) => line.includes('Thinking...'));
+const callIndex = spacingLines.findIndex((line) => line.includes('PI-CALL'));
+check(
+	'one blank line separates the thought from the call',
+	labelIndex >= 0 && spacingLines[labelIndex + 1] === '' && labelIndex + 2 === callIndex,
 );
 check(
 	'the Pi view keeps Pi own call and result',
 	piLines.join(' ').includes('PI-CALL head -150') && piLines.join(' ').includes('PI-RESULT'),
 );
+
+const expandedRow = renderers.renderCall(context.args, theme, context);
+expandedRow.handleMouse?.({ type: 'click', button: 'left', x: 2, y: 1, width: WIDTH, height: 6, shift: false, alt: false, ctrl: false });
+check('a further click expands the thought in place', paint().join(' ').includes('Hidden while the row is compact.'));
 
 check('the Pi view is one component tree', typeof renderers.renderCall(context.args, theme, context).render === 'function');
 

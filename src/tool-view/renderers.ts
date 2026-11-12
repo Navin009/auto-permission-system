@@ -18,7 +18,8 @@ import {
 	advanceGroupExpansion,
 	groupSummary,
 	joinRowGroup,
-	memberIndexOf,
+	drawsSegment,
+	segmentOfCall,
 	rowGroupOfCall,
 	settleRowGroup,
 	type RowGroup,
@@ -142,17 +143,16 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 }
 
 function rowComponent(group: RowGroup, context: RenderContext, theme: RenderTheme) {
-	const memberIndex = memberIndexOf(group, context.toolCallId);
-
-	if (memberIndex === undefined) {
+	if (!drawsSegment(group, context.toolCallId)) {
 		return emptyComponent();
 	}
 
+	const segmentIndex = segmentOfCall(group, context.toolCallId) ?? 0;
 	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
 
-	return new RowGroupComponent(summary, theme, onClick, memberIndex);
+	return new RowGroupComponent(summary, theme, onClick, segmentIndex);
 }
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {

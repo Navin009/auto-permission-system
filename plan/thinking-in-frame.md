@@ -58,12 +58,11 @@ thought is actually rendered.
 **While it streams** — the bracket borrows the target slot and the timer keeps running; when the
 thought completes the bracket leaves and nothing else moves.
 
-**Expanded to Pi's view** — the call's own thinking comes back, natively: a real
-`AssistantMessageComponent` built from that message's thinking blocks is placed above the call's Pi
-block, so it reads as Pi draws it and its click collapses it to `Thinking...`.
+**Expanded to Pi's view** — the call's own thinking comes back **collapsed as `Thinking...`**, one blank
+line above and below it, and a further click opens the text exactly as Pi does:
 
 ```text
-  I should read the plan doc before changing the renderer.
+ Thinking...
 
 bash
   head -150 plan/tool-rows-views.md
@@ -103,8 +102,14 @@ RowGroup
 ```
 
 `memberIndexOf(group, toolCallId)` tells a renderer which slot it owns and
-`rowGroupLinesForMember()` returns that slot's lines: member 0 draws the header plus its own line,
-member n draws its line, a folded group draws the header alone.
+`rowGroupLinesForSegment()` returns the lines for that slot's **segment** — a stretch of calls with no
+visible thought between them. Member 0 of a segment draws the header (segment 0 only) plus that
+segment's lines; other members draw nothing, because one segment is one component and Pi adds one
+blank line before every component.
+
+Segments exist only when Pi actually renders a thought (the "show thinking" setting). With hidden
+thinking — the `compact` default — the whole run is one segment, so the `└` lines stay contiguous
+with no gap and no stray blank.
 
 `thinking-visibility.ts` owns one value:
 

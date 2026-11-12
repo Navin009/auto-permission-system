@@ -5,13 +5,15 @@ import {
 import type { Component } from "@earendil-works/pi-tui";
 import { thoughtForCall, type MessageContent } from "./thought-store.ts";
 
-const VISIBLE_THINKING_BLOCK = false;
+const COLLAPSED_THINKING_BLOCK = true;
+const THINKING_LABEL = "Thinking...";
 
 type AssistantMessage = NonNullable<
 	ConstructorParameters<typeof AssistantMessageComponent>[0]
 >;
 
 let isThemeReady = false;
+let componentByCall = new Map<string, Component>();
 
 export function prepareNativeThoughts(): void {
 	if (isThemeReady) {
@@ -27,6 +29,12 @@ export function prepareNativeThoughts(): void {
 }
 
 export function nativeThoughtForCall(toolCallId: string): Component | undefined {
+	const cached = componentByCall.get(toolCallId);
+
+	if (cached) {
+		return cached;
+	}
+
 	prepareNativeThoughts();
 
 	const message = thoughtForCall(toolCallId);
@@ -35,12 +43,22 @@ export function nativeThoughtForCall(toolCallId: string): Component | undefined 
 		return undefined;
 	}
 
-	return new AssistantMessageComponent(
+	const component = new AssistantMessageComponent(
 		// SAFETY: the stored message is the assistant message the call came from; only its content
 		// was reduced to its thinking blocks, every other field is unchanged.
 		message as unknown as AssistantMessage,
-		VISIBLE_THINKING_BLOCK,
+		COLLAPSED_THINKING_BLOCK,
+		undefined,
+		THINKING_LABEL,
 	);
+
+	componentByCall.set(toolCallId, component);
+
+	return component;
+}
+
+export function resetNativeThoughts(): void {
+	componentByCall = new Map<string, Component>();
 }
 
 export type { MessageContent };

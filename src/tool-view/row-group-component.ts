@@ -7,7 +7,7 @@ import {
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
-	rowGroupLinesForMember,
+	rowGroupLinesForSegment,
 	type RowGroupSummary,
 	type RowLine,
 	type RowMark,
@@ -25,18 +25,18 @@ export class RowGroupComponent implements Component {
 	private readonly summary: () => RowGroupSummary;
 	private readonly theme: Theme;
 	private readonly onClick: () => void;
-	private readonly memberIndex: number;
+	private readonly segmentIndex: number;
 
 	constructor(
 		summary: () => RowGroupSummary,
 		theme: Theme,
 		onClick: () => void,
-		memberIndex: number,
+		segmentIndex: number,
 	) {
 		this.summary = summary;
 		this.theme = theme;
 		this.onClick = onClick;
-		this.memberIndex = memberIndex;
+		this.segmentIndex = segmentIndex;
 	}
 
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -50,7 +50,7 @@ export class RowGroupComponent implements Component {
 	}
 
 	render(width: number): string[] {
-		const lines = rowGroupLinesForMember(this.summary(), width, this.memberIndex);
+		const lines = rowGroupLinesForSegment(this.summary(), width, this.segmentIndex);
 
 		return lines.map((line) => this.lineText(line, width));
 	}

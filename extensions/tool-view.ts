@@ -12,12 +12,13 @@ import {
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
-import { getActiveViewMode, setActiveViewMode } from "../src/tool-view/session.ts";
+import { getActiveViewMode, setActiveViewMode, setThoughtsVisibleLookup } from "../src/tool-view/session.ts";
 import {
 	applyThinkingVisibility,
 	resetThinkingVisibility,
 } from "../src/tool-view/thinking-visibility.ts";
 import { rememberAssistantMessage, resetThoughts } from "../src/tool-view/thought-store.ts";
+import { resetNativeThoughts } from "../src/tool-view/native-thought.ts";
 import {
 	beginThinking,
 	endThinking,
@@ -38,6 +39,7 @@ function startSession(): void {
 	resetThinking();
 	resetThinkingVisibility();
 	resetThoughts();
+	resetNativeThoughts();
 	reloadViewMode();
 }
 
@@ -60,6 +62,7 @@ function rememberSessionThoughts(context: SessionContext): void {
 }
 
 export default function (pi: ExtensionAPI) {
+	setThoughtsVisibleLookup(() => pi.getSettings?.().hideThinkingBlock === false);
 	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
@@ -107,6 +110,7 @@ export default function (pi: ExtensionAPI) {
 		resetThinking();
 		resetThinkingVisibility();
 		resetThoughts();
+		resetNativeThoughts();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {
