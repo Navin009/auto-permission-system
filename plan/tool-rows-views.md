@@ -11,7 +11,8 @@ label is blanked, so a hidden thought takes no line and no gap; while one stream
 `(thinking Ns)` bracket and keeps counting. The header is drawn once at the first call and each
 later call draws its own `└` line in its own slot, so even a thought Pi renders visibly cannot push a
 command line above it (§5). Compact children stay command-only.
-Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
+Not shipped: rows for `edit` (§1, §3), inner `codemode` calls with their own click, and
+per-`└`-line clicks (§4).
 
 ## Commands
 
@@ -289,15 +290,30 @@ Three moments of one `bash` call, with a thought in the middle:
 
 ### codemode with inner calls (`compact`)
 
+A `codemode` call is its own row: the title is fixed (`codemode`, never a command count), the first
+child line is the script's first statement, and every inner call the script makes gets one line with
+its own mark and duration.
+
 ```text
-✓ Running codemode · 3s
+● codemode · 1ms
+  └ await tools.searchTools("rank")
+  └ … mcp:dev-radius:search rank
+  └ … read src/config.ts
+```
+
+When the script finishes, the header settles and the inner lines take their outcome:
+
+```text
+✓ codemode · 3s
   └ await tools.searchTools("rank")
   └ ✓ mcp:dev-radius:search rank 120ms
   └ ✓ read src/config.ts 8ms
 ```
 
-Inner calls never become rows of their own, and they are not counted separately: the turn
-reports `used codemode ×1`.
+- The inner calls come from `tool_execution_start` / `tool_execution_end` events carrying
+  `parentToolCallId`, so each line is live: `…` while it runs, then `✓` or `✗` with its duration.
+- Inner calls are never rows of their own and never change the title: a codemode run reads
+  `codemode`, not `Running 2 commands`.
 
 ### Shell commands one by one (`compact`)
 

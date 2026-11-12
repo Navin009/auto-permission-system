@@ -8,6 +8,7 @@ import {
 	type TuiMouseEvent,
 } from "@earendil-works/pi-tui";
 import { rowTarget } from "../core/tool-view/arguments.ts";
+import type { SubLineSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowKindOf } from "../core/tool-view/row-kind.ts";
 import { statusFromResult } from "../core/tool-view/status.ts";
@@ -25,6 +26,7 @@ import {
 	type RowGroup,
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
+import { codemodeSubLines } from "./codemode-lines.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type ResultRenderer = NonNullable<ToolRenderers["renderResult"]>;
@@ -57,6 +59,7 @@ const BLOCK_PADDING_Y = 1;
 const PENDING_BACKGROUND: BackgroundColor = "toolPendingBg";
 const ERROR_BACKGROUND: BackgroundColor = "toolErrorBg";
 const SUCCESS_BACKGROUND: BackgroundColor = "toolSuccessBg";
+const CODEMODE_TOOL_NAME = "codemode";
 
 export function toolViewRenderers(toolName: string, fallback: RendererFallback): ToolRenderers {
 	const isRowTool = rowKindOf(toolName) !== undefined;
@@ -98,6 +101,7 @@ function renderRowCall(toolName: string, fallback: RendererFallback, parameters:
 		kind,
 		target,
 		invalidate: context.invalidate,
+		subLines: subLinesFor(toolName, context.toolCallId, args as ToolCallArguments),
 	});
 
 	return rowComponent(joined, context, theme);
@@ -137,6 +141,7 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 		status: statusFromResult(context.isError, resultText(result)),
 		durationMilliseconds: context.durationMs,
 		invalidate: context.invalidate,
+		subLines: subLinesFor(toolName, context.toolCallId, context.args as ToolCallArguments),
 	});
 
 	return rowComponent(settled, context, theme);
@@ -279,6 +284,18 @@ function fallbackCall(fallback: RendererFallback, parameters: CallParameters) {
 
 function fallbackResult(fallback: RendererFallback, parameters: ResultParameters) {
 	return fallback?.renderResult?.(...parameters) ?? emptyComponent();
+}
+
+function subLinesFor(
+	toolName: string,
+	toolCallId: string,
+	args: ToolCallArguments,
+): SubLineSummary[] | undefined {
+	if (toolName !== CODEMODE_TOOL_NAME) {
+		return undefined;
+	}
+
+	return [...codemodeSubLines(toolCallId, args)];
 }
 
 function resultText(result: ResultParameters[0]): string {

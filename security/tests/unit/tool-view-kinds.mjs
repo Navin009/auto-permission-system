@@ -11,7 +11,7 @@ check('leaves edit to Pi', rowKindOf('edit') === undefined);
 check('leaves ls to Pi', rowKindOf('ls') === undefined);
 check('leaves grep to Pi', rowKindOf('grep') === undefined);
 check('leaves find to Pi', rowKindOf('find') === undefined);
-check('leaves codemode to Pi', rowKindOf('codemode') === undefined);
+check('codemode is a row tool', rowKindOf('codemode') === 'codemode');
 check('leaves write to Pi', rowKindOf('write') === undefined);
 check('leaves an MCP tool to Pi', rowKindOf('mcp__docs__search') === undefined);
 check('a prototype key is never a tool', rowKindOf('toString') === undefined);

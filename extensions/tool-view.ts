@@ -11,13 +11,18 @@ import {
 } from "../src/core/tool-view/settings.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
-import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
+import { closeRowGroup, repaintCurrentGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { getActiveViewMode, setActiveViewMode, setThoughtsVisibleLookup } from "../src/tool-view/session.ts";
 import {
 	applyThinkingVisibility,
 	resetThinkingVisibility,
 } from "../src/tool-view/thinking-visibility.ts";
 import { rememberAssistantMessage, resetThoughts } from "../src/tool-view/thought-store.ts";
+import {
+	rememberNestedEnd,
+	rememberNestedStart,
+	resetNestedCalls,
+} from "../src/tool-view/nested-calls.ts";
 import { resetNativeThoughts } from "../src/tool-view/native-thought.ts";
 import {
 	beginThinking,
@@ -40,6 +45,7 @@ function startSession(): void {
 	resetThinkingVisibility();
 	resetThoughts();
 	resetNativeThoughts();
+	resetNestedCalls();
 	reloadViewMode();
 }
 
@@ -111,6 +117,30 @@ export default function (pi: ExtensionAPI) {
 		resetThinkingVisibility();
 		resetThoughts();
 		resetNativeThoughts();
+		resetNestedCalls();
+	});
+
+	pi.on("tool_execution_start", (event) => {
+		if (!event.parentToolCallId) {
+			return;
+		}
+
+		rememberNestedStart(event.parentToolCallId, event.toolCallId, event.toolName, event.args);
+		repaintCurrentGroup();
+	});
+
+	pi.on("tool_execution_end", (event) => {
+		if (!event.parentToolCallId) {
+			return;
+		}
+
+		rememberNestedEnd(
+			event.parentToolCallId,
+			event.toolCallId,
+			event.isError,
+			event.durationMs,
+		);
+		repaintCurrentGroup();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {

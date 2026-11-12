@@ -7,10 +7,15 @@ import { thoughtForCall, type MessageContent } from "./thought-store.ts";
 
 const COLLAPSED_THINKING_BLOCK = true;
 const THINKING_LABEL = "Thinking...";
+const LEADING_SPACER_INDEX = 0;
 
 type AssistantMessage = NonNullable<
 	ConstructorParameters<typeof AssistantMessageComponent>[0]
 >;
+
+interface ComponentInternals {
+	contentContainer?: { children: Component[] };
+}
 
 let isThemeReady = false;
 let componentByCall = new Map<string, Component>();
@@ -52,7 +57,20 @@ export function nativeThoughtForCall(toolCallId: string): Component | undefined 
 		THINKING_LABEL,
 	);
 
-	componentByCall.set(toolCallId, component);
+	componentByCall.set(toolCallId, dropLeadingSpacer(component));
+
+	return componentByCall.get(toolCallId);
+}
+
+function dropLeadingSpacer(component: AssistantMessageComponent): AssistantMessageComponent {
+	// SAFETY: this component is one we built, and Pi always starts its content with one Spacer; the
+	// optional lookup keeps the extra blank line rather than crashing if that shape ever changes.
+	const internals = component as unknown as ComponentInternals;
+	const first = internals.contentContainer?.children[LEADING_SPACER_INDEX];
+
+	if (first && first.render(1).every((line) => line.trim() === "")) {
+		internals.contentContainer?.children.shift();
+	}
 
 	return component;
 }

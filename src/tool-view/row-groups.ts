@@ -1,4 +1,4 @@
-import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts";
+import type { RowGroupSummary, RowSummary, SubLineSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
@@ -16,6 +16,7 @@ export interface RowMember {
 	settledAt: number | undefined;
 	invalidate: (() => void) | undefined;
 	segmentIndex: number;
+	subLines: readonly SubLineSummary[];
 }
 
 export interface RowGroup {
@@ -32,6 +33,7 @@ export interface RowCallInput {
 	kind: RowKind;
 	target: string;
 	invalidate: (() => void) | undefined;
+	subLines?: readonly SubLineSummary[];
 }
 
 export interface RowSettleInput extends RowCallInput {
@@ -51,6 +53,10 @@ export function joinRowGroup(input: RowCallInput): RowGroup {
 	member.target = input.target;
 	member.invalidate = input.invalidate;
 
+	if (input.subLines) {
+		member.subLines = input.subLines;
+	}
+
 	startGroupTicker(group);
 	invalidateFrame(group, member);
 
@@ -63,6 +69,11 @@ export function settleRowGroup(input: RowSettleInput): RowGroup {
 
 	member.target = input.target;
 	member.invalidate = input.invalidate;
+
+	if (input.subLines) {
+		member.subLines = input.subLines;
+	}
+
 	member.status = input.status;
 	member.settledAt = member.settledAt ?? Date.now();
 
@@ -105,6 +116,16 @@ export function repaintCurrentRow(): void {
 
 	if (head) {
 		safelyInvalidate(head);
+	}
+}
+
+export function repaintCurrentGroup(): void {
+	if (!currentGroup) {
+		return;
+	}
+
+	for (const member of currentGroup.members) {
+		safelyInvalidate(member);
 	}
 }
 
@@ -249,6 +270,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		settledAt: undefined,
 		invalidate: input.invalidate,
 		segmentIndex: nextSegmentIndex(group),
+		subLines: input.subLines ?? [],
 	};
 
 	group.members.push(member);
@@ -267,6 +289,7 @@ function rowSummary(member: RowMember): RowSummary {
 		status: member.status,
 		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
 		segmentIndex: member.segmentIndex,
+		subLines: member.subLines.length > 0 ? member.subLines : undefined,
 	};
 }
 

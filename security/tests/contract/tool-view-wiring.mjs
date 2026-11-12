@@ -40,7 +40,7 @@ const handsBackToPi = (toolName) => resolver(toolName, () => 'pi-renderers') ===
 check('owns bash', !handsBackToPi('bash'));
 check('owns read', !handsBackToPi('read'));
 check('leaves edit to Pi', handsBackToPi('edit'));
-check('leaves codemode to Pi', handsBackToPi('codemode'));
+check('owns codemode rows', !handsBackToPi('codemode'));
 check('hands write back to Pi', handsBackToPi('write'));
 check('hands an MCP tool back to Pi', handsBackToPi('mcp__docs__search'));
 check('hands an unknown tool back to Pi', handsBackToPi('some-future-tool'));

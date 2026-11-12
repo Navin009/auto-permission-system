@@ -64,10 +64,11 @@ check('an unknown call has no thought', thoughtForCall('call-unknown') === undef
 
 const rendered = nativeThoughtForCall('call-thought');
 check('a stored thought starts collapsed as Pi label', plain(rendered).join(' ').includes('Thinking...'));
+check('the thought adds no blank line of its own', raw(rendered)[0].trim() !== '');
 check('the collapsed label hides the text', !plain(rendered).join(' ').includes('read the plan doc'));
 check('an unknown call renders nothing', nativeThoughtForCall('call-unknown') === undefined);
 
-rendered.handleMouse?.({ type: 'click', button: 'left', x: 2, y: 1, width: WIDTH, height: 4, shift: false, alt: false, ctrl: false });
+rendered.handleMouse?.({ type: 'click', button: 'left', x: 2, y: 0, width: WIDTH, height: 2, shift: false, alt: false, ctrl: false });
 check('a click expands the thought', plain(rendered).join(' ').includes('read the plan doc'));
 check('the same component keeps its state', nativeThoughtForCall('call-thought') === rendered);
 
@@ -155,7 +156,8 @@ check(
 );
 
 const expandedRow = renderers.renderCall(context.args, theme, context);
-expandedRow.handleMouse?.({ type: 'click', button: 'left', x: 2, y: 1, width: WIDTH, height: 6, shift: false, alt: false, ctrl: false });
+const labelRow = raw(expandedRow).findIndex((line) => line.includes('Thinking...'));
+expandedRow.handleMouse?.({ type: 'click', button: 'left', x: 2, y: labelRow, width: WIDTH, height: 6, shift: false, alt: false, ctrl: false });
 check('a further click expands the thought in place', paint().join(' ').includes('Hidden while the row is compact.'));
 
 check('the Pi view is one component tree', typeof renderers.renderCall(context.args, theme, context).render === 'function');

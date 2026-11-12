@@ -1,14 +1,20 @@
 import { formatCommandDuration } from "./duration.ts";
-import { RowKind, rowLabelOf } from "./row-kind.ts";
-import { statusMark, statusWord, ToolStatus } from "./status.ts";
+import { RowKind, rowLabelOf } from "./row-kind.ts";import { statusMark, statusWord, ToolStatus } from "./status.ts";
 import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
+
+export interface SubLineSummary {
+	text: string;
+	status: ToolStatus | undefined;
+	durationMilliseconds: number | undefined;
+}
 
 export interface RowSummary {
 	target: string;
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 	segmentIndex: number;
+	subLines?: readonly SubLineSummary[];
 }
 
 export interface RowGroupSummary {
@@ -151,6 +157,10 @@ function countText(summary: RowGroupSummary): string {
 	const label = rowLabelOf(summary.kind);
 	const count = summary.rows.length;
 
+	if (label.fixedTitle) {
+		return label.fixedTitle;
+	}
+
 	return `${label.verb} ${count} ${pluralize(label.noun, count)}`;
 }
 
@@ -204,9 +214,11 @@ function childLines(summary: RowGroupSummary, width: number, showsChildLines: bo
 	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
 
 	visibleRows.forEach((row, offset) => {
-		lines.push(
-			childLine(summary.kind, row, isSingle, childColumn, hiddenCount + offset, row.segmentIndex),
-		);
+		const memberIndex = hiddenCount + offset;
+
+		for (const line of memberChildLines(summary.kind, row, isSingle, childColumn, memberIndex)) {
+			lines.push(line);
+		}
 	});
 
 	return lines;
@@ -218,6 +230,46 @@ function newestRows(rows: readonly RowSummary[]): readonly RowSummary[] {
 	}
 
 	return rows.slice(rows.length - NEWEST_ROW_LIMIT);
+}
+
+function memberChildLines(
+	kind: RowKind,
+	row: RowSummary,
+	isSingle: boolean,
+	childColumn: number,
+	memberIndex: number,
+): RowLine[] {
+	if (!row.subLines) {
+		return [childLine(kind, row, isSingle, childColumn, memberIndex, row.segmentIndex)];
+	}
+
+	return row.subLines.map((subLine) => subLineLine(subLine, childColumn, memberIndex, row.segmentIndex));
+}
+
+function subLineLine(
+	subLine: SubLineSummary,
+	childColumn: number,
+	memberIndex: number,
+	segmentIndex: number,
+): RowLine {
+	const mark = subLine.status
+		? { glyph: childMark(subLine.status), status: subLine.status }
+		: undefined;
+	const budget = childColumn - LINE_INDENT.length - markColumnWidth(mark);
+
+	return {
+		indent: LINE_INDENT,
+		mark,
+		text: fitTarget(subLine.text, budget) ?? ELLIPSIS,
+		duration:
+			subLine.durationMilliseconds === undefined
+				? undefined
+				: formatCommandDuration(subLine.durationMilliseconds),
+		hint: undefined,
+		isDim: true,
+		memberIndex,
+		segmentIndex,
+	};
 }
 
 function childLine(

@@ -354,8 +354,8 @@ When cloning a repository with a `.pi/sandbox.json`:
 
 ### Tool view (display only)
 
-`compact` touches shell commands and `read` calls. Every other tool — `edit`, `write`, `ls`, `grep`,
-`find`, `codemode`, MCP tools — keeps Pi's own block, byte for byte:
+`compact` touches shell commands, `read` calls and `codemode`. Every other tool — `edit`, `write`,
+`ls`, `grep`, `find`, MCP tools — keeps Pi's own block, byte for byte:
 
 ```text
 ✓ Running 2 commands · 2s
@@ -419,6 +419,19 @@ still reads as that. The command may take up to 70 % of the width; past that the
 when nothing else fits. A duration is the last thing on the text, never pushed out to the right
 edge of the row, so a row ends where its text ends; `blocked` / `denied` ride with the command,
 left of it. Only the folded header names the last segment.
+
+A `codemode` call gets its own row too: a fixed `codemode` title with its timer, the script's first
+statement, and one line per inner call with that call's mark and duration:
+
+```text
+✓ codemode · 3s
+  └ await tools.searchTools("rank")
+  └ ✓ mcp:dev-radius:search rank 120ms
+  └ ✓ read src/config.ts 8ms
+```
+
+Inner calls are live (`…` while running, then `✓` or `✗` with its time) and never become rows of
+their own.
 
 A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
