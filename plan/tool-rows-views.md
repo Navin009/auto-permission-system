@@ -1,5 +1,11 @@
 # Tool rows
 
+**Status:** the collapsed row is shipped for shell commands. Shipped: the mark in column 1, a
+`  └` line per command with its own mark and duration, the fold to one line once a later call
+starts, the `(last command)` target, `blocked` / `denied` on the row, and Pi's own block on
+expand — `compact` never redraws it. Not shipped: rows for `read` / `edit` / `codemode` (§1, §3),
+per-`└`-line clicks (§4), and the `(thinking Ns)` bracket (§2, §5).
+
 ## Commands
 
 - `/tool-view compact` — turn rows on

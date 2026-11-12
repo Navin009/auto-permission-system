@@ -10,7 +10,6 @@ import { closeCommandGroup, resetCommandGroups } from "../src/tool-view/command-
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
-import { applyThinkingLabel } from "../src/tool-view/thinking-label.ts";
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
@@ -27,9 +26,8 @@ function startSession(): void {
 export default function (pi: ExtensionAPI) {
 	startSession();
 
-	pi.on("session_start", (_event, context) => {
+	pi.on("session_start", () => {
 		startSession();
-		applyThinkingLabel(context);
 	});
 
 	pi.on("turn_end", (event) => {

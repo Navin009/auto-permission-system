@@ -1,15 +1,14 @@
 import { Container, Text } from '@earendil-works/pi-tui';
-import { nextExpansionLevel, ExpansionLevel, resolvedExpansionLevel } from '../../../src/core/tool-view/expansion-level.ts';
+import { ExpansionLevel, nextExpansionLevel, resolvedExpansionLevel } from '../../../src/core/tool-view/expansion-level.ts';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
 import { resetCommandGroups } from '../../../src/tool-view/command-groups.ts';
 import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
-import { PiBlockComponent } from '../../../src/tool-view/pi-block.ts';
 import { CommandGroupComponent } from '../../../src/tool-view/command-group-component.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-const WIDTH = 40;
+const WIDTH = 60;
 const CLICK = { type: 'click', button: 'left', x: 0, y: 0, width: WIDTH, height: 1, shift: false, alt: false, ctrl: false };
 
 const theme = { fg: (name, text) => text, bold: (text) => text, bg: (name, text) => text };
@@ -54,20 +53,19 @@ check('a full block returns to the row', nextExpansionLevel(ExpansionLevel.Full)
 check('the expand key jumps straight to the full view', resolvedExpansionLevel(ExpansionLevel.Collapsed, true) === ExpansionLevel.Full);
 check('the expand key off keeps the clicked level', resolvedExpansionLevel(ExpansionLevel.Collapsed, false) === ExpansionLevel.Collapsed);
 
-const renderers = toolViewRenderers('bash', fallback);
 const lines = (component) => component?.render(WIDTH) ?? [];
-const slots = { call: undefined, result: undefined };
 const state = {};
+const slots = { call: undefined, result: undefined };
 
 const repaint = (expanded) => {
 	const context = { ...base, state, expanded };
-	slots.call = renderers.renderCall({ command: 'npm test' }, theme, { ...context, lastComponent: slots.call });
-	slots.result = renderers.renderResult(result, { expanded, isPartial: false }, theme, { ...context, lastComponent: slots.result });
+	slots.call = renderers.renderCall({ command: 'npm test' }, theme, context);
+	slots.result = renderers.renderResult(result, { expanded, isPartial: false }, theme, context);
 };
 
 const drawnText = () => [...lines(slots.call), ...lines(slots.result)].filter((line) => line.trim() !== '').join('\n');
-const drawsRow = () => drawnText().includes('Running 1 command');
-const drawsBlock = () => slots.call instanceof PiBlockComponent;
+const drawsRow = () => slots.call instanceof CommandGroupComponent || slots.result instanceof CommandGroupComponent;
+const drawsPiView = () => !drawsRow() && drawnText().includes('preview');
 const clickable = () => (slots.result?.handleMouse ? slots.result : slots.call);
 const click = () => {
 	const handled = clickable().handleMouse(CLICK);
@@ -78,13 +76,16 @@ const click = () => {
 resetCommandGroups();
 setActiveViewMode('compact');
 
+const renderers = toolViewRenderers('bash', fallback);
+
 repaint(false);
-check('a collapsed group draws our row', slots.call instanceof CommandGroupComponent && drawsRow());
-check('the row names the command', drawnText().includes('Running 1 command'));
+check('a collapsed group draws our row', drawsRow() && drawnText().includes('Running 1 command'));
+check('the row names the command line', drawnText().includes('  └ $ npm test'));
 check('the row never reaches Pi own result renderer', resultLevels.length === 0);
 
 check('a left click on the row is handled', click()?.handled === true);
-check('the click opens Pi own block', drawsBlock());
+check('the click opens Pi own block', drawsPiView());
+check('the opened row draws Pi own call', drawnText().includes('$ npm test'));
 check('the block draws Pi own collapsed result', drawnText().includes('preview'));
 check('the collapsed block is Pi own collapsed renderer', resultLevels.at(-1) === false);
 
@@ -93,7 +94,7 @@ check('the second click draws the full result', drawnText().includes('full outpu
 check('the full block is Pi own expanded renderer', resultLevels.at(-1) === true);
 
 check('a third click returns to the row', click()?.handled === true);
-check('the returned row is ours again', !drawsBlock() && drawsRow());
+check('the returned row is ours again', drawsRow() && !drawnText().includes('full output'));
 check('a non-click mouse event is left to Pi', clickable().handleMouse({ ...CLICK, type: 'move' }) === undefined);
 check('a right click is left to Pi', clickable().handleMouse({ ...CLICK, button: 'right' }) === undefined);
 

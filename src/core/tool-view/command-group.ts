@@ -1,130 +1,155 @@
 import { formatCommandDuration } from "./duration.ts";
-import { StatusMark } from "./status.ts";
+import { statusMark, statusWord, ToolStatus } from "./status.ts";
 
 export interface CommandSummary {
 	command: string;
-	status: StatusMark;
+	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 }
 
 export interface CommandGroupSummary {
 	commands: readonly CommandSummary[];
-	totalDurationMilliseconds: number | undefined;
+	durationMilliseconds: number | undefined;
+	folded: boolean;
 	hint: string | undefined;
 }
 
-export interface CommandLine {
-	mark: string;
+export interface RowMark {
+	glyph: string;
+	status: ToolStatus;
+}
+
+export interface RowLine {
+	indent: string;
+	mark: RowMark | undefined;
 	text: string;
-	status: StatusMark;
-}
-
-export interface CommandGroupText {
-	mark: string;
-	count: string;
-	duration: string | undefined;
-	body: string;
-	status: StatusMark;
 	hint: string | undefined;
-	overflowLine: string | undefined;
-	commandLines: readonly CommandLine[];
-}
-
-export interface HeaderParts {
-	count: string;
-	duration: string | undefined;
+	isDim: boolean;
 }
 
 const NEWEST_COMMAND_LIMIT = 8;
 const SINGLE_COMMAND_COUNT = 1;
-const EMPTY_MARK = "";
-const DURATION_SEPARATOR = " · ";
-const OVERFLOW_MARK = "...";
+const COUNT_PREFIX = "Running";
 const COMMAND_NOUN = "command";
 const EARLIER_CALL_NOUN = "call";
-const RUNNING_MARK = "●";
-const RUNNING_COMMAND_MARK = "…";
-const COMMAND_LINE_INDENT = "   ";
-const COMMAND_LINE_BRANCH = "└";
-const COMMAND_LINE_SPACE = " ";
-const COMMAND_PREFIX = "$";
+const LINE_INDENT = "  └ ";
+const COMMAND_PROMPT = "$";
+const RUNNING_LINE_MARK = "…";
+const OVERFLOW_MARK = "...";
+const SPACE = " ";
+const DURATION_SEPARATOR = " · ";
 const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
+const WHITESPACE_PATTERN = /\s+/g;
 
-export function commandGroupText(summary: CommandGroupSummary): CommandGroupText {
-	const commands = summary.commands;
-	const commandCount = commands.length;
-	const hiddenCount = Math.max(0, commandCount - NEWEST_COMMAND_LIMIT);
-	const visibleCommands = hiddenCount > 0 ? commands.slice(hiddenCount) : commands;
-	const status = groupStatus(commands);
-	const count = `Running ${commandCount} ${pluralize(COMMAND_NOUN, commandCount)}`;
-	const duration = bareDuration(summary.totalDurationMilliseconds);
+export function commandGroupLines(summary: CommandGroupSummary): RowLine[] {
+	const status = lastStatus(summary.commands);
+	const lines = [headerLine(summary, status)];
 
-	return {
-		mark: statusMark(status),
-		count,
-		duration,
-		body: headerBody({ count, duration }),
-		status,
-		hint: commandCount > SINGLE_COMMAND_COUNT ? summary.hint : undefined,
-		overflowLine: hiddenCount > 0 ? overflowLine(hiddenCount) : undefined,
-		commandLines: visibleCommands.map((command) => commandLine(command, commandCount)),
-	};
-}
+	if (summary.folded) {
+		return lines;
+	}
 
-export function headerBody(parts: HeaderParts): string {
-	const duration = parts.duration ? `${DURATION_SEPARATOR}${parts.duration}` : "";
-
-	return `${parts.count}${duration}`;
-}
-
-export function commandLinePrefix(): string {
-	return `${COMMAND_LINE_INDENT}${COMMAND_LINE_BRANCH}${COMMAND_LINE_SPACE}`;
-}
-
-export function statusMark(status: StatusMark): string {
-	return status === StatusMark.Running ? RUNNING_MARK : status;
+	return [...lines, ...commandLines(summary.commands)];
 }
 
 export function pluralize(noun: string, count: number): string {
-	if (count === 1) {
+	if (count === SINGLE_COMMAND_COUNT) {
 		return noun;
 	}
 
 	return noun.endsWith("y") ? `${noun.slice(0, -1)}${PLURAL_Y_ENDING}` : `${noun}${PLURAL_ENDING}`;
 }
 
-function commandLine(command: CommandSummary, commandCount: number): CommandLine {
-	const showsState = commandCount > SINGLE_COMMAND_COUNT;
-	const mark = showsState ? commandMark(command.status) : EMPTY_MARK;
-	const duration = showsState ? durationPart(command.durationMilliseconds) : "";
+function lastStatus(commands: readonly CommandSummary[]): ToolStatus {
+	return commands.at(-1)?.status ?? ToolStatus.Running;
+}
 
+function headerLine(summary: CommandGroupSummary, status: ToolStatus): RowLine {
 	return {
-		mark,
-		text: `${COMMAND_PREFIX}${COMMAND_LINE_SPACE}${command.command}${duration}`,
-		status: command.status,
+		indent: "",
+		mark: { glyph: statusMark(status), status },
+		text: headerText(summary, status),
+		hint: summary.folded ? summary.hint : undefined,
+		isDim: false,
 	};
 }
 
-function commandMark(status: StatusMark): string {
-	return status === StatusMark.Running ? RUNNING_COMMAND_MARK : statusMark(status);
+function headerText(summary: CommandGroupSummary, status: ToolStatus): string {
+	const count = summary.commands.length;
+	const countPart = `${COUNT_PREFIX} ${count} ${pluralize(COMMAND_NOUN, count)}`;
+	const targetPart = targetText(summary);
+	const durationPart =
+		summary.durationMilliseconds === undefined
+			? ""
+			: `${DURATION_SEPARATOR}${formatCommandDuration(summary.durationMilliseconds)}`;
+	const showsWord = summary.folded || count === SINGLE_COMMAND_COUNT;
+
+	return `${countPart}${targetPart}${durationPart}${wordText(status, showsWord)}`;
 }
 
-function groupStatus(commands: readonly CommandSummary[]): StatusMark {
-	const marks = commands.map((command) => command.status);
-	const order = [StatusMark.Denied, StatusMark.Blocked, StatusMark.Failed, StatusMark.Running];
+function targetText(summary: CommandGroupSummary): string {
+	const command = summary.folded ? summary.commands.at(-1)?.command : undefined;
 
-	return order.find((candidate) => marks.includes(candidate)) ?? StatusMark.Ok;
+	return command ? `${SPACE}(${toSingleLine(command)})` : "";
 }
 
-function durationPart(milliseconds: number | undefined): string {
-	return milliseconds === undefined ? "" : `${DURATION_SEPARATOR}${formatCommandDuration(milliseconds)}`;
+function wordText(status: ToolStatus, isShown: boolean): string {
+	const word = isShown ? statusWord(status) : undefined;
+
+	return word ? `${SPACE}${word}` : "";
 }
 
-function bareDuration(milliseconds: number | undefined): string | undefined {
-	return milliseconds === undefined ? undefined : formatCommandDuration(milliseconds);
+function commandLines(commands: readonly CommandSummary[]): RowLine[] {
+	const hiddenCount = Math.max(0, commands.length - NEWEST_COMMAND_LIMIT);
+	const visibleCommands = hiddenCount > 0 ? commands.slice(hiddenCount) : commands;
+	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
+	const isSingle = commands.length === SINGLE_COMMAND_COUNT;
+
+	for (const command of visibleCommands) {
+		lines.push(commandLine(command, isSingle));
+	}
+
+	return lines;
 }
 
-function overflowLine(hiddenCount: number): string {
-	return `${commandLinePrefix()}${OVERFLOW_MARK} (${hiddenCount} earlier ${pluralize(EARLIER_CALL_NOUN, hiddenCount)})`;
+function commandLine(command: CommandSummary, isSingle: boolean): RowLine {
+	return {
+		indent: LINE_INDENT,
+		mark: isSingle ? undefined : { glyph: commandMark(command.status), status: command.status },
+		text: commandLineText(command, isSingle),
+		hint: undefined,
+		isDim: true,
+	};
+}
+
+function commandMark(status: ToolStatus): string {
+	return status === ToolStatus.Running ? RUNNING_LINE_MARK : statusMark(status);
+}
+
+function commandLineText(command: CommandSummary, isSingle: boolean): string {
+	const commandPart = `${COMMAND_PROMPT}${SPACE}${toSingleLine(command.command)}`;
+
+	if (isSingle) {
+		return commandPart;
+	}
+
+	const duration = command.status === ToolStatus.Running ? undefined : command.durationMilliseconds;
+	const durationPart = duration === undefined ? "" : `${SPACE}${formatCommandDuration(duration)}`;
+
+	return `${commandPart}${durationPart}${wordText(command.status, true)}`;
+}
+
+function overflowLine(hiddenCount: number): RowLine {
+	return {
+		indent: LINE_INDENT,
+		mark: undefined,
+		text: `${OVERFLOW_MARK} (${hiddenCount} earlier ${pluralize(EARLIER_CALL_NOUN, hiddenCount)})`,
+		hint: undefined,
+		isDim: true,
+	};
+}
+
+function toSingleLine(text: string): string {
+	return text.replace(WHITESPACE_PATTERN, " ").trim();
 }

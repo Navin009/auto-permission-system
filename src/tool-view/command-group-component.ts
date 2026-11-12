@@ -1,40 +1,24 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
 	truncateToWidth,
-	visibleWidth,
 	type Component,
 	type TuiMouseEvent,
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
-	commandGroupText,
-	commandLinePrefix,
-	headerBody,
+	commandGroupLines,
 	type CommandGroupSummary,
-	type CommandGroupText,
-	type CommandLine,
-	type HeaderParts,
+	type RowLine,
+	type RowMark,
 } from "../core/tool-view/command-group.ts";
-import { StatusMark } from "../core/tool-view/status.ts";
+import { ToolStatus } from "../core/tool-view/status.ts";
 
-const MARK_SEPARATOR = " ";
 const ELLIPSIS = "…";
-const HINT_SEPARATOR = " ";
+const SPACE = " ";
 const CLICK_TYPE = "click";
 const LEFT_BUTTON = "left";
 
 type MarkColor = Parameters<Theme["fg"]>[0];
-
-interface HeaderVariant {
-	hint: boolean;
-	duration: boolean;
-}
-
-const HEADER_VARIANTS: readonly HeaderVariant[] = [
-	{ hint: true, duration: true },
-	{ hint: false, duration: true },
-	{ hint: false, duration: false },
-];
 
 export class CommandGroupComponent implements Component {
 	private readonly summary: () => CommandGroupSummary;
@@ -58,65 +42,31 @@ export class CommandGroupComponent implements Component {
 	}
 
 	render(width: number): string[] {
-		const text = commandGroupText(this.summary());
-		const lines = [this.headerLine(text, width)];
+		const lines = commandGroupLines(this.summary());
 
-		if (text.overflowLine) {
-			lines.push(this.theme.fg("dim", text.overflowLine));
-		}
-
-		for (const line of text.commandLines) {
-			lines.push(this.commandLine(line));
-		}
-
-		return lines.map((line) => truncateToWidth(line, width, ELLIPSIS));
+		return lines.map((line) => truncateToWidth(this.lineText(line), width, ELLIPSIS));
 	}
 
 	invalidate(): void {}
 
-	private headerLine(text: CommandGroupText, width: number): string {
-		for (const variant of HEADER_VARIANTS) {
-			const line = this.composeHeader(text, variant);
+	private lineText(line: RowLine): string {
+		const indent = line.indent ? this.theme.fg("dim", line.indent) : "";
+		const mark = line.mark ? this.markText(line.mark) : "";
+		const text = line.isDim ? this.theme.fg("dim", line.text) : line.text;
+		const hint = line.hint ? `${SPACE}${this.theme.fg("dim", line.hint)}` : "";
 
-			if (visibleWidth(line) <= width) {
-				return line;
-			}
-		}
-
-		return this.composeHeader(text, { hint: false, duration: false });
+		return `${indent}${mark}${text}${hint}`;
 	}
 
-	private composeHeader(text: CommandGroupText, variant: HeaderVariant): string {
-		const parts: HeaderParts = {
-			count: text.count,
-			duration: variant.duration ? text.duration : undefined,
-		};
-		const markPart = `${this.colorMark(text.mark, text.status)}${MARK_SEPARATOR}`;
-		const hintPart = variant.hint && text.hint ? `${HINT_SEPARATOR}${this.theme.fg("dim", text.hint)}` : "";
-
-		return `${markPart}${headerBody(parts)}${hintPart}`;
-	}
-
-	private commandLine(line: CommandLine): string {
-		const prefix = this.theme.fg("dim", commandLinePrefix());
-		const markPart = line.mark ? `${this.colorMark(line.mark, line.status)}${MARK_SEPARATOR}` : "";
-
-		return `${prefix}${markPart}${this.theme.fg("dim", line.text)}`;
-	}
-
-	private colorMark(mark: string, status: StatusMark): string {
-		return this.theme.fg(colorForStatus(status), mark);
+	private markText(mark: RowMark): string {
+		return `${this.theme.fg(colorForStatus(mark.status), mark.glyph)}${SPACE}`;
 	}
 }
 
-function colorForStatus(status: StatusMark): MarkColor {
-	if (status === StatusMark.Running) {
+function colorForStatus(status: ToolStatus): MarkColor {
+	if (status === ToolStatus.Running) {
 		return "accent";
 	}
 
-	if (status === StatusMark.Ok) {
-		return "success";
-	}
-
-	return "error";
+	return status === ToolStatus.Ok ? "success" : "error";
 }

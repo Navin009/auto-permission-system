@@ -1,13 +1,13 @@
 import type { CommandGroupSummary, CommandSummary } from "../core/tool-view/command-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
-import { StatusMark } from "../core/tool-view/status.ts";
+import { ToolStatus } from "../core/tool-view/status.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
 export interface CommandMember {
 	toolCallId: string;
 	command: string;
-	status: StatusMark;
+	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 	startedAt: number;
 	settledAt: number | undefined;
@@ -27,7 +27,7 @@ export interface GroupCallInput {
 }
 
 export interface GroupSettleInput extends GroupCallInput {
-	status: StatusMark;
+	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 }
 
@@ -37,7 +37,7 @@ let currentGroup: CommandGroup | undefined;
 let invalidating = false;
 
 export function joinCommandGroup(input: GroupCallInput): CommandGroup {
-	const group = currentGroup ?? createGroup();
+	const group = groupForCall(input);
 	const member = ensureMember(group, input);
 
 	member.command = input.command;
@@ -50,7 +50,7 @@ export function joinCommandGroup(input: GroupCallInput): CommandGroup {
 }
 
 export function settleCommandGroup(input: GroupSettleInput): CommandGroup {
-	const group = currentGroup ?? createGroup();
+	const group = groupForCall(input);
 	const member = ensureMember(group, input);
 
 	member.command = input.command;
@@ -70,7 +70,13 @@ export function settleCommandGroup(input: GroupSettleInput): CommandGroup {
 }
 
 export function closeCommandGroup(): void {
+	const group = currentGroup;
+
 	currentGroup = undefined;
+
+	if (group) {
+		foldGroup(group);
+	}
 }
 
 export function groupOfCall(toolCallId: string): CommandGroup | undefined {
@@ -101,25 +107,43 @@ export function isGroupHead(group: CommandGroup, toolCallId: string): boolean {
 
 export function groupSummary(group: CommandGroup, hint: string | undefined): CommandGroupSummary {
 	const head = group.members[0];
-	const running = group.members.some((member) => member.status === StatusMark.Running);
-	const endMilliseconds = running ? Date.now() : lastSettleMilliseconds(group);
-	const totalDurationMilliseconds =
+	const isRunning = group.members.some((member) => member.status === ToolStatus.Running);
+	const endMilliseconds = isRunning ? Date.now() : lastSettleMilliseconds(group);
+	const durationMilliseconds =
 		head && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - head.startedAt) : undefined;
 
 	return {
 		commands: group.members.map(commandSummary),
-		totalDurationMilliseconds,
+		durationMilliseconds,
+		folded: group !== currentGroup,
 		hint,
 	};
 }
 
+function groupForCall(input: GroupCallInput): CommandGroup {
+	return groupOfCall(input.toolCallId) ?? currentGroup ?? createGroup();
+}
+
 function createGroup(): CommandGroup {
+	const previousGroup = currentGroup;
 	const group: CommandGroup = { members: [], ticker: undefined, expansionLevel: ExpansionLevel.Row };
 
 	openGroups.add(group);
 	currentGroup = group;
 
+	if (previousGroup) {
+		foldGroup(previousGroup);
+	}
+
 	return group;
+}
+
+function foldGroup(group: CommandGroup): void {
+	group.expansionLevel = ExpansionLevel.Row;
+
+	for (const member of group.members) {
+		safelyInvalidate(member);
+	}
 }
 
 function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember {
@@ -132,7 +156,7 @@ function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember
 	const member: CommandMember = {
 		toolCallId: input.toolCallId,
 		command: input.command,
-		status: StatusMark.Running,
+		status: ToolStatus.Running,
 		durationMilliseconds: undefined,
 		startedAt: Date.now(),
 		settledAt: undefined,
@@ -147,7 +171,7 @@ function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember
 
 function commandSummary(member: CommandMember): CommandSummary {
 	const runningDuration =
-		member.status === StatusMark.Running ? Date.now() - member.startedAt : undefined;
+		member.status === ToolStatus.Running ? Date.now() - member.startedAt : undefined;
 
 	return {
 		command: member.command,
@@ -172,7 +196,7 @@ function startGroupTicker(group: CommandGroup): void {
 }
 
 function stopGroupTickerIfSettled(group: CommandGroup): void {
-	if (group.members.some((member) => member.status === StatusMark.Running)) {
+	if (group.members.some((member) => member.status === ToolStatus.Running)) {
 		return;
 	}
 

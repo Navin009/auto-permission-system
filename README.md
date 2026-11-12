@@ -357,27 +357,37 @@ When cloning a repository with a `.pi/sandbox.json`:
 `find`, `codemode`, MCP tools — keeps Pi's own block, byte for byte:
 
 ```text
-✓ Running 2 commands · 2s ctrl+o to expand
-   └ ✓ $ npm test · 1.4s
-   └ ✓ $ git status · 120ms
+✓ Running 2 commands · 2s
+  └ ✓ $ npm test 1.4s
+  └ ✓ $ git status 120ms
 ```
 
-Consecutive shell calls are one row: a header with the count and the total, then one
-`└ <mark> $ <command> <duration>` line per command, in the order they ran. A single command keeps
-its own row with a plain `└ $ <command>` line.
+Consecutive shell calls are one row: a header with the count and the elapsed time, then one
+`  └ <mark> $ <command> <duration>` line per command, in the order they ran. The mark sits in
+column 1 — `●` while the group runs, `✓` or `✗` once it settles — and it is the last command's mark,
+so a failure earlier in the run keeps its own `└ ✗` line. A single command keeps its own row with a
+plain `  └ $ <command>` line.
 
-Newest eight commands; older ones collapse to `└ ... (2 earlier calls)`. Any other tool call,
-an assistant reply that carries text and a new user message all end the group, so two commands are
-only ever grouped when they really ran next to each other.
+Once a later call starts, the group above tightens to one line and names its last command:
 
-Thinking does not get a line of its own: while a thought runs the open row carries it in its header,
-`✓ Running 2 commands (thinking… 3s) · 5s`, and the parens disappear the moment it ends. It is never
-counted as a command and never splits the group.
+```text
+✓ Running 2 commands (git status) · 2s ctrl+o to expand
+```
 
-Expanding is Pi's: a click shows Pi's own collapsed block for each call, a second click the full
-output, and `ctrl+o` jumps straight to the full output — exactly as `full` draws them. Nothing about
-a blocked or denied call is lost — the
-command line keeps its mark and the header takes the worst of them: `✗ blocked`, `✗ denied`.
+Newest eight commands; older ones collapse to `  └ ... (2 earlier calls)`. Any other tool call, an
+assistant reply that carries text and a new user message all end the group, so two commands are only
+ever grouped when they really ran next to each other.
+
+A blocked or denied command is never silent: a single command says so on its row
+(`✗ Running 1 command denied`), and inside a group the word rides on the command line
+(`  └ ✗ $ cat id_rsa blocked`).
+
+Thinking is Pi's, untouched: no row, no relabelled label, and a thought never splits a group.
+`compact` draws no thinking of its own.
+
+Expanding is Pi's too — `compact` never redraws Pi's block. Click or `ctrl+o` a row and Pi draws its
+own block for every call in the group; click or `ctrl+o` again for the full output, exactly as `full`
+draws it. The compact row is only the collapsed level of that same view.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
   agrees. Missing or unparsable file → `full`.

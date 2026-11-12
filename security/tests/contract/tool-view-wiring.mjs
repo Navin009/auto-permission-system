@@ -43,7 +43,7 @@ check('hands an MCP tool back to Pi', handsBackToPi('mcp__docs__search'));
 check('hands an unknown tool back to Pi', handsBackToPi('some-future-tool'));
 
 const theme = { fg: (color, text) => text };
-const fallbackRenderers = { renderShell: 'default', renderCall: () => new Text('pi-block'), renderResult: () => new Text('pi-block') };
+const fallbackRenderers = { renderShell: 'default', renderCall: () => new Text('pi-renderer'), renderResult: () => new Text('pi-renderer') };
 const renderContext = (overrides) => ({
 	args: {},
 	toolCallId: 'call-1',
@@ -72,9 +72,10 @@ const renderCommands = (commands) =>
 
 resetCommandGroups();
 setActiveViewMode('compact');
+check('compact owns the shell', resolver('bash', () => fallbackRenderers).renderShell === 'self');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
-check('a following shell call joins it silently', secondGroup.length === 0);
+check('a second command joins it silently', secondGroup.length === 0);
 
 const endTurn = (content) => registered.eventHandlers.get('turn_end')({ message: { role: 'assistant', content } });
 endTurn([{ type: 'toolCall', id: 'call-b', name: 'bash' }]);
@@ -95,6 +96,7 @@ check('a tool we do not own ends the group', afterWrite.join(' ').includes('Runn
 
 resetCommandGroups();
 setActiveViewMode('full');
+check('full hands the shell back to Pi', resolver('bash', () => fallbackRenderers).renderShell === undefined);
 
 const thinkingLabels = [];
 const contextFor = (mode, notices) => ({
@@ -115,11 +117,11 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('compact gives a hidden thought its own one line', thinkingLabels.at(-1) === '~ Thought — click to read');
+check('compact never relabels Pi thinking', thinkingLabels.length === 0);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('full hands the thinking label back to Pi', thinkingLabels.at(-1) === undefined);
+check('full never touches Pi thinking either', thinkingLabels.length === 0);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));
