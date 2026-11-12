@@ -1,8 +1,10 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { Box, type Component } from "@earendil-works/pi-tui";
+import { Box, type Component, type TuiMouseEvent, type TuiMouseEventResult } from "@earendil-works/pi-tui";
 
 const NO_PADDING = 0;
 const EMPTY_LINE = "";
+const CLICK_TYPE = "click";
+const LEFT_BUTTON = "left";
 
 export type ToolBackground = Parameters<Theme["bg"]>[0];
 export type ToolBackgroundFunction = (text: string) => string;
@@ -36,10 +38,12 @@ export class PiBlockComponent implements Component {
 	private background: ToolBackground;
 	private call: Component | undefined;
 	private result: Component | undefined;
+	private readonly onClick: () => void;
 
-	constructor(theme: Theme, outputPad: number, background: ToolBackground) {
+	constructor(theme: Theme, outputPad: number, background: ToolBackground, onClick: () => void) {
 		this.theme = theme;
 		this.background = background;
+		this.onClick = onClick;
 		this.box = new Box(outputPad, NO_PADDING, this.backgroundFunction());
 	}
 
@@ -76,6 +80,16 @@ export class PiBlockComponent implements Component {
 
 		this.result = component;
 		this.layout();
+	}
+
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		if (event.type !== CLICK_TYPE || event.button !== LEFT_BUTTON) {
+			return undefined;
+		}
+
+		this.onClick();
+
+		return { handled: true };
 	}
 
 	render(width: number): string[] {

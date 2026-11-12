@@ -1,4 +1,5 @@
 import type { CommandGroupSummary, CommandSummary } from "../core/tool-view/command-group.ts";
+import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { StatusMark } from "../core/tool-view/status.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
@@ -16,6 +17,7 @@ export interface CommandMember {
 export interface CommandGroup {
 	members: CommandMember[];
 	ticker: ReturnType<typeof setInterval> | undefined;
+	expansionLevel: ExpansionLevel;
 }
 
 export interface GroupCallInput {
@@ -30,6 +32,7 @@ export interface GroupSettleInput extends GroupCallInput {
 }
 
 const openGroups = new Set<CommandGroup>();
+const groupsByCall = new Map<string, CommandGroup>();
 let currentGroup: CommandGroup | undefined;
 let invalidating = false;
 
@@ -70,12 +73,25 @@ export function closeCommandGroup(): void {
 	currentGroup = undefined;
 }
 
+export function groupOfCall(toolCallId: string): CommandGroup | undefined {
+	return groupsByCall.get(toolCallId);
+}
+
+export function advanceGroupExpansion(group: CommandGroup): void {
+	group.expansionLevel = nextExpansionLevel(group.expansionLevel);
+
+	for (const member of group.members) {
+		safelyInvalidate(member);
+	}
+}
+
 export function resetCommandGroups(): void {
 	for (const group of openGroups) {
 		stopGroupTicker(group);
 	}
 
 	openGroups.clear();
+	groupsByCall.clear();
 	currentGroup = undefined;
 }
 
@@ -98,7 +114,7 @@ export function groupSummary(group: CommandGroup, hint: string | undefined): Com
 }
 
 function createGroup(): CommandGroup {
-	const group: CommandGroup = { members: [], ticker: undefined };
+	const group: CommandGroup = { members: [], ticker: undefined, expansionLevel: ExpansionLevel.Row };
 
 	openGroups.add(group);
 	currentGroup = group;
@@ -124,6 +140,7 @@ function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember
 	};
 
 	group.members.push(member);
+	groupsByCall.set(member.toolCallId, group);
 
 	return member;
 }

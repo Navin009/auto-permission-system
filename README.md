@@ -367,11 +367,12 @@ Consecutive shell calls are one row: a header with the count and the total, then
 its own row with a plain `└ $ <command>` line.
 
 Newest eight commands; older ones collapse to `└ ... (2 earlier calls)`. Any other tool call,
-the start of a new turn and a new user message all end the group, so two commands are only ever
-grouped when they really ran next to each other.
+an assistant reply that carries text and a new user message all end the group, so two commands are
+only ever grouped when they really ran next to each other.
 
-Expanding is Pi's: `ctrl+o` (or a click on the row) replaces the rows with Pi's own blocks for
-those calls, exactly as `full` draws them. Nothing about a blocked or denied call is lost — the
+Expanding is Pi's: a click shows Pi's own collapsed block for each call, a second click the full
+output, and `ctrl+o` jumps straight to the full output — exactly as `full` draws them. Nothing about
+a blocked or denied call is lost — the
 command line keeps its mark and the header takes the worst of them: `✗ blocked`, `✗ denied`.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session

@@ -1,5 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, type Component } from "@earendil-works/pi-tui";
+import { truncateToWidth, type Component, type TuiMouseEvent, type TuiMouseEventResult } from "@earendil-works/pi-tui";
 import {
 	commandGroupText,
 	commandLinePrefix,
@@ -12,16 +12,30 @@ import { StatusMark } from "../core/tool-view/status.ts";
 const MARK_SEPARATOR = " ";
 const ELLIPSIS = "…";
 const HINT_SEPARATOR = " ";
+const CLICK_TYPE = "click";
+const LEFT_BUTTON = "left";
 
 type MarkColor = Parameters<Theme["fg"]>[0];
 
 export class CommandGroupComponent implements Component {
 	private readonly summary: () => CommandGroupSummary;
 	private readonly theme: Theme;
+	private readonly onClick: () => void;
 
-	constructor(summary: () => CommandGroupSummary, theme: Theme) {
+	constructor(summary: () => CommandGroupSummary, theme: Theme, onClick: () => void) {
 		this.summary = summary;
 		this.theme = theme;
+		this.onClick = onClick;
+	}
+
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+		if (event.type !== CLICK_TYPE || event.button !== LEFT_BUTTON) {
+			return undefined;
+		}
+
+		this.onClick();
+
+		return { handled: true };
 	}
 
 	render(width: number): string[] {

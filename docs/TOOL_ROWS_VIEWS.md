@@ -139,25 +139,47 @@ Here is what I found. The config lives in two files…
 
 ---
 
-## 5. `ctrl+o` — expand the group
+## 5. The row opens in two steps
 
-`ctrl+o`, or a click on the row, replaces the row with Pi's own block for every command in it, in
-the order they ran, exactly as `full` draws them:
+A click, or `ctrl+o`, walks the row through three states. Each one is Pi's own renderer, called and
+never copied, so nothing is restyled:
+
+| State | What is drawn |
+| --- | --- |
+| the row | `✓ Running 2 commands · 1.2s ctrl+o to expand` |
+| first click | Pi's collapsed block per command: the command line plus a preview of the output |
+| second click | Pi's expanded block per command: the command line plus the whole output |
+| third click | the row again |
+
+First click — Pi's collapsed block, output preview and all:
 
 ```text
 bash
   npm test
 ──────────────────────────────────────────
-<test output>
+<the last few lines of the output>
+... (12 earlier lines, ctrl+o to expand)
+```
+
+Second click — Pi's expanded block, in the order the commands ran:
+
+```text
+bash
+  npm test
+──────────────────────────────────────────
+<the whole output>
 
 bash
   npm run build
 ──────────────────────────────────────────
-<build output>
+<the whole output>
 ```
 
-Pressing it again puts the list back. Nothing is added to Pi's block and nothing is taken away: the
-expanded view is Pi's output, byte for byte.
+`ctrl+o` jumps straight to the second state, and pressing it again returns the row. A click is taken
+before Pi toggles its own expansion, so the two never fight over the same keystroke or click
+(ADR-053).
+
+Nothing is added to Pi's block and nothing is taken away: every state is Pi's output, byte for byte.
 
 ---
 
