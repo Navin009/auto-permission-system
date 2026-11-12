@@ -1,19 +1,20 @@
-import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
-import { MouseRegion, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
-import { callCommand } from "../core/tool-view/arguments.ts";
+import type { Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
+import { Box, MouseRegion, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
+import { rowTarget } from "../core/tool-view/arguments.ts";
 import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
+import { rowKindOf } from "../core/tool-view/row-kind.ts";
 import { statusFromResult } from "../core/tool-view/status.ts";
 import { ViewMode } from "../core/tool-view/view-mode.ts";
-import { CommandGroupComponent } from "./command-group-component.ts";
+import { RowGroupComponent } from "./row-group-component.ts";
 import {
 	advanceGroupExpansion,
-	groupOfCall,
 	groupSummary,
 	isGroupHead,
-	joinCommandGroup,
-	settleCommandGroup,
-	type CommandGroup,
-} from "./command-groups.ts";
+	joinRowGroup,
+	rowGroupOfCall,
+	settleRowGroup,
+	type RowGroup,
+} from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
@@ -24,6 +25,7 @@ type RendererFallback = ToolRenderers | undefined;
 type RenderContext = CallParameters[2] | ResultParameters[3];
 type RenderTheme = CallParameters[1];
 type ToolCallArguments = Record<string, unknown> | undefined;
+type BackgroundColor = Parameters<Theme["bg"]>[0];
 
 interface ResultContentBlock {
 	type: string;
@@ -39,84 +41,99 @@ const BLOCK_SEPARATOR = " ";
 const SETTLED_STATE_KEY = "settled";
 const PI_CALL_STATE_KEY = "piCall";
 const PI_RESULT_STATE_KEY = "piResult";
+const NATIVE_BLOCK_STATE_KEY = "nativeBlock";
 const EMPTY_LINE = "";
 const NO_PADDING = 0;
+const BLOCK_PADDING_Y = 1;
+const PENDING_BACKGROUND: BackgroundColor = "toolPendingBg";
+const ERROR_BACKGROUND: BackgroundColor = "toolErrorBg";
+const SUCCESS_BACKGROUND: BackgroundColor = "toolSuccessBg";
 
 export function toolViewRenderers(toolName: string, fallback: RendererFallback): ToolRenderers {
+	const isRowTool = rowKindOf(toolName) !== undefined;
+
 	return {
-		renderShell: getActiveViewMode() === ViewMode.Compact ? "self" : undefined,
-		renderCall: (...parameters) => renderCall(toolName, fallback, parameters),
-		renderResult: (...parameters) => renderResult(toolName, fallback, parameters),
+		renderShell: isRowTool && getActiveViewMode() === ViewMode.Compact ? "self" : undefined,
+		renderCall: (...parameters) => renderRowCall(toolName, fallback, parameters),
+		renderResult: (...parameters) => renderRowResult(toolName, fallback, parameters),
 	};
 }
 
-function renderCall(toolName: string, fallback: RendererFallback, parameters: CallParameters) {
+function renderRowCall(toolName: string, fallback: RendererFallback, parameters: CallParameters) {
 	const [args, theme, context] = parameters;
+	const kind = rowKindOf(toolName);
 
-	if (getActiveViewMode() !== ViewMode.Compact || !context.argsComplete) {
+	if (getActiveViewMode() !== ViewMode.Compact || !kind) {
 		return fallbackCall(fallback, parameters);
 	}
 
-	const group = groupOfCall(context.toolCallId);
+	const group = rowGroupOfCall(context.toolCallId);
 	const level = expansionLevelOf(group, context);
 
 	if (level !== ExpansionLevel.Row) {
-		return piCall(fallback, parameters, level, group);
+		return nativeCallBlock(fallback, parameters, level, group);
 	}
 
 	if (isSettledCall(context)) {
 		return emptyComponent();
 	}
 
-	const command = callCommand(toolName, args as ToolCallArguments);
+	const target = context.argsComplete ? rowTarget(toolName, args as ToolCallArguments) : undefined;
 
-	if (!command) {
-		return fallbackCall(fallback, parameters);
+	if (!target) {
+		return nativeCallBlock(fallback, parameters, ExpansionLevel.Collapsed, group);
 	}
 
-	const joined = group ?? joinCommandGroup({
+	const joined = group ?? joinRowGroup({
 		toolCallId: context.toolCallId,
-		command,
+		kind,
+		target,
 		invalidate: context.invalidate,
 	});
 
-	return groupComponent(joined, context, theme);
+	return rowComponent(joined, context, theme);
 }
 
-function renderResult(toolName: string, fallback: RendererFallback, parameters: ResultParameters) {
+function renderRowResult(toolName: string, fallback: RendererFallback, parameters: ResultParameters) {
 	const [result, , theme, context] = parameters;
+	const kind = rowKindOf(toolName);
 
-	if (getActiveViewMode() !== ViewMode.Compact) {
+	if (getActiveViewMode() !== ViewMode.Compact || !kind) {
 		return fallbackResult(fallback, parameters);
+	}
+
+	const group = rowGroupOfCall(context.toolCallId);
+	const level = expansionLevelOf(group, context);
+
+	if (level !== ExpansionLevel.Row) {
+		return nativeResultBlock(fallback, parameters, level);
+	}
+
+	const target = rowTarget(toolName, context.args as ToolCallArguments);
+
+	if (!target) {
+		return nativeResultBlock(fallback, parameters, level);
+	}
+
+	if (context.isPartial) {
+		return emptyComponent();
 	}
 
 	context.state[SETTLED_STATE_KEY] = true;
 
-	const group = groupOfCall(context.toolCallId);
-	const level = expansionLevelOf(group, context);
-
-	if (level !== ExpansionLevel.Row) {
-		return piResult(fallback, parameters, level, group);
-	}
-
-	const command = callCommand(toolName, context.args as ToolCallArguments);
-
-	if (!command) {
-		return fallbackResult(fallback, parameters);
-	}
-
-	const settled = settleCommandGroup({
+	const settled = settleRowGroup({
 		toolCallId: context.toolCallId,
-		command,
+		kind,
+		target,
 		status: statusFromResult(context.isError, resultText(result)),
 		durationMilliseconds: context.durationMs,
 		invalidate: context.invalidate,
 	});
 
-	return groupComponent(settled, context, theme);
+	return rowComponent(settled, context, theme);
 }
 
-function groupComponent(group: CommandGroup, context: RenderContext, theme: RenderTheme) {
+function rowComponent(group: RowGroup, context: RenderContext, theme: RenderTheme) {
 	if (!isGroupHead(group, context.toolCallId)) {
 		return emptyComponent();
 	}
@@ -125,18 +142,18 @@ function groupComponent(group: CommandGroup, context: RenderContext, theme: Rend
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
 
-	return new CommandGroupComponent(summary, theme, onClick);
+	return new RowGroupComponent(summary, theme, onClick);
 }
 
-function expansionLevelOf(group: CommandGroup | undefined, context: RenderContext): ExpansionLevel {
+function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {
 	return resolvedExpansionLevel(group?.expansionLevel ?? ExpansionLevel.Row, context.expanded);
 }
 
-function piCall(
+function nativeCallBlock(
 	fallback: RendererFallback,
 	parameters: CallParameters,
 	level: ExpansionLevel,
-	group: CommandGroup | undefined,
+	group: RowGroup | undefined,
 ) {
 	const [args, theme, context] = parameters;
 	const renderPiCall = fallback?.renderCall;
@@ -146,41 +163,60 @@ function piCall(
 	}
 
 	const lastComponent = context.state[PI_CALL_STATE_KEY] as Component | undefined;
-	const component = renderPiCall(args, theme, {
+	const callComponent = renderPiCall(args, theme, {
 		...context,
 		expanded: level === ExpansionLevel.Full,
 		lastComponent,
 	});
 
-	context.state[PI_CALL_STATE_KEY] = component;
+	context.state[PI_CALL_STATE_KEY] = callComponent;
 
-	return clicking(component, group);
+	const block = new Box(context.outputPad, BLOCK_PADDING_Y, nativeBackground(theme, context));
+	block.addChild(callComponent);
+	context.state[NATIVE_BLOCK_STATE_KEY] = block;
+
+	return clicking(block, group);
 }
 
-function piResult(
+function nativeResultBlock(
 	fallback: RendererFallback,
 	parameters: ResultParameters,
 	level: ExpansionLevel,
-	group: CommandGroup | undefined,
 ) {
 	const [result, options, theme, context] = parameters;
 	const renderPiResult = fallback?.renderResult;
+	const block = context.state[NATIVE_BLOCK_STATE_KEY] as Box | undefined;
 
-	if (!renderPiResult) {
-		return emptyComponent();
+	if (!renderPiResult || !block) {
+		return fallbackResult(fallback, parameters);
 	}
 
 	const isFull = level === ExpansionLevel.Full;
 	const lastComponent = context.state[PI_RESULT_STATE_KEY] as Component | undefined;
-	const expandedContext = { ...context, expanded: isFull, lastComponent };
-	const component = renderPiResult(result, { ...options, expanded: isFull }, theme, expandedContext);
+	const resultComponent = renderPiResult(
+		result,
+		{ ...options, expanded: isFull },
+		theme,
+		{ ...context, expanded: isFull, lastComponent },
+	);
 
-	context.state[PI_RESULT_STATE_KEY] = component;
+	context.state[PI_RESULT_STATE_KEY] = resultComponent;
+	block.addChild(resultComponent);
 
-	return clicking(component, group);
+	return emptyComponent();
 }
 
-function clicking(component: Component, group: CommandGroup | undefined): Component {
+function nativeBackground(theme: RenderTheme, context: RenderContext): (line: string) => string {
+	const background = context.isPartial
+		? PENDING_BACKGROUND
+		: context.isError
+			? ERROR_BACKGROUND
+			: SUCCESS_BACKGROUND;
+
+	return (line) => theme.bg(background, line);
+}
+
+function clicking(component: Component, group: RowGroup | undefined): Component {
 	if (!group) {
 		return component;
 	}

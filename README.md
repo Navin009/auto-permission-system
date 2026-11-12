@@ -347,19 +347,21 @@ When cloning a repository with a `.pi/sandbox.json`:
 | `/permission-mode` | Switch between **Default**, **Advanced Secure**, and **YOLO** mid-session. |
 | `/security trust` | Inspect and trust project-local policy widening in `.pi/sandbox.json`. |
 | `/security untrust` | Revoke trust for the current project's policy file. |
-| `/tool-view compact` | Group consecutive shell calls into one row; every other tool keeps Pi's block (display only). |
+| `/tool-view compact` | Group consecutive shell commands and file reads into rows; every other tool keeps Pi's block (display only). |
 | `/tool-view full` | Back to Pi's own output. Also the shipped default. |
 | `/tool-view` | Menu with both choices. |
 
 ### Tool view (display only)
 
-`compact` touches shell commands only. Every other tool — `read`, `edit`, `write`, `ls`, `grep`,
+`compact` touches shell commands and `read` calls. Every other tool — `edit`, `write`, `ls`, `grep`,
 `find`, `codemode`, MCP tools — keeps Pi's own block, byte for byte:
 
 ```text
 ✓ Running 2 commands · 2s
   └ ✓ $ npm test 1.4s
   └ ✓ $ git status 120ms
+
+✓ Reading 3 files (src/settings.ts) · 1s ctrl+o to expand
 ```
 
 Consecutive shell calls are one row: a header with the count and the elapsed time, then one
@@ -367,6 +369,10 @@ Consecutive shell calls are one row: a header with the count and the elapsed tim
 column 1 — `●` while the group runs, `✓` or `✗` once it settles — and it is the last command's mark,
 so a failure earlier in the run keeps its own `└ ✗` line. A single command keeps its own row with a
 plain `  └ $ <command>` line.
+
+Consecutive reads are one row too, always a single line with the last path named:
+`✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand`. A read and a shell command never share a row, so
+`Reading N files` and `Running N commands` stay honest about what ran.
 
 Once a later call starts, the group above tightens to one line and names its last command:
 
@@ -382,12 +388,23 @@ A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
 (`  └ ✗ $ cat id_rsa blocked`).
 
-Thinking is Pi's, untouched: no row, no relabelled label, and a thought never splits a group.
-`compact` draws no thinking of its own.
+A streaming thought rides on the live row in brackets and leaves no block of its own:
+
+```text
+● Running 2 commands · 26s (thinking 4s)
+  └ ✓ $ npm test 1.4s
+  └ … $ npm run build
+```
+
+The bracket ticks once a second, never counts as a call, never touches the row's own duration, and is
+dropped the moment the thought completes. `compact` hides Pi's repeated hidden-thinking labels so a
+thought leaves exactly one trace; `/tool-view full` restores Pi's label. With thinking set to visible,
+Pi's italic thought text is Pi's own — the extension never rewrites it.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click or `ctrl+o` a row and Pi draws its
-own block for every call in the group; click or `ctrl+o` again for the full output, exactly as `full`
-draws it. The compact row is only the collapsed level of that same view.
+own block for every call in the group — same frame, same padding, same background, same preview line
+as `full` — then click or `ctrl+o` again for the full output. The compact row is only the collapsed
+level of that same view.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
   agrees. Missing or unparsable file → `full`.

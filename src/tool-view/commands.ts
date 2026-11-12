@@ -1,8 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { TOOL_VIEW_SETTINGS_FILE_NAME, writeToolViewMode } from "../core/tool-view/settings.ts";
 import { ViewMode, viewModeLabel } from "../core/tool-view/view-mode.ts";
-import { closeCommandGroup, resetCommandGroups } from "./command-groups.ts";
+import { closeRowGroup, resetRowGroups } from "./row-groups.ts";
 import { getActiveViewMode, setActiveViewMode } from "./session.ts";
+import { applyThinkingLabel } from "./thinking-clock.ts";
 
 export const TOOL_VIEW_COMMAND_NAME = "tool-view";
 
@@ -83,6 +84,7 @@ function applyViewMode(
 	const writeError = writeToolViewMode(settingsFilePath, viewMode);
 	setActiveViewMode(viewMode);
 	closeGroupsFor(viewMode);
+	applyThinkingLabel(context);
 
 	if (writeError) {
 		const modeLabel = viewModeLabel(viewMode);
@@ -97,9 +99,9 @@ function applyViewMode(
 
 function closeGroupsFor(viewMode: ViewMode): void {
 	if (viewMode === ViewMode.Compact) {
-		closeCommandGroup();
+		closeRowGroup();
 		return;
 	}
 
-	resetCommandGroups();
+	resetRowGroups();
 }

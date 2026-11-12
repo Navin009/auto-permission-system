@@ -1,10 +1,12 @@
 # Tool rows
 
-**Status:** the collapsed row is shipped for shell commands. Shipped: the mark in column 1, a
-`  └` line per command with its own mark and duration, the fold to one line once a later call
-starts, the `(last command)` target, `blocked` / `denied` on the row, and Pi's own block on
-expand — `compact` never redraws it. Not shipped: rows for `read` / `edit` / `codemode` (§1, §3),
-per-`└`-line clicks (§4), and the `(thinking Ns)` bracket (§2, §5).
+**Status:** the collapsed row is shipped for shell commands and reads. Shipped: the mark in
+column 1, a `  └` line per command with its own mark and duration, the fold to one line once a
+later call starts, the `(last command)` target, `blocked` / `denied` on the row, the
+`(thinking Ns)` bracket on the live row with Pi's repeated hidden-thinking labels suppressed,
+`Reading N files` rows for `read`, and Pi's own block on expand — `compact` wraps Pi's own
+components in Pi's own frame and never redraws them. Not shipped: rows for `edit` / `codemode`
+(§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
 
@@ -506,6 +508,12 @@ carry no hint — click the row or the line instead.
 ---
 
 ## 5. Text and thinking between calls (`compact`)
+
+**Shipped deviation:** the `(thinking Ns)` bracket lives on the live row, after its duration —
+`● Running 2 commands · 26s (thinking 4s)` — and `compact` hides Pi's repeated hidden-thinking
+labels (an empty hidden label, restored by `/tool-view full`), so a thought leaves exactly one trace
+instead of one `Thinking...` line per hidden run. Pi's italic thought text is still Pi's when thinking
+is set to visible: no extension API hides it, and `compact` never rewrites it.
 
 ### Visible text splits the group
 

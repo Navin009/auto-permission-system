@@ -33,7 +33,7 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 
 ## Tool view (display only)
 
-`/tool-view compact` draws consecutive shell calls as one `Running N commands` row, leaves every other tool on Pi's own block, `/tool-view full` returns Pi's own output, and the choice is saved in `~/.pi/agent/tool-view.json`. It is a renderer and nothing else: it never reads or writes `sandbox.json`, and a blocked or denied call keeps the `✗` mark and the word `blocked` / `denied` on its row. Never treat the tool view as a security setting, and never suggest switching it as a way around a block.
+`/tool-view compact` draws consecutive shell calls as one `Running N commands` row and consecutive `read` calls as one `Reading N files` row, leaves every other tool on Pi's own block, `/tool-view full` returns Pi's own output, and the choice is saved in `~/.pi/agent/tool-view.json`. It is a renderer and nothing else: it never reads or writes `sandbox.json`, and a blocked or denied call keeps the `✗` mark and the word `blocked` / `denied` on its row. Never treat the tool view as a security setting, and never suggest switching it as a way around a block.
 
 ## Policy files
 

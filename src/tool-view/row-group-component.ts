@@ -6,11 +6,11 @@ import {
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
-	commandGroupLines,
-	type CommandGroupSummary,
+	rowGroupLines,
+	type RowGroupSummary,
 	type RowLine,
 	type RowMark,
-} from "../core/tool-view/command-group.ts";
+} from "../core/tool-view/row-group.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 
 const ELLIPSIS = "…";
@@ -20,12 +20,12 @@ const LEFT_BUTTON = "left";
 
 type MarkColor = Parameters<Theme["fg"]>[0];
 
-export class CommandGroupComponent implements Component {
-	private readonly summary: () => CommandGroupSummary;
+export class RowGroupComponent implements Component {
+	private readonly summary: () => RowGroupSummary;
 	private readonly theme: Theme;
 	private readonly onClick: () => void;
 
-	constructor(summary: () => CommandGroupSummary, theme: Theme, onClick: () => void) {
+	constructor(summary: () => RowGroupSummary, theme: Theme, onClick: () => void) {
 		this.summary = summary;
 		this.theme = theme;
 		this.onClick = onClick;
@@ -42,7 +42,7 @@ export class CommandGroupComponent implements Component {
 	}
 
 	render(width: number): string[] {
-		const lines = commandGroupLines(this.summary());
+		const lines = rowGroupLines(this.summary());
 
 		return lines.map((line) => truncateToWidth(this.lineText(line), width, ELLIPSIS));
 	}

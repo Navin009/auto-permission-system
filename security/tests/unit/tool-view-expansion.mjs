@@ -1,9 +1,9 @@
 import { Container, Text } from '@earendil-works/pi-tui';
 import { ExpansionLevel, nextExpansionLevel, resolvedExpansionLevel } from '../../../src/core/tool-view/expansion-level.ts';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetCommandGroups } from '../../../src/tool-view/command-groups.ts';
+import { resetRowGroups } from '../../../src/tool-view/row-groups.ts';
 import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
-import { CommandGroupComponent } from '../../../src/tool-view/command-group-component.ts';
+import { RowGroupComponent } from '../../../src/tool-view/row-group-component.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -64,16 +64,16 @@ const repaint = (expanded) => {
 };
 
 const drawnText = () => [...lines(slots.call), ...lines(slots.result)].filter((line) => line.trim() !== '').join('\n');
-const drawsRow = () => slots.call instanceof CommandGroupComponent || slots.result instanceof CommandGroupComponent;
+const drawsRow = () => slots.call instanceof RowGroupComponent || slots.result instanceof RowGroupComponent;
 const drawsPiView = () => !drawsRow() && drawnText().includes('preview');
-const clickable = () => (slots.result?.handleMouse ? slots.result : slots.call);
+const clickable = () => (slots.call?.handleMouse ? slots.call : slots.result);
 const click = () => {
 	const handled = clickable().handleMouse(CLICK);
 	repaint(false);
 	return handled;
 };
 
-resetCommandGroups();
+resetRowGroups();
 setActiveViewMode('compact');
 
 const renderers = toolViewRenderers('bash', fallback);
@@ -89,6 +89,11 @@ check('the opened row draws Pi own call', drawnText().includes('$ npm test'));
 check('the block draws Pi own collapsed result', drawnText().includes('preview'));
 check('the collapsed block is Pi own collapsed renderer', resultLevels.at(-1) === false);
 
+const openedLines = lines(slots.call);
+check('the open block is one frame', openedLines.length >= 3);
+check('the open block carries both Pi components', openedLines.some((line) => line.includes('$ npm test')) && openedLines.some((line) => line.includes('preview')));
+check('the open block leaves the result slot empty', lines(slots.result).length === 0);
+
 check('a left click on the block is handled', click()?.handled === true);
 check('the second click draws the full result', drawnText().includes('full output'));
 check('the full block is Pi own expanded renderer', resultLevels.at(-1) === true);
@@ -101,7 +106,7 @@ check('a right click is left to Pi', clickable().handleMouse({ ...CLICK, button:
 repaint(true);
 check('the expand key still opens Pi full view', drawnText().includes('full output'));
 
-resetCommandGroups();
+resetRowGroups();
 setActiveViewMode('full');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

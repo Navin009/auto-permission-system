@@ -1,9 +1,11 @@
 const TEXT_BLOCK_TYPE = "text";
+const THINKING_BLOCK_TYPE = "thinking";
 const BLANK_TEXT = "";
 
 export interface MessageBlock {
 	type: string;
 	text?: string;
+	thinking?: string;
 }
 
 export interface MessageContent {
@@ -23,6 +25,16 @@ export function carriesVisibleText(message: MessageContent): boolean {
 	}
 
 	return content.some(isTextBlock);
+}
+
+export function carriesStreamingThought(message: MessageContent): boolean {
+	const content = message.content;
+
+	if (content === undefined || typeof content === "string") {
+		return false;
+	}
+
+	return content.at(-1)?.type === THINKING_BLOCK_TYPE;
 }
 
 function isTextBlock(block: MessageBlock): boolean {

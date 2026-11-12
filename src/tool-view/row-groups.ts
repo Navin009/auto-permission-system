@@ -1,12 +1,14 @@
-import type { CommandGroupSummary, CommandSummary } from "../core/tool-view/command-group.ts";
+import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
+import type { RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
+import { thinkingState } from "./thinking-clock.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
-export interface CommandMember {
+export interface RowMember {
 	toolCallId: string;
-	command: string;
+	target: string;
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 	startedAt: number;
@@ -14,33 +16,35 @@ export interface CommandMember {
 	invalidate: (() => void) | undefined;
 }
 
-export interface CommandGroup {
-	members: CommandMember[];
+export interface RowGroup {
+	kind: RowKind;
+	members: RowMember[];
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
 }
 
-export interface GroupCallInput {
+export interface RowCallInput {
 	toolCallId: string;
-	command: string;
+	kind: RowKind;
+	target: string;
 	invalidate: (() => void) | undefined;
 }
 
-export interface GroupSettleInput extends GroupCallInput {
+export interface RowSettleInput extends RowCallInput {
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
 }
 
-const openGroups = new Set<CommandGroup>();
-const groupsByCall = new Map<string, CommandGroup>();
-let currentGroup: CommandGroup | undefined;
+const openGroups = new Set<RowGroup>();
+const groupsByCall = new Map<string, RowGroup>();
+let currentGroup: RowGroup | undefined;
 let invalidating = false;
 
-export function joinCommandGroup(input: GroupCallInput): CommandGroup {
+export function joinRowGroup(input: RowCallInput): RowGroup {
 	const group = groupForCall(input);
 	const member = ensureMember(group, input);
 
-	member.command = input.command;
+	member.target = input.target;
 	member.invalidate = input.invalidate;
 
 	startGroupTicker(group);
@@ -49,11 +53,11 @@ export function joinCommandGroup(input: GroupCallInput): CommandGroup {
 	return group;
 }
 
-export function settleCommandGroup(input: GroupSettleInput): CommandGroup {
+export function settleRowGroup(input: RowSettleInput): RowGroup {
 	const group = groupForCall(input);
 	const member = ensureMember(group, input);
 
-	member.command = input.command;
+	member.target = input.target;
 	member.invalidate = input.invalidate;
 	member.status = input.status;
 	member.settledAt = member.settledAt ?? Date.now();
@@ -69,7 +73,7 @@ export function settleCommandGroup(input: GroupSettleInput): CommandGroup {
 	return group;
 }
 
-export function closeCommandGroup(): void {
+export function closeRowGroup(): void {
 	const group = currentGroup;
 
 	currentGroup = undefined;
@@ -79,11 +83,11 @@ export function closeCommandGroup(): void {
 	}
 }
 
-export function groupOfCall(toolCallId: string): CommandGroup | undefined {
+export function rowGroupOfCall(toolCallId: string): RowGroup | undefined {
 	return groupsByCall.get(toolCallId);
 }
 
-export function advanceGroupExpansion(group: CommandGroup): void {
+export function advanceGroupExpansion(group: RowGroup): void {
 	group.expansionLevel = nextExpansionLevel(group.expansionLevel);
 
 	for (const member of group.members) {
@@ -91,7 +95,15 @@ export function advanceGroupExpansion(group: CommandGroup): void {
 	}
 }
 
-export function resetCommandGroups(): void {
+export function repaintCurrentRow(): void {
+	const head = currentGroup?.members[0];
+
+	if (head) {
+		safelyInvalidate(head);
+	}
+}
+
+export function resetRowGroups(): void {
 	for (const group of openGroups) {
 		stopGroupTicker(group);
 	}
@@ -101,11 +113,11 @@ export function resetCommandGroups(): void {
 	currentGroup = undefined;
 }
 
-export function isGroupHead(group: CommandGroup, toolCallId: string): boolean {
+export function isGroupHead(group: RowGroup, toolCallId: string): boolean {
 	return group.members[0]?.toolCallId === toolCallId;
 }
 
-export function groupSummary(group: CommandGroup, hint: string | undefined): CommandGroupSummary {
+export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
 	const head = group.members[0];
 	const isRunning = group.members.some((member) => member.status === ToolStatus.Running);
 	const endMilliseconds = isRunning ? Date.now() : lastSettleMilliseconds(group);
@@ -113,20 +125,32 @@ export function groupSummary(group: CommandGroup, hint: string | undefined): Com
 		head && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - head.startedAt) : undefined;
 
 	return {
-		commands: group.members.map(commandSummary),
+		kind: group.kind,
+		rows: group.members.map(rowSummary),
 		durationMilliseconds,
 		folded: group !== currentGroup,
 		hint,
+		thinking: group === currentGroup ? thinkingState() : undefined,
 	};
 }
 
-function groupForCall(input: GroupCallInput): CommandGroup {
-	return groupOfCall(input.toolCallId) ?? currentGroup ?? createGroup();
+function groupForCall(input: RowCallInput): RowGroup {
+	const existingGroup = rowGroupOfCall(input.toolCallId);
+
+	if (existingGroup) {
+		return existingGroup;
+	}
+
+	if (currentGroup?.kind === input.kind) {
+		return currentGroup;
+	}
+
+	return createGroup(input.kind);
 }
 
-function createGroup(): CommandGroup {
+function createGroup(kind: RowKind): RowGroup {
 	const previousGroup = currentGroup;
-	const group: CommandGroup = { members: [], ticker: undefined, expansionLevel: ExpansionLevel.Row };
+	const group: RowGroup = { kind, members: [], ticker: undefined, expansionLevel: ExpansionLevel.Row };
 
 	openGroups.add(group);
 	currentGroup = group;
@@ -138,7 +162,7 @@ function createGroup(): CommandGroup {
 	return group;
 }
 
-function foldGroup(group: CommandGroup): void {
+function foldGroup(group: RowGroup): void {
 	group.expansionLevel = ExpansionLevel.Row;
 
 	for (const member of group.members) {
@@ -146,16 +170,16 @@ function foldGroup(group: CommandGroup): void {
 	}
 }
 
-function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember {
+function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 	const existing = group.members.find((member) => member.toolCallId === input.toolCallId);
 
 	if (existing) {
 		return existing;
 	}
 
-	const member: CommandMember = {
+	const member: RowMember = {
 		toolCallId: input.toolCallId,
-		command: input.command,
+		target: input.target,
 		status: ToolStatus.Running,
 		durationMilliseconds: undefined,
 		startedAt: Date.now(),
@@ -169,22 +193,22 @@ function ensureMember(group: CommandGroup, input: GroupCallInput): CommandMember
 	return member;
 }
 
-function commandSummary(member: CommandMember): CommandSummary {
+function rowSummary(member: RowMember): RowSummary {
 	const runningDuration =
 		member.status === ToolStatus.Running ? Date.now() - member.startedAt : undefined;
 
 	return {
-		command: member.command,
+		target: member.target,
 		status: member.status,
 		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
 	};
 }
 
-function lastSettleMilliseconds(group: CommandGroup): number | undefined {
+function lastSettleMilliseconds(group: RowGroup): number | undefined {
 	return group.members.at(-1)?.settledAt;
 }
 
-function startGroupTicker(group: CommandGroup): void {
+function startGroupTicker(group: RowGroup): void {
 	if (group.ticker) {
 		return;
 	}
@@ -195,7 +219,7 @@ function startGroupTicker(group: CommandGroup): void {
 	group.ticker = ticker;
 }
 
-function stopGroupTickerIfSettled(group: CommandGroup): void {
+function stopGroupTickerIfSettled(group: RowGroup): void {
 	if (group.members.some((member) => member.status === ToolStatus.Running)) {
 		return;
 	}
@@ -203,7 +227,7 @@ function stopGroupTickerIfSettled(group: CommandGroup): void {
 	stopGroupTicker(group);
 }
 
-function stopGroupTicker(group: CommandGroup): void {
+function stopGroupTicker(group: RowGroup): void {
 	if (group.ticker) {
 		clearInterval(group.ticker);
 	}
@@ -211,7 +235,7 @@ function stopGroupTicker(group: CommandGroup): void {
 	group.ticker = undefined;
 }
 
-function tickGroup(group: CommandGroup): void {
+function tickGroup(group: RowGroup): void {
 	const head = group.members[0];
 
 	if (head) {
@@ -219,7 +243,7 @@ function tickGroup(group: CommandGroup): void {
 	}
 }
 
-function invalidateDrawingMember(group: CommandGroup, joining: CommandMember): void {
+function invalidateDrawingMember(group: RowGroup, joining: RowMember): void {
 	const head = group.members[0];
 
 	if (!head || head.toolCallId === joining.toolCallId) {
@@ -229,7 +253,7 @@ function invalidateDrawingMember(group: CommandGroup, joining: CommandMember): v
 	safelyInvalidate(head);
 }
 
-function safelyInvalidate(member: CommandMember): void {
+function safelyInvalidate(member: RowMember): void {
 	if (invalidating) {
 		return;
 	}

@@ -1,15 +1,22 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { isCommandTool } from "../src/core/tool-view/labels.ts";
-import { carriesVisibleText } from "../src/core/tool-view/message-text.ts";
+import { carriesStreamingThought, carriesVisibleText } from "../src/core/tool-view/message-text.ts";
+import { rowKindOf } from "../src/core/tool-view/row-kind.ts";
 import {
 	readToolViewSettings,
 	TOOL_VIEW_SETTINGS_FILE_NAME,
 } from "../src/core/tool-view/settings.ts";
-import { closeCommandGroup, resetCommandGroups } from "../src/tool-view/command-groups.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
+import { closeRowGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
+import {
+	applyThinkingLabel,
+	beginThinking,
+	endThinking,
+	resetThinking,
+	setThinkingRepaint,
+} from "../src/tool-view/thinking-clock.ts";
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
@@ -19,39 +26,56 @@ function reloadViewMode(): void {
 }
 
 function startSession(): void {
-	resetCommandGroups();
+	resetRowGroups();
+	resetThinking();
 	reloadViewMode();
 }
 
 export default function (pi: ExtensionAPI) {
+	setThinkingRepaint(repaintCurrentRow);
 	startSession();
 
-	pi.on("session_start", () => {
+	pi.on("session_start", (_event, context) => {
 		startSession();
+		applyThinkingLabel(context);
 	});
 
 	pi.on("turn_end", (event) => {
+		endThinking();
+
 		if (carriesVisibleText(event.message)) {
-			closeCommandGroup();
+			closeRowGroup();
 		}
 	});
 
 	pi.on("message_start", (event) => {
+		endThinking();
+
 		if (event.message.role === USER_ROLE) {
-			closeCommandGroup();
+			closeRowGroup();
 		}
+	});
+
+	pi.on("message_update", (event) => {
+		if (carriesStreamingThought(event.message)) {
+			beginThinking();
+			return;
+		}
+
+		endThinking();
 	});
 
 	pi.on("session_shutdown", () => {
-		resetCommandGroups();
+		resetRowGroups();
+		resetThinking();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {
-		if (isCommandTool(toolName)) {
+		if (rowKindOf(toolName)) {
 			return toolViewRenderers(toolName, next());
 		}
 
-		closeCommandGroup();
+		closeRowGroup();
 
 		return next();
 	});
