@@ -17,6 +17,7 @@ export interface RowGroupSummary {
 	folded: boolean;
 	hint: string | undefined;
 	thinking: ThinkingState | undefined;
+	liveThought: boolean;
 }
 
 export interface RowMark {
@@ -37,6 +38,8 @@ const NEWEST_ROW_LIMIT = 8;
 const SINGLE_ROW_COUNT = 1;
 const EARLIER_CALL_NOUN = "call";
 const LINE_INDENT = "  └ ";
+const THOUGHT_LINE_INDENT = "  ";
+const THOUGHT_LINE_TEXT = "Thinking...";
 const SHELL_PROMPT = "$";
 const RUNNING_LINE_MARK = "…";
 const OVERFLOW_MARK = "...";
@@ -62,7 +65,7 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 		return [header];
 	}
 
-	return [header, ...commandLines(summary, width, showsCommandLines)];
+	return [header, ...commandLines(summary, width, showsCommandLines), ...thoughtLines(summary, showsCommandLines)];
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -183,6 +186,25 @@ function commandLines(summary: RowGroupSummary, width: number, showsCommandLines
 	}
 
 	return lines;
+}
+
+function thoughtLines(summary: RowGroupSummary, showsCommandLines: boolean): RowLine[] {
+	if (!summary.liveThought || !showsCommandLines) {
+		return [];
+	}
+
+	return [thoughtLine()];
+}
+
+function thoughtLine(): RowLine {
+	return {
+		indent: THOUGHT_LINE_INDENT,
+		mark: undefined,
+		text: THOUGHT_LINE_TEXT,
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+	};
 }
 
 function newestRows(rows: readonly RowSummary[]): readonly RowSummary[] {

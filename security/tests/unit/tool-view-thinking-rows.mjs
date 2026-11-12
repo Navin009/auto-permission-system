@@ -9,6 +9,10 @@ import {
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
 import { beginThinking, endThinking, resetThinking } from '../../../src/tool-view/thinking-clock.ts';
+import {
+	noteThinkingRendered,
+	resetThinkingVisibility,
+} from '../../../src/tool-view/thinking-visibility.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -30,6 +34,7 @@ const settle = (toolCallId, target, status = ToolStatus.Ok, durationMilliseconds
 
 resetRowGroups();
 resetThinking();
+resetThinkingVisibility();
 
 const running = join('call-a', 'npm test');
 check('a plain row draws only the command line', body(group(running)).join('|') === '  └ $ npm test');
@@ -37,44 +42,28 @@ check('a plain row draws only the command line', body(group(running)).join('|') 
 beginThinking();
 now += 4_000;
 const streaming = group(running);
-check('a streaming thought adds no line of its own', body(streaming).join('|') === '  └ $ npm test');
-check('a streaming thought rides in the bracket only', lineText(streaming[0]) === '● Running 1 command (thinking 4s) · 4s');
+check('a streaming thought adds a line at the bottom', body(streaming).join('|') === '  └ $ npm test|  Thinking...');
+check('the thought line is dim and has no mark or prompt', streaming[2].isDim && streaming[2].mark === undefined && !streaming[2].text.includes('$'));
+check('a streaming thought keeps the header bracket', lineText(streaming[0]) === '● Running 1 command (thinking 4s) · 4s');
 
 endThinking();
-settle('call-a', 'npm test', ToolStatus.Ok, 4_000);
+const dropped = group(running);
+check('a completed thought leaves no line behind', body(dropped).join('|') === '  └ $ npm test');
+check('a completed thought drops the header bracket', lineText(dropped[0]) === '● Running 1 command · 4s');
 
+settle('call-a', 'npm test', ToolStatus.Ok, 4_000);
 beginThinking();
 now += 3_000;
 endThinking();
 now += 1_000;
 const afterThought = join('call-b', 'npm run build');
-check('a command after a thought joins the row above it', afterThought === running);
-check('a command after a thought keeps one row for the run', group(running)[0].text.startsWith('Running 2 commands'));
-check('a command after a thought leaves no line for the thought', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ … $ npm run build');
-check('the first command keeps drawing the row', drawsFrame(running, 'call-a') && !drawsFrame(running, 'call-b'));
+check('a command after a thought joins the same row', afterThought === running);
+check('a command after a thought adds one command line and no thought line', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ … $ npm run build');
+check('the row stays on its first command', drawsFrame(running, 'call-a') && !drawsFrame(running, 'call-b'));
+check('a thought is never counted as a row', groupSummary(running, HINT).rows.length === 2);
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
-const settledSecond = group(running);
-check('both commands keep their own line', body(settledSecond).join('|') === '  └ ✓ $ npm test 4s|  └ ✓ $ npm run build 1s');
-
-const secondRows = groupSummary(running, HINT).rows;
-check('a group holds commands only', secondRows.every((row) => 'target' in row && 'status' in row));
-check('a thought is never counted as a row', secondRows.length === 2);
-
-resetRowGroups();
-resetThinking();
-
-beginThinking();
-now += 2_000;
-const firstCallAfterEarlyThought = join('call-early', 'git status');
-check('a thought before the first command does not open a row by itself', body(group(firstCallAfterEarlyThought)).join('|') === '  └ $ git status');
-check('the first command after a thought has no row to fold above it', group(firstCallAfterEarlyThought)[0].text.startsWith('Running 1 command'));
-endThinking();
-
-settle('call-early', 'git status', ToolStatus.Ok, 2_000);
-const joinedLater = join('call-later', 'git diff');
-check('commands after the first one still join their row', joinedLater === firstCallAfterEarlyThought);
-check('a joined command keeps one row for the run', body(group(firstCallAfterEarlyThought)).join('|') === '  └ ✓ $ git status 2s|  └ … $ git diff');
+check('the thought leaves no child line once everything settles', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ ✓ $ npm run build 1s');
 
 resetRowGroups();
 resetThinking();
@@ -85,12 +74,25 @@ beginThinking();
 now += 1_000;
 const readRow = group(read);
 check('a read row takes the bracket too', lineText(readRow[0]).includes('Reading 1 file') && lineText(readRow[0]).includes('(thinking 1s)'));
-check('a read row draws no line for a thought', readRow.length === 1);
+check('a read row never grows a body line for a thought', readRow.length === 1);
+endThinking();
+
+resetRowGroups();
+resetThinking();
+resetThinkingVisibility();
+noteThinkingRendered();
+
+const visibleFirst = join('visible-a', 'npm test');
+beginThinking();
+now += 2_000;
+check('no thought line is drawn when pi draws the thought itself', body(group(visibleFirst)).join('|') === '  └ $ npm test');
+check('the bracket still rides the row in the visible regime', lineText(group(visibleFirst)[0]).includes('(thinking 2s)'));
 endThinking();
 
 Date.now = realNow;
-resetRowGroups();
 resetThinking();
+resetThinkingVisibility();
+resetRowGroups();
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

@@ -138,6 +138,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
 		thinking,
+		liveThought: thinking !== undefined && !thoughtsRenderAsBlocks(),
 	};
 }
 
