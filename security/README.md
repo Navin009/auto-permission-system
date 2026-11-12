@@ -37,9 +37,6 @@ Append an object to `manifest.layers[]` with at minimum `id`, `name`, `status`, 
 Before this directory the security state lived across:
 
 - `SECURITY_PLAN.md` (intent + checkboxes)
-- `docs/security/implementation.md` (deep-dive)
-- `docs/security/tradeoffs.md` (decisions)
-- `docs/security/testing.md` (test matrix)
 - `~/.pi-tmp/*.mjs` (ephemeral test files — would have been lost)
 - `~/.pi/agent/extensions/sandbox.json` (actual policy)
 - `~/.pi/agent/extensions/security-guard.ts` (actual code)

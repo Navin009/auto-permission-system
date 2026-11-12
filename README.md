@@ -432,7 +432,7 @@ grep '"finding"' ~/.pi/agent/audit.log | tail -n 10
 
 ## FAQ & Scenarios
 
-A selection of common questions is below. For the complete, detailed guide, read **[docs/FAQ.md](docs/FAQ.md)**.
+A selection of common questions is below.
 
 ### How does Claude Auto Mode secure unattended runs?
 In headless mode (`pi -p` or subagent executions), interactive ask prompts cannot be presented to a human. Auto Permission System operates in a fail-closed posture: any tool call or bash command targeting an unlisted domain, credential file, or outside-project path is automatically blocked, and the refusal reason is provided to the agent and recorded in the audit log.

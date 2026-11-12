@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verify v3.4 ask prompts render exactly as docs/ask-examples.md specifies.
+ * Verify v3.4 ask prompts render with the expected titles and sections.
  * Calls each prompt primitive with realistic inputs and dumps the title
  * the user would see. Compares against the expected sections.
  *
