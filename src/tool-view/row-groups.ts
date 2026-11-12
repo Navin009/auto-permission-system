@@ -2,7 +2,8 @@ import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
-import { thinkingState } from "./thinking-clock.ts";
+import { thoughtRevision, thinkingState } from "./thinking-clock.ts";
+import { thoughtsRenderAsBlocks } from "./thinking-visibility.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -22,6 +23,7 @@ export interface RowGroup {
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
 	lastActivityAt: number;
+	thoughtRevisionAtNewestMember: number;
 }
 
 export interface RowCallInput {
@@ -98,7 +100,7 @@ export function advanceGroupExpansion(group: RowGroup): void {
 }
 
 export function repaintCurrentRow(): void {
-	const head = currentGroup ? newestMember(currentGroup) : undefined;
+	const head = currentGroup ? frameMember(currentGroup) : undefined;
 
 	if (head) {
 		safelyInvalidate(head);
@@ -116,11 +118,11 @@ export function resetRowGroups(): void {
 }
 
 export function drawsFrame(group: RowGroup, toolCallId: string): boolean {
-	return newestMember(group)?.toolCallId === toolCallId;
+	return frameMember(group)?.toolCallId === toolCallId;
 }
 
 export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
-	const first = group.members[0];
+	const first = frameMember(group);
 	const thinking = group === currentGroup ? thinkingState() : undefined;
 	const isLive =
 		thinking !== undefined ||
@@ -139,8 +141,8 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 	};
 }
 
-function newestMember(group: RowGroup): RowMember | undefined {
-	return group.members.at(-1);
+function frameMember(group: RowGroup): RowMember | undefined {
+	return group.members[0];
 }
 
 function hasGroupStep(group: RowGroup): boolean {
@@ -163,10 +165,24 @@ function groupForCall(input: RowCallInput): RowGroup {
 	}
 
 	if (currentGroup?.kind === input.kind) {
-		return currentGroup;
+		return splitsAfterThought(currentGroup) ? createGroup(input.kind) : currentGroup;
 	}
 
 	return createGroup(input.kind);
+}
+
+function splitsAfterThought(group: RowGroup): boolean {
+	if (!thoughtsRenderAsBlocks()) {
+		return false;
+	}
+
+	const thoughtArrived = thoughtRevision() > group.thoughtRevisionAtNewestMember;
+
+	return thoughtArrived && !hasRunningMember(group);
+}
+
+function hasRunningMember(group: RowGroup): boolean {
+	return group.members.some((member) => member.status === ToolStatus.Running);
 }
 
 function createGroup(kind: RowKind): RowGroup {
@@ -177,6 +193,7 @@ function createGroup(kind: RowKind): RowGroup {
 		ticker: undefined,
 		expansionLevel: ExpansionLevel.Row,
 		lastActivityAt: Date.now(),
+		thoughtRevisionAtNewestMember: thoughtRevision(),
 	};
 
 	openGroups.add(group);
@@ -204,7 +221,6 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		return existing;
 	}
 
-	const previousDrawer = newestMember(group);
 	const member: RowMember = {
 		toolCallId: input.toolCallId,
 		target: input.target,
@@ -217,10 +233,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 
 	group.members.push(member);
 	groupsByCall.set(member.toolCallId, group);
-
-	if (previousDrawer) {
-		safelyInvalidate(previousDrawer);
-	}
+	group.thoughtRevisionAtNewestMember = thoughtRevision();
 
 	return member;
 }
@@ -264,15 +277,15 @@ function stopGroupTicker(group: RowGroup): void {
 }
 
 function tickGroup(group: RowGroup): void {
-	const newest = newestMember(group);
+	const drawer = frameMember(group);
 
-	if (newest) {
-		safelyInvalidate(newest);
+	if (drawer) {
+		safelyInvalidate(drawer);
 	}
 }
 
 function invalidateFrame(group: RowGroup, updated: RowMember): void {
-	const drawer = newestMember(group);
+	const drawer = frameMember(group);
 
 	if (!drawer || drawer.toolCallId === updated.toolCallId) {
 		return;

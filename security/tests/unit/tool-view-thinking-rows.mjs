@@ -51,7 +51,7 @@ const afterThought = join('call-b', 'npm run build');
 check('a command after a thought joins the row above it', afterThought === running);
 check('a command after a thought keeps one row for the run', group(running)[0].text.startsWith('Running 2 commands'));
 check('a command after a thought leaves no line for the thought', body(group(running)).join('|') === '  └ ✓ $ npm test 4s|  └ … $ npm run build');
-check('the newest command draws the row', drawsFrame(running, 'call-b') && !drawsFrame(running, 'call-a'));
+check('the first command keeps drawing the row', drawsFrame(running, 'call-a') && !drawsFrame(running, 'call-b'));
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 const settledSecond = group(running);

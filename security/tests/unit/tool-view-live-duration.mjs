@@ -52,7 +52,7 @@ check('a finished row stays frozen', header(running) === '✓ Running 1 command 
 const afterThoughtRow = join('call-b', 'npm run build');
 now += 1_000;
 check('a second command keeps the group count going', header(running) === '● Running 2 commands · 8s');
-check('the newest command draws the group', header(afterThoughtRow) === '● Running 2 commands · 8s');
+check('the joining command reads the same group', header(afterThoughtRow) === '● Running 2 commands · 8s');
 
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 check('the group ends on the last settle', header(running) === '✓ Running 2 commands · 8s');

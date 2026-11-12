@@ -426,14 +426,12 @@ A streaming thought rides on the live row in brackets and leaves no block of its
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. The thought itself is never
-folded into a row: Pi draws it, exactly as `full` draws it, at the point where it happened — Pi's
-`Thinking...` line with its click-to-reveal, or its italic thought text when thinking is set to
-visible. `compact` never blanks that label, never rewrites the text and never adds a thinking line
-of its own, so a thought can never end up inside a collapsed group. A row is drawn from its
-**newest** command instead, so it always sits just below the thought and never above one: the
-commands that ran before the thought keep their `└` lines and move down with the row when the next
-command joins.
+freezes only when the row settles — so a live row never looks stopped. The thought itself takes no
+space: `compact` blanks Pi's hidden-thinking label for the session, so no `Thinking...` line and no
+blank gap is drawn for it, and a row is anchored at its first command and never moves — nothing can
+be drawn above a block that arrived later. If Pi is set to show thinking, the label cannot hide the
+italic block, so the row then ends at the thought: the row above folds and the next command opens
+its own.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first; click again and Pi draws its own block for every call in the group — same frame,

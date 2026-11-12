@@ -15,11 +15,12 @@ process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 const settingsFilePath = join(scratchAgentDir, 'tool-view.json');
 const extension = await import('../../../extensions/tool-view.ts');
 
-const registered = { resolvers: [], commands: [], handlers: [], events: [], eventHandlers: new Map() };
+const registered = { resolvers: [], commands: [], handlers: [], events: [], eventHandlers: new Map(), transformers: [] };
 const pi = {
 	on: (event, handler) => { registered.events.push(event); registered.eventHandlers.set(event, handler); return () => {}; },
 	registerToolRenderer: (resolver) => { registered.resolvers.push(resolver); },
 	registerCommand: (name, options) => { registered.commands.push(name); registered.handlers.push(options.handler); },
+	registerMarkdownTransformer: (transformer) => { registered.transformers.push(transformer); },
 };
 
 extension.default(pi);
@@ -88,13 +89,14 @@ setActiveViewMode('compact');
 check('compact owns the shell', resolver('bash', () => fallbackRenderers).renderShell === 'self');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
-check('a second command joins the same row', secondGroup.join(' ').includes('Running 2 commands'));
+check('a second command joins it silently', secondGroup.length === 0);
 const [firstGroupAgain] = renderCommands([['call-a', 'ls']]);
-check('the older command goes empty when the newest takes over', firstGroupAgain.length === 0);
+check('the first command keeps drawing the row', firstGroupAgain.join(' ').includes('Running 2 commands'));
 
 const endTurn = (content) => registered.eventHandlers.get('turn_end')({ message: { role: 'assistant', content } });
 endTurn([{ type: 'toolCall', id: 'call-b', name: 'bash' }]);
-const [afterToolOnlyTurn] = renderCommands([['call-turn', 'git diff']]);
+renderCommands([['call-turn', 'git diff']]);
+const [afterToolOnlyTurn] = renderCommands([['call-a', 'ls']]);
 check('a tool-only turn keeps the group open', afterToolOnlyTurn.join(' ').includes('Running 3 commands'));
 
 endTurn([{ type: 'text', text: 'Here is what I found.' }]);
@@ -125,9 +127,9 @@ settleCommand('call-thought-a', 'ls');
 registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }] } });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a thought joins the same row', afterThought.join(' ').includes('Running 2 commands'));
-const [olderThoughtGroup] = renderCommands([['call-thought-a', 'ls']]);
-check('the older command leaves the drawing to the newest', olderThoughtGroup.length === 0);
+check('a command after a hidden thought joins the same row', afterThought.length === 0);
+const [thoughtDrawer] = renderCommands([['call-thought-a', 'ls']]);
+check('the row keeps both commands', thoughtDrawer.join(' ').includes('Running 2 commands'));
 
 resetRowGroups();
 resetThinking();
@@ -157,7 +159,10 @@ const contextFor = (mode, notices) => ({
 });
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a session start leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a session start applies the saved view label', thinkingLabels.length === 1 && thinkingLabels[0] === undefined);
+
+registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
+check('every session start re-applies the label', thinkingLabels.length === 2 && thinkingLabels[1] === undefined);
 
 const printNotices = [];
 await registered.handlers[0]('compact', contextFor('print', printNotices));
@@ -168,22 +173,22 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('a switch never touches Pi own thinking label', thinkingLabels.length === 0);
+check('compact hides Pi own thinking blocks', thinkingLabels.length === 3 && thinkingLabels[2] === '');
 
 resolver('bash', () => fallbackRenderers)
 	.renderCall({ command: 'npm test' }, theme, renderContext({ toolCallId: 'call-label' }))
 	.render(100);
-check('a live row leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a live row writes no thinking label', thinkingLabels.length === 3);
 
 closeRowGroup();
-check('a closed row leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a closed row writes no thinking label', thinkingLabels.length === 3);
 
 resetRowGroups();
-check('a reset leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a reset writes no thinking label', thinkingLabels.length === 3);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('full leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('full restores Pi own thinking label', thinkingLabels.length === 4 && thinkingLabels[3] === undefined);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

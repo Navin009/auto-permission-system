@@ -3,6 +3,7 @@ import type { ThinkingState } from "../core/tool-view/thinking.ts";
 const TICK_INTERVAL_MILLISECONDS = 1000;
 
 let startedAt: number | undefined;
+let thoughtCount = 0;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let repaint: (() => void) | undefined;
 
@@ -16,6 +17,7 @@ export function beginThinking(): void {
 	}
 
 	startedAt = Date.now();
+	thoughtCount += 1;
 	startTicker();
 	repaint?.();
 }
@@ -30,6 +32,10 @@ export function endThinking(): void {
 	repaint?.();
 }
 
+export function thoughtRevision(): number {
+	return thoughtCount;
+}
+
 export function thinkingState(): ThinkingState | undefined {
 	if (startedAt === undefined) {
 		return undefined;
@@ -40,6 +46,7 @@ export function thinkingState(): ThinkingState | undefined {
 
 export function resetThinking(): void {
 	startedAt = undefined;
+	thoughtCount = 0;
 	stopTicker();
 }
 
