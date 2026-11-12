@@ -1,4 +1,4 @@
-import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts";
+import type { RowChild, RowGroupSummary, RowSummary, ThoughtSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
@@ -16,9 +16,16 @@ export interface RowMember {
 	invalidate: (() => void) | undefined;
 }
 
+export interface ThoughtMember {
+	startedAt: number;
+	settledAt: number | undefined;
+	text: string;
+	isExpanded: boolean;
+}
+
 export interface RowGroup {
 	kind: RowKind;
-	members: RowMember[];
+	children: GroupChild[];
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
 	lastActivityAt: number;
@@ -36,21 +43,30 @@ export interface RowSettleInput extends RowCallInput {
 	durationMilliseconds: number | undefined;
 }
 
+type GroupChild =
+	| { type: "command"; member: RowMember }
+	| { type: "thought"; thought: ThoughtMember };
+
 const openGroups = new Set<RowGroup>();
 const groupsByCall = new Map<string, RowGroup>();
+const pendingThoughts: GroupChild[] = [];
 let currentGroup: RowGroup | undefined;
+let newestGroup: RowGroup | undefined;
+let liveThought: ThoughtMember | undefined;
 let invalidating = false;
-let presenceListener: ((hasLiveRow: boolean) => void) | undefined;
+let presenceListener: (() => void) | undefined;
 let lastPresence = false;
 
-export function setRowPresenceListener(
-	listener: ((hasLiveRow: boolean) => void) | undefined,
-): void {
+export function setRowPresenceListener(listener: (() => void) | undefined): void {
 	presenceListener = listener;
 }
 
 export function hasLiveRow(): boolean {
 	return currentGroup !== undefined;
+}
+
+export function hasAnyRowGroup(): boolean {
+	return openGroups.size > 0;
 }
 
 export function joinRowGroup(input: RowCallInput): RowGroup {
@@ -87,6 +103,36 @@ export function settleRowGroup(input: RowSettleInput): RowGroup {
 	return group;
 }
 
+export function recordThought(text: string): void {
+	if (!liveThought) {
+		liveThought = { startedAt: Date.now(), settledAt: undefined, text, isExpanded: false };
+		childrenForThought().push({ type: "thought", thought: liveThought });
+	}
+	liveThought.text = text;
+	repaintCurrentRow();
+}
+
+export function settleThought(): void {
+	if (!liveThought) {
+		return;
+	}
+
+	liveThought.settledAt = Date.now();
+	liveThought = undefined;
+	repaintCurrentRow();
+}
+
+export function toggleThoughtAt(group: RowGroup, thoughtIndex: number): void {
+	const thought = thoughtMembers(group)[thoughtIndex];
+
+	if (!thought) {
+		return;
+	}
+
+	thought.isExpanded = !thought.isExpanded;
+	repaintGroups();
+}
+
 export function closeRowGroup(): void {
 	const group = currentGroup;
 
@@ -106,13 +152,13 @@ export function rowGroupOfCall(toolCallId: string): RowGroup | undefined {
 export function advanceGroupExpansion(group: RowGroup): void {
 	group.expansionLevel = nextExpansionLevel(group.expansionLevel, hasGroupStep(group));
 
-	for (const member of group.members) {
+	for (const member of commandMembers(group)) {
 		safelyInvalidate(member);
 	}
 }
 
 export function repaintCurrentRow(): void {
-	const head = currentGroup?.members[0];
+	const head = currentGroup ? headMember(currentGroup) : undefined;
 
 	if (head) {
 		safelyInvalidate(head);
@@ -126,32 +172,82 @@ export function resetRowGroups(): void {
 
 	openGroups.clear();
 	groupsByCall.clear();
+	pendingThoughts.length = 0;
 	currentGroup = undefined;
-	notifyPresence();
+	newestGroup = undefined;
+	liveThought = undefined;
+	lastPresence = false;
+	presenceListener?.();
 }
 
 export function isGroupHead(group: RowGroup, toolCallId: string): boolean {
-	return group.members[0]?.toolCallId === toolCallId;
+	return headMember(group)?.toolCallId === toolCallId;
 }
 
 export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
-	const head = group.members[0];
+	const head = headMember(group);
 	const thinking = group === currentGroup ? thinkingState() : undefined;
 	const isLive =
 		thinking !== undefined ||
-		group.members.some((member) => member.status === ToolStatus.Running);
+		commandMembers(group).some((member) => member.status === ToolStatus.Running);
 	const endMilliseconds = liveEndMilliseconds(group, isLive);
 	const durationMilliseconds =
 		head && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - head.startedAt) : undefined;
 
 	return {
 		kind: group.kind,
-		rows: group.members.map(rowSummary),
+		children: group.children.map(childSummary),
 		durationMilliseconds,
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
 		thinking,
+		isNewestGroup: group === newestGroup,
 	};
+}
+
+export function thoughtOfChildAt(group: RowGroup, thoughtIndex: number): ThoughtMember | undefined {
+	return thoughtMembers(group)[thoughtIndex];
+}
+
+
+function childSummary(child: GroupChild): RowChild {
+	if (child.type === "thought") {
+		return { type: "thought", thought: thoughtSummary(child.thought) };
+	}
+
+	return { type: "command", row: rowSummary(child.member) };
+}
+
+function thoughtSummary(thought: ThoughtMember): ThoughtSummary {
+	return {
+		text: thought.text,
+		elapsedMilliseconds: thoughtElapsed(thought),
+		isExpanded: thought.isExpanded,
+	};
+}
+
+function thoughtElapsed(thought: ThoughtMember): number | undefined {
+	if (thought.settledAt === undefined) {
+		return undefined;
+	}
+
+	return Math.max(0, thought.settledAt - thought.startedAt);
+}
+
+function commandMembers(group: RowGroup): RowMember[] {
+	return group.children.flatMap((child) => (child.type === "command" ? [child.member] : []));
+}
+
+function thoughtMembers(group: RowGroup): ThoughtMember[] {
+	return group.children.flatMap((child) => (child.type === "thought" ? [child.thought] : []));
+}
+
+function headMember(group: RowGroup): RowMember | undefined {
+	return group.children.find((child) => child.type === "command")?.member;
+}
+
+function childrenForThought(): GroupChild[] {
+	return currentGroup ? currentGroup.children : pendingThoughts;
 }
 
 function hasGroupStep(group: RowGroup): boolean {
@@ -184,7 +280,7 @@ function createGroup(kind: RowKind): RowGroup {
 	const previousGroup = currentGroup;
 	const group: RowGroup = {
 		kind,
-		members: [],
+		children: adoptPendingThoughts(),
 		ticker: undefined,
 		expansionLevel: ExpansionLevel.Row,
 		lastActivityAt: Date.now(),
@@ -192,6 +288,7 @@ function createGroup(kind: RowKind): RowGroup {
 
 	openGroups.add(group);
 	currentGroup = group;
+	newestGroup = group;
 
 	if (previousGroup) {
 		foldGroup(previousGroup);
@@ -202,6 +299,14 @@ function createGroup(kind: RowKind): RowGroup {
 	return group;
 }
 
+function adoptPendingThoughts(): GroupChild[] {
+	const adopted = [...pendingThoughts];
+
+	pendingThoughts.length = 0;
+
+	return adopted;
+}
+
 function notifyPresence(): void {
 	const hasLive = hasLiveRow();
 
@@ -210,19 +315,19 @@ function notifyPresence(): void {
 	}
 
 	lastPresence = hasLive;
-	presenceListener?.(hasLive);
+	presenceListener?.();
 }
 
 function foldGroup(group: RowGroup): void {
 	group.expansionLevel = ExpansionLevel.Row;
 
-	for (const member of group.members) {
+	for (const member of commandMembers(group)) {
 		safelyInvalidate(member);
 	}
 }
 
 function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
-	const existing = group.members.find((member) => member.toolCallId === input.toolCallId);
+	const existing = commandMembers(group).find((member) => member.toolCallId === input.toolCallId);
 
 	if (existing) {
 		return existing;
@@ -238,7 +343,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 		invalidate: input.invalidate,
 	};
 
-	group.members.push(member);
+	group.children.push({ type: "command", member });
 	groupsByCall.set(member.toolCallId, group);
 
 	return member;
@@ -267,7 +372,7 @@ function startGroupTicker(group: RowGroup): void {
 }
 
 function stopGroupTickerIfSettled(group: RowGroup): void {
-	if (group.members.some((member) => member.status === ToolStatus.Running)) {
+	if (commandMembers(group).some((member) => member.status === ToolStatus.Running)) {
 		return;
 	}
 
@@ -283,7 +388,7 @@ function stopGroupTicker(group: RowGroup): void {
 }
 
 function tickGroup(group: RowGroup): void {
-	const head = group.members[0];
+	const head = headMember(group);
 
 	if (head) {
 		safelyInvalidate(head);
@@ -291,13 +396,23 @@ function tickGroup(group: RowGroup): void {
 }
 
 function invalidateDrawingMember(group: RowGroup, joining: RowMember): void {
-	const head = group.members[0];
+	const head = headMember(group);
 
 	if (!head || head.toolCallId === joining.toolCallId) {
 		return;
 	}
 
 	safelyInvalidate(head);
+}
+
+function repaintGroups(): void {
+	for (const group of openGroups) {
+		const head = headMember(group);
+
+		if (head) {
+			safelyInvalidate(head);
+		}
+	}
 }
 
 function safelyInvalidate(member: RowMember): void {

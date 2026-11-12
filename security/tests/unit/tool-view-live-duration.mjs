@@ -17,7 +17,7 @@ let now = 1_000_000;
 Date.now = () => now;
 
 const lineText = (line) =>
-	`${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}`;
+	`${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}${line.duration ? ` ${line.duration}` : ''}`;
 const WIDTH = 100;
 const header = (group) => lineText(rowGroupLines(groupSummary(group, 'ctrl+o to expand'), WIDTH)[0]);
 const join = (toolCallId, target, kind = RowKind.Shell) =>
@@ -58,18 +58,18 @@ check('the group ends on the last settle', header(running) === '✓ Running 2 co
 
 const read = join('call-read', 'src/a.ts', RowKind.Read);
 now += 1_500;
-check('a running read counts up', header(read) === '● Reading 1 file (src/a.ts) · 1.5s ctrl+o to expand');
+check('a running read counts up', header(read) === '● Reading 1 file (src/a.ts) ctrl+o to expand · 1.5s');
 
 settle('call-read', 'src/a.ts', ToolStatus.Ok, 1_500, RowKind.Read);
-check('a finished read keeps its target', header(read) === '✓ Reading 1 file (src/a.ts) · 1.5s ctrl+o to expand');
+check('a finished read keeps its target', header(read) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 1.5s');
 
 beginThinking();
 now += 3_000;
-check('a settled row counts up while a thought streams', header(read) === '● Reading 1 file (src/a.ts) (thinking 3s) · 4.5s ctrl+o to expand');
+check('a settled row counts up while a thought streams', header(read) === '● Reading 1 file (src/a.ts) (thinking 3s) ctrl+o to expand · 4.5s');
 
 endThinking();
 now += 1_000;
-check('the settled row freezes where the thought ended', header(read) === '✓ Reading 1 file (src/a.ts) · 4.5s ctrl+o to expand');
+check('the settled row freezes where the thought ended', header(read) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 4.5s');
 
 Date.now = realNow;
 resetThinking();

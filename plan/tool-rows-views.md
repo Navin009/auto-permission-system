@@ -3,11 +3,14 @@
 **Status:** the collapsed row is shipped for shell commands and reads. Shipped: the mark in
 column 1, a `  └` line per command with its own mark and duration, the fold to one line once a
 later call starts, the `(last command)` target, `blocked` / `denied` on the row, the
-`(thinking Ns)` bracket on the live row, a 70 %-wide command column with right-aligned
-durations, the group's `└` lines as the first click level (§4), `Reading N files` rows for
-`read`, and Pi's own block on expand — `compact` wraps Pi's own components in Pi's own frame and
-never redraws them. Pi's `Thinking...` label is Pi's own in both views. Not shipped: rows for
-`edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
+`(thinking Ns)` bracket on the live row, a 70 %-wide command column, every duration right-aligned
+in one column at the display's right end, the group's `└` lines as the first click level (§4),
+`Reading N files` rows for `read`, a `Thinking...` line at the bottom of the newest row that opens
+into the thought (§5), `  └ ~ thinking 4s` records inside the group, and Pi's own block on expand
+— `compact` wraps Pi's own components in Pi's own frame and never redraws them. Pi's own hidden
+`Thinking...` label is blanked while a row is on screen, because the label is one global setting:
+`compact` draws the thought itself, so `Thinking...` appears once, at the point, instead of once
+per message. Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
 
@@ -31,7 +34,7 @@ the example short.
 One row reads:
 
 ```text
-<gutter><Verb-ing> <count> <noun> (<target>) · <duration> [blocked|denied] ctrl+o to expand
+<gutter><Verb-ing> <count> <noun> (<target>) [blocked|denied] ctrl+o to expand  <duration>
 ```
 
 The verb never flips when the call finishes: the gutter dot turns into `✓` in place, the
@@ -48,9 +51,10 @@ Finished work then tightens twice, on its own:
 The newest group always keeps its `└` lines. Everything above it has already become one line, so
 the transcript reads as one line per finished group and the live group only opened up.
 
-Thinking rides on the row while it streams — `● Running 1 command (thinking 4s) · 1s` — drops
-that bracket when the thought completes, and then gets out of the way: Pi draws the thinking
-itself, exactly as it does in `full`, and we add no row for it (§5).
+Thinking rides on the row while it streams — `● Running 1 command (thinking 4s) · 1s` — and the
+thought itself gets one line under the row, `Thinking...`, which opens on a click. When the next
+command starts that line becomes a `  └ ~ thinking 4s` record inside the group, so the live
+thought is always the only `Thinking...` on screen (§5).
 
 ---
 
@@ -93,15 +97,15 @@ Successfully replaced 1 block
 ### `compact`
 
 ```text
-✓ Reading 2 files (src/loader.ts) · 3s ctrl+o to expand
+✓ Reading 2 files (src/loader.ts) ctrl+o to expand                                              · 3s
 
-✗ Running 1 command (npm test) · 12s ctrl+o to expand
+✗ Running 1 command (npm test) ctrl+o to expand                                                · 12s
 
-✓ Reading 1 file (src/settings.ts) · 1s ctrl+o to expand
+✓ Reading 1 file (src/settings.ts) ctrl+o to expand                                             · 1s
 
-✓ Running 1 command (git status) · 1s ctrl+o to expand
+✓ Running 1 command (git status) ctrl+o to expand                                               · 1s
 
-✓ Editing 1 file (src/settings.ts) +5 -3 · 2s ctrl+o to expand
+✓ Editing 1 file (src/settings.ts) +5 -3 ctrl+o to expand                                       · 2s
 ```
 
 That is the whole feature: 6 blocks → 5 rows, same information, `ctrl+o` when you need a body.
@@ -115,12 +119,12 @@ Commands that follow each other with nothing in between share one row, and every
 its own `└` line:
 
 ```text
-✓ Reading 1 file (src/settings.ts) · 1s ctrl+o to expand
+✓ Reading 1 file (src/settings.ts) ctrl+o to expand                                             · 1s
 
-✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
-  └ ✗ $ npm test 2.4s
-  └ ✓ $ git status 0.2s
+✓ Running 3 commands                                                                            · 4s
+  └ ✓ $ npm run typecheck                                                                       1.1s
+  └ ✗ $ npm test                                                                                2.4s
+  └ ✓ $ git status                                                                              0.2s
 ```
 
 - Same row shape as above, `3 commands` instead of `1 command`, one line per command in the
@@ -130,7 +134,7 @@ its own `└` line:
   `└ ✗` line.
 - No output under a finished command: it is drawn only under the command still running and
   hidden the moment that one ends (§3). The frozen lines are the whole record.
-- The next call folds the whole list to `✓ Running 3 commands (git status) · 4s ctrl+o to expand`
+- The next call folds the whole list to `✓ Running 3 commands (git status) ctrl+o to expand · 4s`
   (below). `ctrl+o` on the row opens every command as Pi's own block; clicking a single `└` line
   opens just that one.
 
@@ -140,11 +144,11 @@ The next tool call is the signal: the group above it stops showing its `└` lin
 single row. Nothing on the row itself moves — only the lines go away.
 
 ```text
-✓ Reading 1 file (src/settings.ts) · 1s ctrl+o to expand
+✓ Reading 1 file (src/settings.ts) ctrl+o to expand                                             · 1s
 
-✓ Running 3 commands (git status) · 4s ctrl+o to expand
+✓ Running 3 commands (git status) ctrl+o to expand                                              · 4s
 
-✓ Editing 1 file (src/settings.ts) +5 -3 · 2s ctrl+o to expand
+✓ Editing 1 file (src/settings.ts) +5 -3 ctrl+o to expand                                       · 2s
 ```
 
 - The fold is automatic, not a setting: it happens when the group stops being the newest row.
@@ -158,13 +162,13 @@ single row. Nothing on the row itself moves — only the lines go away.
   its final stage, whitespace collapses to one line, and a quoted `&&` / `|` is not a boundary.
 - The row is composed against the terminal width: the target absorbs whatever columns are left
   after the mark, count, duration and `ctrl+o` hint, is cut **from the left** at a token (or
-  path-segment) boundary, and is dropped outright when no useful tail fits. The count, duration
-  and hint are never truncated.
+  path-segment) boundary, and is dropped outright when no useful tail fits. The count, hint and
+  duration are never truncated.
 
 ```text
-100 cols  ✓ Running 4 commands (sed -n 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
- 80 cols  ✓ Running 4 commands (… 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
- 60 cols  ✓ Running 4 commands · 8s ctrl+o to expand
+100 cols  ✓ Running 4 commands (sed -n 660,700p plan/tool-rows-views.md) ctrl+o to expand · 8s
+ 80 cols  ✓ Running 4 commands (… 660,700p plan/tool-rows-views.md) ctrl+o to expand · 8s
+ 60 cols  ✓ Running 4 commands ctrl+o to expand · 8s
 ```
 - The mark and the name both come from the last command, so the folded row is the list's own
   last line, not a summary of it; unfold to see that `npm test` failed.
@@ -179,9 +183,9 @@ single row. Nothing on the row itself moves — only the lines go away.
 One call is one line — no `└` child, no second line, whatever the call was:
 
 ```text
-✓ Reading 1 file (src/config.ts) · 1s ctrl+o to expand
+✓ Reading 1 file (src/config.ts) ctrl+o to expand                                               · 1s
 
-✓ Editing 1 file (src/settings.ts) +5 -3 · 2s ctrl+o to expand
+✓ Editing 1 file (src/settings.ts) +5 -3 ctrl+o to expand                                       · 2s
 
 ✗ Reading 1 file (id_rsa) blocked
 ```
@@ -195,13 +199,13 @@ One call is one line — no `└` child, no second line, whatever the call was:
   you want to read:
 
 ```text
-✓ Running 1 command · 4s
+✓ Running 1 command                                                                             · 4s
   └ $ npm view hunk version
 ```
 
   It is never grouped (`Running 1 commands` does not exist), carries no `ctrl+o to expand`
   hint while it is the newest row, and keeps its output while it runs (§2). Once a later call
-  starts, the pair folds to `✓ Running 1 command (npm view hunk version) · 4s ctrl+o to expand`.
+  starts, the pair folds to `✓ Running 1 command (npm view hunk version) ctrl+o to expand · 4s`.
 
 ---
 
@@ -210,15 +214,15 @@ One call is one line — no `└` child, no second line, whatever the call was:
 Three moments of one `bash` call, with a thought in the middle:
 
 ```text
-● Running 1 command (thinking 1s) · 2s
+● Running 1 command (thinking 1s)                                                               · 2s
   └ $ npm view hunk version
 ```
 ```text
-● Running 1 command · 2s
+● Running 1 command                                                                             · 2s
   └ $ npm view hunk version
 ```
 ```text
-✓ Running 1 command · 4s
+✓ Running 1 command                                                                             · 4s
   └ $ npm view hunk version
 ```
 
@@ -230,14 +234,17 @@ Three moments of one `bash` call, with a thought in the middle:
   everything else, then the moment the thought completes the bracket is dropped and the row is
   back to `● Running 1 command · 1s`. A thought never changes the count, and the row's timer keeps
   running while it streams, so a live row never looks frozen; the timer freezes only when the row
-  settles (§5).
+  settles. The thought also gets its own line under the row — `Thinking...` — which opens into the
+  text on a click and becomes a `  └ ~ thinking 4s` record when the next command starts (§5).
 - The `└` line keeps the command, minus noise: `cd <cwd> && `, wrappers (`sudo`, `uv run`,
   `env A=1`) and the interpreter are dropped (`python3 -m pytest …` reads `pytest …`), and a
   pipeline or chain is kept whole — only the folded header names the last segment. The command
   may take up to 70 % of the width — then `program arg … tail`, then `program … tail`, then the
-  program alone. Durations sit in one right-aligned column.
+  program alone. Every duration — the row's own and each command's — is the last thing on its
+  line, right-aligned in one column at the display's right end; the `ctrl+o to expand` hint stays
+  with the text, just before it.
 - The `└` line lives only while this is the newest row: one call later, the pair reads
-  `✓ Running 1 command (npm view hunk version) · 4s ctrl+o to expand` (§1).
+  `✓ Running 1 command (npm view hunk version) ctrl+o to expand · 4s` (§1).
 - When the whole turn ends, nothing new appears: the last row stays as it is. No "done" line,
   no summary line.
 
@@ -247,19 +254,19 @@ Three moments of one `bash` call, with a thought in the middle:
 
 | Case | `full` | `compact` |
 | --- | --- | --- |
-| one read | full block with file body | `✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand` |
-| 3 reads in a row | 3 blocks | `✓ Reading 3 files (src/c.ts) · 4s ctrl+o to expand` |
+| one read | full block with file body | `✓ Reading 1 file (src/a.ts) ctrl+o to expand · 1s` |
+| 3 reads in a row | 3 blocks | `✓ Reading 3 files (src/c.ts) ctrl+o to expand · 4s` |
 | read + bash | 2 blocks | `✓ Reading 1 file & Running 1 command · 3s` |
 | bash fails | block with error text | `✗ Running 1 command · 12s` + `└ $ npm test` |
 | read blocked by policy | block with "blocked by policy" | `✗ Reading 1 file (id_rsa) blocked` |
 | user denies the ask | block with "denied by user" | `✗ Running 1 command denied` + `└ $ curl https://x` |
-| edit a file | block with the diff | `✓ Editing 1 file (src/a.ts) +5 -3 · 2s ctrl+o to expand` |
+| edit a file | block with the diff | `✓ Editing 1 file (src/a.ts) +5 -3 ctrl+o to expand · 2s` |
 | write a file | block with full content | **same as `full`** — a write is never collapsed (below) |
 | codemode, 2 inner calls | 1 block with script + call log | `✓ Running codemode · 3s` + 2 `└` lines (below) |
 | 3 shell commands in a row | 3 blocks | `✓ Running 3 commands · 5s` + 3 `└` lines (below) |
-| 3 shell commands, folded | 3 blocks | `✓ Running 3 commands (git status) · 4s ctrl+o to expand` — click the row to unfold |
+| 3 shell commands, folded | 3 blocks | `✓ Running 3 commands (git status) ctrl+o to expand · 4s` — click the row to unfold |
 | 3 shell commands at once | 3 blocks | `● Running 3 commands · 1s` + 3 `…` lines (below) |
-| thinking between commands | block, then block | no row of ours: Pi's own thinking stays as it is, and the group is not split (§5) |
+| thinking between commands | block, then block | `Thinking...` at the bottom of the row, then `  └ ~ thinking 4s` inside the group once the next command starts; the group is not split (§5) |
 | thinking, no tools | thinking block, then answer | nothing new is drawn |
 | ask is open | ask prompt | `● Waiting on your answer · 2s` (one line only) |
 | long command, 40 cols | Pi wraps it | `● Running 1 command · 4s` + truncated `└ $ rg -n "toolTitle…` |
@@ -267,10 +274,10 @@ Three moments of one `bash` call, with a thought in the middle:
 ### codemode with inner calls (`compact`)
 
 ```text
-✓ Running codemode · 3s
+✓ Running codemode                                                                              · 3s
   └ await tools.searchTools("rank")
-  └ ✓ mcp:dev-radius:search rank 120ms
-  └ ✓ read src/config.ts 8ms
+  └ ✓ mcp:dev-radius:search rank                                                               120ms
+  └ ✓ read src/config.ts                                                                         8ms
 ```
 
 Inner calls never become rows of their own, and they are not counted separately: the turn
@@ -283,8 +290,8 @@ Several `bash` calls with nothing between them are one group. Every command keep
 output under a finished command:
 
 ```text
-● Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
+● Running 2 commands                                                                            · 5s
+  └ ✓ $ npm test                                                                                1.2s
   └ … $ npm run build
      > tsc -p tsconfig.json
 ```
@@ -292,9 +299,9 @@ output under a finished command:
 When they finish, the output goes away and only the command lines stay:
 
 ```text
-✓ Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
-  └ ✓ $ npm run build 3.0s
+✓ Running 2 commands                                                                            · 5s
+  └ ✓ $ npm test                                                                                1.2s
+  └ ✓ $ npm run build                                                                           3.0s
 ```
 
 Output is shown only under the command that is **still running**. The moment a command finishes
@@ -302,7 +309,7 @@ its output is collapsed away — the group never grows a nesting of output lines
 commands. Click that command line (or `ctrl+o` the group) to read the output again.
 
 That is the middle level. When the next call starts, the group above tightens once more and its
-lines give way to one row — `✓ Running 2 commands (npm run build) · 5s ctrl+o to expand` — and
+lines give way to one row — `✓ Running 2 commands (npm run build) ctrl+o to expand · 5s` — and
 one click brings them back (§1). Only the newest group ever shows its lines.
 
 **Two ways to open a group.** `ctrl+o` on the group row opens the **whole group** — every
@@ -333,8 +340,8 @@ Clicking one `└` command line opens **only that command** — Pi's block for i
 lines stay as rows:
 
 ```text
-✓ Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
+✓ Running 2 commands                                                                            · 5s
+  └ ✓ $ npm test                                                                                1.2s
 
 bash
   npm run build
@@ -362,10 +369,10 @@ list where it is.
 - The row's mark is the last command's mark, the same one its line ends on; a failure earlier in
   the run keeps its own `└ ✗` line and does not turn the row `✗`.
 - One command on its own is not a group: it is a single row plus its one `└ $ cmd` line, and it
-  folds to `✓ Running 1 command (npm run build) · 3s ctrl+o to expand` when a later call starts.
+  folds to `✓ Running 1 command (npm run build) ctrl+o to expand · 3s` when a later call starts.
 
 ```text
-✓ Running 1 command · 4s
+✓ Running 1 command                                                                             · 4s
   └ $ npm view hunk version
 ```
 
@@ -375,7 +382,7 @@ One batch of `bash` calls that Pi runs together is still a single group, and eve
 is running at the same moment — so every line carries `…` and draws its own output:
 
 ```text
-● Running 3 commands · 1s
+● Running 3 commands                                                                            · 1s
   └ … $ npm test
      > tsc -p tsconfig.json
   └ … $ npm run lint
@@ -387,10 +394,10 @@ Each line settles on its own, with its own mark and its own duration; the group 
 last one does:
 
 ```text
-✓ Running 3 commands · 4s
-  └ ✓ $ npm test 3.2s
-  └ ✓ $ npm run lint 2.1s
-  └ ✓ $ git status 0.3s
+✓ Running 3 commands                                                                            · 4s
+  └ ✓ $ npm test                                                                                3.2s
+  └ ✓ $ npm run lint                                                                            2.1s
+  └ ✓ $ git status                                                                              0.3s
 ```
 
 - The header duration is the group's own elapsed time, never the sum of the lines: three
@@ -409,7 +416,7 @@ block — its own header, its own content — even in `compact`. It does not joi
 ends the current group: rows above stay, the next call starts a new one.
 
 ```text
-✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand
+✓ Reading 1 file (src/a.ts) ctrl+o to expand                                                    · 1s
 
 write
   README.md
@@ -418,7 +425,7 @@ write
 
 …full file content, exactly as in `full` view…
 
-✓ Running 1 command · 1s
+✓ Running 1 command                                                                             · 1s
   └ $ git status
 ```
 
@@ -445,16 +452,16 @@ the mark, the count, the target and the duration stay exactly where they were.
 ### Level 1 — one line
 
 ```text
-✓ Running 3 commands (git status) · 4s ctrl+o to expand
+✓ Running 3 commands (git status) ctrl+o to expand                                              · 4s
 ```
 
 ### Level 2 — the group's lines
 
 ```text
-✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
-  └ ✗ $ npm test 2.4s
-  └ ✓ $ git status 0.2s
+✓ Running 3 commands                                                                            · 4s
+  └ ✓ $ npm run typecheck                                                                       1.1s
+  └ ✗ $ npm test                                                                                2.4s
+  └ ✓ $ git status                                                                              0.2s
 ```
 
 ### Level 3 — Pi's block for one call, result collapsed
@@ -463,8 +470,8 @@ Click the `└ ✗ $ npm test 2.4s` line and only that call turns into Pi's own 
 lines stay as rows:
 
 ```text
-✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
+✓ Running 3 commands                                                                            · 4s
+  └ ✓ $ npm run typecheck                                                                       1.1s
 
 bash
   npm test
@@ -472,7 +479,7 @@ bash
 ✗ tests/rows-summary.mjs (7)
 … 11 more lines · ctrl+o to expand
 
-  └ ✓ $ git status 0.2s
+  └ ✓ $ git status                                                                              0.2s
 ```
 
 ### Level 4 — the same block, fully expanded
@@ -498,6 +505,9 @@ bash
   never rewrites the block, it only decides where the block sits.
 - `ctrl+o` on the **row** walks the whole group: level 3 for every command at once, then level 4,
   then back to the row.
+- A thought line is its own click, on any level: the bottom `Thinking...` of the newest row and a
+  `└ ~ thinking 4s` record both open the thought text under the line (§5). It never changes the
+  row's level.
 - Nothing is remembered across a new call: whichever level you left a row on, the next call takes
   the row over and the finished group falls back to level 1.
 
@@ -507,7 +517,7 @@ A read or an edit has no level 2 — there are no `└` lines — so it goes fro
 Pi's block:
 
 ```text
-before:   ✓ Reading 2 files (src/b.ts) · 3s ctrl+o to expand
+before:   ✓ Reading 2 files (src/b.ts) ctrl+o to expand · 3s
 
 after:    read
             src/a.ts
@@ -530,83 +540,87 @@ carry no hint — click the row or the line instead.
 
 **Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
 `● Running 2 commands (thinking 4s) · 26s` — and the row's timer keeps running for as long as the
-thought streams. Pi's own hidden-thinking label is blanked only while a live row is on screen, so
-`Thinking...` never interrupts a row and its `└` lines; with no live row the label is handed back
-to Pi (`undefined`), so a run draws its `Thinking...` line and Pi's click-to-reveal works again in
-both views. Pi's italic thought text is still Pi's when thinking is set to visible: no extension
-API hides it, and `compact` never rewrites it.
+thought streams. Pi's hidden-thinking label is one global setting, so Pi cannot show "only the
+newest" thought: `compact` blanks it for as long as it has a row on screen and draws the thought
+itself — one `Thinking...` line at the point, which opens into the text on a click. A thought
+therefore never stacks: the previous one is a `  └ ~ thinking 4s` record inside the group. Pi's
+italic thought text is still Pi's when thinking is set to visible: no extension API hides it, and
+`compact` never rewrites it.
 
 ### Visible text splits the group
 
 ```text
-✓ Reading 2 files (src/b.ts) · 3s ctrl+o to expand
+✓ Reading 2 files (src/b.ts) ctrl+o to expand                                                   · 3s
 
 Here is what I found. The config lives in two files…
 
-✓ Running 1 command · 1s
+✓ Running 1 command                                                                             · 1s
   └ $ ls
 ```
 
 A row sits where its calls ran — it never slides below the text that came after it.
 
-### Thinking is Pi's own view — we add no row for it
+### Thinking is one line at the point
 
-There is no `~ Thought for 4s`, no `└ ~ thinking 4s`, no renamed label. Thinking is drawn by Pi
-exactly as it is in `full`; `compact` only keeps it from interrupting the rows.
-
-The one thing the row does is show the thought's timer while it streams, in the target slot:
+While a thought streams, one line sits at the bottom of the newest row, and the row's target slot
+carries its timer:
 
 ```text
-● Running 1 command (thinking 4s) · 1s
+● Running 1 command (thinking 4s)                                                              · 1s
   └ … $ npm run build
-     > tsc -p tsconfig.json
+Thinking...
 ```
 
-When the thought completes the bracket is dropped and the row is plain again:
+Click that line and the thought opens under it, wrapped to the width; click again and it closes:
 
 ```text
-● Running 1 command · 5s
+● Running 1 command (thinking 9s)                                                             · 12s
   └ … $ npm run build
-     > tsc -p tsconfig.json
+Thinking...
+  Run the suite first. If it is green, build — dist/ is generated output,
+  so never edit those files by hand.
 ```
 
-With thinking shown, Pi keeps drawing the thought as its italic text — place unchanged, no label,
-nothing added:
+The line stays after the thought completes, so it can still be opened, and it is the only one on
+screen: when the next command starts, that thought becomes one record line inside the group and
+the new thought — if there is one — takes the bottom again.
 
 ```text
-Run the suite first. If it is green, build — dist/ is
-generated output, so never edit those files by hand.
-
-bash
-  npm test
-──────────────────────────────────────────
-<test output>
+● Running 2 commands                                                                             · 3s
+  └ ✓ $ npm run build                                                                          2.0s
+  └ ~ thinking 4s
+  └ … $ npm test
 ```
 
-With thinking hidden, Pi draws its own label — `Thinking...`, or whatever `setHiddenThinkingLabel`
-was given. That is Pi's setting, not ours: `compact` never relabels it, never removes it and never
-adds a click, so whatever Pi shows is what you see — and clicking it still reveals that run.
-
-- A thought is not a call: it is never counted (`Running 1 command`, never 2 items), never
-  changes the mark, and never restarts the timer — the row keeps counting while the thought
-  streams and freezes only when the row settles.
+- `Thinking...` is the thought at the point; `  └ ~ thinking 4s` is the same thought once a call
+  follows it. Both open the same way, and both belong to the row that was live at the time.
+- The record line is a group line: it folds away when the group folds to one line and comes back
+  with the other `└` lines when the row is opened (§4). The bottom `Thinking...` line of the
+  newest row stays visible, folded or not, until a newer group takes the bottom.
+- A thought that starts before the first call of a turn is adopted by the row that call opens, so
+  no thought is lost and none is drawn twice.
+- A thought is not a call: it is never counted (`Running 1 command`, never 2 items), never changes
+  the mark, never restarts the timer — the row keeps counting while the thought streams and
+  freezes only when the row settles.
 - A thought never splits a group: thinking between two commands still leaves one group, and
   `ctrl+o` on that group opens only the commands.
-- A turn with thinking and no tool calls draws no rows at all, so nothing extra appears — Pi's
-  thinking and the answer are all there is.
+- A turn with thinking and no tool calls draws no rows at all. Before the first row of a session
+  Pi draws its own `Thinking...`; once `compact` has a row on screen the label is blank for the
+  rest of the session, so a later tool-free turn shows no thinking line — its thought is read
+  through the rows of that turn instead.
 
 ### A whole turn: text → thinking → command → thinking → text
 
 Text, then a thought, then a command, then another thought, then text. In `compact` that is
-three things on screen — the text, one row for the call, the text again — with Pi's own thinking
-wherever Pi puts it.
+three things on screen — the text, one row for the call, the text again — with the thought on one
+line under its row.
 
 While the command runs and the first thought is still streaming:
 
 ```text
 Let me check the suite before touching the build.
 
-● Running 1 command (thinking 2s) · 1s
+● Running 1 command (thinking 2s)                                                               · 1s
   └ … $ npm test
      > tsc -p tsconfig.json
 ```
@@ -616,7 +630,7 @@ The thought completes, the command keeps going — the bracket goes, nothing els
 ```text
 Let me check the suite before touching the build.
 
-● Running 1 command · 3s
+● Running 1 command                                                                             · 3s
   └ … $ npm test
      > tsc -p tsconfig.json
 ```
@@ -627,7 +641,7 @@ the text after it took the line over — and the thought is Pi's, in its own pla
 ```text
 Let me check the suite before touching the build.
 
-✓ Running 1 command (npm test) · 4s ctrl+o to expand
+✓ Running 1 command (npm test) ctrl+o to expand                                                 · 4s
 
 Thinking...
 
@@ -652,7 +666,7 @@ point and start again after it:
 While it is still queued, the running row stays above it, untouched:
 
 ```text
-● Running 1 command · 3s
+● Running 1 command                                                                             · 3s
   └ … $ npm run build
      > tsc -p tsconfig.json
 
@@ -664,11 +678,11 @@ When it lands mid-turn, the group above ends and the next command opens a new on
 `Running 2 commands`:
 
 ```text
-✓ Running 1 command (npm run build) · 6s ctrl+o to expand
+✓ Running 1 command (npm run build) ctrl+o to expand                                            · 6s
 
 stop after this build, run the linter next
 
-● Running 1 command · 2s
+● Running 1 command                                                                             · 2s
   └ … $ npm test
 ```
 
@@ -686,14 +700,16 @@ stop after this build, run the linter next
 1. Column 1 is the gutter, and the mark lives there: `●` while the call runs, `✓` once it has
    finished, `✗` when it failed or was stopped by a gate. The glyph is swapped in place — never
    added at the end of the row — so a finished row never grows or shifts.
-2. A row reads `<mark><Verb-ing> <count> <noun> (<target>) · <duration> [blocked|denied]`. The
-   verb never flips when the call finishes: only the mark changes and the seconds freeze.
+2. A row reads `<mark><Verb-ing> <count> <noun> (<target>) [blocked|denied] ctrl+o to expand
+   · <duration>`. The verb never flips when the call finishes: only the mark changes and the
+   seconds freeze.
 3. `✓` done, `✗` failed or stopped. A blocked or denied call says so on the row —
    `✗ Reading 1 file (id_rsa) blocked`, `✗ Running 1 command denied` — never silent.
 4. A finished row stays on screen until the next call takes the line over.
-5. A row ends with `ctrl+o to expand` only while something closed sits behind it: a file body, a
+5. A row carries `ctrl+o to expand` only while something closed sits behind it: a file body, a
    diff, a folded group. A live group already showing its `└` lines and a single command row
-   showing `└ $ cmd` carry no hint.
+   showing `└ $ cmd` carry no hint. The hint stays with the text; the duration is the last thing
+   on the line.
 6. Several shell commands in a row are one group of `└ $ cmd` lines, each with `✓`/`✗` and how
    long it took. Output shows only under the command still running; when it finishes its output
    is hidden — click the line or `ctrl+o` to read it. No collapsed one-liner to open first.
@@ -701,11 +717,12 @@ stop after this build, run the linter next
    that bracket is dropped the moment the thought completes. It is never counted as a call and
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
    freezes only when it settles.
-8. Thinking never becomes part of a row or a group: no `~ Thought…` line, no `└ ~ thinking…`
-   line, no relabelled label. Pi draws its own thinking block (`Thinking...` when hidden); it is
-   blanked while a live row is on screen and handed back with no live row, click-to-reveal
-   included. The `(thinking Ns)` bracket on the row is only the live timer, and it disappears
-   when the thought completes.
+8. Thinking gets exactly one line: `Thinking...` at the bottom of the newest row, which opens
+   into the thought on a click. When a call follows it, it becomes one `  └ ~ thinking 4s` record
+   inside the group — a group line, folded with the rest. Pi's own hidden-thinking label is
+   blanked while `compact` has a row on screen, because that label is one global setting: without
+   it, every message with a thought would add another `Thinking...` line. The `(thinking Ns)`
+   bracket on the row is only the live timer, and it disappears when the thought completes.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.

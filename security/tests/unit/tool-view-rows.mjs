@@ -8,11 +8,12 @@ const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FA
 
 const HINT = 'ctrl+o to expand';
 const WIDTH = 100;
-const lineText = (line) => `${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.duration ? ` ${line.duration}` : ''}${line.hint ? ` ${line.hint}` : ''}`;
+const lineText = (line) => `${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}${line.duration ? ` ${line.duration}` : ''}`;
 const row = (overrides) => ({ target: 'npm test', status: ToolStatus.Ok, durationMilliseconds: 1200, ...overrides });
+const command = (entry) => ({ type: 'command', row: entry });
 const summary = (rows, overrides) => ({
 	kind: RowKind.Shell,
-	rows,
+	children: rows.map(command),
 	durationMilliseconds: 5000,
 	folded: false,
 	hint: HINT,
@@ -41,9 +42,11 @@ check('one command header', header(one) === '✓ Running 1 command · 5s');
 check('one command keeps a plain command line', body(one)[0] === '  └ $ npm test');
 check('one open row carries no expand hint', one[0].hint === undefined);
 check('one command has no overflow line', one.length === 2);
+check('the row duration lives in its own column', one[0].duration === '· 5s');
+check('the row text never carries the duration', one[0].text === 'Running 1 command');
 
 const two = group([row({}), row({ target: 'npm run build', status: ToolStatus.Running })]);
-check('two commands are counted', two[0].text === 'Running 2 commands · 5s');
+check('two commands are counted', header(two) === '● Running 2 commands · 5s');
 check('a finished command line carries its mark and duration', body(two)[0] === '  └ ✓ $ npm test 1.2s');
 check('a running command line reads with an ellipsis and no duration', body(two)[1] === '  └ … $ npm run build');
 check('several open commands carry no expand hint', two[0].hint === undefined);
@@ -66,22 +69,23 @@ const deniedLine = group([row({}), row({ status: ToolStatus.Denied })]);
 check('a denied line names its gate', body(deniedLine)[1] === '  └ ✗ $ npm test denied 1.2s');
 
 const singleDenied = group([row({ status: ToolStatus.Denied })]);
-check('a single denied row names its gate on the header', header(singleDenied) === '✗ Running 1 command · 5s denied');
+check('a single denied row names its gate on the header', header(singleDenied) === '✗ Running 1 command denied · 5s');
 
 const foldedSingle = group([row({})], { folded: true });
 check('a folded single command is one line', foldedSingle.length === 1);
-check('a folded row names the last command', header(foldedSingle) === '✓ Running 1 command (npm test) · 5s ctrl+o to expand');
+check('a folded row names the last command', header(foldedSingle) === '✓ Running 1 command (npm test) ctrl+o to expand · 5s');
+check('the hint stays with the text, before the duration column', foldedSingle[0].hint === HINT && foldedSingle[0].duration === '· 5s');
 
 const foldedGroup = group([row({}), row({ target: 'npm run build' }), row({ target: 'git status' })], { folded: true });
 check('a folded group is one line', foldedGroup.length === 1);
-check('a folded group names the last command', header(foldedGroup) === '✓ Running 3 commands (git status) · 5s ctrl+o to expand');
+check('a folded group names the last command', header(foldedGroup) === '✓ Running 3 commands (git status) ctrl+o to expand · 5s');
 
 const foldedDenied = group([row({ status: ToolStatus.Denied })], { folded: true });
-check('a folded denial stays named', header(foldedDenied) === '✗ Running 1 command (npm test) · 5s denied ctrl+o to expand');
+check('a folded denial stays named', header(foldedDenied) === '✗ Running 1 command (npm test) denied ctrl+o to expand · 5s');
 
 const many = Array.from({ length: 11 }, (_, index) => row({ target: `cmd-${index}` }));
 const window = group(many);
-check('the header counts every command', window[0].text === 'Running 11 commands · 5s');
+check('the header counts every command', window[0].text === 'Running 11 commands');
 check('only the newest eight command lines are drawn', body(window).length === 9);
 check('older commands collapse to one line', body(window)[0] === '  └ ... (3 earlier calls)');
 check('the newest command is last', body(window).at(-1) === '  └ ✓ $ cmd-10 1.2s');
@@ -94,15 +98,15 @@ check('a folded target never spans lines', group([row({ target: 'git status\n' }
 
 const oneRead = readGroup([row({ target: 'src/a.ts' })]);
 check('one read is a single row', oneRead.length === 1);
-check('a read row reads a file', header(oneRead) === '✓ Reading 1 file (src/a.ts) · 5s ctrl+o to expand');
+check('a read row reads a file', header(oneRead) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 5s');
 check('a read row carries the expand hint while it is newest', oneRead[0].hint === HINT);
 
 const threeReads = readGroup([row({ target: 'src/a.ts' }), row({ target: 'src/b.ts' }), row({ target: 'src/c.ts' })]);
-check('reads are counted as files', threeReads.length === 1 && header(threeReads) === '✓ Reading 3 files (src/c.ts) · 5s ctrl+o to expand');
+check('reads are counted as files', threeReads.length === 1 && header(threeReads) === '✓ Reading 3 files (src/c.ts) ctrl+o to expand · 5s');
 check('a read row never draws command lines', body(threeReads).length === 0);
 
 const failedRead = readGroup([row({ status: ToolStatus.Blocked, durationMilliseconds: undefined })]);
-check('a blocked read says so on its row', header(failedRead) === '✗ Reading 1 file (npm test) · 5s blocked ctrl+o to expand');
+check('a blocked read says so on its row', header(failedRead) === '✗ Reading 1 file (npm test) blocked ctrl+o to expand · 5s');
 check('a blocked read needs no child line', failedRead.length === 1);
 
 const shellWithRead = group([row({})], { kind: RowKind.Shell });
@@ -114,14 +118,14 @@ check('a thought never changes the count', thinkingGroup[0].text.startsWith('Run
 check('a thought never becomes a command line', body(thinkingGroup).length === 2);
 
 const thinkingFolded = group([row({ target: 'git status' })], { folded: true, thinking: thinking(4000) });
-check('a folded row keeps its target and takes the bracket', header(thinkingFolded) === '● Running 1 command (git status) (thinking 4s) · 5s ctrl+o to expand');
+check('a folded row keeps its target and takes the bracket', header(thinkingFolded) === '● Running 1 command (git status) (thinking 4s) ctrl+o to expand · 5s');
 
 const thinkingFailed = group([row({ status: ToolStatus.Failed })], { thinking: thinking(2000) });
 check('a thought never hides a failure mark', thinkingFailed[0].mark.glyph === '✗');
 check('a thought still joins a failure row', header(thinkingFailed) === '✗ Running 1 command (thinking 2s) · 5s');
 
 const thinkingRead = readGroup([row({ target: 'src/a.ts' })], { thinking: thinking(1000) });
-check('a read row takes the bracket too', header(thinkingRead) === '● Reading 1 file (src/a.ts) (thinking 1s) · 5s ctrl+o to expand');
+check('a read row takes the bracket too', header(thinkingRead) === '● Reading 1 file (src/a.ts) (thinking 1s) ctrl+o to expand · 5s');
 
 const noThinking = group([row({})], { thinking: undefined });
 check('a row without a thought has no bracket', !header(noThinking).includes('thinking'));
@@ -129,15 +133,15 @@ check('a row without a thought has no bracket', !header(noThinking).includes('th
 const LONG_COMMAND = "cd /home/navinkumar/workspace/auto-permission-system && sed -n 570,600p plan/tool-rows-views.md && echo '--- 660-700' && sed -n 660,700p plan/tool-rows-views.md";
 const foldedAt = (width) => header(group([row({ target: LONG_COMMAND })], { folded: true }, width));
 
-check('a folded compound command names its last segment', foldedAt(100) === '✓ Running 1 command (sed -n 660,700p plan/tool-rows-views.md) · 5s ctrl+o to expand');
-check('a long target keeps its tail at 80 columns', foldedAt(80) === '✓ Running 1 command (… 660,700p plan/tool-rows-views.md) · 5s ctrl+o to expand');
-check('a long target drops whole tokens at 72 columns', foldedAt(72) === '✓ Running 1 command (… plan/tool-rows-views.md) · 5s ctrl+o to expand');
-check('a target with no room is dropped', foldedAt(60) === '✓ Running 1 command · 5s ctrl+o to expand');
-check('a dropped target keeps the duration and the hint', foldedAt(60).endsWith('· 5s ctrl+o to expand'));
+check('a folded compound command names its last segment', foldedAt(100) === '✓ Running 1 command (sed -n 660,700p plan/tool-rows-views.md) ctrl+o to expand · 5s');
+check('a long target keeps its tail at 80 columns', foldedAt(80) === '✓ Running 1 command (… 660,700p plan/tool-rows-views.md) ctrl+o to expand · 5s');
+check('a long target drops whole tokens at 72 columns', foldedAt(72) === '✓ Running 1 command (… plan/tool-rows-views.md) ctrl+o to expand · 5s');
+check('a target with no room is dropped', foldedAt(60) === '✓ Running 1 command ctrl+o to expand · 5s');
+check('a dropped target keeps the duration and the hint', foldedAt(60).endsWith('ctrl+o to expand · 5s'));
 check('a short target is never cut', foldedAt(200).includes('(sed -n 660,700p plan/tool-rows-views.md)'));
 
 const longRead = readGroup([row({ target: 'src/core/tool-view/row-group.ts' })], {}, 70);
-check('a long read path keeps its file name', header(longRead) === '✓ Reading 1 file (… core/tool-view/row-group.ts) · 5s ctrl+o to expand');
+check('a long read path keeps its file name', header(longRead) === '✓ Reading 1 file (… core/tool-view/row-group.ts) ctrl+o to expand · 5s');
 
 const LONG_CHILD = "rg -n 'tool-view|row-group' src/core plan security/tests --glob '*.ts' --glob '*.mjs'";
 const childAt = (width, target = LONG_CHILD) => group([row({ target }), row({ target })], {}, width)[1];

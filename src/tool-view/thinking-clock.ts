@@ -16,8 +16,8 @@ export function setThinkingRepaint(listener: (() => void) | undefined): void {
 	repaint = listener;
 }
 
-export function applyThinkingLabel(host: ThinkingLabelHost, hasLiveRow: boolean): void {
-	host.ui.setHiddenThinkingLabel?.(hiddenThinkingLabel(getActiveViewMode(), hasLiveRow));
+export function applyThinkingLabel(host: ThinkingLabelHost, takesOverThinking: boolean): void {
+	host.ui.setHiddenThinkingLabel?.(hiddenThinkingLabel(getActiveViewMode(), takesOverThinking));
 }
 
 export function beginThinking(): void {

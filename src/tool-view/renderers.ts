@@ -13,6 +13,7 @@ import {
 	joinRowGroup,
 	rowGroupOfCall,
 	settleRowGroup,
+	toggleThoughtAt,
 	type RowGroup,
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
@@ -141,8 +142,9 @@ function rowComponent(group: RowGroup, context: RenderContext, theme: RenderThem
 	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
+	const onThoughtClick = (thoughtIndex: number) => toggleThoughtAt(group, thoughtIndex);
 
-	return new RowGroupComponent(summary, theme, onClick);
+	return new RowGroupComponent(summary, theme, onClick, onThoughtClick);
 }
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {
@@ -211,11 +213,11 @@ function nativeResultBlock(
 }
 
 function nativeBackground(theme: RenderTheme, context: RenderContext): (line: string) => string {
-	const background = context.isPartial
-		? PENDING_BACKGROUND
-		: context.isError
-			? ERROR_BACKGROUND
-			: SUCCESS_BACKGROUND;
+	if (context.isPartial) {
+		return (line) => theme.bg(PENDING_BACKGROUND, line);
+	}
+
+	const background = context.isError ? ERROR_BACKGROUND : SUCCESS_BACKGROUND;
 
 	return (line) => theme.bg(background, line);
 }

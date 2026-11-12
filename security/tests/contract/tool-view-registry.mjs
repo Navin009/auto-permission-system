@@ -39,6 +39,7 @@ const context = (overrides = {}) => ({
 });
 
 const lines = (component, width = 100) => component.render(width);
+const headerShape = (line) => line.replace(/\s{2,}/g, ' ').trim();
 const showsFallback = (component) => lines(component).some((line) => line.trim() === FALLBACK_TEXT);
 const callOf = (toolName, args, overrides) =>
 	toolViewRenderers(toolName, fallback).renderCall(args, theme, context({ durationMs: undefined, args, ...overrides }));
@@ -74,17 +75,17 @@ check(
 
 const bashCall = callOf('bash', { command: 'npm test' }, { toolCallId: 'call-bash' });
 check('a command call renders two lines', lines(bashCall).length === 2);
-check('the command row marks the running group', lines(bashCall)[0].startsWith('● Running 1 command · '));
+check('the command row marks the running group', headerShape(lines(bashCall)[0]).startsWith('● Running 1 command · '));
 check('the newest row has no expand hint', !lines(bashCall)[0].includes('ctrl+o'));
 check('the command row shows the command line', lines(bashCall)[1] === '  └ $ npm test');
 
 const readCall = callOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read' });
 check('a read call renders one line', lines(readCall).length === 1);
-check('a read row starts running', lines(readCall)[0].startsWith('● Reading 1 file (src/a.ts) · '));
+check('a read row starts running', headerShape(lines(readCall)[0]).startsWith('● Reading 1 file (src/a.ts) ctrl+o to expand · '));
 check('a read row carries no command line', !lines(readCall)[0].includes('└'));
 
 const readResult = resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 });
-check('a read row settles with its path', lines(readResult)[0] === '✓ Reading 1 file (src/a.ts) · 800ms ctrl+o to expand');
+check('a read row settles with its path', headerShape(lines(readResult)[0]) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 800ms');
 
 const secondRead = callOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-read-2' });
 check('a second read joins silently', lines(secondRead).length === 0);
@@ -93,22 +94,22 @@ const settledSecondRead = resultOf('read', { path: 'src/b.ts' }, { toolCallId: '
 check('a settled read member leaves the drawing to the head', lines(settledSecondRead).length === 0);
 const readGroup = lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 }));
 check('consecutive reads are one row', readGroup.length === 1);
-check('the read row counts both files', readGroup[0].startsWith('✓ Reading 2 files (src/b.ts) · '));
+check('the read row counts both files', headerShape(readGroup[0]).startsWith('✓ Reading 2 files (src/b.ts) ctrl+o to expand · '));
 
 closeRowGroup();
 const mixedCall = callOf('bash', { command: 'git status' }, { toolCallId: 'call-mixed' });
-check('a shell call after reads starts a new row', lines(mixedCall)[0].startsWith('● Running 1 command · '));
+check('a shell call after reads starts a new row', headerShape(lines(mixedCall)[0]).startsWith('● Running 1 command · '));
 
 const failedBash = resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 });
-check('a failed command row says so', lines(failedBash)[0] === '✗ Running 1 command · 1.5s');
+check('a failed command row says so', headerShape(lines(failedBash)[0]) === '✗ Running 1 command · 1.5s');
 check('a single failed command keeps its one line', lines(failedBash)[1] === '  └ $ npm test');
 
 const joinedBash = callOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build' });
 check('a second command joins the running group silently', lines(joinedBash).length === 0);
 
 const repaintedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
-check('the group row counts both commands', repaintedGroup[0].startsWith('● Running 2 commands · '));
-check('the group row takes the last command mark', repaintedGroup[0].startsWith('●'));
+check('the group row counts both commands', headerShape(repaintedGroup[0]).startsWith('● Running 2 commands · '));
+check('the group row takes the last command mark', headerShape(repaintedGroup[0]).startsWith('●'));
 check('an open group carries no expand hint', !repaintedGroup[0].includes('ctrl+o'));
 check('the first command keeps its mark and duration', repaintedGroup[1].startsWith('  └ ✗ $ npm test') && repaintedGroup[1].endsWith('1.5s'));
 check('the running command reads with an ellipsis', repaintedGroup[2] === '  └ … $ npm run build');
@@ -118,14 +119,14 @@ const settledSecond = resultOf('bash', { command: 'npm run build' }, { toolCallI
 check('a settled member leaves the drawing to the head', lines(settledSecond).length === 0);
 
 const settledGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
-check('the settled group ends on the last command', settledGroup[0].startsWith('✓ Running 2 commands · '));
+check('the settled group ends on the last command', headerShape(settledGroup[0]).startsWith('✓ Running 2 commands · '));
 check('the second command line settles with its duration', settledGroup[2].startsWith('  └ ✓ $ npm run build') && settledGroup[2].endsWith('3s'));
 
 closeRowGroup();
 const foldedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCallId: 'call-mixed', isError: true, durationMs: 1500 }));
 check('a closed group folds to one line', foldedGroup.length === 1);
 check('the folded row names the last command', foldedGroup[0].includes('(npm run build)'));
-check('the folded row carries the expand hint', foldedGroup[0].endsWith('ctrl+o to expand'));
+check('the folded row carries the expand hint', headerShape(foldedGroup[0]).endsWith('ctrl+o to expand · 1.5s'));
 
 resetRowGroups();
 const thinkingCall = callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' });
@@ -134,7 +135,7 @@ check('a thought starts on a plain row', !lines(thinkingCall)[0].includes('think
 beginThinking();
 const thinkingRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('a streaming thought rides on the row', thinkingRow[0].includes('(thinking 0s)'));
-check('a thinking row marks itself running', thinkingRow[0].startsWith('● Running 1 command (thinking 0s) · '));
+check('a thinking row marks itself running', headerShape(thinkingRow[0]).startsWith('● Running 1 command (thinking 0s) · '));
 endThinking();
 const quietRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('the bracket leaves with the thought', !quietRow[0].includes('thinking'));
@@ -146,7 +147,7 @@ const deniedShell = resultOf(
 	{ toolCallId: 'call-curl', isError: true, durationMs: 900, state: { settled: true } },
 	DENIAL_TEXT,
 );
-check('a denied call says so on its row', lines(deniedShell)[0] === '✗ Running 1 command · 900ms denied');
+check('a denied call says so on its row', headerShape(lines(deniedShell)[0]) === '✗ Running 1 command denied · 900ms');
 check('a denied call keeps its command line', lines(deniedShell)[1] === '  └ $ curl https://x');
 
 resetRowGroups();
@@ -158,7 +159,7 @@ const deniedRead = resultOf(
 );
 check(
 	'a blocked read says so on its row',
-	lines(deniedRead)[0].startsWith('✗ Reading 1 file (~/.ssh/id_rsa) · ') && lines(deniedRead)[0].includes(' blocked'),
+	headerShape(lines(deniedRead)[0]).startsWith('✗ Reading 1 file (~/.ssh/id_rsa) blocked'),
 );
 
 resetRowGroups();

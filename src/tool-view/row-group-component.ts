@@ -1,12 +1,12 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
 	truncateToWidth,
+	visibleWidth,
 	type Component,
 	type TuiMouseEvent,
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
-	markColumnWidth,
 	rowGroupLines,
 	type RowGroupSummary,
 	type RowLine,
@@ -19,17 +19,25 @@ const SPACE = " ";
 const CLICK_TYPE = "click";
 const LEFT_BUTTON = "left";
 
-type MarkColor = Parameters<Theme["fg"]>[0];
+type TextColor = Parameters<Theme["fg"]>[0];
 
 export class RowGroupComponent implements Component {
 	private readonly summary: () => RowGroupSummary;
 	private readonly theme: Theme;
 	private readonly onClick: () => void;
+	private readonly onThoughtClick: (thoughtIndex: number) => void;
+	private lines: readonly RowLine[] = [];
 
-	constructor(summary: () => RowGroupSummary, theme: Theme, onClick: () => void) {
+	constructor(
+		summary: () => RowGroupSummary,
+		theme: Theme,
+		onClick: () => void,
+		onThoughtClick: (thoughtIndex: number) => void,
+	) {
 		this.summary = summary;
 		this.theme = theme;
 		this.onClick = onClick;
+		this.onThoughtClick = onThoughtClick;
 	}
 
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -37,39 +45,59 @@ export class RowGroupComponent implements Component {
 			return undefined;
 		}
 
-		this.onClick();
+		const thoughtIndex = this.lines[event.y]?.thoughtIndex;
+
+		if (thoughtIndex === undefined) {
+			this.onClick();
+			return { handled: true };
+		}
+
+		this.onThoughtClick(thoughtIndex);
 
 		return { handled: true };
 	}
 
 	render(width: number): string[] {
-		const lines = rowGroupLines(this.summary(), width);
+		this.lines = rowGroupLines(this.summary(), width);
 
-		return lines.map((line) => truncateToWidth(this.lineText(line, width), width, ELLIPSIS));
+		return this.lines.map((line) => this.lineText(line, width));
 	}
 
 	invalidate(): void {}
 
 	private lineText(line: RowLine, width: number): string {
-		const indent = line.indent ? this.theme.fg("dim", line.indent) : "";
-		const mark = line.mark ? this.markText(line.mark) : "";
-		const text = line.isDim ? this.theme.fg("dim", line.text) : line.text;
-		const duration = this.durationColumn(line, width);
-		const hint = line.hint ? `${SPACE}${this.theme.fg("dim", line.hint)}` : "";
+		const tail = this.tailText(line);
+		const head = truncateToWidth(this.headText(line), Math.max(1, width - visibleWidth(tail)), ELLIPSIS);
 
-		return `${indent}${mark}${text}${duration}${hint}`;
-	}
-
-	private durationColumn(line: RowLine, width: number): string {
-		if (!line.duration) {
-			return "";
+		if (!tail) {
+			return head;
 		}
 
-		const markWidth = markColumnWidth(line.mark);
-		const usedWidth = line.indent.length + markWidth + line.text.length;
-		const padding = Math.max(SPACE.length, width - usedWidth - line.duration.length);
+		const padding = SPACE.repeat(Math.max(SPACE.length, width - visibleWidth(head) - visibleWidth(tail)));
 
-		return `${SPACE.repeat(padding)}${this.theme.fg("dim", line.duration)}`;
+		return `${head}${padding}${tail}`;
+	}
+
+	private headText(line: RowLine): string {
+		const indent = line.indent ? this.theme.fg("dim", line.indent) : "";
+		const mark = line.mark ? this.markText(line.mark) : "";
+
+		return `${indent}${mark}${this.bodyText(line)}`;
+	}
+
+	private bodyText(line: RowLine): string {
+		if (line.isItalic) {
+			return this.theme.italic(this.theme.fg("thinkingText", line.text));
+		}
+
+		return line.isDim ? this.theme.fg("dim", line.text) : line.text;
+	}
+
+	private tailText(line: RowLine): string {
+		const hint = line.hint ? `${this.theme.fg("dim", line.hint)}${SPACE}` : "";
+		const duration = line.duration ? this.theme.fg("dim", line.duration) : "";
+
+		return `${hint}${duration}`;
 	}
 
 	private markText(mark: RowMark): string {
@@ -77,7 +105,7 @@ export class RowGroupComponent implements Component {
 	}
 }
 
-function colorForStatus(status: ToolStatus): MarkColor {
+function colorForStatus(status: ToolStatus): TextColor {
 	if (status === ToolStatus.Running) {
 		return "accent";
 	}

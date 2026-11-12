@@ -1,10 +1,12 @@
 const TEXT_BLOCK_TYPE = "text";
 const THINKING_BLOCK_TYPE = "thinking";
+const THOUGHT_BLOCK_SEPARATOR = " ";
 const BLANK_TEXT = "";
 
 export interface MessageBlock {
 	type: string;
 	text?: string;
+	thinking?: string;
 }
 
 export interface MessageContent {
@@ -27,13 +29,37 @@ export function carriesVisibleText(message: MessageContent): boolean {
 }
 
 export function carriesStreamingThought(message: MessageContent): boolean {
+	return trailingThoughtBlocks(message).length > 0;
+}
+
+export function streamingThoughtText(message: MessageContent): string {
+	const thoughts = trailingThoughtBlocks(message)
+		.map((block) => (block.thinking ?? BLANK_TEXT).trim())
+		.filter((thought) => thought !== BLANK_TEXT);
+
+	return thoughts.join(THOUGHT_BLOCK_SEPARATOR);
+}
+
+function trailingThoughtBlocks(message: MessageContent): MessageBlock[] {
 	const content = message.content;
 
 	if (content === undefined || typeof content === "string") {
-		return false;
+		return [];
 	}
 
-	return content.at(-1)?.type === THINKING_BLOCK_TYPE;
+	const trailing: MessageBlock[] = [];
+
+	for (let index = content.length - 1; index >= 0; index -= 1) {
+		const block = content[index];
+
+		if (block.type !== THINKING_BLOCK_TYPE) {
+			break;
+		}
+
+		trailing.unshift(block);
+	}
+
+	return trailing;
 }
 
 function isTextBlock(block: MessageBlock): boolean {

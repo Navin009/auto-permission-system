@@ -1,6 +1,10 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { carriesStreamingThought, carriesVisibleText } from "../src/core/tool-view/message-text.ts";
+import {
+	carriesStreamingThought,
+	carriesVisibleText,
+	streamingThoughtText,
+} from "../src/core/tool-view/message-text.ts";
 import { rowKindOf } from "../src/core/tool-view/row-kind.ts";
 import {
 	readToolViewSettings,
@@ -10,9 +14,11 @@ import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/com
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import {
 	closeRowGroup,
-	hasLiveRow,
+	hasAnyRowGroup,
+	recordThought,
 	repaintCurrentRow,
 	resetRowGroups,
+	settleThought,
 	setRowPresenceListener,
 } from "../src/tool-view/row-groups.ts";
 import { setActiveViewMode } from "../src/tool-view/session.ts";
@@ -29,9 +35,15 @@ const USER_ROLE = "user";
 
 let labelContext: ExtensionContext | undefined;
 
-function applyLabelForRowPresence(hasLiveRowNow: boolean): void {
-	if (labelContext) {
-		applyThinkingLabel(labelContext, hasLiveRowNow);
+function applyLabelForRowPresence(): void {
+	if (!labelContext) {
+		return;
+	}
+
+	try {
+		applyThinkingLabel(labelContext, hasAnyRowGroup());
+	} catch {
+		labelContext = undefined;
 	}
 }
 
@@ -45,6 +57,11 @@ function startSession(): void {
 	reloadViewMode();
 }
 
+function endThought(): void {
+	endThinking();
+	settleThought();
+}
+
 export default function (pi: ExtensionAPI) {
 	setThinkingRepaint(repaintCurrentRow);
 	setRowPresenceListener(applyLabelForRowPresence);
@@ -53,11 +70,11 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, context) => {
 		labelContext = context;
 		startSession();
-		applyThinkingLabel(context, hasLiveRow());
+		applyThinkingLabel(context, hasAnyRowGroup());
 	});
 
 	pi.on("turn_end", (event) => {
-		endThinking();
+		endThought();
 
 		if (carriesVisibleText(event.message)) {
 			closeRowGroup();
@@ -65,7 +82,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_start", (event) => {
-		endThinking();
+		endThought();
 
 		if (event.message.role === USER_ROLE) {
 			closeRowGroup();
@@ -75,13 +92,15 @@ export default function (pi: ExtensionAPI) {
 	pi.on("message_update", (event) => {
 		if (carriesStreamingThought(event.message)) {
 			beginThinking();
+			recordThought(streamingThoughtText(event.message));
 			return;
 		}
 
-		endThinking();
+		endThought();
 	});
 
 	pi.on("session_shutdown", () => {
+		labelContext = undefined;
 		resetRowGroups();
 		resetThinking();
 	});

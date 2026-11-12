@@ -145,7 +145,10 @@ resolver('bash', () => fallbackRenderers)
 check('a live row hides Pi own thinking label', thinkingLabels.at(-1) === '');
 
 closeRowGroup();
-check('closing the row brings Pi own thinking label back', thinkingLabels.at(-1) === undefined);
+check('a closed row keeps Pi own thinking label hidden while its group is on screen', thinkingLabels.at(-1) === '');
+
+resetRowGroups();
+check('a reset hands Pi own thinking label back', thinkingLabels.at(-1) === undefined);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');

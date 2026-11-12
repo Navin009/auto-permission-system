@@ -27,6 +27,6 @@ export function elapsedSeconds(state: ThinkingState): number {
 	return Math.max(0, Math.floor(elapsed / MILLISECONDS_PER_SECOND));
 }
 
-export function hiddenThinkingLabel(viewMode: ViewMode, hasLiveRow: boolean): string | undefined {
-	return viewMode === ViewMode.Compact && hasLiveRow ? HIDDEN_THINKING_LABEL : undefined;
+export function hiddenThinkingLabel(viewMode: ViewMode, takesOverThinking: boolean): string | undefined {
+	return viewMode === ViewMode.Compact && takesOverThinking ? HIDDEN_THINKING_LABEL : undefined;
 }
