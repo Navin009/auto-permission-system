@@ -61,6 +61,10 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		endThinking();
+
+		if (carriesVisibleText(event.message)) {
+			closeRowGroup();
+		}
 	});
 
 	pi.on("session_shutdown", () => {

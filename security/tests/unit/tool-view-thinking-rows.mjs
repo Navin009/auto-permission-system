@@ -41,28 +41,45 @@ check('a streaming thought rides in the bracket only', lineText(streaming[0]) ==
 
 endThinking();
 settle('call-a', 'npm test', ToolStatus.Ok, 4_000);
+
+beginThinking();
+now += 3_000;
+endThinking();
 now += 1_000;
-join('call-b', 'npm run build');
-const twoCommands = group(running);
-check('a thought between two commands leaves one group', twoCommands[0].text.startsWith('Running 2 commands'));
-check('a thought between two commands draws one line per command', body(twoCommands).join('|') === '  └ ✓ $ npm test 4s|  └ … $ npm run build');
+const afterThought = join('call-b', 'npm run build');
+check('a command after a thought does not join the row above it', afterThought !== running);
+check('the row above the thought folds to one line', body(group(running)).length === 0);
+check('the folded row keeps its own count', group(running)[0].text.startsWith('Running 1 command'));
+check('the folded row keeps its own command', lineText(group(running)[0]).includes('(npm test)'));
+check('the command after the thought opens its own row', body(group(afterThought)).join('|') === '  └ $ npm run build');
+
+settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
+const settledSecond = group(afterThought);
+check('the second row counts only its own command', settledSecond[0].text.startsWith('Running 1 command'));
+check('the second row draws only its own command', body(settledSecond).join('|') === '  └ $ npm run build');
+
+const secondRows = groupSummary(afterThought, HINT).rows;
+check('a group holds commands only', secondRows.every((row) => 'target' in row && 'status' in row));
+check('a thought is never counted as a row', secondRows.length === 1);
+
+resetRowGroups();
+resetThinking();
 
 beginThinking();
 now += 2_000;
-const secondThought = group(running);
-check('a second thought adds no line either', body(secondThought).length === 2);
-check('a second thought rides on the same row', lineText(secondThought[0]).includes('(thinking 2s)'));
+const firstCallAfterEarlyThought = join('call-early', 'git status');
+check('a thought before the first command does not open a row by itself', body(group(firstCallAfterEarlyThought)).join('|') === '  └ $ git status');
+check('the first command after a thought has no row to fold above it', group(firstCallAfterEarlyThought)[0].text.startsWith('Running 1 command'));
 endThinking();
 
-settle('call-b', 'npm run build', ToolStatus.Ok, 2_000);
-const settled = group(running);
-check('a settled group keeps one line per command', body(settled).join('|') === '  └ ✓ $ npm test 4s|  └ ✓ $ npm run build 2s');
-
-const rows = groupSummary(running, HINT).rows;
-check('a group holds commands only', rows.every((row) => 'target' in row && 'status' in row));
-check('a thought is never counted as a row', rows.length === 2);
+settle('call-early', 'git status', ToolStatus.Ok, 2_000);
+const joinedLater = join('call-later', 'git diff');
+check('commands after the first one still join their row', joinedLater === firstCallAfterEarlyThought);
+check('a joined command keeps one row for the run', body(group(firstCallAfterEarlyThought)).join('|') === '  └ ✓ $ git status 2s|  └ … $ git diff');
 
 resetRowGroups();
+resetThinking();
+
 const read = join('call-read', 'src/a.ts', RowKind.Read);
 settle('call-read', 'src/a.ts', ToolStatus.Ok, 800, RowKind.Read);
 beginThinking();

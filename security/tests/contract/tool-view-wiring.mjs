@@ -75,6 +75,13 @@ const renderRead = (toolCallId, path) =>
 	resolver('read', () => fallbackRenderers)
 		.renderCall({ path }, theme, renderContext({ toolCallId, args: { path } }))
 		.render(100);
+const settleCommand = (toolCallId, command) =>
+	resolver('bash', () => fallbackRenderers).renderResult(
+		{ content: [{ type: 'text', text: 'ok' }] },
+		{ expanded: false, isPartial: false },
+		theme,
+		renderContext({ toolCallId, args: { command }, durationMs: 120 }),
+	);
 
 resetRowGroups();
 setActiveViewMode('compact');
@@ -100,6 +107,28 @@ check('a read ends the shell group', afterRead.join(' ').includes('Running 1 com
 resolver('write', () => fallbackRenderers);
 const [afterWrite] = renderCommands([['call-d', 'git log']]);
 check('a tool we do not own ends the group', afterWrite.join(' ').includes('Running 1 command'));
+
+resetRowGroups();
+resetThinking();
+const [beforeText] = renderCommands([['call-text-a', 'ls']]);
+registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'text', text: 'Here is what I found.' }] } });
+const [afterStreamingText] = renderCommands([['call-text-b', 'git status']]);
+check('streaming text closes the group before the turn ends', beforeText.join(' ').includes('Running 1 command'));
+check('the command after streaming text opens its own group', afterStreamingText.join(' ').includes('Running 1 command'));
+
+resetRowGroups();
+resetThinking();
+renderCommands([['call-thought-a', 'ls']]);
+settleCommand('call-thought-a', 'ls');
+registered.eventHandlers.get('message_update')({ message: { role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm' }] } });
+endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
+const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
+check('a command after a thought opens its own group', afterThought.join(' ').includes('Running 1 command'));
+const [foldedThoughtGroup] = renderCommands([['call-thought-a', 'ls']]);
+check('the group above the thought folds to one line', foldedThoughtGroup.length === 1 && foldedThoughtGroup[0].includes('(ls)'));
+
+resetRowGroups();
+resetThinking();
 
 resetRowGroups();
 setActiveViewMode('full');

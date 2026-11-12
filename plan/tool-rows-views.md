@@ -570,21 +570,23 @@ and clicking it opens the thought exactly as in `full`. Nothing about it belongs
 never counted, never folded, never reordered, and it never appears inside a group.
 
 When the next command starts, the commands above it fold into one row and the thought does not
-move with them — it stays where it was drawn, above the row:
+move with them — it stays where it was drawn, between the folded row and a row of its own:
 
 ```text
+✓ Running 1 command (npm run build) ctrl+o to expand · 2s
+
 Thinking...
 
-● Running 2 commands · 3s
-  └ ✓ $ npm run build 2.0s
-  └ … $ npm test
+● Running 1 command · 1s
+  └ $ npm test
 ```
 
 - A thought is not a call: it is never counted (`Running 1 command`, never 2 items), never changes
   the mark, never restarts the timer — the row keeps counting while the thought streams and
   freezes only when the row settles.
-- A thought never splits a group: thinking between two commands still leaves one group, and
-  `ctrl+o` on that group opens only the commands.
+- A thought ends a group: a command that follows one opens its own row instead of growing the row
+  above the thought, so no `└` line is ever drawn above a block that arrived after it. `ctrl+o` on
+  either row opens only the commands of its own side.
 - A turn with thinking and no tool calls draws no rows at all, and Pi's own thinking block is
   there as in `full`.
 
@@ -700,7 +702,8 @@ stop after this build, run the linter next
    it — its hidden `Thinking...` label, its click-to-reveal, its italic text when thinking is
    visible — so a thought can never end up inside a collapsed group. `compact` only adds the
    `(thinking Ns)` bracket to the live row; that bracket is the live timer and disappears when the
-   thought completes.
+   thought completes. A thought also **ends** the group: the command after it opens its own row,
+   because a row can never grow above a block that arrived later.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.

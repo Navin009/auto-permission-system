@@ -2,7 +2,7 @@ import type { RowGroupSummary, RowSummary } from "../core/tool-view/row-group.ts
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, type RowKind } from "../core/tool-view/row-kind.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
-import { thinkingState } from "./thinking-clock.ts";
+import { thoughtRevision, thinkingState } from "./thinking-clock.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -22,6 +22,7 @@ export interface RowGroup {
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
 	lastActivityAt: number;
+	thoughtAtNewestMember: number;
 }
 
 export interface RowCallInput {
@@ -163,10 +164,20 @@ function groupForCall(input: RowCallInput): RowGroup {
 	}
 
 	if (currentGroup?.kind === input.kind) {
-		return currentGroup;
+		return thoughtCameAfterNewestMember(currentGroup) ? createGroup(input.kind) : currentGroup;
 	}
 
 	return createGroup(input.kind);
+}
+
+function thoughtCameAfterNewestMember(group: RowGroup): boolean {
+	const thoughtArrived = thoughtRevision() > group.thoughtAtNewestMember;
+
+	return thoughtArrived && !hasRunningMember(group);
+}
+
+function hasRunningMember(group: RowGroup): boolean {
+	return group.members.some((member) => member.status === ToolStatus.Running);
 }
 
 function createGroup(kind: RowKind): RowGroup {
@@ -177,6 +188,7 @@ function createGroup(kind: RowKind): RowGroup {
 		ticker: undefined,
 		expansionLevel: ExpansionLevel.Row,
 		lastActivityAt: Date.now(),
+		thoughtAtNewestMember: thoughtRevision(),
 	};
 
 	openGroups.add(group);
@@ -216,6 +228,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 
 	group.members.push(member);
 	groupsByCall.set(member.toolCallId, group);
+	group.thoughtAtNewestMember = thoughtRevision();
 
 	return member;
 }
