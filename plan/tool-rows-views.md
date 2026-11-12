@@ -153,6 +153,18 @@ single row. Nothing on the row itself moves — only the lines go away.
 - `<target>` names one command, not all three — the same one the row's mark came from, the last
   one to run. `Running 3 commands` keeps the count honest — never `Running 1 command` because
   one name fits.
+- The name is the last command's **last segment**: a `cd … && sed … && echo …` chain collapses to
+  its final stage, whitespace collapses to one line, and a quoted `&&` / `|` is not a boundary.
+- The row is composed against the terminal width: the target absorbs whatever columns are left
+  after the mark, count, duration and `ctrl+o` hint, is cut **from the left** at a token (or
+  path-segment) boundary, and is dropped outright when no useful tail fits. The count, duration
+  and hint are never truncated.
+
+```text
+100 cols  ✓ Running 4 commands (sed -n 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
+ 80 cols  ✓ Running 4 commands (… 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
+ 60 cols  ✓ Running 4 commands · 8s ctrl+o to expand
+```
 - The mark and the name both come from the last command, so the folded row is the list's own
   last line, not a summary of it; unfold to see that `npm test` failed.
 - `ctrl+o` opens every command as Pi's own block, folded or not.
@@ -197,11 +209,11 @@ One call is one line — no `└` child, no second line, whatever the call was:
 Three moments of one `bash` call, with a thought in the middle:
 
 ```text
-● Running 1 command (thinking 1s) · 1s
+● Running 1 command (thinking 1s) · 2s
   └ $ npm view hunk version
 ```
 ```text
-● Running 1 command · 1s
+● Running 1 command · 2s
   └ $ npm view hunk version
 ```
 ```text
@@ -215,8 +227,9 @@ Three moments of one `bash` call, with a thought in the middle:
   finished row stays there until the next call takes the line over — never a blank gap.
 - Thinking borrows the target slot while it streams: `(thinking 1s)` appears and ticks like
   everything else, then the moment the thought completes the bracket is dropped and the row is
-  back to `● Running 1 command · 1s`. A thought never changes the count and never touches `· 1s`,
-  which stays the command's own time (§5).
+  back to `● Running 1 command · 1s`. A thought never changes the count, and the row's timer keeps
+  running while it streams, so a live row never looks frozen; the timer freezes only when the row
+  settles (§5).
 - The `└` line lives only while this is the newest row: one call later, the pair reads
   `✓ Running 1 command (npm view hunk version) · 4s ctrl+o to expand` (§1).
 - When the whole turn ends, nothing new appears: the last row stays as it is. No "done" line,
@@ -509,11 +522,12 @@ carry no hint — click the row or the line instead.
 
 ## 5. Text and thinking between calls (`compact`)
 
-**Shipped deviation:** the `(thinking Ns)` bracket lives on the live row, after its duration —
-`● Running 2 commands · 26s (thinking 4s)` — and `compact` hides Pi's repeated hidden-thinking
-labels (an empty hidden label, restored by `/tool-view full`), so a thought leaves exactly one trace
-instead of one `Thinking...` line per hidden run. Pi's italic thought text is still Pi's when thinking
-is set to visible: no extension API hides it, and `compact` never rewrites it.
+**Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
+`● Running 2 commands (thinking 4s) · 26s` — the row's timer keeps running for as long as the thought
+streams, and `compact` hides Pi's repeated hidden-thinking labels (an empty hidden label, restored by
+`/tool-view full`), so a thought leaves exactly one trace instead of one `Thinking...` line per hidden
+run. Pi's italic thought text is still Pi's when thinking is set to visible: no extension API hides
+it, and `compact` never rewrites it.
 
 ### Visible text splits the group
 
@@ -567,7 +581,8 @@ With thinking hidden, Pi draws its own label instead — `Thinking...`, or whate
 never adds a click and never adds a row, so whatever Pi shows is what you see.
 
 - A thought is not a call: it is never counted (`Running 1 command`, never 2 items), never
-  changes the mark, and never touches `· 5s`, which stays the command's own time.
+  changes the mark, and never restarts the timer — the row keeps counting while the thought
+  streams and freezes only when the row settles.
 - A thought never splits a group: thinking between two commands still leaves one group, and
   `ctrl+o` on that group opens only the commands.
 - A turn with thinking and no tool calls draws no rows at all, so nothing extra appears — Pi's
@@ -677,7 +692,8 @@ stop after this build, run the linter next
    is hidden — click the line or `ctrl+o` to read it. No collapsed one-liner to open first.
 7. Thinking streams in the row's target slot — `● Running 1 command (thinking 4s) · 1s` — and
    that bracket is dropped the moment the thought completes. It is never counted as a call and
-   never touches the row's own `· 4s`.
+   never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
+   freezes only when it settles.
 8. Thinking never becomes part of a row or a group: no `~ Thought…` line, no `└ ~ thinking…`
    line, no relabelled label. Pi draws its own thinking block (`Thinking...` when hidden) and
    `compact` leaves it exactly as `full` has it. The `(thinking Ns)` bracket on the row is the

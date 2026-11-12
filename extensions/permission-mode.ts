@@ -1,14 +1,19 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { modeLabel, normalizeMode, setPolicyMode, type PermissionMode } from "../src/core/index.ts";
+import {
+	menuOptionLine,
+	modeLabel,
+	normalizeMode,
+	SELECTION_TIMEOUT_MILLISECONDS,
+	setPolicyMode,
+	type PermissionMode,
+} from "../src/core/index.ts";
 import { loadConfig } from "../src/l1-sandbox/config.ts";
 import { loadPolicy } from "../src/l2-guard/policy.ts";
 import { audit } from "../src/shared/audit.ts";
 import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo.ts";
 
 const GLOBAL_POLICY_PATH = `${getAgentDir()}/extensions/sandbox.json`;
-const SELECTION_TIMEOUT_MILLISECONDS = 120_000;
-const MODE_LABEL_COLUMN_WIDTH = 26;
 
 interface ModeDefinition {
 	value: PermissionMode;
@@ -89,13 +94,9 @@ async function pickMode(
 		? "yolo"
 		: normalizeMode(loadPolicy(context.cwd).mode);
 
-	const options = MODE_DEFINITIONS.map((definition) => {
-		const isActive = definition.value === currentMode;
-		const nameWithStatus = isActive ? `${definition.name} (active)` : definition.name;
-		const labelColumn = nameWithStatus.padEnd(MODE_LABEL_COLUMN_WIDTH);
-
-		return `${definition.icon}  ${labelColumn} —  ${definition.description}`;
-	});
+	const options = MODE_DEFINITIONS.map((definition) =>
+		menuOptionLine(definition, definition.value === currentMode),
+	);
 
 	const pickedOption = await context.ui.select(
 		"Select permission mode:",

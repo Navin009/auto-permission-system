@@ -15,6 +15,7 @@ export * from "./policy/find-query.ts";
 export * from "./policy/write-fence.ts";
 export * from "./policy/subagent.ts";
 export * from "./grep-filter.ts";
+export * from "./selection-menu.ts";
 export * from "./tool-view/view-mode.ts";
 export * from "./tool-view/settings.ts";
 export * from "./tool-view/duration.ts";

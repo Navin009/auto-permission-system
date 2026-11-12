@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { menuOptionLine, SELECTION_TIMEOUT_MILLISECONDS } from "../core/selection-menu.ts";
 import { TOOL_VIEW_SETTINGS_FILE_NAME, writeToolViewMode } from "../core/tool-view/settings.ts";
 import { ViewMode, viewModeLabel } from "../core/tool-view/view-mode.ts";
 import { closeRowGroup, resetRowGroups } from "./row-groups.ts";
@@ -7,24 +8,36 @@ import { applyThinkingLabel } from "./thinking-clock.ts";
 
 export const TOOL_VIEW_COMMAND_NAME = "tool-view";
 
-const SELECTION_TIMEOUT_MILLISECONDS = 120_000;
-const MENU_TITLE = "Tool view:";
-const ACTIVE_SUFFIX = "  (active)";
-
-interface MenuChoice {
-	option: string;
-	mode: ViewMode;
-}
-
-const MENU_CHOICES: readonly MenuChoice[] = [
-	{ option: "Compact — tool calls in rows", mode: ViewMode.Compact },
-	{ option: "Full — Pi's own output", mode: ViewMode.Full },
-];
-
+const MENU_TITLE = "Select tool view:";
 const VIEW_MODES: readonly string[] = Object.values(ViewMode);
 const SETTINGS_FILE_NOTE = `Set "view" in ${TOOL_VIEW_SETTINGS_FILE_NAME} instead.`;
 const TUI_ONLY_NOTICE = `Tool view: the switch is TUI-only. ${SETTINGS_FILE_NOTE}`;
 const USAGE_NOTICE = "Usage: /tool-view compact | full — or run /tool-view for the menu.";
+
+interface ViewDefinition {
+	mode: ViewMode;
+	icon: string;
+	name: string;
+	description: string;
+	notice: string;
+}
+
+const VIEW_DEFINITIONS: readonly ViewDefinition[] = [
+	{
+		mode: ViewMode.Compact,
+		icon: "📦",
+		name: "Compact",
+		description: "Consecutive shell commands and reads drawn as rows",
+		notice: "📦  Compact on. Consecutive shell commands and reads are drawn as rows.",
+	},
+	{
+		mode: ViewMode.Full,
+		icon: "🖥️",
+		name: "Full",
+		description: "Pi's own tool output, block for block",
+		notice: "🖥️  Full. Pi's own tool output is back.",
+	},
+];
 
 export async function runToolViewCommand(
 	argument: string,
@@ -61,8 +74,8 @@ function modeFromArgument(
 
 async function pickMode(context: ExtensionCommandContext): Promise<ViewMode | undefined> {
 	const currentMode = getActiveViewMode();
-	const options = MENU_CHOICES.map((choice) =>
-		choice.mode === currentMode ? `${choice.option}${ACTIVE_SUFFIX}` : choice.option,
+	const options = VIEW_DEFINITIONS.map((definition) =>
+		menuOptionLine(definition, definition.mode === currentMode),
 	);
 	const selectionOptions = { timeout: SELECTION_TIMEOUT_MILLISECONDS };
 	const pickedOption = await context.ui.select(MENU_TITLE, options, selectionOptions);
@@ -73,7 +86,7 @@ async function pickMode(context: ExtensionCommandContext): Promise<ViewMode | un
 
 	const pickedIndex = options.indexOf(pickedOption);
 
-	return pickedIndex >= 0 ? MENU_CHOICES[pickedIndex].mode : undefined;
+	return pickedIndex >= 0 ? VIEW_DEFINITIONS[pickedIndex].mode : undefined;
 }
 
 function applyViewMode(
@@ -81,6 +94,11 @@ function applyViewMode(
 	viewMode: ViewMode,
 	context: ExtensionCommandContext,
 ): void {
+	if (viewMode === getActiveViewMode()) {
+		context.ui.notify(`Tool view is already ${viewModeLabel(viewMode)}.`, "info");
+		return;
+	}
+
 	const writeError = writeToolViewMode(settingsFilePath, viewMode);
 	setActiveViewMode(viewMode);
 	closeGroupsFor(viewMode);
@@ -94,7 +112,13 @@ function applyViewMode(
 		return;
 	}
 
-	context.ui.notify(`Tool view: ${viewModeLabel(viewMode)}.`, "info");
+	context.ui.notify(noticeFor(viewMode), "info");
+}
+
+function noticeFor(viewMode: ViewMode): string {
+	const definition = VIEW_DEFINITIONS.find((candidate) => candidate.mode === viewMode);
+
+	return definition ? definition.notice : `Tool view: ${viewModeLabel(viewMode)}.`;
 }
 
 function closeGroupsFor(viewMode: ViewMode): void {

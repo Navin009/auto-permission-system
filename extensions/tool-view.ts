@@ -81,7 +81,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand?.(TOOL_VIEW_COMMAND_NAME, {
-		description: "Switch how tool calls are drawn: /tool-view compact | full. Display only.",
+		description: "Choose how tool calls are drawn: Compact rows or Pi's own Full output. Display only.",
 		handler: async (args, context) => {
 			await runToolViewCommand(String(args ?? ""), SETTINGS_FILE_PATH, context);
 		},

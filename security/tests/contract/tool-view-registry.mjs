@@ -133,7 +133,7 @@ check('a thought starts on a plain row', !lines(thinkingCall)[0].includes('think
 beginThinking();
 const thinkingRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('a streaming thought rides on the row', thinkingRow[0].includes('(thinking 0s)'));
-check('a thinking row marks itself running', thinkingRow[0].startsWith('● Running 1 command · '));
+check('a thinking row marks itself running', thinkingRow[0].startsWith('● Running 1 command (thinking 0s) · '));
 endThinking();
 const quietRow = lines(callOf('bash', { command: 'npm view hunk' }, { toolCallId: 'call-thinking' }));
 check('the bracket leaves with the thought', !quietRow[0].includes('thinking'));

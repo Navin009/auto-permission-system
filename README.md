@@ -380,6 +380,17 @@ Once a later call starts, the group above tightens to one line and names its las
 ✓ Running 2 commands (git status) · 2s ctrl+o to expand
 ```
 
+The name is the last command's last segment, so a `cd … && sed … && echo …` chain collapses to its
+final stage. The row is composed against the terminal width: the target takes whatever columns are
+left, is cut from the left at a token (or path-segment) boundary, and is dropped when no useful tail
+fits — the count, duration and `ctrl+o` hint are never truncated:
+
+```text
+100 cols  ✓ Running 4 commands (sed -n 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
+ 80 cols  ✓ Running 4 commands (… 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
+ 60 cols  ✓ Running 4 commands · 8s ctrl+o to expand
+```
+
 Newest eight commands; older ones collapse to `  └ ... (2 earlier calls)`. Any other tool call, an
 assistant reply that carries text and a new user message all end the group, so two commands are only
 ever grouped when they really ran next to each other.
@@ -391,15 +402,16 @@ A blocked or denied command is never silent: a single command says so on its row
 A streaming thought rides on the live row in brackets and leaves no block of its own:
 
 ```text
-● Running 2 commands · 26s (thinking 4s)
+● Running 2 commands (thinking 4s) · 26s
   └ ✓ $ npm test 1.4s
   └ … $ npm run build
 ```
 
-The bracket ticks once a second, never counts as a call, never touches the row's own duration, and is
-dropped the moment the thought completes. `compact` hides Pi's repeated hidden-thinking labels so a
-thought leaves exactly one trace; `/tool-view full` restores Pi's label. With thinking set to visible,
-Pi's italic thought text is Pi's own — the extension never rewrites it.
+The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
+moment the thought completes. The row's own timer keeps counting while the thought streams — it
+freezes only when the row settles — so a live row never looks stopped. `compact` hides Pi's repeated
+hidden-thinking labels so a thought leaves exactly one trace; `/tool-view full` restores Pi's label.
+With thinking set to visible, Pi's italic thought text is Pi's own — the extension never rewrites it.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click or `ctrl+o` a row and Pi draws its
 own block for every call in the group — same frame, same padding, same background, same preview line

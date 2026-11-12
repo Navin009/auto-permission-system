@@ -21,6 +21,7 @@ export interface RowGroup {
 	members: RowMember[];
 	ticker: ReturnType<typeof setInterval> | undefined;
 	expansionLevel: ExpansionLevel;
+	lastActivityAt: number;
 }
 
 export interface RowCallInput {
@@ -68,6 +69,7 @@ export function settleRowGroup(input: RowSettleInput): RowGroup {
 	}
 
 	stopGroupTickerIfSettled(group);
+	group.lastActivityAt = Math.max(group.lastActivityAt, member.settledAt);
 	invalidateDrawingMember(group, member);
 
 	return group;
@@ -119,8 +121,11 @@ export function isGroupHead(group: RowGroup, toolCallId: string): boolean {
 
 export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
 	const head = group.members[0];
-	const isRunning = group.members.some((member) => member.status === ToolStatus.Running);
-	const endMilliseconds = isRunning ? Date.now() : lastSettleMilliseconds(group);
+	const thinking = group === currentGroup ? thinkingState() : undefined;
+	const isLive =
+		thinking !== undefined ||
+		group.members.some((member) => member.status === ToolStatus.Running);
+	const endMilliseconds = liveEndMilliseconds(group, isLive);
 	const durationMilliseconds =
 		head && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - head.startedAt) : undefined;
 
@@ -130,8 +135,16 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		durationMilliseconds,
 		folded: group !== currentGroup,
 		hint,
-		thinking: group === currentGroup ? thinkingState() : undefined,
+		thinking,
 	};
+}
+
+function liveEndMilliseconds(group: RowGroup, isLive: boolean): number | undefined {
+	if (isLive) {
+		group.lastActivityAt = Date.now();
+	}
+
+	return group.lastActivityAt;
 }
 
 function groupForCall(input: RowCallInput): RowGroup {
@@ -150,7 +163,13 @@ function groupForCall(input: RowCallInput): RowGroup {
 
 function createGroup(kind: RowKind): RowGroup {
 	const previousGroup = currentGroup;
-	const group: RowGroup = { kind, members: [], ticker: undefined, expansionLevel: ExpansionLevel.Row };
+	const group: RowGroup = {
+		kind,
+		members: [],
+		ticker: undefined,
+		expansionLevel: ExpansionLevel.Row,
+		lastActivityAt: Date.now(),
+	};
 
 	openGroups.add(group);
 	currentGroup = group;
@@ -202,10 +221,6 @@ function rowSummary(member: RowMember): RowSummary {
 		status: member.status,
 		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
 	};
-}
-
-function lastSettleMilliseconds(group: RowGroup): number | undefined {
-	return group.members.at(-1)?.settledAt;
 }
 
 function startGroupTicker(group: RowGroup): void {

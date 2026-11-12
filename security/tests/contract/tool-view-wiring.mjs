@@ -152,6 +152,32 @@ const menuNotices = [];
 await registered.handlers[0]('', contextFor('tui', menuNotices));
 check('a cancelled menu changes nothing', menuNotices.length === 0);
 
+const menus = [];
+const menuContext = (notices, pick) => ({
+	mode: 'tui',
+	ui: {
+		notify: (message) => notices.push(message),
+		select: async (title, options) => {
+			menus.push({ title, options });
+			return pick(options);
+		},
+		setHiddenThinkingLabel: () => {},
+	},
+});
+const compactNotices = [];
+await registered.handlers[0]('', menuContext(compactNotices, (options) => options.find((option) => option.includes('Compact'))));
+const [menu] = menus;
+check('the menu is titled like the permission-mode picker', menu.title === 'Select tool view:');
+check('the menu lists both views', menu.options.length === 2);
+check('each option carries an icon and a description', menu.options.every((option) => option.includes(' —  ')));
+check('the saved view is the one marked active', menu.options.filter((option) => option.includes('(active)')).length === 1);
+check('picking compact saves it', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
+check('picking compact says it is on', compactNotices[0]?.includes('Compact on'));
+
+const repeatNotices = [];
+await registered.handlers[0]('', menuContext(repeatNotices, (options) => options.find((option) => option.includes('Compact'))));
+check('picking the active view again says it is already on', repeatNotices[0]?.includes('already Compact'));
+
 rmSync(scratchAgentDir, { recursive: true, force: true });
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

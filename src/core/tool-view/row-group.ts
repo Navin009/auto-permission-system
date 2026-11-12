@@ -1,6 +1,7 @@
 import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import { statusMark, statusWord, ToolStatus } from "./status.ts";
+import { fitTarget, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
 
 export interface RowSummary {
@@ -43,12 +44,15 @@ const DURATION_SEPARATOR = " · ";
 const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
 const WHITESPACE_PATTERN = /\s+/g;
+const MARK_COLUMN_WIDTH = 2;
+const TARGET_PARENTHESES_WIDTH = 3;
+const MINIMUM_TARGET_WIDTH = 12;
 
-export function rowGroupLines(summary: RowGroupSummary): RowLine[] {
+export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[] {
 	const showsChildLines = rowLabelOf(summary.kind).showsChildLines;
 	const folded = summary.folded || !showsChildLines;
 	const status = headerStatus(summary.rows, summary.thinking !== undefined);
-	const lines = [headerLine(summary, status, folded)];
+	const lines = [headerLine(summary, status, folded, width)];
 
 	if (folded) {
 		return lines;
@@ -75,24 +79,45 @@ function headerStatus(rows: readonly RowSummary[], isThinking: boolean): ToolSta
 	return lastStatus;
 }
 
-function headerLine(summary: RowGroupSummary, status: ToolStatus, folded: boolean): RowLine {
+function headerLine(
+	summary: RowGroupSummary,
+	status: ToolStatus,
+	folded: boolean,
+	width: number,
+): RowLine {
+	const hint = folded ? summary.hint : undefined;
+
 	return {
 		indent: "",
 		mark: { glyph: statusMark(status), status },
-		text: headerText(summary, status, folded),
-		hint: folded ? summary.hint : undefined,
+		text: headerText(summary, status, folded, hint, width),
+		hint,
 		isDim: false,
 	};
 }
 
-function headerText(summary: RowGroupSummary, status: ToolStatus, folded: boolean): string {
+function headerText(
+	summary: RowGroupSummary,
+	status: ToolStatus,
+	folded: boolean,
+	hint: string | undefined,
+	width: number,
+): string {
 	const countPart = countText(summary);
-	const targetPart = targetText(summary.rows, folded);
+	const thoughtPart = summary.thinking ? `${SPACE}${thinkingPart(summary.thinking)}` : "";
 	const durationPart = durationText(summary.durationMilliseconds);
 	const wordPart = wordText(status, folded || summary.rows.length === SINGLE_ROW_COUNT);
-	const thinkingText = summary.thinking ? `${SPACE}${thinkingPart(summary.thinking)}` : "";
+	const hintPart = hintText(hint);
+	const fixedWidth =
+		MARK_COLUMN_WIDTH +
+		countPart.length +
+		thoughtPart.length +
+		durationPart.length +
+		wordPart.length +
+		hintPart.length;
+	const targetPart = targetText(summary, folded, width - fixedWidth);
 
-	return `${countPart}${targetPart}${durationPart}${wordPart}${thinkingText}`;
+	return `${countPart}${targetPart}${thoughtPart}${durationPart}${wordPart}`;
 }
 
 function countText(summary: RowGroupSummary): string {
@@ -102,10 +127,22 @@ function countText(summary: RowGroupSummary): string {
 	return `${label.verb} ${count} ${pluralize(label.noun, count)}`;
 }
 
-function targetText(rows: readonly RowSummary[], folded: boolean): string {
-	const target = folded ? rows.at(-1)?.target : undefined;
+function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: number): string {
+	const target = folded ? summary.rows.at(-1)?.target : undefined;
+	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
 
-	return target ? `${SPACE}(${toSingleLine(target)})` : "";
+	if (!target || budget < MINIMUM_TARGET_WIDTH) {
+		return "";
+	}
+
+	const label = summary.kind === RowKind.Shell ? summarizeShellCommand(target) : toSingleLine(target);
+	const fitted = fitTarget(label, budget);
+
+	return fitted ? `${SPACE}(${fitted})` : "";
+}
+
+function hintText(hint: string | undefined): string {
+	return hint ? `${SPACE}${hint}` : "";
 }
 
 function durationText(durationMilliseconds: number | undefined): string {

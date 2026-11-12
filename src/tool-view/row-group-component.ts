@@ -42,7 +42,7 @@ export class RowGroupComponent implements Component {
 	}
 
 	render(width: number): string[] {
-		const lines = rowGroupLines(this.summary());
+		const lines = rowGroupLines(this.summary(), width);
 
 		return lines.map((line) => truncateToWidth(this.lineText(line), width, ELLIPSIS));
 	}
