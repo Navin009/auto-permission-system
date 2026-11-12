@@ -439,7 +439,3 @@ bash
 
 Default for the first release: `full` (nothing changes for existing users), `compact` once the
 README tells people about it.
-
----
-
-Requirements and open decisions: [`TOOL_ROWS_REQUIREMENTS.md`](./TOOL_ROWS_REQUIREMENTS.md).
