@@ -153,5 +153,11 @@ const tinyChild = childAt(30, 'src/core/tool-view/row-group.ts --flag');
 check('a tiny column still names the tail', tinyChild.text === '$ … --flag');
 check('a single command row carries no duration column', body(one)[0] === '  └ $ npm test' && group([row({})])[1].duration === undefined);
 
+const pipelineChild = childAt(100, 'head -40 src/a.ts | head');
+check('a child line keeps a pipeline whole', pipelineChild.text === '$ head -40 src/a.ts | head');
+
+const cdChild = childAt(100, 'cd /work && npm test');
+check('a child line drops the leading cd', cdChild.text === '$ npm test');
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

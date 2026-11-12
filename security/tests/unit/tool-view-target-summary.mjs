@@ -1,4 +1,4 @@
-import { fitCommand, fitTarget, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
+import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -31,6 +31,13 @@ check('python -c keeps the flag and drops the code', summarizeShellCommand('pyth
 check('a heredoc reads as stdin', summarizeShellCommand("python3 - <<'EOF'\nprint(1)\nEOF") === 'python3 (stdin)');
 check('a plain python call is untouched', summarizeShellCommand('python3 --version') === 'python3 --version');
 check('a non-python program is untouched', summarizeShellCommand('node scripts/seed.js --force') === 'node scripts/seed.js --force');
+
+check('a display command keeps a pipeline whole', displayShellCommand('head -40 src/a.ts | head') === 'head -40 src/a.ts | head');
+check('a display command keeps both chain segments', displayShellCommand('npm ci && npm test') === 'npm ci && npm test');
+check('a display command drops a leading cd', displayShellCommand('cd /work && npm test') === 'npm test');
+check('a display command drops cd then hoists python', displayShellCommand('cd /work && python3 -m pytest -q') === 'pytest -q');
+check('a display command drops wrappers', displayShellCommand('sudo uv run pytest -q') === 'pytest -q');
+check('an empty display command stays empty', displayShellCommand('') === '');
 
 check('a fitting target is untouched', fitTarget('git status', 20) === 'git status');
 check('an exact fit is untouched', fitTarget('abcde', 5) === 'abcde');

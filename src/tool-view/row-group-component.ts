@@ -6,6 +6,7 @@ import {
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
+	markColumnWidth,
 	rowGroupLines,
 	type RowGroupSummary,
 	type RowLine,
@@ -64,7 +65,7 @@ export class RowGroupComponent implements Component {
 			return "";
 		}
 
-		const markWidth = line.mark ? line.mark.glyph.length + SPACE.length : 0;
+		const markWidth = markColumnWidth(line.mark);
 		const usedWidth = line.indent.length + markWidth + line.text.length;
 		const padding = Math.max(SPACE.length, width - usedWidth - line.duration.length);
 

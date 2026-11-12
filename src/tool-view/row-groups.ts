@@ -40,6 +40,18 @@ const openGroups = new Set<RowGroup>();
 const groupsByCall = new Map<string, RowGroup>();
 let currentGroup: RowGroup | undefined;
 let invalidating = false;
+let presenceListener: ((hasLiveRow: boolean) => void) | undefined;
+let lastPresence = false;
+
+export function setRowPresenceListener(
+	listener: ((hasLiveRow: boolean) => void) | undefined,
+): void {
+	presenceListener = listener;
+}
+
+export function hasLiveRow(): boolean {
+	return currentGroup !== undefined;
+}
 
 export function joinRowGroup(input: RowCallInput): RowGroup {
 	const group = groupForCall(input);
@@ -83,6 +95,8 @@ export function closeRowGroup(): void {
 	if (group) {
 		foldGroup(group);
 	}
+
+	notifyPresence();
 }
 
 export function rowGroupOfCall(toolCallId: string): RowGroup | undefined {
@@ -113,6 +127,7 @@ export function resetRowGroups(): void {
 	openGroups.clear();
 	groupsByCall.clear();
 	currentGroup = undefined;
+	notifyPresence();
 }
 
 export function isGroupHead(group: RowGroup, toolCallId: string): boolean {
@@ -182,7 +197,20 @@ function createGroup(kind: RowKind): RowGroup {
 		foldGroup(previousGroup);
 	}
 
+	notifyPresence();
+
 	return group;
+}
+
+function notifyPresence(): void {
+	const hasLive = hasLiveRow();
+
+	if (hasLive === lastPresence) {
+		return;
+	}
+
+	lastPresence = hasLive;
+	presenceListener?.(hasLive);
 }
 
 function foldGroup(group: RowGroup): void {

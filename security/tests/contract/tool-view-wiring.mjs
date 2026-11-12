@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Text } from '@earendil-works/pi-tui';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetRowGroups } from '../../../src/tool-view/row-groups.ts';
+import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
 import { resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
@@ -126,7 +126,7 @@ const contextFor = (mode, notices) => ({
 });
 
 registered.eventHandlers.get('session_start')({}, contextFor('tui', []));
-check('a session start leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a session start with no row keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
 
 const printNotices = [];
 await registered.handlers[0]('compact', contextFor('print', printNotices));
@@ -137,11 +137,19 @@ check('a non-TUI mode writes no settings', !existsSync(settingsFilePath));
 await registered.handlers[0]('compact', contextFor('tui', []));
 check('compact is written', existsSync(settingsFilePath));
 check('the saved view is compact', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'compact');
-check('compact leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('a compact view with no row keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
+
+resolver('bash', () => fallbackRenderers)
+	.renderCall({ command: 'npm test' }, theme, renderContext({ toolCallId: 'call-label' }))
+	.render(100);
+check('a live row hides Pi own thinking label', thinkingLabels.at(-1) === '');
+
+closeRowGroup();
+check('closing the row brings Pi own thinking label back', thinkingLabels.at(-1) === undefined);
 
 await registered.handlers[0]('full', contextFor('tui', []));
 check('full is written', JSON.parse(readFileSync(settingsFilePath, 'utf-8')).view === 'full');
-check('full leaves Pi own thinking label alone', thinkingLabels.length === 0);
+check('full keeps Pi own thinking label', thinkingLabels.at(-1) === undefined);
 
 const usageNotices = [];
 await registered.handlers[0]('rows', contextFor('tui', usageNotices));

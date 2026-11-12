@@ -5,7 +5,6 @@ const BLANK_TEXT = "";
 export interface MessageBlock {
 	type: string;
 	text?: string;
-	thinking?: string;
 }
 
 export interface MessageContent {

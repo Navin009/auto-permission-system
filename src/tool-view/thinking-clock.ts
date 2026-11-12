@@ -1,4 +1,6 @@
 import type { ThinkingState } from "../core/tool-view/thinking.ts";
+import { hiddenThinkingLabel } from "../core/tool-view/thinking.ts";
+import { getActiveViewMode } from "./session.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 1000;
 
@@ -6,8 +8,16 @@ let startedAt: number | undefined;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let repaint: (() => void) | undefined;
 
+export interface ThinkingLabelHost {
+	ui: { setHiddenThinkingLabel(label?: string): void };
+}
+
 export function setThinkingRepaint(listener: (() => void) | undefined): void {
 	repaint = listener;
+}
+
+export function applyThinkingLabel(host: ThinkingLabelHost, hasLiveRow: boolean): void {
+	host.ui.setHiddenThinkingLabel?.(hiddenThinkingLabel(getActiveViewMode(), hasLiveRow));
 }
 
 export function beginThinking(): void {

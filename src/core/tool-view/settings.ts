@@ -22,15 +22,7 @@ export function normalizeToolViewSettings(value: unknown): ToolViewSettings {
 }
 
 export function readToolViewSettings(settingsFilePath: string): ToolViewSettings {
-	if (!existsSync(settingsFilePath)) {
-		return { ...DEFAULT_TOOL_VIEW_SETTINGS };
-	}
-
-	try {
-		return normalizeToolViewSettings(JSON.parse(readFileSync(settingsFilePath, "utf-8")));
-	} catch {
-		return { ...DEFAULT_TOOL_VIEW_SETTINGS };
-	}
+	return normalizeToolViewSettings(readStoredObject(settingsFilePath));
 }
 
 export function writeToolViewMode(settingsFilePath: string, viewMode: ViewMode): string | null {

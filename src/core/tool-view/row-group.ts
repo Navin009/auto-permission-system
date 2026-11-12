@@ -1,7 +1,7 @@
 import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import { statusMark, statusWord, ToolStatus } from "./status.ts";
-import { fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
+import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
 
 export interface RowSummary {
@@ -22,6 +22,10 @@ export interface RowGroupSummary {
 export interface RowMark {
 	glyph: string;
 	status: ToolStatus;
+}
+
+export function markColumnWidth(mark: RowMark | undefined): number {
+	return mark ? MARK_COLUMN_WIDTH : 0;
 }
 
 export interface RowLine {
@@ -61,7 +65,7 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 		return lines;
 	}
 
-	return [...lines, ...childLines(summary.rows, summary.kind, width)];
+	return [...lines, ...childLines(summary.rows, width)];
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -163,7 +167,7 @@ function wordText(status: ToolStatus, isShown: boolean): string {
 	return word ? `${SPACE}${word}` : "";
 }
 
-function childLines(rows: readonly RowSummary[], kind: RowKind, width: number): RowLine[] {
+function childLines(rows: readonly RowSummary[], width: number): RowLine[] {
 	const hiddenCount = Math.max(0, rows.length - NEWEST_ROW_LIMIT);
 	const visibleRows = hiddenCount > 0 ? rows.slice(hiddenCount) : rows;
 	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
@@ -171,21 +175,21 @@ function childLines(rows: readonly RowSummary[], kind: RowKind, width: number): 
 	const commandColumn = commandColumnWidth(width);
 
 	for (const row of visibleRows) {
-		lines.push(childLine(row, isSingle, kind, commandColumn));
+		lines.push(childLine(row, isSingle, commandColumn));
 	}
 
 	return lines;
 }
 
-function childLine(row: RowSummary, isSingle: boolean, kind: RowKind, commandColumn: number): RowLine {
-	const markWidth = isSingle ? 0 : MARK_COLUMN_WIDTH;
+function childLine(row: RowSummary, isSingle: boolean, commandColumn: number): RowLine {
+	const mark = isSingle ? undefined : { glyph: childMark(row.status), status: row.status };
 	const wordPart = isSingle ? "" : wordText(row.status, true);
-	const budget = commandColumn - LINE_INDENT.length - markWidth - wordPart.length;
+	const budget = commandColumn - LINE_INDENT.length - markColumnWidth(mark) - wordPart.length;
 
 	return {
 		indent: LINE_INDENT,
-		mark: isSingle ? undefined : { glyph: childMark(row.status), status: row.status },
-		text: childLineText(row, kind, budget, wordPart),
+		mark,
+		text: childLineText(row, budget, wordPart),
 		duration: childDuration(row, isSingle),
 		hint: undefined,
 		isDim: true,
@@ -196,10 +200,9 @@ function childMark(status: ToolStatus): string {
 	return status === ToolStatus.Running ? RUNNING_LINE_MARK : statusMark(status);
 }
 
-function childLineText(row: RowSummary, kind: RowKind, budget: number, wordPart: string): string {
-	const command = kind === RowKind.Shell ? summarizeShellCommand(row.target) : toSingleLine(row.target);
+function childLineText(row: RowSummary, budget: number, wordPart: string): string {
 	const promptPart = `${SHELL_PROMPT}${SPACE}`;
-	const commandPart = fitCommand(command, budget - promptPart.length);
+	const commandPart = fitCommand(displayShellCommand(row.target), budget - promptPart.length);
 
 	return `${promptPart}${commandPart}${wordPart}`;
 }
@@ -215,7 +218,7 @@ function childDuration(row: RowSummary, isSingle: boolean): string | undefined {
 function commandColumnWidth(width: number): number {
 	const scaled = Math.floor((width * COMMAND_COLUMN_PERCENT) / PERCENT);
 
-	return Math.max(0, Math.min(scaled, width));
+	return Math.min(scaled, width);
 }
 
 function overflowLine(hiddenCount: number): RowLine {

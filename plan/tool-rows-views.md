@@ -231,10 +231,11 @@ Three moments of one `bash` call, with a thought in the middle:
   back to `● Running 1 command · 1s`. A thought never changes the count, and the row's timer keeps
   running while it streams, so a live row never looks frozen; the timer freezes only when the row
   settles (§5).
-- The `└` line is a summary of the call: `cd <cwd> && `, wrappers (`sudo`, `uv run`, `env A=1`)
-  and the interpreter are dropped (`python3 -m pytest …` reads `pytest …`), the last segment of a
-  chain is named, and the command may take up to 70 % of the width — then `program arg … tail`,
-  then `program … tail`, then the program alone. Durations sit in one right-aligned column.
+- The `└` line keeps the command, minus noise: `cd <cwd> && `, wrappers (`sudo`, `uv run`,
+  `env A=1`) and the interpreter are dropped (`python3 -m pytest …` reads `pytest …`), and a
+  pipeline or chain is kept whole — only the folded header names the last segment. The command
+  may take up to 70 % of the width — then `program arg … tail`, then `program … tail`, then the
+  program alone. Durations sit in one right-aligned column.
 - The `└` line lives only while this is the newest row: one call later, the pair reads
   `✓ Running 1 command (npm view hunk version) · 4s ctrl+o to expand` (§1).
 - When the whole turn ends, nothing new appears: the last row stays as it is. No "done" line,
@@ -529,10 +530,11 @@ carry no hint — click the row or the line instead.
 
 **Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
 `● Running 2 commands (thinking 4s) · 26s` — and the row's timer keeps running for as long as the
-thought streams. Pi's own hidden-thinking label stays Pi's: `compact` never calls
-`setHiddenThinkingLabel`, so a hidden run still draws its `Thinking...` line and Pi's click-to-reveal
-keeps working in both views. Pi's italic thought text is still Pi's when thinking is set to visible:
-no extension API hides it, and `compact` never rewrites it.
+thought streams. Pi's own hidden-thinking label is blanked only while a live row is on screen, so
+`Thinking...` never interrupts a row and its `└` lines; with no live row the label is handed back
+to Pi (`undefined`), so a run draws its `Thinking...` line and Pi's click-to-reveal works again in
+both views. Pi's italic thought text is still Pi's when thinking is set to visible: no extension
+API hides it, and `compact` never rewrites it.
 
 ### Visible text splits the group
 
@@ -700,9 +702,10 @@ stop after this build, run the linter next
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
    freezes only when it settles.
 8. Thinking never becomes part of a row or a group: no `~ Thought…` line, no `└ ~ thinking…`
-   line, no relabelled label. Pi draws its own thinking block (`Thinking...` when hidden) and
-   `compact` leaves it exactly as `full` has it, click-to-reveal included. The `(thinking Ns)`
-   bracket on the row is only the live timer, and it disappears when the thought completes.
+   line, no relabelled label. Pi draws its own thinking block (`Thinking...` when hidden); it is
+   blanked while a live row is on screen and handed back with no live row, click-to-reveal
+   included. The `(thinking Ns)` bracket on the row is only the live timer, and it disappears
+   when the thought completes.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.

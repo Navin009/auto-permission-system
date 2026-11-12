@@ -1,4 +1,7 @@
-const SEGMENT_SEPARATORS: readonly string[] = ["&&", "||", ";", "|"];
+const PAIR_SEPARATORS: readonly string[] = ["&&", "||"];
+const SINGLE_SEPARATORS: readonly string[] = [";", "|"];
+const SEPARATOR_TOKENS: readonly string[] = [...PAIR_SEPARATORS, ...SINGLE_SEPARATORS];
+const CD_COMMAND = "cd";
 const QUOTE_CHARACTERS: readonly string[] = ["'", '"'];
 const ESCAPE_CHARACTER = "\\";
 const SPACE = " ";
@@ -27,11 +30,16 @@ const STDIN_FLAG = "-";
 const STDIN_LABEL = "(stdin)";
 
 export function summarizeShellCommand(command: string): string {
-	const oneLine = command.replace(WHITESPACE_PATTERN, SPACE).trim();
-	const segment = lastSegment(command).replace(WHITESPACE_PATTERN, SPACE).trim();
-	const tokens = hoistProgram(tokenize(segment || oneLine));
+	const oneLine = collapseWhitespace(command);
+	const segment = collapseWhitespace(lastSegment(command));
 
-	return tokens.join(SPACE);
+	return hoistProgram(tokenize(segment || oneLine)).join(SPACE);
+}
+
+export function displayShellCommand(command: string): string {
+	const tokens = tokenize(collapseWhitespace(command));
+
+	return hoistProgram(withoutLeadingCd(tokens)).join(SPACE);
 }
 
 export function fitCommand(command: string, budget: number): string {
@@ -86,6 +94,20 @@ export function fitTarget(label: string, budget: number): string | undefined {
 	return tail ? `${ELLIPSIS}${SPACE}${tail}` : undefined;
 }
 
+function collapseWhitespace(text: string): string {
+	return text.replace(WHITESPACE_PATTERN, SPACE).trim();
+}
+
+function withoutLeadingCd(tokens: readonly string[]): string[] {
+	if (tokens[0] !== CD_COMMAND) {
+		return [...tokens];
+	}
+
+	const separatorIndex = tokens.findIndex((token) => SEPARATOR_TOKENS.includes(token));
+
+	return separatorIndex >= 0 ? tokens.slice(separatorIndex + 1) : [...tokens];
+}
+
 function lastSegment(command: string): string {
 	let segmentStart = 0;
 	let openQuote = "";
@@ -131,11 +153,11 @@ function lastSegment(command: string): string {
 function separatorLengthAt(command: string, index: number): number {
 	const pair = command.slice(index, index + 2);
 
-	if (pair === "&&" || pair === "||") {
+	if (PAIR_SEPARATORS.includes(pair)) {
 		return pair.length;
 	}
 
-	return SEGMENT_SEPARATORS.includes(command[index]) ? 1 : 0;
+	return SINGLE_SEPARATORS.includes(command[index]) ? 1 : 0;
 }
 
 function tokenize(text: string): string[] {
