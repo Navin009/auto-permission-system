@@ -1,10 +1,10 @@
 import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { StatusMark, statusFromResult } from "../core/tool-view/status.ts";
+import { callCommand } from "../core/tool-view/arguments.ts";
+import { statusFromResult } from "../core/tool-view/status.ts";
 import { ViewMode } from "../core/tool-view/view-mode.ts";
-import { beginCall, elapsedMilliseconds, endCall } from "./live-clock.ts";
-import { describeRow } from "./row-description.ts";
-import { ToolRowComponent } from "./row-component.ts";
+import { CommandGroupComponent } from "./command-group-component.ts";
+import { groupSummary, isGroupHead, joinCommandGroup, settleCommandGroup, type CommandGroup } from "./command-groups.ts";
 import { getActiveViewMode } from "./session.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
@@ -12,6 +12,9 @@ type ResultRenderer = NonNullable<ToolRenderers["renderResult"]>;
 type CallParameters = Parameters<CallRenderer>;
 type ResultParameters = Parameters<ResultRenderer>;
 type RendererFallback = ToolRenderers | undefined;
+type RenderContext = CallParameters[2] | ResultParameters[3];
+type RenderTheme = CallParameters[1];
+type ToolCallArguments = Record<string, unknown> | undefined;
 
 interface ResultContentBlock {
 	type: string;
@@ -36,63 +39,72 @@ export function toolViewRenderers(toolName: string, fallback: RendererFallback):
 
 function renderCall(toolName: string, fallback: RendererFallback, parameters: CallParameters) {
 	const [args, theme, context] = parameters;
-	const expandHint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 
 	if (getActiveViewMode() !== ViewMode.Compact || context.expanded || !context.argsComplete) {
 		return fallbackCall(fallback, parameters);
 	}
 
 	if (isSettledCall(context)) {
-		return new Text(EMPTY_LINE, NO_PADDING, NO_PADDING);
+		return emptyComponent();
 	}
 
-	beginCall(context.toolCallId, context.invalidate);
+	const command = callCommand(toolName, args as ToolCallArguments);
 
-	const description = describeRow({
-		toolName,
-		args: args as Record<string, unknown>,
-		cwd: context.cwd,
-		status: StatusMark.Running,
-		durationMilliseconds: elapsedMilliseconds(context.toolCallId),
-		hint: expandHint,
-	});
-
-	if (!description) {
+	if (!command) {
 		return fallbackCall(fallback, parameters);
 	}
 
-	return new ToolRowComponent(description, theme);
+	const group = joinCommandGroup({
+		toolCallId: context.toolCallId,
+		command,
+		invalidate: context.invalidate,
+	});
+
+	return groupComponent(group, context, theme);
 }
 
 function renderResult(toolName: string, fallback: RendererFallback, parameters: ResultParameters) {
 	const [result, options, theme, context] = parameters;
-	const expandHint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 
 	if (getActiveViewMode() !== ViewMode.Compact || options.expanded) {
 		return fallbackResult(fallback, parameters);
 	}
 
-	endCall(context.toolCallId);
 	context.state[SETTLED_STATE_KEY] = true;
 
-	const description = describeRow({
-		toolName,
-		args: context.args as Record<string, unknown>,
-		cwd: context.cwd,
-		status: statusFromResult(context.isError, resultText(result)),
-		durationMilliseconds: context.durationMs,
-		hint: expandHint,
-	});
+	const command = callCommand(toolName, context.args as ToolCallArguments);
 
-	if (!description) {
+	if (!command) {
 		return fallbackResult(fallback, parameters);
 	}
 
-	return new ToolRowComponent(description, theme);
+	const group = settleCommandGroup({
+		toolCallId: context.toolCallId,
+		command,
+		status: statusFromResult(context.isError, resultText(result)),
+		durationMilliseconds: context.durationMs,
+		invalidate: context.invalidate,
+	});
+
+	return groupComponent(group, context, theme);
 }
 
-function isSettledCall(context: CallParameters[2]): boolean {
+function groupComponent(group: CommandGroup, context: RenderContext, theme: RenderTheme) {
+	if (!isGroupHead(group, context.toolCallId)) {
+		return emptyComponent();
+	}
+
+	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
+
+	return new CommandGroupComponent(() => groupSummary(group, hint), theme);
+}
+
+function isSettledCall(context: RenderContext): boolean {
 	return context.durationMs !== undefined || context.isError || context.state[SETTLED_STATE_KEY] === true;
+}
+
+function emptyComponent(): Text {
+	return new Text(EMPTY_LINE, NO_PADDING, NO_PADDING);
 }
 
 function fallbackCall(fallback: RendererFallback, parameters: CallParameters) {

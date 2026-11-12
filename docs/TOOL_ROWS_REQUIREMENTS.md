@@ -1,8 +1,9 @@
 # Feature: tool view — compact tool rows (display-only)
 
-**Status:** v1 implemented — see §10 for what shipped and what it does not draw yet. What the
-view looks like is settled in [`TOOL_ROWS_VIEWS.md`](./TOOL_ROWS_VIEWS.md); the decisions still
-open are listed in §6.
+**Status:** v1 implemented, scope narrowed by ADR-050: `compact` compacts consecutive **shell**
+commands into one `Running <N> commands` row and leaves every other tool on Pi's own renderer. See
+§10 for what shipped and what is not drawn. What the view looks like is settled in
+[`TOOL_ROWS_VIEWS.md`](./TOOL_ROWS_VIEWS.md); the decisions still open are listed in §6.
 **Owner doc:** this file is the single place requirements are settled. When the open decisions
 (§6) are closed, the accepted ones move to `adr/048-tool-view.md` (number at creation time) with
 `Status: Accepted`, and this file keeps only the requirement list.
@@ -44,8 +45,9 @@ untouched.
 
 In scope:
 
-- Rendering of tool call rows in the TUI transcript (call + result).
-- Per-tool labels / arg previews (paths relative to cwd, `~` shortening).
+- Rendering of shell call rows in the TUI transcript (call + result), grouped by proximity.
+- Which tools take part in that: `bash` and `powershell` only (ADR-050). Everything else stays
+  Pi's own block, so its styling can never drift.
 - A two-value view switch — `compact` / `full` — persisted between sessions. There is no
   separate "off": `full` **is** stock Pi output, so it plays the disabled state (`C5`).
 - Unit + contract tests for the above, in the existing harness.
@@ -311,27 +313,41 @@ the security layers imports it, and it imports nothing from them.
 
 | Area | Where |
 | --- | --- |
-| row text, labels, targets, durations, status | `src/core/tool-view/` (pure: no `pi`, no `tui`) |
+| which tools we draw, and their command argument | `src/core/tool-view/labels.ts`, `src/core/tool-view/arguments.ts` (pure: no `pi`, no `tui`) |
+| command groups: header text, marks, durations, newest-eight window | `src/core/tool-view/command-group.ts` |
+| command groups: the live group, its ticker and repaints | `src/tool-view/command-groups.ts` |
 | settings read/write, validation | `src/core/tool-view/settings.ts` |
-| renderer, component, live clock, command | `src/tool-view/` |
+| renderer, component, the `/tool-view` switch | `src/tool-view/` |
 | entrypoint | `extensions/tool-view.ts` |
-| tests | `security/tests/unit/tool-view-*.mjs`, `security/tests/contract/tool-view-registry.mjs` |
+| tests | `security/tests/unit/tool-view-*.mjs`, `security/tests/contract/tool-view-*.mjs` |
 
-Shipped: `R1`–`R9`, `R13`, `R17`, `R18`, `R21`–`R25`, `R28`–`R30`. Two behaviours are worth
-naming: `ctrl+o` (Pi's own expand) delegates to Pi's renderer untouched, and a call whose
+**Scope after ADR-050:** `compact` compacts shell commands only. `read`, `edit`, `write`, `ls`,
+`grep`, `find`, `codemode` and every MCP or extension tool keep Pi's own renderer and Pi's own
+frame in both views — the resolver hands them straight back — so their styling cannot drift from
+Pi's. Every requirement below that describes a file row (`R1`, `R2`, `R16`) therefore describes the
+dropped v1 rows, not the shipped view.
+
+Shipped for shell commands: `R3`, `R4`, `R10`, `R12`, `R13`, `R15`, `R17` (a `write` still ends a
+group), `R21`–`R25`, `R28`–`R30`. Three behaviours are worth naming: consecutive shell calls share
+one `Running <N> commands` row with a `└` line per command (ADR-050), `ctrl+o` and a click hand the
+calls back to Pi's own renderers untouched and open every command of the group, and a call whose
 arguments are still streaming is left to Pi rather than drawn as `Running … · 0s` (`R4`).
 
-Not delivered yet, and why:
+Not delivered, and why:
 
 | Gap | Requirement | Why |
 | --- | --- | --- |
-| One header for several consecutive shell calls (`Running 2 commands · 5s`) | `R10`–`R12`, `R15` | Per-tool renderers cannot merge separate tool executions into one component; needs the container patch held back in `D8` option B |
-| Clicking one `└` line to open that command alone | `R14` | Same reason — a group has to exist before a line inside it can be clicked. `ctrl+o` on the row opens the whole call (`R9`) |
-| Grouped non-shell rows (`Reading 3 files`) | `R16` | Same as above; each read gets its own row today |
+| Compacting file and search tools into rows | `R1`, `R2`, `R16`, `R18` | Out of scope after ADR-050: those tools keep Pi's block so their styling stays Pi's |
+| Output drawn under the one command that is still running | `R11` | A row never draws a tool's output; the running command's block is one `ctrl+o` away |
+| Clicking one `└` line to open that command alone | `R14` | A group line has no mouse region of its own; `ctrl+o` opens every command in the group (`R15`) |
 | `~ Thought for Ns — click to read` | `R19` | Thinking stays Pi's own block in both views; the renderer never touches it |
-| A queued message breaking a group | `R20` | No groups span calls, so nothing crosses a message by construction |
-| Nested `codemode` calls listed under the row | `R26`, `R27` | Needs the execution event stream; not read in v1 |
+| A queued message breaking a group | `R20` | A user message closes the group, so no group spans one by construction |
+| Nested `codemode` calls listed under the row | `R26`, `R27` | `codemode` keeps Pi's block; its inner calls are Pi's to draw |
 | `PI_<X>_DEBUG` tracing | `R31` | Not started |
 
-Known limits of the v1 renderer: rows are per call (count is always 1), and the group frames in
-`TOOL_ROWS_VIEWS.md` §3.5 describe the target that `D8` option B would unlock.
+Known limits of the v1 renderer: a shell group is drawn by its first call's component, so the frames
+in `TOOL_ROWS_VIEWS.md` that click a single `└` line describe the target rather than v1.
+
+Groups are built from render order, not from the session: a component is created for each call in
+the order Pi runs them, so consecutive shell calls join the open group, and any other tool call, a
+new turn or a new user message closes it (ADR-050).

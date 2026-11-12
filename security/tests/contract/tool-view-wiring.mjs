@@ -1,6 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Text } from '@earendil-works/pi-tui';
+import { setActiveViewMode } from '../../../src/tool-view/session.ts';
+import { resetCommandGroups } from '../../../src/tool-view/command-groups.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -25,14 +28,63 @@ check('the command is tool-view', registered.commands.length === 1 && registered
 check('one command handler is registered', registered.handlers.length === 1);
 check('session_start is handled', registered.events.includes('session_start'));
 check('session_shutdown is handled', registered.events.includes('session_shutdown'));
+check('turn_start closes a command group', registered.events.includes('turn_start'));
+check('a user message closes a command group', registered.events.includes('message_start'));
 
 const resolver = registered.resolvers[0];
 const handsBackToPi = (toolName) => resolver(toolName, () => 'pi-renderers') === 'pi-renderers';
 check('owns bash', !handsBackToPi('bash'));
-check('owns read', !handsBackToPi('read'));
+check('leaves read to Pi', handsBackToPi('read'));
+check('leaves edit to Pi', handsBackToPi('edit'));
+check('leaves codemode to Pi', handsBackToPi('codemode'));
 check('hands write back to Pi', handsBackToPi('write'));
 check('hands an MCP tool back to Pi', handsBackToPi('mcp__docs__search'));
 check('hands an unknown tool back to Pi', handsBackToPi('some-future-tool'));
+
+const theme = { fg: (color, text) => text };
+const fallbackRenderers = { renderShell: 'default', renderCall: () => new Text('pi-block'), renderResult: () => new Text('pi-block') };
+const renderContext = (overrides) => ({
+	args: {},
+	toolCallId: 'call-1',
+	invalidate: () => {},
+	lastComponent: undefined,
+	state: {},
+	cwd: '/work/project',
+	executionStarted: true,
+	argsComplete: true,
+	isPartial: false,
+	expanded: false,
+	showImages: false,
+	isError: false,
+	durationMs: undefined,
+	outputPad: 1,
+	keyText: () => 'ctrl+o',
+	keyHint: () => 'ctrl+o to expand',
+	...overrides,
+});
+const renderCommands = (commands) =>
+	commands.map(([toolCallId, command]) =>
+		resolver('bash', () => fallbackRenderers)
+			.renderCall({ command }, theme, renderContext({ toolCallId, args: { command } }))
+			.render(100),
+	);
+
+resetCommandGroups();
+setActiveViewMode('compact');
+const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
+check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
+check('a following shell call joins it silently', secondGroup.length === 0);
+
+resolver('read', () => fallbackRenderers);
+const [afterRead] = renderCommands([['call-c', 'git status']]);
+check('a non-shell call ends the group', afterRead.join(' ').includes('Running 1 command'));
+
+resolver('write', () => fallbackRenderers);
+const [afterWrite] = renderCommands([['call-d', 'git log']]);
+check('a tool we do not own ends the group', afterWrite.join(' ').includes('Running 1 command'));
+
+resetCommandGroups();
+setActiveViewMode('full');
 
 const contextFor = (mode, notices) => ({
 	mode,

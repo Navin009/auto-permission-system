@@ -347,25 +347,32 @@ When cloning a repository with a `.pi/sandbox.json`:
 | `/permission-mode` | Switch between **Default**, **Advanced Secure**, and **YOLO** mid-session. |
 | `/security trust` | Inspect and trust project-local policy widening in `.pi/sandbox.json`. |
 | `/security untrust` | Revoke trust for the current project's policy file. |
-| `/tool-view compact` | Draw tool calls as one row each instead of a full block (display only). |
+| `/tool-view compact` | Group consecutive shell calls into one row; every other tool keeps Pi's block (display only). |
 | `/tool-view full` | Back to Pi's own output. Also the shipped default. |
 | `/tool-view` | Menu with both choices. |
 
 ### Tool view (display only)
 
-`compact` squeezes each tool call into one row, and shell calls get a second line with the command:
+`compact` touches shell commands only. Every other tool — `read`, `edit`, `write`, `ls`, `grep`,
+`find`, `codemode`, MCP tools — keeps Pi's own block, byte for byte:
 
 ```text
-✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand
-
-✗ Running 1 command · 12s
-   └ $ npm test
+✓ Running 2 commands · 2s ctrl+o to expand
+   └ ✓ $ npm test · 1.4s
+   └ ✓ $ git status · 120ms
 ```
 
-A finished command's output is collapsed — `ctrl+o` on the row gives Pi's own block back, and an
-expanded row is drawn exactly as Pi draws it. `write` is never collapsed (the file content is the
-point), and a call our guard blocked or a prompt you denied keeps its word: `✗ blocked`,
-`✗ denied`.
+Consecutive shell calls are one row: a header with the count and the total, then one
+`└ <mark> $ <command> <duration>` line per command, in the order they ran. A single command keeps
+its own row with a plain `└ $ <command>` line.
+
+Newest eight commands; older ones collapse to `└ ... (2 earlier calls)`. Any other tool call,
+the start of a new turn and a new user message all end the group, so two commands are only ever
+grouped when they really ran next to each other.
+
+Expanding is Pi's: `ctrl+o` (or a click on the row) replaces the rows with Pi's own blocks for
+those calls, exactly as `full` draws them. Nothing about a blocked or denied call is lost — the
+command line keeps its mark and the header takes the worst of them: `✗ blocked`, `✗ denied`.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
   agrees. Missing or unparsable file → `full`.

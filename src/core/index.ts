@@ -22,6 +22,6 @@ export * from "./tool-view/duration.ts";
 export * from "./tool-view/status.ts";
 export * from "./tool-view/labels.ts";
 export * from "./tool-view/arguments.ts";
-export * from "./tool-view/row-text.ts";
+export * from "./tool-view/command-group.ts";
 export * from "./trust.ts";
 export * from "./user-named.ts";
