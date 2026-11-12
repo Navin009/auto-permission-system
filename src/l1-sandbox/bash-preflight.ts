@@ -18,7 +18,6 @@ import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx 
 import { displayWhy, getCredentialLabel } from "../ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 
-const MAXIMUM_COMMAND_DISPLAY_LENGTH = 100;
 const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offered";
 
 export interface SandboxedBashOptions {
@@ -93,14 +92,6 @@ async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promi
 	});
 }
 
-function shortenCommand(command: string): string {
-	const singleLineCommand = command.replace(/\s+/g, " ").trim();
-
-	if (singleLineCommand.length <= MAXIMUM_COMMAND_DISPLAY_LENGTH) return singleLineCommand;
-
-	return `${singleLineCommand.slice(0, MAXIMUM_COMMAND_DISPLAY_LENGTH - 1)}\u2026`;
-}
-
 function describeAskRead(finding: AskReadFinding, command: string): { title: string; body: string } {
 	const credentialLabel = getCredentialLabel(finding.path);
 	const isNameOnly = finding.exposure === ReadExposure.Name;
@@ -115,7 +106,7 @@ function describeAskRead(finding: AskReadFinding, command: string): { title: str
 
 	const bodyLines = [
 		`File     ${finding.path}`,
-		`Command  ${shortenCommand(command)}`,
+		`Command  ${command.trim()}`,
 		`Risk     ${riskLine}`,
 		`Why      ${displayWhy(`askRead matched "${finding.pattern}"`)}`,
 		`Note     ${CREDENTIAL_NOTE}`,

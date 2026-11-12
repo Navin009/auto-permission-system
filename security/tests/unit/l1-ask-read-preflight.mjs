@@ -37,6 +37,10 @@ await run("cat .env");
 check("a content read asks", prompts.length === 1, prompts.length);
 check("the asked file is named", prompts[0]?.includes(`File     ${project}/.env`) === true);
 check("the triggering command is shown", prompts[0]?.includes("Command  cat .env") === true);
+
+const longCommand = `cd ${project} && rg -n "stale after session replacement" --hidden --glob '!node_modules' .env`;
+await run(longCommand);
+check("a long command is shown in full, without an ellipsis", prompts[0]?.includes(`Command  ${longCommand}`) === true, prompts[0]?.split("\n")[1]);
 check("the exposure is stated as content", prompts[0]?.includes("Risk     the AI will see any keys in it") === true);
 check("the matched rule is explained", prompts[0]?.includes("Why      .env files usually hold passwords") === true);
 check("the note explains the missing always option", prompts[0]?.includes("Note     this file holds secrets, so a saved rule is never offered") === true);
