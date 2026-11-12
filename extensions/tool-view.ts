@@ -17,6 +17,7 @@ import {
 	applyThinkingVisibility,
 	resetThinkingVisibility,
 } from "../src/tool-view/thinking-visibility.ts";
+import { rememberAssistantMessage, resetThoughts } from "../src/tool-view/thought-store.ts";
 import {
 	beginThinking,
 	endThinking,
@@ -26,6 +27,7 @@ import {
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
+const MESSAGE_ENTRY_TYPE = "message";
 
 function reloadViewMode(): void {
 	setActiveViewMode(readToolViewSettings(SETTINGS_FILE_PATH).viewMode);
@@ -35,7 +37,26 @@ function startSession(): void {
 	resetRowGroups();
 	resetThinking();
 	resetThinkingVisibility();
+	resetThoughts();
 	reloadViewMode();
+}
+
+interface SessionContext {
+	sessionManager?: { getBranch: () => readonly unknown[] };
+}
+
+function rememberSessionThoughts(context: SessionContext): void {
+	if (!context.sessionManager) {
+		return;
+	}
+
+	for (const entry of context.sessionManager.getBranch()) {
+		const sessionEntry = entry as { type?: string; message?: unknown };
+
+		if (sessionEntry.type === MESSAGE_ENTRY_TYPE && sessionEntry.message) {
+			rememberAssistantMessage(sessionEntry.message);
+		}
+	}
 }
 
 export default function (pi: ExtensionAPI) {
@@ -45,10 +66,12 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, context) => {
 		startSession();
 		applyThinkingVisibility(getActiveViewMode(), context.ui);
+		rememberSessionThoughts(context);
 	});
 
 	pi.on("turn_end", (event) => {
 		endThinking();
+		rememberAssistantMessage(event.message);
 
 		if (carriesVisibleText(event.message)) {
 			closeRowGroup();
@@ -57,6 +80,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("message_start", (event) => {
 		endThinking();
+		rememberAssistantMessage(event.message);
 
 		if (event.message.role === USER_ROLE) {
 			closeRowGroup();
@@ -64,6 +88,8 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("message_update", (event) => {
+		rememberAssistantMessage(event.message);
+
 		if (carriesStreamingThought(event.message)) {
 			beginThinking();
 			return;
@@ -80,6 +106,7 @@ export default function (pi: ExtensionAPI) {
 		resetRowGroups();
 		resetThinking();
 		resetThinkingVisibility();
+		resetThoughts();
 	});
 
 	pi.registerToolRenderer?.((toolName, next) => {

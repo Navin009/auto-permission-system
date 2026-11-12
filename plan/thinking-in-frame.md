@@ -58,6 +58,23 @@ thought is actually rendered.
 **While it streams** — the bracket borrows the target slot and the timer keeps running; when the
 thought completes the bracket leaves and nothing else moves.
 
+**Expanded to Pi's view** — the call's own thinking comes back, natively: a real
+`AssistantMessageComponent` built from that message's thinking blocks is placed above the call's Pi
+block, so it reads as Pi draws it and its click collapses it to `Thinking...`.
+
+```text
+  I should read the plan doc before changing the renderer.
+
+bash
+  head -150 plan/tool-rows-views.md
+──────────────────────────────────────────
+<file contents>
+```
+
+The thought is captured from the message that produced the call — live from `message_update` /
+`message_end`, and on a resumed session from `sessionManager.getBranch()` — and attached by the
+call's `toolCall` id. It is never drawn at the row or group level.
+
 **Thinking set to visible in Pi** — the italic block renders, and the run still reads in order,
 because each call draws its own line:
 
@@ -99,10 +116,17 @@ member n draws its line, a folded group draws the header alone.
 It is applied on `session_start` and on every explicit mode switch, never on render, and it is
 idempotent within a mode so a repaint cannot trigger a relabel loop.
 
+`thought-store.ts` remembers, per `toolCall` id, the assistant message that carried it, reduced to
+its thinking blocks; `native-thought.ts` turns that into a visible Pi component. Only the expanded
+levels ask for it, so the thought exists exactly where it is wanted.
+
 ## 4. What this costs
 
 - **A thought is not readable in `compact`.** Switch to `full` — or set Pi to show thinking, which
   the label cannot hide; the run then keeps its order thanks to per-slot drawing.
+- **The expanded thought uses the default theme.** The component is built by the extension, so it
+  goes through the extension's own theme module: custom themes and live theme switches do not reach
+  it. Everything else (markdown, italics, the click, spacing) is Pi's.
 - **A thinking-only turn shows nothing in `compact`.** No rows and no block; the bracket is the only
   trace while it streams.
 - **The label is session-wide.** It hides every hidden thought, which is exactly the intent here: in
@@ -113,6 +137,7 @@ idempotent within a mode so a repaint cannot trigger a relabel loop.
 | Test | Asserts |
 | --- | --- |
 | `unit/tool-view-thinking-visibility.mjs` | compact writes `""`, full writes `undefined`, repeats are no-ops, reset re-applies, a missing ui or a failed write is harmless and retried |
+| `unit/tool-view-native-thoughts.mjs` | a message's thinking is stored against its `toolCall` id, only thinking blocks are kept, the row draws nothing, the expanded level draws Pi's thought above the call block and keeps Pi's own call and result |
 | `unit/tool-view-frame-ownership.mjs` | member 0 owns the header, later members own their own slots, joining repaints the header only, closing repaints every member once |
 | `unit/tool-view-thinking-rows.mjs` | a thought never becomes a `└` line or a count, and a later command keeps the same run |
 | `unit/tool-view-live-duration.mjs` | the header counts across a thought and settles on the newest command |

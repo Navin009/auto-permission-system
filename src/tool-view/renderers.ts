@@ -1,10 +1,18 @@
 import type { Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
-import { Box, MouseRegion, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
+import {
+	Box,
+	Container,
+	MouseRegion,
+	Text,
+	type Component,
+	type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
 import { rowTarget } from "../core/tool-view/arguments.ts";
 import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowKindOf } from "../core/tool-view/row-kind.ts";
 import { statusFromResult } from "../core/tool-view/status.ts";
 import { ViewMode } from "../core/tool-view/view-mode.ts";
+import { nativeThoughtForCall } from "./native-thought.ts";
 import { RowGroupComponent } from "./row-group-component.ts";
 import {
 	advanceGroupExpansion,
@@ -182,7 +190,22 @@ function nativeCallBlock(
 	block.addChild(callComponent);
 	context.state[NATIVE_BLOCK_STATE_KEY] = block;
 
-	return clicking(block, group);
+	return clicking(nativeView(context.toolCallId, block), group);
+}
+
+function nativeView(toolCallId: string, block: Component): Component {
+	const thought = nativeThoughtForCall(toolCallId);
+
+	if (!thought) {
+		return block;
+	}
+
+	const view = new Container();
+
+	view.addChild(thought);
+	view.addChild(block);
+
+	return view;
 }
 
 function nativeResultBlock(

@@ -590,6 +590,10 @@ call draws its own `└` line at its own transcript position. That matters when 
 thinking — the italic block renders, nothing is hidden, and the run still reads in order. The full
 model, the label rule and their costs are in `plan/thinking-in-frame.md`.
 
+Opening the row to Pi's view brings that call's thought back: a real Pi thinking component is drawn
+above the call's own block, so it reads and clicks like Pi's, and a second click collapses it to
+`Thinking...`. The row and group levels never draw it.
+
 ### Visible text splits the group
 
 ```text
@@ -766,9 +770,8 @@ stop after this build, run the linter next
    freezes only when it settles.
 8. In `compact`, hidden thinking takes no space: Pi's hidden-thinking label is blanked, so its run
    renders nothing and no command line can cross it. The `(thinking Ns)` bracket and the running
-   timer are the only live signal. If Pi is set to show thinking, the block renders and each call
-   still draws its own line, so order holds without splitting the run. Compact children never
-   include a thought.
+   timer are the only live signal. Opening the row to Pi's view shows that call's thought natively,
+   above its block; collapsing the row hides it again. Compact children never include a thought.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.

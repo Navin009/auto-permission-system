@@ -436,10 +436,10 @@ The bracket borrows the target slot, ticks once a second, never counts as a call
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
 freezes only when the row settles — so a live row never looks stopped. In `compact` a hidden thought
 takes no space at all: Pi's hidden-thinking label is blanked for the session, so no `Thinking...`
-line and no gap appear between commands, and the run keeps one header. `full` restores the label, so
-thinking reads exactly as Pi renders it. If you set Pi to show thinking, the block renders and each
-call still draws its own `└` line in its own slot, so the run stays in order. Text, `write`, another
-tool kind or a user message still ends the group.
+line and no gap appear between commands, and the run keeps one header. Open the row to Pi's view and
+that call's thought comes back as a real Pi thinking block above its output; close it and the thought
+is hidden again. `full` restores the label, so thinking reads exactly as Pi renders it. Text,
+`write`, another tool kind or a user message still ends the group.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first — for a read run those lines are its files — click again and Pi draws its own block
