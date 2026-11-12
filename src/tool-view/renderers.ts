@@ -1,12 +1,5 @@
 import type { Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
-import {
-	Box,
-	Container,
-	MouseRegion,
-	Text,
-	type Component,
-	type TuiMouseEvent,
-} from "@earendil-works/pi-tui";
+import { Box, MouseRegion, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { rowTarget } from "../core/tool-view/arguments.ts";
 import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowKindOf } from "../core/tool-view/row-kind.ts";
@@ -16,9 +9,8 @@ import { RowGroupComponent } from "./row-group-component.ts";
 import {
 	advanceGroupExpansion,
 	groupSummary,
-	drawsFrame,
 	joinRowGroup,
-	nativeThoughtsForCall,
+	memberIndexOf,
 	rowGroupOfCall,
 	settleRowGroup,
 	type RowGroup,
@@ -142,7 +134,9 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 }
 
 function rowComponent(group: RowGroup, context: RenderContext, theme: RenderTheme) {
-	if (!drawsFrame(group, context.toolCallId)) {
+	const memberIndex = memberIndexOf(group, context.toolCallId);
+
+	if (memberIndex === undefined) {
 		return emptyComponent();
 	}
 
@@ -150,7 +144,7 @@ function rowComponent(group: RowGroup, context: RenderContext, theme: RenderThem
 	const summary = () => groupSummary(group, hint);
 	const onClick = () => advanceGroupExpansion(group);
 
-	return new RowGroupComponent(summary, theme, onClick);
+	return new RowGroupComponent(summary, theme, onClick, memberIndex);
 }
 
 function expansionLevelOf(group: RowGroup | undefined, context: RenderContext): ExpansionLevel {
@@ -184,20 +178,11 @@ function nativeCallBlock(
 	context.state[PI_CALL_STATE_KEY] = callComponent;
 
 	const block = new Box(context.outputPad, BLOCK_PADDING_Y, nativeBackground(theme, context));
-	const view = new Container();
 
 	block.addChild(callComponent);
-	view.addChild(block);
-
-	const nativeThoughts = group ? nativeThoughtsForCall(group, context.toolCallId) : [];
-
-	for (const thought of nativeThoughts) {
-		view.addChild(thought);
-	}
-
 	context.state[NATIVE_BLOCK_STATE_KEY] = block;
 
-	return clicking(view, group);
+	return clicking(block, group);
 }
 
 function nativeResultBlock(

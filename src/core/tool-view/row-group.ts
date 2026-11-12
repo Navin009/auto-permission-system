@@ -31,6 +31,7 @@ export interface RowLine {
 	duration: string | undefined;
 	hint: string | undefined;
 	isDim: boolean;
+	memberIndex?: number;
 }
 
 const NEWEST_ROW_LIMIT = 8;
@@ -52,6 +53,7 @@ const TARGET_PARENTHESES_WIDTH = 3;
 const MINIMUM_TARGET_WIDTH = 12;
 const COMMAND_COLUMN_PERCENT = 70;
 const PERCENT = 100;
+const DRAWING_MEMBER_INDEX = 0;
 
 export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[] {
 	const showsChildLines = rowLabelOf(summary.kind).showsChildLines;
@@ -64,6 +66,16 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 	}
 
 	return [header, ...childLines(summary, width, showsChildLines)];
+}
+
+export function rowGroupLinesForMember(
+	summary: RowGroupSummary,
+	width: number,
+	memberIndex: number,
+): RowLine[] {
+	return rowGroupLines(summary, width).filter(
+		(line) => (line.memberIndex ?? DRAWING_MEMBER_INDEX) === memberIndex,
+	);
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -179,9 +191,9 @@ function childLines(summary: RowGroupSummary, width: number, showsChildLines: bo
 	const hiddenCount = summary.rows.length - visibleRows.length;
 	const lines = hiddenCount > 0 ? [overflowLine(hiddenCount)] : [];
 
-	for (const row of visibleRows) {
-		lines.push(childLine(summary.kind, row, isSingle, childColumn));
-	}
+	visibleRows.forEach((row, offset) => {
+		lines.push(childLine(summary.kind, row, isSingle, childColumn, hiddenCount + offset));
+	});
 
 	return lines;
 }
@@ -194,7 +206,13 @@ function newestRows(rows: readonly RowSummary[]): readonly RowSummary[] {
 	return rows.slice(rows.length - NEWEST_ROW_LIMIT);
 }
 
-function childLine(kind: RowKind, row: RowSummary, isSingle: boolean, childColumn: number): RowLine {
+function childLine(
+	kind: RowKind,
+	row: RowSummary,
+	isSingle: boolean,
+	childColumn: number,
+	memberIndex: number,
+): RowLine {
 	const mark = isSingle ? undefined : { glyph: childMark(row.status), status: row.status };
 	const wordPart = isSingle ? BLANK : wordText(row.status, true);
 	const budget = childColumn - LINE_INDENT.length - markColumnWidth(mark) - wordPart.length;
@@ -206,6 +224,7 @@ function childLine(kind: RowKind, row: RowSummary, isSingle: boolean, childColum
 		duration: childDuration(row, isSingle),
 		hint: undefined,
 		isDim: true,
+		memberIndex,
 	};
 }
 
@@ -254,6 +273,7 @@ function overflowLine(hiddenCount: number): RowLine {
 		duration: undefined,
 		hint: undefined,
 		isDim: true,
+		memberIndex: DRAWING_MEMBER_INDEX,
 	};
 }
 

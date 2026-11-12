@@ -7,10 +7,10 @@ later call starts, the `(last command)` target, `blocked` / `denied` on the row,
 its own text, the group's `└` lines as the first click level (§4), `Reading N files` rows for
 `read` with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps
 Pi's own components in Pi's own frame and never redraws them. Active thinking is Pi's own block,
-including its text, click and spacing. A compatible call after a thought suppresses that transcript
-block, joins the existing group and retains a real Pi thought for the group's native expansion
-(§5). Compact children stay command-only; the only live thinking signal we add is the
-`(thinking Ns)` bracket on the row.
+including its text, click and spacing. The header is drawn once at the first call of a run and each
+later call draws its own `└` line in its own slot, so a thought between commands never splits the
+run and never has to be hidden or copied (§5). Compact children stay command-only; the only live
+thinking signal we add is the `(thinking Ns)` bracket on the row.
 Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
@@ -53,9 +53,9 @@ The newest group always keeps its `└` lines. Everything above it has already b
 the transcript reads as one line per finished group and the live group only opened up.
 
 Thinking rides on the row while it streams — `● Running 1 command (thinking 4s) · 1s` — and the
-bracket leaves when the thought completes. The active thought itself is Pi's own block below the
-row. Once all calls settle, the next compatible command suppresses that transcript block, joins the
-same group and preserves the native thought for expansion (§5).
+bracket leaves when the thought completes. The thought itself is Pi's own block, in Pi's place. The
+header is drawn once at the first call and each later call draws its own `└` line in its own slot,
+so a thought between two commands stays inside the same run (§5).
 
 ---
 
@@ -283,7 +283,7 @@ Three moments of one `bash` call, with a thought in the middle:
 | 3 shell commands in a row | 3 blocks | `✓ Running 3 commands · 5s` + 3 `└` lines (below) |
 | 3 shell commands, folded | 3 blocks | `✓ Running 3 commands (git status) ctrl+o to expand · 4s` — click the row to unfold |
 | 3 shell commands at once | 3 blocks | `● Running 3 commands · 1s` + 3 `…` lines (below) |
-| thinking between commands | block, then block | native while active; the next settled compatible call suppresses it and joins the group (§5) |
+| thinking between commands | block, then block | Pi's block stays in place between two lines of the same run (§5) |
 | thinking, no tools | thinking block, then answer | nothing new is drawn |
 | ask is open | ask prompt | `● Waiting on your answer · 2s` (one line only) |
 | long command, 40 cols | Pi wraps it | `● Running 1 command · 4s` + truncated `└ $ rg -n "toolTitle…` |
@@ -547,9 +547,9 @@ bash
   never rewrites the block, it only decides where the block sits.
 - `ctrl+o` on the **row** walks the whole group: level 3 for every command at once, then level 4,
   then back to the row.
-- A thought is never a compact `└` line and has no rung of its own. At the native levels, a thought
-  suppressed between two calls follows the preceding call's Pi block as a real `Thinking...` row.
-  Its native click opens or closes the thought without advancing the group ladder.
+- A thought is never a compact `└` line and has no rung of its own: it stays where Pi drew it, at
+every level, with Pi's own click. Each call draws its own block at the native levels, so the thought
+sits between them.
 - Nothing is remembered across a new call: whichever level you left a row on, the next call takes
   the row over and the finished group falls back to level 1.
 
@@ -582,14 +582,13 @@ carry no hint — click the row or the line instead.
 
 **Shipped:** the `(thinking Ns)` bracket borrows the live row's target slot, before its duration —
 `● Running 2 commands (thinking 4s) · 26s` — and the row's timer keeps running for as long as the
-thought streams. An active thought is **Pi's block**, with Pi's own label, text, click and spacing.
-We add no compact thought line and never write the global `setHiddenThinkingLabel`.
+thought streams. A thought is **Pi's block**, with Pi's own label, text, click and spacing. We add
+no compact thought line, never write the global `setHiddenThinkingLabel`, and keep no copy of a
+thought.
 
-When the next compatible call arrives after the group's calls settle, the captured thought takes
-zero height in the ordinary transcript and the call joins that same group. The original message is
-retained as another real `AssistantMessageComponent` for the group's native expansion, in its
-original position. Text, `write`, a different kind or a user message still ends the group and
-leaves Pi's thought in the transcript. The host bridge, safe fallback and lifecycle are specified in
+A run is drawn by its **slots**, not by one mount: the first call draws the header, and every later
+call draws its own `└` line at its own transcript position. Pi's thought therefore sits between two
+lines of the same run instead of pushing a new header out. The full model is in
 `plan/thinking-in-frame.md`.
 
 ### Visible text splits the group
@@ -617,17 +616,20 @@ only its bracket, and Pi's label can be clicked normally:
  Thinking...
 ```
 
-When `npm test` arrives next, the original thought leaves no line or gap in that transcript and the
-same row grows:
+When `npm test` arrives next, it draws its own line in its own slot and the run keeps one header:
 
 ```text
 ● Running 2 commands · 6s
   └ ✓ $ npm run build 1s
+
+ Thinking...
+
   └ … $ npm test
 ```
 
-The compact list contains commands, never thoughts. At the native levels of the expansion ladder,
-the sequence instead retains both Pi representations:
+The order is the transcript order — nothing is moved, hidden or replayed. The thought stays where
+Pi drew it, at any level of the ladder; expanding to Pi's view simply shows each call's own block
+with that thought between them:
 
 ```text
 bash
@@ -649,14 +651,13 @@ not expand or contract the command group.
 - A thought is not a call: it is never counted (`Running 2 commands`, never 3 items), never changes
   the mark, never takes a `$` or a mark of its own, never restarts the timer — the row keeps
   counting while the thought streams and freezes only when the row settles.
-- The group stays anchored at its first command. Removing the intervening thought's height is what
-  prevents later compact lines appearing above a visible Pi block.
-- A thought never folds or suppresses a command that is still running; compatible calls wait for
-  the settled group before this suppression.
-- Text, `write`, another kind or a queued message ends the group and leaves the thought native. A
-  turn with thinking and no tool calls draws no rows at all — just Pi's block.
-- An assistant message that cannot be captured retains the old safe split. `full` draws no rows and
-  restores any suppression made in `compact`; this joining behaviour is compact-only.
+- A thought never opens a second running header and never ends a run of the same kind. It cannot
+  fold a running command away, because nothing is being folded.
+- A thought is visible between the run's lines; hiding Pi's own rows for a single thought needs a
+  per-thought visibility API in Pi (the extension cannot reach the bundled component), so `compact`
+  leaves it native instead.
+- Text, `write`, another kind or a queued message ends the group. A turn with thinking and no tool
+  calls draws no rows at all — just Pi's block.
 
 ### A whole turn: text → thinking → command → thinking → text
 
@@ -764,10 +765,10 @@ stop after this build, run the linter next
    that bracket is dropped the moment the thought completes. It is never counted as a call and
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and
    freezes only when it settles.
-8. Active thinking stays Pi-native and clickable. Once calls settle, the next compatible call
-   suppresses that specific transcript thought and joins the same group; its real Pi component and
-   click-to-reveal text remain available at the native expansion levels. Compact child lines never
-   include a thought, the global label is untouched, and running commands are never folded away.
+8. Active thinking stays Pi-native and clickable, and never splits a run: the header is drawn once
+   at the first call, each later call draws its own `└` line in its own slot, so Pi's block stays
+   where Pi drew it. Compact child lines never include a thought, the global label is untouched, and
+   no thought is copied or hidden.
 9. A message arriving mid-turn (queued `Steering:` / `Follow-up:`) is never grouped: it ends the
    group above it, starts nothing of its own, and is drawn exactly as Pi draws it.
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.
@@ -777,9 +778,8 @@ stop after this build, run the linter next
     a shell **and** a read run; a row that is already open, and an edit (no `└` lines), go straight
     to level 3. The row's mark, count, target and duration never change on the way.
 13. No summary line, no footer, no "done" line. Nothing is drawn when the turn ends.
-14. `full` looks exactly like Pi does today: no rows and no thought suppression. `compact` leaves
-    active Pi labels and clicks alone; only a thought superseded by a compatible joining call takes
-    zero height there, and switching back to `full` restores it.
+14. `full` looks exactly like Pi does today: no rows, no thought changes. `compact` leaves Pi's
+    labels and clicks alone in both modes; it never hides or re-renders a thought.
 15. Wide or narrow terminal, the row is cut with `…` instead of wrapping.
 16. Clicking the group row folds its `└` list to one line (`3 commands (<last>)`) and back;
     clicking a command line swaps that line for Pi's `full`-mode block, and `ctrl+o` on the

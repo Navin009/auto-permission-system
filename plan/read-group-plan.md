@@ -235,9 +235,8 @@ The active thought is Pi's own block in its own place; the row carries only the 
   └ ✓ src/b.ts 0.2s
 ```
 
-After those reads settle, the next read suppresses the thought in the ordinary transcript and joins
-this same group. At native expansion, the saved `Thinking...` row follows the second file's Pi
-block and can still be clicked to reveal its real text. The compact file list never includes it.
+After those reads settle, the next read draws its own file line in its own slot and the run keeps
+one header; the thought stays where Pi drew it. The compact file list never includes it.
 
 ### Visible text between reads
 
@@ -369,9 +368,9 @@ no `$`" note in the body, per this repo's conventions.
 10. A blocked or denied read keeps its word on its own line; the header follows the last read's
     mark, never "any failure".
 11. Newest 8 lines; older ones are `└ ... (N earlier calls)`.
-12. Thinking is never a child line: it borrows the header's bracket while it streams, then a
-    compatible next read suppresses it in the ordinary transcript and joins this run. Native
-    expansion retains the clickable Pi thought after the preceding file's block.
+12. Thinking is never a child line: it borrows the header's bracket while it streams and stays
+    Pi's own block in its own place. A read after it draws its own file line in its own slot, so the
+    run keeps one header.
 13. Visible text, a queued message, `write`, or a different tool kind ends the run; a read after it
     starts a new group.
 14. Paths are cut with `…` from the left so the file name survives; below 40 columns the group is

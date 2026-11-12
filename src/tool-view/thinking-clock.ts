@@ -1,10 +1,8 @@
 import type { ThinkingState } from "../core/tool-view/thinking.ts";
-import { trackNativeThought, type NativeThoughtMessage } from "./native-thinking.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 1000;
 
 let startedAt: number | undefined;
-let thoughtCount = 0;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let repaint: (() => void) | undefined;
 
@@ -12,17 +10,13 @@ export function setThinkingRepaint(listener: (() => void) | undefined): void {
 	repaint = listener;
 }
 
-export function beginThinking(message?: NativeThoughtMessage): void {
-	if (startedAt === undefined) {
-		startedAt = Date.now();
-		thoughtCount += 1;
-		startTicker();
+export function beginThinking(): void {
+	if (startedAt !== undefined) {
+		return;
 	}
 
-	if (message) {
-		trackNativeThought(message, thoughtCount);
-	}
-
+	startedAt = Date.now();
+	startTicker();
 	repaint?.();
 }
 
@@ -36,10 +30,6 @@ export function endThinking(): void {
 	repaint?.();
 }
 
-export function thoughtRevision(): number {
-	return thoughtCount;
-}
-
 export function thinkingState(): ThinkingState | undefined {
 	if (startedAt === undefined) {
 		return undefined;
@@ -50,7 +40,6 @@ export function thinkingState(): ThinkingState | undefined {
 
 export function resetThinking(): void {
 	startedAt = undefined;
-	thoughtCount = 0;
 	stopTicker();
 }
 

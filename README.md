@@ -433,16 +433,16 @@ A streaming thought rides on the live row in brackets and stays Pi's own block o
 
 The bracket borrows the target slot, ticks once a second, never counts as a call, and is dropped the
 moment the thought completes. The row's own timer keeps counting while the thought streams — it
-freezes only when the row settles — so a live row never looks stopped. An active thought is Pi's
-own block, with Pi's own text, click and spacing. Once the group's commands settle, a compatible next
-shell command or read suppresses that transcript thought and joins the existing group rather than
-starting another row. Text, `write`, another tool kind or a user message still ends the group and
-leaves Pi's thought in place. A thought never folds away a running command.
+freezes only when the row settles — so a live row never looks stopped. A thought is Pi's own block,
+with Pi's own text, click and spacing. The run's header is drawn once at its first call and each
+later call draws its own `└` line in its own slot, so a thought between two commands stays inside
+the same run instead of starting another row. Text, `write`, another tool kind or a user message
+still ends the group.
 
-Expanding the group to Pi's native output retains those intervening thoughts in order: a real
-`Thinking...` row follows the preceding tool's Pi block, and clicking it opens the saved thought
-with Pi's own rendering. The compact `└` list still contains tools only. Switching back to `full`
-restores any suppressed transcript thoughts.
+Expanding the group to Pi's native output draws each call's own Pi block in order, with the
+thoughts left exactly as Pi rendered them; clicking a `Thinking...` row opens the real text. The
+compact `└` list still contains tools only. Pi's thought rows cannot be hidden per thought without
+Pi exposing a per-run visibility API, so `compact` keeps them native.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
 `└` lines first — for a read run those lines are its files — click again and Pi draws its own block

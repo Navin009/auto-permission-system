@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AssistantMessageComponent, initTheme } from '@earendil-works/pi-coding-agent';
 import { Text } from '@earendil-works/pi-tui';
 import { setActiveViewMode } from '../../../src/tool-view/session.ts';
 import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
@@ -90,7 +89,8 @@ setActiveViewMode('compact');
 check('compact owns the shell', resolver('bash', () => fallbackRenderers).renderShell === 'self');
 const [firstGroup, secondGroup] = renderCommands([['call-a', 'ls'], ['call-b', 'pwd']]);
 check('a shell call opens a one-command row', firstGroup.join(' ').includes('Running 1 command'));
-check('a second command joins it silently', secondGroup.length === 0);
+check('a second command draws its own line', secondGroup.join(' ').includes('$ pwd'));
+check('the second command carries no header', !secondGroup.join(' ').includes('Running'));
 const [firstGroupAgain] = renderCommands([['call-a', 'ls']]);
 check('the first command keeps drawing the row', firstGroupAgain.join(' ').includes('Running 2 commands'));
 
@@ -130,21 +130,15 @@ const thoughtMessage = {
 	content: [{ type: 'thinking', thinking: 'hmm' }],
 	stopReason: 'stop',
 };
-initTheme(undefined, false);
-const nativeThought = new AssistantMessageComponent(thoughtMessage, true);
-nativeThought.updateContent(thoughtMessage, true);
 registered.eventHandlers.get('message_update')({ message: thoughtMessage });
 endTurn([{ type: 'toolCall', id: 'call-thought-a', name: 'bash' }]);
 const [afterThought] = renderCommands([['call-thought-b', 'pwd']]);
-check('a command after a captured thought joins without redrawing', afterThought.length === 0);
+check('a command after a thought draws its own line', afterThought.join(' ').includes('$ pwd'));
+check('the thought does not split the group', !afterThought.join(' ').includes('Running 1 command'));
+const [thoughtHeader] = renderCommands([['call-thought-a', 'ls']]);
 check(
-	'the joined command suppresses the original thought',
-	nativeThought.render(100).every((line) => !line.trim()),
-);
-const [thoughtDrawer] = renderCommands([['call-thought-a', 'ls']]);
-check(
-	'the row above the captured thought counts both commands',
-	thoughtDrawer.join(' ').includes('Running 2 commands'),
+	'the first command keeps the one header for the run',
+	thoughtHeader.join(' ').includes('Running 2 commands'),
 );
 
 resetRowGroups();

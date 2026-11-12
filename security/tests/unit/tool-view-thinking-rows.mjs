@@ -1,10 +1,10 @@
-import { rowGroupLines } from '../../../src/core/tool-view/row-group.ts';
+import { rowGroupLines, rowGroupLinesForMember } from '../../../src/core/tool-view/row-group.ts';
 import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
 import { ToolStatus } from '../../../src/core/tool-view/status.ts';
 import {
-	drawsFrame,
 	groupSummary,
 	joinRowGroup,
+	memberIndexOf,
 	resetRowGroups,
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
@@ -23,6 +23,8 @@ const lineText = (line) =>
 	`${line.indent}${line.mark ? `${line.mark.glyph} ` : ''}${line.text}${line.hint ? ` ${line.hint}` : ''}${line.duration ? ` ${line.duration}` : ''}`;
 const body = (lines) => lines.slice(1).map(lineText);
 const group = (group) => rowGroupLines(groupSummary(group, HINT), WIDTH);
+const linesFor = (group, memberIndex) =>
+	rowGroupLinesForMember(groupSummary(group, HINT), WIDTH, memberIndex);
 const join = (toolCallId, target, kind = RowKind.Shell) =>
 	joinRowGroup({ toolCallId, kind, target, invalidate: () => {} });
 const settle = (toolCallId, target, status = ToolStatus.Ok, durationMilliseconds = 1_000, kind = RowKind.Shell) =>
@@ -56,17 +58,16 @@ settle('call-a', 'npm test', ToolStatus.Ok, 1_000);
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 thoughtBetween(3);
 const afterThought = join('call-c', 'npm run lint');
-check('an uncaptured thought between commands splits safely', afterThought !== running);
-check('the row above the thought folds to one line', group(running).length === 1);
-check('the folded row names its last command', group(running)[0].text.includes('(npm run build)'));
-check('the new row starts at the command after the thought', drawsFrame(afterThought, 'call-c') && !drawsFrame(afterThought, 'call-a'));
-check('the new row counts only its own command', groupSummary(afterThought, HINT).rows.length === 1);
-check('the new row draws that one command', body(group(afterThought)).join('|') === '  └ $ npm run lint');
-check('a thought is never counted as a row', groupSummary(afterThought, HINT).rows.length === 1);
+check('a thought between commands never splits the run', afterThought === running);
+check('the run keeps one header', group(running).length === 4);
+check('every command lives in its own slot', memberIndexOf(afterThought, 'call-c') === 2);
+check('the run counts the command after the thought', groupSummary(afterThought, HINT).rows.length === 3);
+check('the member slot draws only its own command', linesFor(afterThought, 2).map(lineText).join('|') === '  └ … $ npm run lint');
+check('a thought is never counted as a row', groupSummary(afterThought, HINT).rows.length === 3);
 
 settle('call-c', 'npm run lint', ToolStatus.Ok, 500);
 thoughtBetween(2);
-check('a thought with no command after it leaves the row as it is', group(afterThought).length === 2);
+check('a thought with no command after it leaves the run as it is', group(afterThought).length === 4);
 
 resetRowGroups();
 resetThinking();
@@ -81,8 +82,9 @@ check('a read row draws no thought line either', body(readRow).join('|') === '  
 endThinking();
 thoughtBetween(1);
 const readAfterThought = join('call-read-2', 'src/b.ts', RowKind.Read);
-check('an uncaptured thought between reads splits safely', readAfterThought !== read);
-check('the next read run starts at its own file', body(group(readAfterThought)).join('|') === '  └ src/b.ts');
+check('a thought between reads never splits the run either', readAfterThought === read);
+check('the second read keeps its own slot', memberIndexOf(readAfterThought, 'call-read-2') === 1);
+check('the next read draws its own file line', linesFor(readAfterThought, 1).map(lineText).join('|') === '  └ … src/b.ts');
 
 resetRowGroups();
 resetThinking();

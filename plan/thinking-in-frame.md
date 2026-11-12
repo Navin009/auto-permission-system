@@ -1,182 +1,118 @@
-# Pi-native thinking inside one command group
+# One group per run, Pi's thinking stays in place
 
-**Status: shipped.** `src/tool-view/native-thinking.ts`, `src/tool-view/row-groups.ts`,
-`src/tool-view/renderers.ts`, `src/tool-view/thinking-clock.ts`, plus
-`security/tests/unit/tool-view-native-thinking.mjs` and `security/tests/contract/tool-view-wiring.mjs`.
-Supersedes `549d55b` ("leave Pi's thinking block alone and end the row at it").
+**Status: shipped.** `src/core/tool-view/row-group.ts` (`rowGroupLinesForMember`),
+`src/tool-view/row-group-component.ts`, `src/tool-view/row-groups.ts` (`memberIndexOf`),
+`src/tool-view/renderers.ts`, plus `security/tests/unit/tool-view-frame-ownership.mjs` and
+`tool-view-thinking-rows.mjs`. Supersedes `549d55b` (row ends at a thought) and `963134e`
+(suppress a thought and keep a private copy for expansion).
 `plan/tool-rows-views.md` §5 and rules 7-8 follow it.
 
-The rule, in one line: **an active thought stays Pi-native; the next compatible tool call suppresses
-that thought in the normal transcript and joins the existing group, whose native expansion retains
-Pi-native `Thinking...` rows.**
+The rule, in one line: **the header is drawn once at the first call of a run, every later call
+draws its own line in its own transcript slot, so Pi's thinking can never split the run and never
+has to be hidden or copied.**
 
-- While a thought is active, Pi owns its label, text, click, colour, italics and spacing. Clicking it
-  opens the real streamed thought exactly as it does without this extension.
-- The thought is never a group member or a compact child line: no `└`, no `$`, no command count.
-- A following call of the same row kind joins the existing group once commands have settled. Each
-  intervening thought becomes zero-height in the ordinary transcript and the command count grows.
-- At the Pi-native rungs of the group expansion ladder, the saved thought reappears in its original
-  position. It is another real `AssistantMessageComponent`, so its `Thinking...` label and click to
-  reveal behave natively; its click never advances the group ladder.
-- Text, `write`, another tool kind or a user message still closes the group. In those cases the
-  native thought stays in the ordinary transcript.
-- A thought never folds or suppresses an earlier command that is still running.
-- An assistant message that cannot be captured keeps the old safe split rather than risking commands
-  being drawn above a visible thought. `full` does no capture-driven suppression at all.
+- A thought between two commands does not open a new group.
+- Nothing of ours draws, hides, relabels or copies a thought. Pi's block stays where Pi put it,
+  with Pi's own label, text, click and spacing.
+- A thought is never a `└` line and is never counted.
+- No in-memory thought tracking exists, so a resumed session renders the same as the live one.
 
-Words used here: **row** (or frame/group) = the block that starts with `✓ Running 8 commands · 40s`
-and owns the compact lines under it.
+Words used here: **run** (or group/row) = the block that starts with
+`✓ Running 8 commands · 40s` and owns the `└` lines for a stretch of consecutive calls.
 
 ---
 
-## 1. Why two representations are necessary
+## 1. Why a single drawing slot could not work
 
-A row and a thought are separate transcript components. If the original thought keeps occupying
-space between two calls, one group mounted at the first call would draw its later lines above that
-space. Moving the row below the thought instead reintroduces the old pile-up of thoughts.
-
-The group therefore has two views of the same sequence:
-
-| View | Commands | Thoughts between commands |
-|---|---|---|
-| row / grouped compact view | one header and one `└` line per command | not drawn |
-| Pi native collapsed / full output view | Pi's own call/result blocks | Pi's own native components, in order |
-
-Suppressing a thought from the normal transcript does **not** delete its content or remove it from
-the group's native expansion.
-
-## 2. Active thinking is untouched
-
-Given two settled commands followed by a thought, the open group stays where it is. Pi renders its
-own component below it:
+A row used to be drawn entirely by one mount: the first call's renderer emitted the header *and*
+every member's `└` line. That is fine while nothing sits between the calls, but a thought is a
+separate transcript child at its own position:
 
 ```text
-● Running 2 commands (thinking 4s) · 6s
-  └ ✓ $ head -200 plan/tool-rows-views.md 91ms
-  └ ✓ $ sed -n '1,40p' src/tool-view/renderers.ts 24ms
-
- Thinking...
+[call c1 slot]      ← the row drew ALL lines here
+[Pi thinking block] ← different child, own position
+[call c2 slot]      ← empty, because c1 draws everything
 ```
 
-Clicking `Thinking...` is Pi's click, not a group click:
+Any command that joined after the thought had its line painted **above** the thought. Every earlier
+attempt picked one cost of that fact:
 
-```text
-  I should keep these commands in one group and preserve the thought for native
-  expansion rather than splitting the run...
-```
+| Attempt | What it did | Why it failed |
+| --- | --- | --- |
+| end the row at the thought (`549d55b`) | new group after the thought | several `Running N commands` headers per run |
+| mount at the newest call (`c7d6898`) | row sinks below the thought | thoughts pile up above the row |
+| hide the thought (`399bc61`, `963134e`) | suppress that block | needs Pi internals; the running CLI is a bundled build, so an extension cannot reach the live class |
+| draw our own thought line (`8e2d824`, `5eb698e`) | `Thinking...` inside the row | Pi's own block, click and text are lost |
 
-An active thought with no following call remains visible and clickable like this. A thought-only
-turn likewise remains Pi's own transcript, without a row.
-
-## 3. The next compatible call joins the group
-
-When the third command arrives, the intervening thought leaves no line or spacer in the ordinary
-transcript. The original group gains that command in place:
-
-```text
-● Running 3 commands · 7s
-  └ ✓ $ head -200 plan/tool-rows-views.md 91ms
-  └ ✓ $ sed -n '1,40p' src/tool-view/renderers.ts 24ms
-  └ … $ npm test
-```
-
-After another thought and another command, it is still one group:
-
-```text
-✓ Running 4 commands (npm run build) ctrl+o to expand · 12s
-```
-
-There are no alternating `Running` / `Thinking...` headers in the folded transcript. The header's
-`(thinking Ns)` bracket remains the only live thinking signal in the compact group while a thought
-streams, and it still survives a folded row.
-
-## 4. Native expansion retains the thoughts
-
-The first expansion rung after a fold is still just the compact `└` command list. Continuing to the
-Pi-native levels restores the real order, including thinking rows:
-
-```text
-bash
-  head -200 plan/tool-rows-views.md
-──────────────────────────────────────────
-<file contents>
-
- Thinking...
-
-bash
-  sed -n '1,40p' src/tool-view/renderers.ts
-──────────────────────────────────────────
-<file contents>
-
- Thinking...
-
-bash
-  npm test
-──────────────────────────────────────────
-<test output>
-```
-
-Click either `Thinking...` and its native component opens the saved thought text. Styled Markdown,
-padding and spacing come from Pi. The saved component follows the preceding command's native block;
-it is not accumulated at the start or end of the group.
-
-Once a command has suppressed a thought in the ordinary transcript, that thought is reopened through
-the group's native expansion rather than through the now-empty original transcript slot.
-
-## 5. The model
+## 2. The model that shipped
 
 ```text
 RowGroup
-  members: RowMember[]                        commands/read calls only
-  thoughtRevisionAtNewestMember: number       revision boundary for the next joining call
-
-RowMember
-  nativeThoughts: AssistantMessageComponent[] thoughts after this call, before the next member
+  members: RowMember[]        one slot per call, in join order
+  expansionLevel              Row | Group | Collapsed | Full
 ```
 
-`native-thinking.ts` is the isolated host bridge. It observes Pi's `AssistantMessageComponent`
-updates, associates a streamed thought with its actual component, and preserves that component's
-Markdown theme, output padding, transformers and metadata for its native expansion.
+`memberIndexOf(group, toolCallId)` tells a renderer which slot it owns, and
+`rowGroupLinesForMember()` returns the lines for that slot:
 
-Pi has no public per-message suppression API. The bridge therefore changes only the captured
-component's own hidden-thinking state to its zero-height form. It does **not** call the global
-`setHiddenThinkingLabel`, register a Markdown transformer, hide all thinking or draw thought text
-itself. If the host component cannot be captured, grouping falls back to the previous safe split.
+| Slot | Draws |
+| --- | --- |
+| member 0 | the header, plus its own `└` line |
+| member n | its own `└` line only |
+| any member, folded group | nothing except member 0's one-line header |
 
-On a join, `groupForCall()` asks for every captured thought after the recorded revision. The join is
-allowed only when all of them can be suppressed and no command is still running. The saved native
-views attach to the **preceding** member before the new member is appended.
+So the transcript order is the drawing order, whatever sits in between:
 
-At native expansion, each tool's existing Pi call/result `Box` is followed by that member's saved
-assistant components inside a `Container`. Pi's nested mouse region handles a thought click first;
-the surrounding group mouse region handles only clicks not consumed by a native child.
+```text
+● Running 4 commands (thinking 2s) · 8s
+  └ ✓ $ head -150 plan/tool-rows-views.md 900ms
+  └ ✓ $ sed -n '1,40p' src/tool-view/renderers.ts 800ms
 
-Switching to `full`, starting a new session or shutting down restores every suppressed original
-component's previous display state and clears the saved-history registry.
+ Thinking...
 
-## 6. Boundaries
+  └ … $ sed -n '1,120p' plan/tool-rows-views.md
+  └ … $ npm test 2s
+```
 
-| What follows a thought | Old group | Native thought | Result |
-|---|---|---|---|
-| compatible call, all settled | same group | suppressed; retained for expansion | next `└` member |
-| compatible call while something runs | same group | left alone | running work stays visible |
-| different row kind | folds | left alone | new kind's group |
-| `write`, `edit`, other native tool | folds | left alone | Pi's own tool block |
-| assistant text | folds | left alone | Pi's thought, then the text |
-| user message | folds | left alone | normal message boundary |
+## 3. Folding, expanding, replaying
 
-A row's compact count and mark still describe only tool members. The row timer continues while an
-active thought streams, as it did before. Nothing in the read-specific rules changes except that a
-read run uses this same joining mechanism.
+**Folded** (a later call started): only member 0 draws, so the run is one line. The thoughts stay
+exactly where Pi drew them, below it.
 
-## 7. Tests
+```text
+✓ Running 4 commands (npm test) ctrl+o to expand · 12s
+
+ Thinking...
+```
+
+**Expanded to the group**: every member draws its `└` line again, in its own slot, so the list
+reappears around the thought.
+
+**Expanded to Pi's view**: each member already draws its own Pi call/result block, so the native
+view is simply Pi's output for that call, in order, with the thought between.
+
+**Resumed session**: nothing depends on live events or in-memory state. Booleans, groups and
+reasoning are rebuilt from the calls as Pi renders them, so a resumed run looks like the live one.
+This replaces the earlier replay problem, where the thought counters only moved on live
+`message_update` events and a resumed transcript collapsed into one group at the top.
+
+## 4. What this costs
+
+- **A thought is visible at group level.** Removing Pi's lines for one thought needs a per-run
+  visibility API in Pi (`setThinkingRunVisible(messageId, runIndex, false)`); the extension cannot
+  reach the bundled `AssistantMessageComponent`. So a thought stays inline instead of being
+  absorbed into the collapsed row.
+- **The header sits at the top of the run.** After many post-thought commands, the header can
+  scroll out of view while continuation lines are still on screen.
+- **A folded run and its thoughts are not one line.** The row folds to one line; Pi's blocks below
+  it are Pi's and are untouched.
+
+## 5. Tests
 
 | Test | Asserts |
-|---|---|
-| `unit/tool-view-native-thinking.mjs` | a captured thought joins one group and leaves zero rendering behind; saved native thoughts are ordered after the preceding command; native clicking opens/collapses real thought text without advancing the group; multiple thoughts, running calls and text boundaries behave correctly; reset restores originals; an uncaptured thought splits safely |
-| `unit/tool-view-thinking-rows.mjs` | no thought becomes a compact child or receives a mark/count; the bracket lives for the stream; running calls do not split; uncaptured shell and read thoughts retain the safe fallback |
-| `unit/tool-view-thinking.mjs` | the stream still starts/stops the clock and advances the revision once per thought |
-| `unit/tool-view-live-duration.mjs` | the timer continues through live thinking and resumes with the next member |
-| `contract/tool-view-wiring.mjs` | a command after a captured thought joins the same row; the original is suppressed; visible text still closes a group; no global thinking-label writes occur |
-| `contract/tool-view-registry.mjs` | the compact renderer never writes a thought line or applies our thought colour |
-| `unit/tool-view-pi-view.mjs` | Pi's own call/result frame and component reuse remain unchanged below the group |
+| --- | --- |
+| `unit/tool-view-frame-ownership.mjs` | member 0 owns the header, later members own their own slots, joining repaints the header only, closing repaints every member once |
+| `unit/tool-view-thinking-rows.mjs` | a thought never splits a shell or read run, no thought becomes a `└` line or a count, the member slot draws only its own command, the bracket still rides the header |
+| `unit/tool-view-live-duration.mjs` | the header counts across a thought and settles on the newest command |
+| `contract/tool-view-registry.mjs` | a joining read or command draws only its own line and carries no header |
+| `contract/tool-view-wiring.mjs` | a command after a streamed thought stays in the same run; text and other boundaries still close it |

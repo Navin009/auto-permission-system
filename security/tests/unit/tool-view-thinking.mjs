@@ -1,6 +1,6 @@
 import { carriesStreamingThought, carriesVisibleText } from '../../../src/core/tool-view/message-text.ts';
 import { elapsedSeconds, thinkingPart } from '../../../src/core/tool-view/thinking.ts';
-import { beginThinking, endThinking, resetThinking, thinkingState, thoughtRevision } from '../../../src/tool-view/thinking-clock.ts';
+import { beginThinking, endThinking, resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -24,17 +24,6 @@ check('a thought is not visible text', carriesVisibleText(message([{ type: 'thin
 check('text after a thought is visible text', carriesVisibleText(message([{ type: 'thinking', thinking: 'hmm' }, { type: 'text', text: 'hi' }])) === true);
 
 check('a thought is never counted as a row member', carriesStreamingThought(message([{ type: 'thinking', thinking: 'hmm' }])) === true);
-
-resetThinking();
-check('a reset starts the thought count at zero', thoughtRevision() === 0);
-beginThinking();
-check('a thought bumps the revision the split rule reads', thoughtRevision() === 1);
-beginThinking();
-check('a running thought never bumps it twice', thoughtRevision() === 1);
-endThinking();
-beginThinking();
-check('the next thought bumps it again', thoughtRevision() === 2);
-endThinking();
 
 resetThinking();
 check('no thought before one starts', thinkingState() === undefined);

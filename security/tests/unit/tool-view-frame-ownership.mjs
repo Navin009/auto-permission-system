@@ -4,6 +4,7 @@ import {
 	closeRowGroup,
 	drawsFrame,
 	joinRowGroup,
+	memberIndexOf,
 	resetRowGroups,
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
@@ -27,29 +28,31 @@ const settle = (toolCallId, target, status = ToolStatus.Ok, durationMilliseconds
 resetThinking();
 resetRowGroups();
 
-const first = join('a', 'ls');
-check('the first command draws the frame', drawsFrame(first, 'a'));
-check('the first command needs no repaint round', painted.length === 0);
+const run = join('a', 'ls');
+check('the first member owns the header slot', drawsFrame(run, 'a'));
+check('every member knows its own slot', ['a', 'b', 'c'].map(() => memberIndexOf(run, 'a')).every((index) => index === 0));
 
 clear();
 join('b', 'pwd');
-check('a joining command repaints the frame it joined', painted.includes('a'));
-check('a joining command never draws', !drawsFrame(first, 'b'));
+check('a joining command repaints the header', painted.includes('a'));
 check('a joining command never repaints itself', !painted.includes('b'));
+check('the second command is its own slot', memberIndexOf(run, 'b') === 1);
+check('the header never moves to the newest command', drawsFrame(run, 'a'));
 
 clear();
 settle('b', 'pwd', ToolStatus.Ok, 500);
-check('a later member settling repaints the drawer', painted.includes('a'));
-check('the frame stays on its first command', drawsFrame(first, 'a'));
+check('a later member settling repaints the header', painted.includes('a'));
+check('the header stays on the first command', drawsFrame(run, 'a'));
 
 clear();
 settle('a', 'ls', ToolStatus.Ok, 300);
-check('the drawer settling needs no repaint round', painted.length === 0);
-check('a settled drawer keeps drawing', drawsFrame(first, 'a'));
+check('the header member settling needs no repaint round', painted.length === 0);
+check('a settled header keeps its slot', drawsFrame(run, 'a'));
 
 clear();
 join('c', 'git status');
-check('a third command repaints the drawer only', painted.join(',') === 'a');
+check('a third command repaints the header only', painted.join(',') === 'a');
+check('the third command takes the third slot', memberIndexOf(run, 'c') === 2);
 
 clear();
 closeRowGroup();
@@ -57,13 +60,13 @@ check('closing repaints every member once', painted.sort().join(',') === 'a,b,c'
 
 resetRowGroups();
 clear();
-const run = join('x1', 'ls');
+const longRun = join('x1', 'ls');
 for (const toolCallId of ['x2', 'x3', 'x4']) {
 	join(toolCallId, 'ls');
 }
-const drawers = ['x1', 'x2', 'x3', 'x4'].filter((toolCallId) => drawsFrame(run, toolCallId));
-check('one mount owns a four-command frame', drawers.join(',') === 'x1');
-check('the drawer was repainted once per join', painted.sort().join(',') === 'x1,x1,x1');
+check('slots follow the join order', ['x1', 'x2', 'x3', 'x4'].map((id) => memberIndexOf(longRun, id)).join(',') === '0,1,2,3');
+check('only the first slot draws the header', ['x2', 'x3', 'x4'].every((id) => !drawsFrame(longRun, id)));
+check('the header was repainted once per join', painted.sort().join(',') === 'x1,x1,x1');
 
 Date.now = realNow;
 resetThinking();
