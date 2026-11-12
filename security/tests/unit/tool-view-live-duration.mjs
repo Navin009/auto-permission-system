@@ -59,18 +59,18 @@ check('the group ends on the last settle', header(running) === '✓ Running 2 co
 
 const read = join('call-read', 'src/a.ts', RowKind.Read);
 now += 1_500;
-check('a running read counts up', header(read) === '● Reading 1 file (src/a.ts) ctrl+o to expand · 1.5s');
+check('a running read counts up', header(read) === '● Reading 1 file · 1.5s');
 
 settle('call-read', 'src/a.ts', ToolStatus.Ok, 1_500, RowKind.Read);
-check('a finished read keeps its target', header(read) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 1.5s');
+check('a finished read keeps its count', header(read) === '✓ Reading 1 file · 1.5s');
 
 beginThinking();
 now += 3_000;
-check('a settled row counts up while a thought streams', header(read) === '● Reading 1 file (src/a.ts) (thinking 3s) ctrl+o to expand · 4.5s');
+check('a settled row counts up while a thought streams', header(read) === '● Reading 1 file (thinking 3s) · 4.5s');
 
 endThinking();
 now += 1_000;
-check('the settled row freezes where the thought ended', header(read) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 4.5s');
+check('the settled row freezes where the thought ended', header(read) === '✓ Reading 1 file · 4.5s');
 
 Date.now = realNow;
 resetThinking();

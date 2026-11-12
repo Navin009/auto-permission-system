@@ -11,7 +11,7 @@ export interface RowKindLabel {
 }
 
 const SHELL_LABEL: RowKindLabel = { verb: "Running", noun: "command", showsChildLines: true };
-const READ_LABEL: RowKindLabel = { verb: "Reading", noun: "file", showsChildLines: false };
+const READ_LABEL: RowKindLabel = { verb: "Reading", noun: "file", showsChildLines: true };
 
 const KIND_BY_TOOL_NAME: ReadonlyMap<string, RowKind> = new Map([
 	["bash", RowKind.Shell],

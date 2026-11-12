@@ -74,8 +74,10 @@ beginThinking();
 now += 1_000;
 const readRow = group(read);
 check('a read row takes the bracket too', lineText(readRow[0]).includes('Reading 1 file') && lineText(readRow[0]).includes('(thinking 1s)'));
-check('a read row never grows a body line for a thought', readRow.length === 1);
-endThinking();
+check(
+	'a streaming thought adds one line under the read run',
+	body(readRow).join('|') === '  └ src/a.ts|  Thinking...',
+);endThinking();
 
 resetRowGroups();
 resetThinking();

@@ -89,12 +89,13 @@ check('the newest row has no expand hint', !lines(bashCall)[0].includes('ctrl+o'
 check('the command row shows the command line', lines(bashCall)[1] === '  └ $ npm test');
 
 const readCall = callOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read' });
-check('a read call renders one line', lines(readCall).length === 1);
-check('a read row starts running', headerShape(lines(readCall)[0]).startsWith('● Reading 1 file (src/a.ts) ctrl+o to expand · '));
-check('a read row carries no command line', !lines(readCall)[0].includes('└'));
+check('a read call renders two lines', lines(readCall).length === 2);
+check('a read row starts running', headerShape(lines(readCall)[0]).startsWith('● Reading 1 file · '));
+check('a read row shows its file line', lines(readCall)[1] === '  └ src/a.ts');
+check('a read file line carries no expand hint', !lines(readCall)[1].includes('ctrl+o'));
 
 const readResult = resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 });
-check('a read row settles with its path', headerShape(lines(readResult)[0]) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 800ms');
+check('a read row settles without a target while open', headerShape(lines(readResult)[0]) === '✓ Reading 1 file · 800ms');
 
 const secondRead = callOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-read-2' });
 const secondReadLines = lines(secondRead);
@@ -104,8 +105,23 @@ const settledSecondRead = lines(resultOf('read', { path: 'src/b.ts' }, { toolCal
 check('a settled second read leaves the drawing to the first', settledSecondRead.length === 0);
 
 const readGroup = lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 }));
-check('the first read draws the group', readGroup.length === 1);
-check('the read row counts both files', headerShape(readGroup[0]).startsWith('✓ Reading 2 files (src/b.ts) ctrl+o to expand · '));
+check('the first read draws the group', readGroup.length === 3);
+check('the read row counts both files', headerShape(readGroup[0]).startsWith('✓ Reading 2 files · '));
+check('every read keeps its own file line', readGroup[1] === '  └ ✓ src/a.ts 800ms' && readGroup[2] === '  └ ✓ src/b.ts 700ms');
+
+resetRowGroups();
+const slashedRead = callOf('read', { path: 'src/a.ts', offset: 120, limit: 60 }, { toolCallId: 'call-slice' });
+check('a sliced read names its range', lines(slashedRead)[1] === '  └ src/a.ts:120-179');
+
+resetRowGroups();
+callOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-fold-read' });
+resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-fold-read', durationMs: 800 });
+callOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-fold-read-2' });
+resultOf('read', { path: 'src/b.ts' }, { toolCallId: 'call-fold-read-2', durationMs: 700 });
+closeRowGroup();
+const foldedReads = lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-fold-read', durationMs: 800 }));
+check('a closed read run folds to one line', foldedReads.length === 1);
+check('a folded read row names its last file', headerShape(foldedReads[0]).startsWith('✓ Reading 2 files (src/b.ts) ctrl+o to expand · '));
 
 closeRowGroup();
 const mixedCall = callOf('bash', { command: 'git status' }, { toolCallId: 'call-mixed' });
@@ -172,10 +188,8 @@ const deniedRead = resultOf(
 	{ toolCallId: 'call-id-rsa', isError: true },
 	'[Security Block] sandbox: read access to ~/.ssh/id_rsa was blocked by policy.',
 );
-check(
-	'a blocked read says so on its row',
-	headerShape(lines(deniedRead)[0]).startsWith('✗ Reading 1 file (~/.ssh/id_rsa) blocked'),
-);
+check('a blocked read says so on its row', headerShape(lines(deniedRead)[0]).startsWith('✗ Reading 1 file blocked'));
+check('a blocked read line carries its path', lines(deniedRead)[1] === '  └ ~/.ssh/id_rsa');
 
 resetRowGroups();
 closeRowGroup();

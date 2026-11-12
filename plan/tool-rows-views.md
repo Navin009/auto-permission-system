@@ -5,13 +5,12 @@ column 1, a `  └` line per command with its own mark and duration, the fold to
 later call starts, the `(last command)` target, `blocked` / `denied` on the row, the
 `(thinking Ns)` bracket on the live row, a 70 %-wide command column, every duration at the end of
 its own text, the group's `└` lines as the first click level (§4), `Reading N files` rows for
-`read`, and Pi's own block on expand — `compact` wraps Pi's own components in Pi's own frame and
-never redraws them. Thinking is a live line inside the row: while a thought streams the open row
-shows one `  Thinking...` under its last command in Pi's own style — `thinkingText` colour, italic —
-and the line is gone the moment the thought
+`read` with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps
+Pi's own components in Pi's own frame and never redraws them. Thinking is a live line inside the
+row: while a thought streams the open row shows one `  Thinking...` under its last command in
+Pi's own style — `thinkingText` colour, italic — and the line is gone the moment the thought
 completes — the row never breaks at a thought and never grows above one (§5).
-Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks
-(§4).
+Not shipped: rows for `edit` / `codemode` (§1, §3) and per-`└`-line clicks (§4).
 
 ## Commands
 
@@ -177,24 +176,38 @@ single row. Nothing on the row itself moves — only the lines go away.
 - A group of one command folds the same way: `✓ Running 1 command (npm view hunk version) · 4s
   ctrl+o to expand`.
 
-### `compact`, a single call on one line
+### `compact`, a single shell call on one line
 
-One call is one line — no `└` child, no second line, whatever the call was:
+One shell call is one line — the command itself is the only child line, because that is the thing
+you want to read:
 
 ```text
-✓ Reading 1 file (src/config.ts) ctrl+o to expand · 1s
+✓ Running 1 command · 4s
+  └ $ npm view hunk version
+```
+
+A read draws its own file line instead:
+
+```text
+✓ Reading 1 file · 1s
+  └ src/a.ts
 
 ✓ Editing 1 file (src/settings.ts) +5 -3 ctrl+o to expand · 2s
 
-✗ Reading 1 file (id_rsa) blocked
+✗ Reading 1 file blocked · 1s
+  └ ~/.ssh/id_rsa
 ```
 
 - `1 file` / `1 command`, never `1 files` or `1 commands`.
 - `ctrl+o to expand` only when there is a body behind the row (a file content, a diff, a
-  group); a blocked or denied call has nothing to open, so the hint is left off.
-- Still running: `● Reading 1 file (src/config.ts) · 1s` — the `●` and the ticking seconds are
-  the only difference; when it lands that same first column becomes `✓`.
-- A single `bash` call is the one case that adds a line, because the command itself is the thing
+  group) and the row is folded; a blocked or denied call has nothing to open, so the hint is left
+  off. An open row showing its `└` line carries no hint either.
+- A read line has no `$` prompt, no mark and no duration when it is the run's only read: the path
+  is the line. `blocked` / `denied` stays on the header for a single read and on the line inside a
+  run (§3).
+- Still running: `● Reading 1 file · 1s` — the `●` and the ticking seconds are the only difference;
+  when it lands that same first column becomes `✓`.
+- A single `bash` call adds a line, because the command itself is the thing
   you want to read:
 
 ```text
@@ -254,11 +267,13 @@ Three moments of one `bash` call, with a thought in the middle:
 
 | Case | `full` | `compact` |
 | --- | --- | --- |
-| one read | full block with file body | `✓ Reading 1 file (src/a.ts) ctrl+o to expand · 1s` |
-| 3 reads in a row | 3 blocks | `✓ Reading 3 files (src/c.ts) ctrl+o to expand · 4s` |
+| one read | full block with file body | `✓ Reading 1 file · 1s` + `└ src/a.ts` |
+| 3 reads in a row | 3 blocks | `✓ Reading 3 files · 4s` + 3 `└` lines (below) |
+| 3 reads, folded | 3 blocks | `✓ Reading 3 files (src/c.ts) ctrl+o to expand · 4s` — click for the list |
+| a sliced read | block with the slice | `✓ Reading 1 file · 1s` + `└ src/app.ts:120-179` |
 | read + bash | 2 blocks | `✓ Reading 1 file & Running 1 command · 3s` |
 | bash fails | block with error text | `✗ Running 1 command · 12s` + `└ $ npm test` |
-| read blocked by policy | block with "blocked by policy" | `✗ Reading 1 file (id_rsa) blocked` |
+| read blocked by policy | block with "blocked by policy" | `✗ Reading 1 file (id_rsa) blocked` · inside a run `└ ✗ id_rsa blocked` |
 | user denies the ask | block with "denied by user" | `✗ Running 1 command denied` + `└ $ curl https://x` |
 | edit a file | block with the diff | `✓ Editing 1 file (src/a.ts) +5 -3 ctrl+o to expand · 2s` |
 | write a file | block with full content | **same as `full`** — a write is never collapsed (below) |
@@ -432,6 +447,31 @@ write
 `edit` is still collapsed (it already shows `+5 -3`); only `write` opts out, because the whole
 file content is the thing you want to see.
 
+### A read run (`compact`)
+
+Consecutive `read` calls are one group with the same three levels: the header, one `└` line per
+file, then Pi's blocks.
+
+```text
+● Reading 3 files · 1s
+  └ ✓ src/config.ts 300ms
+  └ ✓ src/loader.ts 400ms
+  └ … src/settings.ts
+```
+
+- No `$` prompt on a read line: the path is the line. A sliced read carries its range
+  (`  └ ✓ src/app.ts:120-179 300ms`); a whole-file read carries none.
+- A single read in the group draws no mark and no duration — `  └ src/a.ts` — because the header
+  already carries both, exactly like a single command.
+- A blocked or denied read keeps its word on its own line, after the path:
+  `  └ ✗ ~/.ssh/id_rsa blocked`.
+- Newest 8 lines; older calls become `  └ ... (2 earlier calls)`.
+- The path column is the same 70 % as a command line, cut with `…` from the left at a path
+  boundary so the file name survives.
+- The header's target appears only once the row is folded, so the open row is the list and nothing
+  else. When a later call starts it reads `✓ Reading 3 files (src/settings.ts) ctrl+o to expand · 4s`.
+- A read run and a shell run never share a row: a `bash` call between reads starts a new group.
+
 ---
 
 ## 4. Four levels of detail
@@ -512,8 +552,8 @@ bash
 
 ### The same ladder for one call
 
-A read or an edit has no level 2 — there are no `└` lines — so it goes from its row straight to
-Pi's block:
+An edit has no level 2 — there are no `└` lines — so it goes from its row straight to Pi's block.
+A read does have level 2 now: its files (§3).
 
 ```text
 before:   ✓ Reading 2 files (src/b.ts) ctrl+o to expand · 3s
@@ -708,9 +748,9 @@ stop after this build, run the linter next
 10. `write` is never collapsed: Pi's full block, content and all, even in `compact`.
 11. Visible text splits a group; a row never slides below text that came after it.
 12. Four levels, same row: 1 one line, 2 the group's `└` lines, 3 Pi's block with the result
-    collapsed, 4 Pi's block with the result full. Clicking a folded row asks for level 2 first; a
-    row that is already open, and a read (no `└` lines), go straight to level 3. The row's mark,
-    count, target and duration never change on the way.
+    collapsed, 4 Pi's block with the result full. Clicking a folded row asks for level 2 first for
+    a shell **and** a read run; a row that is already open, and an edit (no `└` lines), go straight
+    to level 3. The row's mark, count, target and duration never change on the way.
 13. No summary line, no footer, no "done" line. Nothing is drawn when the turn ends.
 14. `full` must look exactly like Pi does today. No rows, no timers, no relabelled thinking —
     Pi's thinking block, its `Thinking...` label and its own clicks stay as they are; switching to

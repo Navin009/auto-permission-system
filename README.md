@@ -361,7 +361,10 @@ When cloning a repository with a `.pi/sandbox.json`:
   └ ✓ $ npm test 1.4s
   └ ✓ $ git status 120ms
 
-✓ Reading 3 files (src/settings.ts) · 1s ctrl+o to expand
+✓ Reading 3 files · 1s
+  └ ✓ src/config.ts 300ms
+  └ ✓ src/loader.ts 400ms
+  └ ✓ src/settings.ts 200ms
 ```
 
 Consecutive shell calls are one row: a header with the count and the elapsed time, then one
@@ -370,9 +373,13 @@ column 1 — `●` while the group runs, `✓` or `✗` once it settles — and 
 so a failure earlier in the run keeps its own `└ ✗` line. A single command keeps its own row with a
 plain `  └ $ <command>` line.
 
-Consecutive reads are one row too, always a single line with the last path named:
-`✓ Reading 1 file (src/a.ts) · 1s ctrl+o to expand`. A read and a shell command never share a row, so
-`Reading N files` and `Running N commands` stay honest about what ran.
+Consecutive reads are one row too: the same header, then one `  └ <mark> <path> <duration>` line per
+file, in the order they were read. No `$` prompt, because a read line already names its file; a
+sliced read carries its range (`  └ ✓ src/app.ts:120-179 300ms`), and a blocked or denied read keeps
+the word on its own line (`  └ ✗ ~/.ssh/id_rsa blocked`). A single read keeps one unmarked line
+(`  └ src/a.ts`). Eight lines are shown; older calls fold into `  └ ... (2 earlier calls)`. A read
+and a shell command never share a row, so `Reading N files` and `Running N commands` stay honest
+about what ran.
 
 Once a later call starts, the group above tightens to one line and names its last command:
 
@@ -436,10 +443,11 @@ thinking the italic block is on screen already, so `compact` adds no line and th
 thought.
 
 Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row and it unfolds to its
-`└` lines first; click again and Pi draws its own block for every call in the group — same frame,
-same padding, same background, same preview line as `full` — then click again for the full output,
-and once more to fold it back. A group that is already the newest row shows its `└` lines, so its
-first click goes straight to Pi's block. The compact row is only the collapsed level of that same
+`└` lines first — for a read run those lines are its files — click again and Pi draws its own block
+for every call in the group — same frame, same padding, same background, same preview line as
+`full` — then click again for the full output, and once more to fold it back. A group that is
+already the newest row shows its `└` lines, so its first click goes straight to Pi's block; a read
+run never jumps from one folded line to three file bodies. The compact row is only the collapsed level of that same
 view.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session

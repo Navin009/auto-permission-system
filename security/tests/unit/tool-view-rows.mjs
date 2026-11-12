@@ -96,17 +96,36 @@ check('a command may span lines and stays one row', body(group([row({ target: 'n
 check('a folded target never spans lines', group([row({ target: 'git status\n' })], { folded: true })[0].text.includes('(git status)'));
 
 const oneRead = readGroup([row({ target: 'src/a.ts' })]);
-check('one read is a single row', oneRead.length === 1);
-check('a read row reads a file', header(oneRead) === '✓ Reading 1 file (src/a.ts) ctrl+o to expand · 5s');
-check('a read row carries the expand hint while it is newest', oneRead[0].hint === HINT);
+check('one read draws its file line', oneRead.length === 2);
+check('a read row reads a file', header(oneRead) === '✓ Reading 1 file · 5s');
+check('a single read line carries no mark and no duration', body(oneRead)[0] === '  └ src/a.ts');
+check('an open read row carries no expand hint', oneRead[0].hint === undefined);
+check('a read line never grows a prompt', !body(oneRead)[0].includes('$'));
 
 const threeReads = readGroup([row({ target: 'src/a.ts' }), row({ target: 'src/b.ts' }), row({ target: 'src/c.ts' })]);
-check('reads are counted as files', threeReads.length === 1 && header(threeReads) === '✓ Reading 3 files (src/c.ts) ctrl+o to expand · 5s');
-check('a read row never draws command lines', body(threeReads).length === 0);
+check('reads are counted as files', header(threeReads) === '✓ Reading 3 files · 5s');
+check('a read row lists one file per line', body(threeReads).join('|') === '  └ ✓ src/a.ts 1.2s|  └ ✓ src/b.ts 1.2s|  └ ✓ src/c.ts 1.2s');
+check('a read line carries no prompt', body(threeReads).every((line) => !line.includes('$')));
 
-const failedRead = readGroup([row({ status: ToolStatus.Blocked, durationMilliseconds: undefined })]);
-check('a blocked read says so on its row', header(failedRead) === '✗ Reading 1 file (npm test) blocked ctrl+o to expand · 5s');
-check('a blocked read needs no child line', failedRead.length === 1);
+const foldedThreeReads = readGroup(
+	[row({ target: 'src/a.ts' }), row({ target: 'src/b.ts' }), row({ target: 'src/c.ts' })],
+	{ folded: true },
+);
+check('a folded read row names the last file', header(foldedThreeReads) === '✓ Reading 3 files (src/c.ts) ctrl+o to expand · 5s');
+check('a folded read row draws no lines', foldedThreeReads.length === 1);
+
+const runningRead = readGroup([row({ target: 'src/a.ts' }), row({ status: ToolStatus.Running, target: 'src/b.ts', durationMilliseconds: undefined })]);
+check('a running read line ends on an ellipsis and no duration', body(runningRead)[1] === '  └ … src/b.ts');
+check('a running read header stays open', header(runningRead) === '● Reading 2 files · 5s');
+
+const failedRead = readGroup([row({ target: 'src/a.ts' }), row({ status: ToolStatus.Blocked, target: '~/.ssh/id_rsa', durationMilliseconds: undefined })]);
+check('a blocked read keeps its word on its own line', body(failedRead)[1] === '  └ ✗ ~/.ssh/id_rsa blocked');
+check('a blocked read in the middle keeps the header on the last read', header(failedRead) === '✗ Reading 2 files · 5s');
+check('a blocked read line has no duration', failedRead[2].duration === undefined);
+
+const singleFailedRead = readGroup([row({ status: ToolStatus.Blocked, target: '~/.ssh/id_rsa', durationMilliseconds: undefined })]);
+check('a single blocked read says so on its row', header(singleFailedRead) === '✗ Reading 1 file blocked · 5s');
+check('a single blocked read line carries no repeated word', body(singleFailedRead)[0] === '  └ ~/.ssh/id_rsa');
 
 const shellWithRead = group([row({})], { kind: RowKind.Shell });
 check('a shell row keeps its prompt', body(shellWithRead)[0] === '  └ $ npm test');
@@ -124,7 +143,7 @@ check('a thought never hides a failure mark', thinkingFailed[0].mark.glyph === '
 check('a thought still joins a failure row', header(thinkingFailed) === '✗ Running 1 command (thinking 2s) · 5s');
 
 const thinkingRead = readGroup([row({ target: 'src/a.ts' })], { thinking: thinking(1000) });
-check('a read row takes the bracket too', header(thinkingRead) === '● Reading 1 file (src/a.ts) (thinking 1s) ctrl+o to expand · 5s');
+check('a read row takes the bracket too', header(thinkingRead) === '● Reading 1 file (thinking 1s) · 5s');
 
 const noThinking = group([row({})], { thinking: undefined });
 check('a row without a thought has no bracket', !header(noThinking).includes('thinking'));
@@ -139,8 +158,12 @@ check('a target with no room is dropped', foldedAt(60) === '✓ Running 1 comman
 check('a dropped target keeps the duration and the hint', foldedAt(60).endsWith('ctrl+o to expand · 5s'));
 check('a short target is never cut', foldedAt(200).includes('(sed -n 660,700p plan/tool-rows-views.md)'));
 
-const longRead = readGroup([row({ target: 'src/core/tool-view/row-group.ts' })], {}, 70);
+const longRead = readGroup([row({ target: 'src/core/tool-view/row-group.ts' })], { folded: true }, 70);
 check('a long read path keeps its file name', header(longRead) === '✓ Reading 1 file (… core/tool-view/row-group.ts) ctrl+o to expand · 5s');
+
+const cutReadLine = body(readGroup([row({ target: 'src/a.ts' }), row({ target: 'src/core/tool-view/target-summary.ts' })], {}, 50))[1];
+check('a read line is cut with an ellipsis at a path boundary', cutReadLine === '  └ ✓ … tool-view/target-summary.ts 1.2s');
+check('a read line never outruns the terminal', cutReadLine.length < 50);
 
 const LONG_CHILD = "rg -n 'tool-view|row-group' src/core plan security/tests --glob '*.ts' --glob '*.mjs'";
 const childAt = (width, target = LONG_CHILD) => group([row({ target }), row({ target })], {}, width)[1];
@@ -161,6 +184,10 @@ check('a child line keeps a pipeline whole', pipelineChild.text === '$ head -40 
 
 const cdChild = childAt(100, 'cd /work && npm test');
 check('a child line drops the leading cd', cdChild.text === '$ npm test');
+
+const manyReads = Array.from({ length: 10 }, (_, index) => row({ target: `src/file-${index}.ts` }));
+check('a read run shows the newest eight lines', body(readGroup(manyReads)).at(-1) === '  └ ✓ src/file-9.ts 1.2s');
+check('a read run reports the earlier calls', body(readGroup(manyReads))[0] === '  └ ... (2 earlier calls)');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

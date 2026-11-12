@@ -128,6 +128,56 @@ check('the third click opens the full result', resultLevels.at(-1) === true);
 check('a click on the full block is handled', click()?.handled === true);
 check('the fourth click folds the row back', drawsRow() && !drawnText().includes('  └ $ npm test'));
 
+const readFallback = {
+	renderShell: 'default',
+	renderCall: (args, _theme, context) => {
+		const text = context.lastComponent ?? new Text('', 0, 0);
+		text.setText(`read ${args.path}`);
+		return text;
+	},
+	renderResult: (_result, options, _theme, context) => {
+		const container = context.lastComponent ?? new Container();
+		container.clear();
+		container.addChild(new Text(options.expanded ? 'full file' : 'file preview', 0, 0));
+		return container;
+	},
+};
+const readRenderers = toolViewRenderers('read', readFallback);
+const readState = {};
+const readSlots = { call: undefined, result: undefined };
+const repaintRead = (expanded) => {
+	const context = { ...base, args: { path: 'src/a.ts' }, state: readState, expanded };
+	readSlots.call = readRenderers.renderCall({ path: 'src/a.ts' }, theme, context);
+	readSlots.result = readRenderers.renderResult(result, { expanded, isPartial: false }, theme, context);
+};
+const readText = () => [...lines(readSlots.call), ...lines(readSlots.result)].filter((line) => line.trim() !== '').join('\n');
+const readClick = () => {
+	const handled = (readSlots.call?.handleMouse ? readSlots.call : readSlots.result).handleMouse(CLICK);
+	repaintRead(false);
+	return handled;
+};
+
+resetRowGroups();
+repaintRead(false);
+check('a read run opens with its file lines', readText().includes('  └ src/a.ts') && !readText().includes('file preview'));
+
+closeRowGroup();
+repaintRead(false);
+check('a closed read run folds to one line', !readText().includes('  └ src/a.ts') && readText().includes('(src/a.ts)'));
+
+check('a click on the folded read row is handled', readClick()?.handled === true);
+check('the first read click draws the file list, never Pi block files', readText().includes('  └ src/a.ts') && !readText().includes('file preview'));
+check('the file list carries no expand hint', !readText().includes('ctrl+o to expand'));
+
+check('a click on the read list is handled', readClick()?.handled === true);
+check('the second read click opens Pi own block', readText().includes('read src/a.ts') && readText().includes('file preview'));
+
+check('a click on the read block is handled', readClick()?.handled === true);
+check('the third read click opens the full file', readText().includes('full file'));
+
+check('a click on the full read block is handled', readClick()?.handled === true);
+check('the fourth read click folds the row back', !readText().includes('  └ src/a.ts') && !readText().includes('full file'));
+
 resetRowGroups();
 setActiveViewMode('full');
 

@@ -1,7 +1,9 @@
 # Combined view for file reads
 
-**Status:** plan only. No code yet. Display-only change: nothing here touches L1 (OS sandbox), L2
-(tool guard) or the policy file.
+**Status:** shipped. Display-only change: nothing here touches L1 (OS sandbox), L2 (tool guard) or
+the policy file. Landed: the file list, the range suffix, the folded-only header target, the extra
+ladder step, and the hint rule. Not landed: per-`└`-line clicks — the click is still the whole
+row, for reads and commands alike (`plan/tool-rows-views.md`, status line).
 
 **One line:** a run of `read` calls becomes a group with one `└` line per file — exactly like a run
 of shell commands — instead of a single `Reading N files` row that jumps straight into Pi's blocks.
@@ -102,7 +104,7 @@ column budget as `└ $ cmd`.
 | indent + mark | `  └ ` then `✓` / `✗` / `…`; no mark on a group of one, exactly like `└ $ cmd` |
 | no prompt | reads carry no `$` — the path is the thing, not a command |
 | path | the `file_path` / `path` argument as Pi's `read` reported it, whitespace collapsed to one line |
-| range | when Pi read a slice, the slice ends the path: `src/app.ts:120-180`; a whole-file read has no suffix |
+| range | when Pi read a slice, the slice ends the path: `src/app.ts:120-179`; a whole-file read has no suffix |
 | word | `blocked` / `denied` straight after the path, the same words the header uses |
 | duration | only on a settled line, at the end of its own text; a running line is `…` and grows nothing |
 | width | 70 % of the terminal, like `└ $ cmd`; cut with `…` from the left at a path-segment boundary so the file name survives |
@@ -173,12 +175,12 @@ When a later call starts it folds to today's form:
 ```text
 ✓ Reading 3 files · 2s
   └ ✓ src/core/tool-view/row-group.ts 0.3s
-  └ ✓ src/core/tool-view/row-group.ts:120-180 0.2s
+  └ ✓ src/core/tool-view/row-group.ts:120-179 0.2s
   └ ✓ plan/tool-rows-views.md:1-60 0.1s
 ```
 
 - A range makes the line longer than the path it came from; the file name still wins the cut.
-- A read with `offset` and no `limit` reads `path:120-` — open-ended, honest about it.
+- A read with `offset` and no `limit` reads `path:120` — where it started, exactly as Pi prints it.
 
 ### A blocked read inside the run
 
@@ -324,7 +326,7 @@ Extend `security/tests/unit/`:
 - `tool-view-rows.mjs` — one read = one header plus one unmarked line; three reads = three lines
   with marks and durations; a running line is `…` and has no duration; a blocked line carries the
   word and no duration; the header mark is the last read's mark; nine reads produce one overflow
-  line; a slice renders `path:120-180`.
+  line; a slice renders `path:120-179`.
 - `tool-view-expansion.mjs` — the ladder for reads is now four steps, and the existing three-step
   expectation for reads is replaced.
 - `tool-view-live-duration.mjs` / `tool-view-thinking-rows.mjs` — the read header still takes the
@@ -383,7 +385,8 @@ no `$`" note in the body, per this repo's conventions.
 | Question | Proposal | Why |
 | --- | --- | --- |
 | `└ src/a.ts` or `└ read src/a.ts`? | no verb | the header already says `Reading`; a path is not a command |
-| Range format | `path:120-180`, `path:120-` | one token, greppable, familiar from editor output |
+| offset only | `path:120` | one token, greppable, same shape Pi's own read block prints |
+| offset + limit | `path:120-179` | the slice Pi actually read |
 | Duplicate reads | two lines | different slices are different work; a `×2` hides which one ran |
 | `Reading 3 files` when one file was read 3 times | keep the count | it counts reads; "3 files" is the existing wording for the noun |
 | Does the list open by default on the newest row? | yes | same behaviour as a command group, no new setting |
@@ -395,8 +398,10 @@ no `$`" note in the body, per this repo's conventions.
 ## 8. Done when
 
 - A run of three reads draws a header and three `└` lines, and folds to one line when the next
-  call starts.
+  call starts. — **done**
 - Clicking a line opens that one file; `ctrl+o` on the header walks the ladder without dumping
-  everything on the first press.
-- `Reading 1 file` (single read) keeps its one unmarked line and folds as before.
-- `full` view is pixel-identical to today, and `npm test` / `npm run typecheck` are green.
+  everything on the first press. — **half done**: `ctrl+o`/a click now asks for the list before any
+  block, but a click on one line still opens the whole run (per-line clicks are not shipped for
+  commands either).
+- `Reading 1 file` (single read) keeps its one unmarked line and folds as before. — **done**
+- `full` view is pixel-identical to today, and `npm test` / `npm run typecheck` are green. — **done**
