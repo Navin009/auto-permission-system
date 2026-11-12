@@ -3,6 +3,7 @@ import {
 	Box,
 	Container,
 	MouseRegion,
+	Spacer,
 	Text,
 	type Component,
 	type TuiMouseEvent,
@@ -190,27 +191,25 @@ function nativeCallBlock(
 
 	context.state[PI_CALL_STATE_KEY] = callComponent;
 
-	const block = new Box(context.outputPad, BLOCK_PADDING_Y, nativeBackground(theme, context));
+	const thought = nativeThoughtForCall(context.toolCallId);
+	const paddingY = thought ? NO_PADDING : BLOCK_PADDING_Y;
+	const block = new Box(context.outputPad, paddingY, nativeBackground(theme, context));
 
 	block.addChild(callComponent);
 	context.state[NATIVE_BLOCK_STATE_KEY] = block;
 
-	return clicking(thoughtRowAbove(context.toolCallId, block), group);
-}
-
-function thoughtRowAbove(toolCallId: string, block: Component): Component {
-	const thought = nativeThoughtForCall(toolCallId);
-
 	if (!thought) {
-		return block;
+		return clicking(block, group);
 	}
 
 	const view = new Container();
 
 	view.addChild(thought);
+	view.addChild(new Spacer(BLOCK_PADDING_Y));
 	view.addChild(block);
+	view.addChild(new Spacer(BLOCK_PADDING_Y));
 
-	return view;
+	return clicking(view, group);
 }
 
 function nativeResultBlock(
