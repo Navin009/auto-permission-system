@@ -7,7 +7,7 @@ import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
 
-const theme = { fg: (name, text) => text };
+const theme = { fg: (name, text) => text, bold: (text) => text, bg: (name, text) => text };
 const FALLBACK_TEXT = 'pi-block';
 
 const fallback = {

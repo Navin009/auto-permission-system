@@ -1,10 +1,11 @@
 import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Text, type Component } from "@earendil-works/pi-tui";
 import { callCommand } from "../core/tool-view/arguments.ts";
 import { statusFromResult } from "../core/tool-view/status.ts";
 import { ViewMode } from "../core/tool-view/view-mode.ts";
 import { CommandGroupComponent } from "./command-group-component.ts";
 import { groupSummary, isGroupHead, joinCommandGroup, settleCommandGroup, type CommandGroup } from "./command-groups.ts";
+import { PiBlockComponent, toolBackground } from "./pi-block.ts";
 import { getActiveViewMode } from "./session.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
@@ -26,6 +27,7 @@ const EXPAND_HINT_DESCRIPTION = "to expand";
 const TEXT_BLOCK_TYPE = "text";
 const BLOCK_SEPARATOR = " ";
 const SETTLED_STATE_KEY = "settled";
+const PI_BLOCK_STATE_KEY = "piBlock";
 const EMPTY_LINE = "";
 const NO_PADDING = 0;
 
@@ -40,8 +42,12 @@ export function toolViewRenderers(toolName: string, fallback: RendererFallback):
 function renderCall(toolName: string, fallback: RendererFallback, parameters: CallParameters) {
 	const [args, theme, context] = parameters;
 
-	if (getActiveViewMode() !== ViewMode.Compact || context.expanded || !context.argsComplete) {
+	if (getActiveViewMode() !== ViewMode.Compact || !context.argsComplete) {
 		return fallbackCall(fallback, parameters);
+	}
+
+	if (context.expanded) {
+		return expandedCall(fallback, parameters);
 	}
 
 	if (isSettledCall(context)) {
@@ -66,8 +72,12 @@ function renderCall(toolName: string, fallback: RendererFallback, parameters: Ca
 function renderResult(toolName: string, fallback: RendererFallback, parameters: ResultParameters) {
 	const [result, options, theme, context] = parameters;
 
-	if (getActiveViewMode() !== ViewMode.Compact || options.expanded) {
+	if (getActiveViewMode() !== ViewMode.Compact) {
 		return fallbackResult(fallback, parameters);
+	}
+
+	if (options.expanded) {
+		return expandedResult(fallback, parameters);
 	}
 
 	context.state[SETTLED_STATE_KEY] = true;
@@ -97,6 +107,52 @@ function groupComponent(group: CommandGroup, context: RenderContext, theme: Rend
 	const hint = context.keyHint(EXPAND_KEYBINDING, EXPAND_HINT_DESCRIPTION);
 
 	return new CommandGroupComponent(() => groupSummary(group, hint), theme);
+}
+
+function expandedCall(fallback: RendererFallback, parameters: CallParameters) {
+	const [args, theme, context] = parameters;
+
+	if (!fallback?.renderCall) {
+		return fallbackCall(fallback, parameters);
+	}
+
+	const background = toolBackground(context);
+	const block = piBlock(context) ?? new PiBlockComponent(theme, context.outputPad, background);
+
+	block.setBackground(background);
+	block.setCall(fallback.renderCall(args, theme, delegatedContext(context, block.callComponent)));
+
+	context.state[PI_BLOCK_STATE_KEY] = block;
+
+	return block;
+}
+
+function expandedResult(fallback: RendererFallback, parameters: ResultParameters) {
+	const [result, options, theme, context] = parameters;
+	const block = piBlock(context);
+
+	if (!fallback?.renderResult || !block) {
+		return fallbackResult(fallback, parameters);
+	}
+
+	block.setBackground(toolBackground(context));
+	block.setResult(fallback.renderResult(result, options, theme, delegatedContext(context, block.resultComponent)));
+
+	return emptyComponent();
+}
+
+function piBlock(context: RenderContext): PiBlockComponent | undefined {
+	if (context.lastComponent instanceof PiBlockComponent) {
+		return context.lastComponent;
+	}
+
+	const stored = context.state[PI_BLOCK_STATE_KEY];
+
+	return stored instanceof PiBlockComponent ? stored : undefined;
+}
+
+function delegatedContext<T extends RenderContext>(context: T, lastComponent: Component | undefined): T {
+	return { ...context, lastComponent };
 }
 
 function isSettledCall(context: RenderContext): boolean {
