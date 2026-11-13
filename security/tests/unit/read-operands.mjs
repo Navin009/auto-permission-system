@@ -37,6 +37,9 @@ check("rg --hidden reads them again", paths("rg --hidden -n API_TOKEN .").includ
 check("grep -r still reads dotfiles", paths("grep -rn API_TOKEN .").includes(`${cwd}/.env`));
 check("an explicit rg file operand still asks", paths("rg -n API_TOKEN .env").includes(`${cwd}/.env`));
 check("a sed script keeps its file operand", paths("sed 's/=.*/=<masked>/' .env").includes(`${cwd}/.env`));
+check("a quoted alternation stays one command's pattern", !paths('grep -rnE "(a|b)|(\\.env|s)$" src').includes(`${cwd}/.env`), paths('grep -rnE "(a|b)|\\.env$" src'));
+check("a separator inside quotes is data", !paths('echo "a && cat .env"').includes(`${cwd}/.env`), paths('echo "a && cat .env"'));
+check("a separator inside a wrapper shell still splits", paths('sh -c "cat .env | wc -l"').includes(`${cwd}/.env`));
 check("an interpreter code string keeps its path", paths("node -e \"x=readFileSync('.env')\"").includes(`${cwd}/.env`));
 check("git keeps its file operand", paths("git diff -- .env").includes(`${cwd}/.env`));
 check("a name-only listing stays name exposure", findings("find . -name '*.env'")[0]?.exposure === ReadExposure.Name);

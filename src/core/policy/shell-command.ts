@@ -2,6 +2,12 @@ const SEGMENT_SEPARATOR = /\s*(?:;|&&|\|\||\||\n|(?<![><&])&(?!&))\s*/;
 const TOKEN_PATTERN = /"([^"]*)"|'([^']*)'|(\S+)/g;
 const HEREDOC_TAIL_PATTERN = /^-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_][A-Za-z0-9_-]*))/;
 const QUOTE_CHARACTERS = new Set(['"', "'"]);
+const SINGLE_QUOTE = "'";
+const ESCAPE_CHARACTER = "\\";
+const SEMICOLON = ";";
+const PIPE = "|";
+const AMPERSAND = "&";
+const AMPERSAND_PRECEDERS = new Set([">", "<", "&"]);
 const SUBSTITUTION_PATTERN = /\$\(([^()]*)\)|`([^`]*)`/g;
 const WRAPPING_PARENTHESES_START = /^\(+/;
 const WRAPPING_PARENTHESES_END = /\)+$/;
@@ -94,6 +100,75 @@ function heredocDelimiters(line: string): string[] {
 	return delimiters;
 }
 
+/** Length of the separator that starts at `position`, or 0 when none starts there. */
+function separatorLength(line: string, position: number): number {
+	const character = line[position];
+
+	if (character === SEMICOLON) return 1;
+
+	if (character === PIPE) return line[position + 1] === PIPE ? 2 : 1;
+
+	if (character !== AMPERSAND) return 0;
+
+	if (line[position + 1] === AMPERSAND) return 2;
+
+	return AMPERSAND_PRECEDERS.has(line[position - 1]) ? 0 : 1;
+}
+
+/**
+ * Split one command line on the separators that are not inside quotes.
+ *
+ * A quoted search pattern is data, not structure: `grep -rnE "a|b" docs` runs
+ * one command, yet splitting on the `|` inside the quotes fabricated a second
+ * one whose leftover operand (`.*`) resolved to the working directory and asked
+ * to read its `.env` (ADR-050). A line that ends with an open quote keeps the
+ * plain separator split, so unusual input stays fail-closed.
+ */
+function splitSegments(line: string, separator: RegExp): string[] {
+	const segments: string[] = [];
+	let openQuote: string | undefined;
+	let segmentStart = 0;
+	let position = 0;
+
+	while (position < line.length) {
+		const character = line[position];
+
+		if (character === ESCAPE_CHARACTER && openQuote !== SINGLE_QUOTE) {
+			position += 2;
+			continue;
+		}
+
+		if (openQuote) {
+			if (character === openQuote) openQuote = undefined;
+			position++;
+			continue;
+		}
+
+		if (QUOTE_CHARACTERS.has(character)) {
+			openQuote = character;
+			position++;
+			continue;
+		}
+
+		const length = separatorLength(line, position);
+
+		if (!length) {
+			position++;
+			continue;
+		}
+
+		segments.push(line.slice(segmentStart, position));
+		position += length;
+		segmentStart = position;
+	}
+
+	if (openQuote) return line.split(separator);
+
+	segments.push(line.slice(segmentStart));
+
+	return segments;
+}
+
 export function shellSegments(command: string): string[] {
 	const segments: string[] = [];
 	const openDelimiters: string[] = [];
@@ -108,7 +183,7 @@ export function shellSegments(command: string): string[] {
 
 		openDelimiters.push(...heredocDelimiters(line));
 
-		for (const separatedSegment of line.split(SEGMENT_SEPARATOR)) {
+		for (const separatedSegment of splitSegments(line, SEGMENT_SEPARATOR)) {
 			const segment = separatedSegment.trim();
 
 			if (segment) segments.push(segment);

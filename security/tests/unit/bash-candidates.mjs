@@ -87,6 +87,10 @@ check("an unrelated command mentions nothing", !commandMentionsPath("touch other
 check("a fabricated path is not a mention", !commandMentionsPath("node -e \"run()\"", `${home}/.ssh/id_rsa`, cwd, home));
 
 check("segments are exposed", commandSegments("cat a && cat b").length === 2);
+check("a separator inside quotes does not split", commandSegments('grep -rnE "a|b" docs').length === 1);
+check("a quoted pattern leaves no fabricated operand", reads('grep -rnE "^  └ .* (ms|s)$" plan/*.md').length === 0);
+check("an escaped separator does not split", commandSegments("echo a\\; b").length === 1);
+check("an unterminated quote keeps the plain split", commandSegments('grep "a|b && cat .env').length === 3);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);
