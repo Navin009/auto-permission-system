@@ -1,6 +1,7 @@
 // Read/write posture over the existing schema (ADR-047): writes are wide,
 // critical files ask, credential stores ask as folders, an explicit allow wins.
 import { homedir } from "node:os";
+import { dirname } from "node:path";
 import {
 	askReadCandidates,
 	askWriteCandidates,
@@ -89,7 +90,7 @@ check("the home dotfile path is what a session grant would cover", composioState
 check("a session grant may cover a credential folder", isSessionFolderGrant(`${home}/.aws`, home));
 check("a session grant may not cover the home folder", !isSessionFolderGrant(home, home));
 check("a session grant may not cover /", !isSessionFolderGrant("/", home));
-check("a session grant may not cover a parent of home", !isSessionFolderGrant("/home", home));
+check("a session grant may not cover a parent of home", !isSessionFolderGrant(dirname(home), home));
 check("a permanent grant still refuses a credential folder", !isSafeFolderGrant(`${home}/.aws`, home));
 check("a permanent grant still refuses a credential child", !isSafeFolderGrant(`${home}/.aws/sso`, home));
 check("a permanent grant allows an ordinary folder", isSafeFolderGrant(`${home}/work/shared`, home));
