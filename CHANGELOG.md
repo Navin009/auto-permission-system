@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.0.2](https://github.com/Navin009/auto-permission-system/compare/v6.0.1...v6.0.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **tool-view:** give codemode a row target so its compact row draws ([bc12b12](https://github.com/Navin009/auto-permission-system/commit/bc12b124fdc9c0e9b8af1b2da62004f3cb270632))
+
 ## [6.0.1](https://github.com/Navin009/auto-permission-system/compare/v6.0.0...v6.0.1) (2026-11-13)
 
 
