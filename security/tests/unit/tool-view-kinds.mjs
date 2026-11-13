@@ -23,6 +23,8 @@ check('a read row reads files', rowLabelOf(RowKind.Read).verb === 'Reading');
 check('a read row counts files', rowLabelOf(RowKind.Read).noun === 'file');
 check('a read row keeps its child lines', rowLabelOf(RowKind.Read).showsChildLines === true);
 
+check('a codemode row keeps its child lines', rowLabelOf(RowKind.Codemode).showsChildLines === true);
+
 check('a bash target is the command', rowTarget('bash', { command: 'npm test' }) === 'npm test');
 check('a powershell target is the command', rowTarget('powershell', { command: 'Get-ChildItem' }) === 'Get-ChildItem');
 check('a read target is its path', rowTarget('read', { path: 'src/a.ts' }) === 'src/a.ts');
@@ -41,6 +43,16 @@ check('a blank command is dropped', rowTarget('bash', { command: '  ' }) === und
 check('a missing command has no target', rowTarget('bash', {}) === undefined);
 check('a non-string command has no target', rowTarget('bash', { command: 42 }) === undefined);
 check('undefined arguments give no target', rowTarget('bash', undefined) === undefined);
+
+const codemodeScript = 'await tools.searchTools("rank")\nconst level = 42';
+check('a codemode target is the first script line', rowTarget('codemode', { code: codemodeScript }) === 'await tools.searchTools("rank")');
+check('a codemode script collapses to one line', rowTarget('codemode', { code: 'const   level   =   42' }) === 'const level = 42');
+check('a long codemode script is shortened', rowTarget('codemode', { code: 'x'.repeat(80) }).length === 60);
+check('a long codemode script ends in an ellipsis', rowTarget('codemode', { code: 'x'.repeat(80) }).endsWith('…'));
+check('a codemode target always exists', rowTarget('codemode', {}) === 'codemode');
+check('a blank codemode script falls back to the name', rowTarget('codemode', { code: '  \n\t' }) === 'codemode');
+check('a non-string codemode script falls back to the name', rowTarget('codemode', { code: 42 }) === 'codemode');
+check('a codemode call without arguments still has a target', rowTarget('codemode', undefined) === 'codemode');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

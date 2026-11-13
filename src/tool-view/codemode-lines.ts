@@ -1,12 +1,10 @@
 import type { SubLineSummary } from "../core/tool-view/row-group.ts";
+import { scriptLine } from "../core/tool-view/script-line.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 import { nestedCallsFor, type NestedCall } from "./nested-calls.ts";
 
 const SCRIPT_ARGUMENT = "code";
-const LINE_BREAK_PATTERN = /\r?\n/;
-const WHITESPACE_PATTERN = /\s+/g;
 const SPACE = " ";
-const SCRIPT_PREVIEW_LENGTH = 60;
 
 const STATUS_BY_NESTED_CALL: Readonly<Record<NestedCall["status"], ToolStatus>> = {
 	running: ToolStatus.Running,
@@ -38,20 +36,7 @@ export function codemodeSubLines(
 function scriptPreview(args: Record<string, unknown> | undefined): string {
 	const code = args?.[SCRIPT_ARGUMENT];
 
-	if (typeof code !== "string") {
-		return "";
-	}
-
-	const firstLine = code.split(LINE_BREAK_PATTERN).find((line) => line.trim().length > 0) ?? "";
-	const oneLine = firstLine.replace(WHITESPACE_PATTERN, SPACE).trim();
-
-	if (!oneLine) {
-		return "";
-	}
-
-	return oneLine.length > SCRIPT_PREVIEW_LENGTH
-		? `${oneLine.slice(0, SCRIPT_PREVIEW_LENGTH - 1)}…`
-		: oneLine;
+	return typeof code === "string" ? scriptLine(code) : "";
 }
 
 function nestedCallText(call: NestedCall): string {

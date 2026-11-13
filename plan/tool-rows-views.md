@@ -310,6 +310,13 @@ When the script finishes, the header settles and the inner lines take their outc
   └ ✓ read src/config.ts
 ```
 
+Once a later call starts, the row folds to one line and keeps the script in parentheses, the same way
+a shell run keeps its last command:
+
+```text
+✓ codemode (await tools.searchTools("rank")) ctrl+o to expand · 3s
+```
+
 - The inner calls come from `tool_execution_start` / `tool_execution_end` events carrying
   `parentToolCallId`, so each line is live: `…` while it runs, then `✓` or `✗`. Durations are not
   tracked per inner call — the `codemode` row's own timer covers the whole script.

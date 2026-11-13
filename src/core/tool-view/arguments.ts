@@ -1,6 +1,8 @@
 import { RowKind, rowKindOf } from "./row-kind.ts";
+import { scriptLine } from "./script-line.ts";
 
 const COMMAND_ARGUMENT = "command";
+const CODE_ARGUMENT = "code";
 const OFFSET_ARGUMENT = "offset";
 const LIMIT_ARGUMENT = "limit";
 const RANGE_SEPARATOR = ":";
@@ -8,6 +10,7 @@ const RANGE_JOINER = "-";
 const BLANK = "";
 const FIRST_LINE = 1;
 const FILE_ARGUMENTS: readonly string[] = ["file_path", "path"];
+const CODEMODE_TARGET = "codemode";
 
 type ToolCallArguments = Record<string, unknown> | undefined;
 
@@ -22,6 +25,12 @@ export function rowTarget(toolName: string, args: ToolCallArguments): string | u
 		const command = textArgument(args, COMMAND_ARGUMENT);
 
 		return command?.trim() ? command : undefined;
+	}
+
+	if (kind === RowKind.Codemode) {
+		const script = scriptLine(textArgument(args, CODE_ARGUMENT));
+
+		return script || CODEMODE_TARGET;
 	}
 
 	const filePath = fileArgument(args);
