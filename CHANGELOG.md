@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.0.1](https://github.com/Navin009/auto-permission-system/compare/v6.0.0...v6.0.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **ci:** run the suite on Linux without the sandbox runtime ([8c819b1](https://github.com/Navin009/auto-permission-system/commit/8c819b1b09c5b1ff9562e27f9a8114c7ad1741a0))
+* **security:** protect session transcripts and inline program writes ([a7f94fc](https://github.com/Navin009/auto-permission-system/commit/a7f94fc10843d213882c343e016cafeab2236b2a))
+* **security:** split command segments only outside quotes ([52f9706](https://github.com/Navin009/auto-permission-system/commit/52f9706f6cb074b33f86ef56cffd078bd290006a))
+
 # [6.0.0](https://github.com/Navin009/auto-permission-system/compare/v5.2.0...v6.0.0) (2026-11-13)
 
 
