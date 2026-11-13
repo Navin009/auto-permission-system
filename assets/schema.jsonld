@@ -1,0 +1,144 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://github.com/Navin009/auto-permission-system#software",
+      "name": "auto-permission-system",
+      "alternateName": [
+        "Auto Permission System",
+        "Pi permission system",
+        "Security for Pi",
+        "Permissions for Pi",
+        "Claude auto mode for Pi",
+        "Auto Secure",
+        "Pi tool view",
+        "Claude tool view for Pi",
+        "Claude-style compact tool view"
+      ],
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "AI coding agent extension",
+      "operatingSystem": ["Linux", "macOS", "Windows"],
+      "description": "Zero-trust permission system and Claude-style tool view for the Pi coding agent: an OS sandbox for bash, an in-process tool guard, secret redaction, permission modes, ask prompts and a JSONL audit log.",
+      "url": "https://github.com/Navin009/auto-permission-system",
+      "codeRepository": "https://github.com/Navin009/auto-permission-system",
+      "downloadUrl": "https://www.npmjs.com/package/auto-permission-system",
+      "softwareHelp": "https://github.com/Navin009/auto-permission-system/blob/main/README.md",
+      "license": "https://opensource.org/licenses/MIT",
+      "programmingLanguage": "TypeScript",
+      "runtimePlatform": "@earendil-works/pi-coding-agent",
+      "author": { "@id": "https://github.com/Navin009#person" },
+      "maintainer": { "@id": "https://github.com/Navin009#person" },
+      "isAccessibleForFree": true,
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "keywords": [
+        "pi-permission",
+        "pi-permissions",
+        "pi-permission-system",
+        "pi-security",
+        "pi-tool-view",
+        "pi-sandbox",
+        "tool-view",
+        "claude-tool-view-for-pi",
+        "claude-auto-mode-for-pi",
+        "auto-secure",
+        "secure-it",
+        "permission-system-for-pi",
+        "zero-trust",
+        "sandbox",
+        "tool-guard",
+        "secret-detection",
+        "audit-log"
+      ],
+      "featureList": [
+        "Layer 1 OS sandbox for bash (bubblewrap on Linux, sandbox-exec on macOS)",
+        "Layer 2 in-process tool guard for read, grep, find, ls, write, edit, fetch_content, web_search and MCP tools",
+        "Layer 3 Auto Secure secret and credential redaction before the model sees tool output",
+        "Ask-tier prompts with per-call, per-conversation, per-project and global persistence",
+        "Absolute-deny tier for ~/.ssh, ~/.gnupg, ~/.aws, *.pem, *.key and ~/.pi/agent/auth.json",
+        "Project policy trust: an untrusted .pi/sandbox.json may only tighten the policy",
+        "Permission modes: default, advanced-secure and YOLO via /permission-mode",
+        "Claude auto mode preset (sandbox.claude.json) for headless, fail-closed CI runs",
+        "Pi tool view: /tool-view compact draws tool runs as Claude-style rows with one timer",
+        "JSONL audit log at ~/.pi/agent/audit.log"
+      ]
+    },
+    {
+      "@type": "Person",
+      "@id": "https://github.com/Navin009#person",
+      "name": "Navin Kumar",
+      "url": "https://github.com/Navin009",
+      "jobTitle": "Software engineer",
+      "worksFor": {
+        "@type": "Organization",
+        "name": "Independent"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://github.com/Navin009/auto-permission-system#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is auto-permission-system?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A Pi package (npm:auto-permission-system) that adds a zero-trust permission system and a Claude-style tool view to the Pi coding agent."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the Pi permission system?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A policy engine enforced in two layers plus a redactor: an OS sandbox around bash (bubblewrap on Linux, sandbox-exec on macOS), an in-process tool guard for read, grep, find, ls, write, edit, fetch_content, web_search and MCP tools, and a scan that hides credentials in tool output before the model reads it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is Claude auto mode for Pi?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "An autonomous but fail-closed posture for unattended Pi runs: pi -p, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. The shipped sandbox.claude.json preset enables it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the Pi tool view?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A display-only renderer: /tool-view compact draws each run of shell calls, reads and codemode as one Claude-style row with a mark, a count and a single timer, while /tool-view full (the default) leaves Pi's own output untouched. It never reads or writes the sandbox policy."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is auto secure mode?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The advanced-secure permission mode: it keeps every policy rule and adds secret and credential detection, MCP risk scoring and real-time redaction, and can only add asks or blocks, never loosen one. Choose it with /permission-mode."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it work on Windows?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Layers 2 and 3 are platform independent, so the tool guard and the secret redactor run on Windows. Layer 1 (the OS sandbox for bash) requires bubblewrap and socat on Linux or the built-in sandbox-exec on macOS."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does auto-permission-system cost?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Nothing. It is MIT licensed, runs locally, and adds no account, API key or telemetry."
+          }
+        }
+      ]
+    }
+  ]
+}

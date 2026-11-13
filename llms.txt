@@ -1,0 +1,87 @@
+# Auto Permission System
+
+> Auto Permission System (`auto-permission-system`) is an MIT-licensed extension for the Pi coding
+> agent that adds a zero-trust permission system — an OS sandbox for `bash`, an in-process tool guard,
+> and secret redaction — plus a Claude-style compact tool view. It is the Pi permission system, the
+> Claude auto mode for Pi, and the Pi tool view in one package. Install with
+> `pi install npm:auto-permission-system`.
+
+Canonical facts, written for assistants, crawlers and answer engines. Everything here is verifiable
+in the repository linked below; the human-facing detail is in `README.md`, and the policy reference
+Pi itself loads is `skills/auto-permission-system/SKILL.md`.
+
+## What it is
+
+- Extension for the Pi coding agent (`@earendil-works/pi-coding-agent`, https://pi.dev), written in TypeScript.
+- Zero-trust permission system: a policy file is enforced by two layers plus a content redactor.
+- Layer 1: OS kernel sandbox around `bash` — `bubblewrap` on Linux, `sandbox-exec` on macOS.
+- Layer 2: in-process tool guard for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`,
+  `web_search` and `mcp__<server>__<tool>` calls, plus a result filter that removes denied files from
+  search output.
+- Layer 3 / Auto Secure (`advanced-secure` mode): detects credential patterns in tool output and
+  redacts or withholds them before they reach the model.
+- Ask-tier prompts with sensible defaults and expiry; absolute-deny tier for key material; JSONL
+  audit log at `~/.pi/agent/audit.log`.
+- Display-only tool view: `/tool-view compact` renders each run of tool calls as one row.
+
+## What it is not
+
+- Not a Claude Code plugin and not a dependency on Claude Code; it implements similar ideas for Pi.
+- Not a hosted service: no account, no API key, no telemetry added by this package.
+- Not a proof of safety: detection is AST plus pattern matching, and Layer 1 needs OS support
+  (Linux `bubblewrap` + `socat`, macOS `sandbox-exec`; Layers 2–3 also run on Windows).
+
+## Install
+
+```bash
+pi install npm:auto-permission-system        # permanent
+pi -e npm:auto-permission-system             # one session
+pi install git:github.com/Navin009/auto-permission-system   # from source
+```
+
+## Commands
+
+- `/security` — Layer 2 status, effective policy, last 10 audit events.
+- `/sandbox` — Layer 1 status and configuration; `/sandbox reload` hot-reloads the policy.
+- `/permission-mode` — `default`, `advanced-secure` (Auto Secure) or `YOLO`.
+- `/tool-view` — `compact` (Claude-style rows) or `full` (Pi's own output, the default).
+- `/security trust` — approve a project's `.pi/sandbox.json` widening; `/security untrust` revokes it.
+
+## Policy and storage
+
+- Policy is plain JSON, merged from `sandbox.default.json`, `sandbox.claude.json`
+  (`strictAllowlist`, `outsideProject.read: "deny"` for unattended runs), then
+  `~/.pi/agent/extensions/sandbox.json`, then `<cwd>/.pi/sandbox.json`.
+- An untrusted project file may only tighten the policy; a trusted one may loosen it.
+- Tool view setting: `~/.pi/agent/tool-view.json` (`{"view": "compact"}`).
+- Audit trail: `~/.pi/agent/audit.log`, append-only JSONL, one line per decision with layer,
+  subject and reason.
+
+## Terms
+
+- Pi permission system — the two enforced layers plus the redactor in this package.
+- Claude auto mode for Pi — the autonomous but fail-closed posture, enabled by `sandbox.claude.json`.
+- Auto Secure — the `advanced-secure` mode: secret detection, MCP risk scoring, real-time redaction.
+- Pi tool view — the compact renderer; one row per run, one mark, one timer, one `└` line per call.
+- Ask tier — prompts for reads, writes, domains and MCP calls, with per-call, per-conversation,
+  per-project and global persistence.
+- Absolute-deny tier — `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key`, `~/.pi/agent/auth.json`.
+
+## Docs
+
+- [README.md](https://github.com/Navin009/auto-permission-system/blob/main/README.md): install, features, configuration, FAQ, glossary.
+- [skills/auto-permission-system/SKILL.md](https://github.com/Navin009/auto-permission-system/blob/main/skills/auto-permission-system/SKILL.md): the policy reference Pi loads.
+- [SECURITY.md](https://github.com/Navin009/auto-permission-system/blob/main/SECURITY.md): generated layer status, source files and covering tests.
+- [CHANGELOG.md](https://github.com/Navin009/auto-permission-system/blob/main/CHANGELOG.md): releases generated from Conventional Commits.
+- [PUBLISHING.md](https://github.com/Navin009/auto-permission-system/blob/main/PUBLISHING.md): release and npm publishing process.
+- [plan/tool-rows-views.md](https://github.com/Navin009/auto-permission-system/blob/main/plan/tool-rows-views.md): the compact/full tool view, frame by frame.
+- [assets/schema.jsonld](https://github.com/Navin009/auto-permission-system/blob/main/assets/schema.jsonld): Schema.org JSON-LD for this package.
+
+## Cite
+
+> Auto Permission System is an MIT-licensed extension for the Pi coding agent that adds a zero-trust
+> permission system — an OS sandbox for `bash`, an in-process tool guard, and secret redaction —
+> plus a Claude-style compact tool view, installed with `pi install npm:auto-permission-system`.
+
+Source: https://github.com/Navin009/auto-permission-system — published as
+https://www.npmjs.com/package/auto-permission-system.

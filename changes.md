@@ -238,3 +238,95 @@ To make the package uniquely differentiated and capture 100% of search traffic f
    - The package appears on the **"Recently published"** shelf on `pi.dev`'s homepage.
    - Searches for `claude auto mode for pi`, `security for pi`, `permission system for pi`, `secure pi`, `auto secure`, `pypi`, and `pi-permission` will immediately match and return `auto-permission-system`!
 
+
+---
+
+## 7. AI search: GEO, AEO, E-E-A-T, semantic SEO and schema
+
+Section 1–6 covers classic keyword and gallery discoverability. This section covers the five
+disciplines that decide whether an **AI answer engine** — ChatGPT, Claude, Perplexity, Google AI
+Overviews — cites this package at all. Each one is now backed by a file in this repository.
+
+### GEO (Generative Engine Optimization)
+
+Goal: be the source a model quotes, not just a blue link.
+
+- Shipped: `llms.txt` — the canonical facts (what it is, what it is not, install, commands, storage,
+  terms, doc index) in one plain-text file that a crawler or assistant can load in a single request.
+- Shipped: a "Canonical facts" and "Citing this project" block in `README.md`, so a model that quotes
+  the page quotes the same sentence the project wrote.
+- Shipped: one stable sentence per entity ("Pi permission system", "Claude auto mode for Pi",
+  "Auto Secure", "Pi tool view") repeated verbatim across `README.md`, `llms.txt`,
+  `assets/schema.jsonld` and `skills/auto-permission-system/SKILL.md`. Repetition across files is
+  what makes an entity resolvable; divergence is what causes hallucination.
+- Still external: submit the repo/README to answer engines, keep the GitHub About text and topics in
+  sync with the description, and publish a landing page that embeds `assets/schema.jsonld`.
+
+### AEO (Answer Engine Optimization)
+
+Goal: every question resolves to one short, extractable answer.
+
+- Shipped: `README.md` → **Quick answers**, a question-and-answer table near the top with the eight
+  questions users actually type (`what is the pi permission system`, `what is claude auto mode for
+  pi`, `what is the pi tool view`, `what is auto secure`, `does it protect pypi credentials`,
+  `is it a claude code plugin`, `what does it cost`).
+- Shipped: `README.md` → **FAQ & Scenarios** in question form, one paragraph per answer, plus a
+  `FAQPage` entry in `assets/schema.jsonld` with the same questions and answers.
+- Shipped: `skills/auto-permission-system/SKILL.md` → **Canonical answers**, so the agent answers in
+  the same words when a user asks in chat.
+- Rule for future edits: a new feature lands with a question heading and a one-sentence answer first,
+  detail second.
+
+### E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)
+
+Goal: let a rater — human or model — verify the claims.
+
+- Shipped: `README.md` → **Trust & provenance**: named author and maintainer, the generated
+  `SECURITY.md` dashboard, the tests that can be run (`npm run typecheck`, `npm test`, opt-in
+  `APS_E2E=1`), the audit log that records every decision, the single runtime dependency, the public
+  release process, and a **Stated limits** paragraph that names what the package cannot do.
+- Shipped: pointers to the primary sources instead of restating them — `SECURITY.md` (generated),
+  `CHANGELOG.md` (generated), `PUBLISHING.md`, `plan/tool-rows-views.md`.
+- Shipped: `assets/schema.jsonld` → `Person` for the author, so the byline is machine-readable.
+- Still external: author the GitHub profile and repo About text with the same name and role, and keep
+  the docs reviewed date current (`Docs reviewed:` line in the README).
+
+### Semantic SEO & entity optimization
+
+Goal: be a well-defined entity, not a bag of keywords.
+
+- Shipped: `README.md` → **Glossary & entities**: an entity table (canonical name, aliases, what it
+  is) and a term table (Layer 1/2/3, permission mode, ask tier, absolute-deny tier, project trust,
+  MCP gate, row, audit log), so "the thing this package is" is unambiguous.
+- Shipped: aliases in `assets/schema.jsonld` → `alternateName`, and the same alias set in
+  `package.json` keywords, so `pi-permission`, `pi-tool-view`, `claude-tool-view-for-pi`,
+  `auto-secure`, `secure-it` and `pypi-security` all resolve to this package.
+- Shipped: consistent naming rules — "Pi" is the Pi coding agent, "Claude auto mode for Pi" is this
+  package's posture, "Pi tool view" is this package's renderer, and Claude Code is credited as the
+  inspiration rather than implied to be the product.
+- Rule for future edits: introduce a term once, in the glossary, and link to it instead of describing
+  it again.
+
+### Schema markup
+
+Goal: remove guesswork for parsers.
+
+- Shipped: `assets/schema.jsonld` — JSON-LD `@graph` with:
+  - `SoftwareApplication`: name, `alternateName` aliases, category, operating systems, description,
+    repo, download URL, MIT license, language, `author`/`maintainer`, keywords, `featureList`, and a
+    free `Offer`.
+  - `Person`: the author with a stable `@id`.
+  - `FAQPage`: the Quick-answer questions with the same accepted answers as the README.
+- How to use it: embed it in a landing page as `<script type="application/ld+json">…</script>`, or
+  submit it where a registry accepts schema. GitHub strips `<script>` from rendered Markdown, which
+  is why it ships as a standalone file instead of being inlined in the README.
+- Rule for future edits: any change to the Quick answers or the aliases must be mirrored in the JSON-LD
+  in the same commit, or the two descriptions start disagreeing.
+
+### Checklist per release
+
+1. Quick answers, glossary and aliases still match the code.
+2. `llms.txt` and `assets/schema.jsonld` updated in the same commit as `README.md`.
+3. `Docs reviewed:` date bumped in the README.
+4. GitHub About description and topics match `package.json` `description` and `keywords`.
+5. `SECURITY.md` regenerated with `./security/check.sh`, never hand-edited.

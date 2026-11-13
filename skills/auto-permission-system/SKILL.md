@@ -1,11 +1,22 @@
 ---
 name: auto-permission-system
-description: Use this skill ONLY when the user explicitly asks about auto-permission-system, security for Pi, configuring security policies, or permission modes. Do NOT invoke this skill automatically when an action or tool is blocked during regular coding tasks.
+description: Use this skill ONLY when the user explicitly asks about auto-permission-system, security for Pi (pi security, pi permission, pi permissions, permission system for Pi), configuring security policies, permission modes, or the Pi tool view / Claude tool view for Pi (compact tool rows, /tool-view, tool call display). Do NOT invoke this skill automatically when an action or tool is blocked during regular coding tasks.
 ---
 
 # Security for Pi (Pi Permission System) — Skill
 
-Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, or configuring Claude auto mode for Pi.
+Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, configuring Claude auto mode for Pi, or the Pi tool view.
+
+## Canonical answers
+
+Use these when a user asks what something is. Keep the wording stable — it matches `README.md`, `llms.txt` and `assets/schema.jsonld`, so the same question gets the same answer everywhere.
+
+- **auto-permission-system** — a Pi package that adds a zero-trust permission system and a Claude-style tool view to the Pi coding agent.
+- **Pi permission system** — the two enforced layers (OS sandbox for `bash`, in-process tool guard) plus the Auto Secure redactor, driven by one `sandbox.json`.
+- **Claude auto mode for Pi** — the autonomous but fail-closed posture (`sandbox.claude.json`) for `pi -p`, CI jobs, containers and subagents.
+- **Auto Secure** — the `advanced-secure` permission mode: secret detection, MCP risk scoring and real-time redaction; it can only add asks or blocks, never loosen one.
+- **Pi tool view** — the display-only renderer: `/tool-view compact` draws each run of shell calls, reads and `codemode` as one row with one timer; `/tool-view full` is Pi's own output and the default.
+- **Cost and data** — MIT licensed, runs locally, one runtime dependency, no account, no API key, no telemetry added by this package.
 
 ## Handling Blocked Operations (Agent Behavior Guideline)
 
@@ -33,7 +44,7 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 
 ## Tool view (display only)
 
-`/tool-view compact` draws consecutive shell calls as one `Running N commands` row and consecutive `read` calls as one `Reading N files` row, each with a `└` line per command or file, leaves every other tool on Pi's own block, `/tool-view full` returns Pi's own output, and the choice is saved in `~/.pi/agent/tool-view.json`. It is a renderer and nothing else: it never reads or writes `sandbox.json`, and a blocked or denied call keeps the `✗` mark and the word `blocked` / `denied` on its row. Never treat the tool view as a security setting, and never suggest switching it as a way around a block.
+`/tool-view compact` is the **Pi tool view** in its Claude-style form: consecutive shell calls become one `Running N commands` row and consecutive `read` calls one `Reading N files` row, each with a `└` line per command or file, and a `codemode` call gets a `codemode` row with one line per inner call; every other tool keeps Pi's own block. The row header carries the only timer — a `└` line never repeats it, and a folded header counts what it hid (`+4`) without timing it. Clicking a row walks Pi's own levels (the `└` lines, then Pi's block per call, then the full output, then back), `/tool-view full` returns Pi's own output, and the choice is saved in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`). It is a renderer and nothing else: it never reads or writes `sandbox.json`, and a blocked or denied call keeps the `✗` mark and the word `blocked` / `denied` on its row. Never treat the tool view as a security setting, and never suggest switching it as a way around a block.
 
 ## Policy files
 
@@ -149,6 +160,7 @@ Switch with `/permission-mode`; all three modes are saved to the global `sandbox
 - `/sandbox` — show Layer 1 bash sandbox config
 - `/sandbox reload` — live-reload sandbox after manual `sandbox.json` edits
 - `/permission-mode` — choose Default (rules), Advanced Secure (secret detection), or YOLO (all layers off). Saved to the global `sandbox.json`.
+- `/tool-view` — choose the Pi tool view: `compact` (Claude-style rows) or `full` (Pi's own output). Display only; saved to `~/.pi/agent/tool-view.json`.
 
 ## Escape hatches
 

@@ -4,7 +4,7 @@
   </a>
 </p>
 
-# Auto Permission System: Secure Auto Mode & Security for Pi Coding Agent
+# Auto Permission System: Secure Auto Mode, Permissions & Claude-Style Tool View for Pi Coding Agent
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
@@ -14,10 +14,31 @@
 [![Claude Auto Mode for Pi](https://img.shields.io/badge/Pi-Claude_Auto_Mode-blue.svg)](#secure-auto-mode--claude-auto-mode)
 [![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi-how-it-works)
 [![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system--modes)
+[![Tool View for Pi](https://img.shields.io/badge/Tool_View-for_Pi-purple.svg)](#tool-view-for-pi-claude-style-compact-rows-display-only)
 
 **Auto Permission System** is a zero-trust permission architecture and **Secure Auto Mode / Claude Auto Mode for the [Pi coding agent](https://pi.dev)**. It brings the confidence of **Claude's auto mode** to Pi—enabling autonomous agent workflows while actively scanning files, shell commands, and tool content to **prevent data breaches and credential exfiltration**.
 
+It also ships a **Pi tool view**: `/tool-view compact` draws tool calls as Claude-style compact rows — one row per run, one mark, one timer — next to `/tool-view full`, which leaves Pi's own output untouched. The tool view is presentation only; the **Pi permission system** (sandbox, guard, ask prompts, audit log) is identical in both views.
+
 Whether running interactively with keyboard-driven ask prompts or running headlessly in CI/CD pipelines, this package enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
+
+---
+
+## Quick answers
+
+Short, quotable answers to the questions people — and AI assistants — ask most. The detail behind
+each one is in the sections below.
+
+| Question | Answer |
+|---|---|
+| **What is auto-permission-system?** | A [Pi package](https://pi.dev/packages) (`npm:auto-permission-system`) that adds a zero-trust permission system and a Claude-style tool view to the [Pi coding agent](https://pi.dev). |
+| **What is the Pi permission system?** | A policy engine that is enforced in two layers — an OS sandbox for `bash` (`bubblewrap` on Linux, `sandbox-exec` on macOS) and an in-process tool guard for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search` and MCP tools — plus a redactor that scans tool output before it reaches the model. |
+| **What is Claude auto mode for Pi?** | An autonomous but fail-closed posture: `pi -p`, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. The shipped `sandbox.claude.json` preset turns it on. |
+| **What is the Pi tool view?** | A display-only renderer: `/tool-view compact` draws each run of shell calls, reads and `codemode` as one Claude-style row with a mark, a count and a **single** timer, while `/tool-view full` (the default) leaves Pi's own output untouched. |
+| **What is “auto secure”?** | The `advanced-secure` permission mode: secret and credential detection, MCP risk scoring and real-time redaction on top of the same policy file. Choose it with `/permission-mode`. |
+| **Does it protect PyPI credentials?** | Yes. `pypi-…` upload tokens are detected and redacted, `~/.pypirc` asks before a read or a write instead of being handed over, and `pypi.org` / `*.pypi.org` egress is governed like any other host. |
+| **Is it a Claude Code plugin?** | No. It is a **Pi** extension. It borrows the ideas developers know from Claude Code — auto mode, permission prompts, a compact tool view — and implements them for Pi. |
+| **What does it cost?** | Nothing. MIT licensed, runs locally, no account, no API key, no telemetry added by this package. |
 
 ---
 
@@ -36,6 +57,7 @@ Whether running interactively with keyboard-driven ask prompts or running headle
 
 ## Contents
 
+- [Quick answers](#quick-answers)
 - [Quickstart & Installation](#quickstart--installation)
 - [Requirements](#requirements)
 - [Key Features at a Glance](#key-features-at-a-glance)
@@ -46,9 +68,13 @@ Whether running interactively with keyboard-driven ask prompts or running headle
 - [Permission System & Modes](#permission-system--modes)
 - [Configuration Reference](#configuration-reference)
 - [Commands & Mid-Session Controls](#commands--mid-session-controls)
+- [Tool view for Pi: Claude-style compact rows](#tool-view-for-pi-claude-style-compact-rows-display-only)
 - [Escape Hatches](#escape-hatches)
 - [Audit Logging](#audit-logging)
 - [FAQ & Scenarios](#faq--scenarios)
+- [Glossary & entities](#glossary--entities)
+- [Trust & provenance](#trust--provenance)
+- [For AI assistants & answer engines](#for-ai-assistants--answer-engines)
 - [Development & Testing](#development--testing)
 - [Releasing](#releasing)
 - [License](#license)
@@ -104,6 +130,7 @@ Once installed, the extension automatically loads whenever you launch `pi`. Chec
 | 🌐 **Network Egress Gate** | Intercepts unapproved network connections and prompts for confirmation with wildcards. | Data Leak Prevention |
 | 🔒 **Absolute-Deny Tier** | Strict two-step confirmation required for high-risk keys (`~/.ssh`, `~/.aws`, `auth.json`). | Maximum Protection |
 | 📋 **Full JSONL Audit Trail** | Every allow, deny, ask, and redaction event is recorded to `~/.pi/agent/audit.log`. | Compliance & Auditing |
+| 🪄 **Tool View for Pi** | `/tool-view compact` collapses each run of shell calls, reads and `codemode` into one Claude-style row with a single timer; `/tool-view full` keeps Pi's own output. Display only. | Presentation |
 
 ---
 
@@ -348,39 +375,46 @@ When cloning a repository with a `.pi/sandbox.json`:
 | `/permission-mode` | Switch between **Default**, **Advanced Secure**, and **YOLO** mid-session. |
 | `/security trust` | Inspect and trust project-local policy widening in `.pi/sandbox.json`. |
 | `/security untrust` | Revoke trust for the current project's policy file. |
-| `/tool-view compact` | Group consecutive shell commands and file reads into rows; every other tool keeps Pi's block (display only). |
+| `/tool-view compact` | Claude-style compact rows: consecutive shell commands and file reads become one row; every other tool keeps Pi's block (display only). |
 | `/tool-view full` | Back to Pi's own output. Also the shipped default. |
 | `/tool-view` | Menu with both choices. |
 
-### Tool view (display only)
+### Tool view for Pi: Claude-style compact rows (display only)
 
-`compact` touches shell commands, `read` calls and `codemode`. Every other tool — `edit`, `write`,
-`ls`, `grep`, `find`, MCP tools — keeps Pi's own block, byte for byte:
+**Pi tool view** is the presentation half of this package: `/tool-view compact` draws each run of
+tool calls the way **Claude Code's tool view** draws them — one collapsed row per run, a mark, a
+count and a single timer — while `/tool-view full` leaves Pi's own output exactly as it was. It
+touches shell commands, `read` calls and `codemode`; every other tool — `edit`, `write`, `ls`,
+`grep`, `find`, MCP tools — keeps Pi's own block, byte for byte:
 
 ```text
 ✓ Running 2 commands · 2s
-  └ ✓ $ npm test 1.4s
-  └ ✓ $ git status 120ms
+  └ ✓ $ npm test
+  └ ✓ $ git status
 
 ✓ Reading 3 files · 1s
-  └ ✓ src/config.ts 300ms
-  └ ✓ src/loader.ts 400ms
-  └ ✓ src/settings.ts 200ms
+  └ ✓ src/config.ts
+  └ ✓ src/loader.ts
+  └ ✓ src/settings.ts
 ```
 
 Consecutive shell calls are one row: a header with the count and the elapsed time, then one
-`  └ <mark> $ <command> <duration>` line per command, in the order they ran. The mark sits in
-column 1 — `●` while the group runs, `✓` or `✗` once it settles — and it is the last command's mark,
-so a failure earlier in the run keeps its own `└ ✗` line. A single command keeps its own row with a
-plain `  └ $ <command>` line.
+`  └ <mark> $ <command>` line per command, in the order they ran. The mark sits in column 1 — `●`
+while the group runs, `✓` or `✗` once it settles — and it is the last command's mark, so a failure
+earlier in the run keeps its own `└ ✗` line. A single command keeps its own row with a plain
+`  └ $ <command>` line.
 
-Consecutive reads are one row too: the same header, then one `  └ <mark> <path> <duration>` line per
-file, in the order they were read. No `$` prompt, because a read line already names its file; a
-sliced read carries its range (`  └ ✓ src/app.ts:120-179 300ms`), and a blocked or denied read keeps
-the word on its own line (`  └ ✗ ~/.ssh/id_rsa blocked`). A single read keeps one unmarked line
-(`  └ src/a.ts`). Eight lines are shown; older calls fold into `  └ ... (2 earlier calls)`. A read
-and a shell command never share a row, so `Reading N files` and `Running N commands` stay honest
-about what ran.
+Consecutive reads are one row too: the same header, then one `  └ <mark> <path>` line per file, in
+the order they were read. No `$` prompt, because a read line already names its file; a sliced read
+carries its range (`  └ ✓ src/app.ts:120-179`), and a blocked or denied read keeps the word on its
+own line (`  └ ✗ ~/.ssh/id_rsa blocked`). A single read keeps one unmarked line (`  └ src/a.ts`).
+Eight lines are shown; older calls fold into `  └ ... (2 earlier calls)`. A read and a shell command
+never share a row, so `Reading N files` and `Running N commands` stay honest about what ran.
+
+**One timer per row.** The header duration is the only time on screen: it counts up while the run
+is live, freezes when it settles, and is the wall-clock time you waited for the whole run — not the
+sum of the individual calls. A `└` line carries its mark and its command and nothing else, and the
+folded header counts what it hid (`+4`) without timing it.
 
 Once a later call starts, the group above tightens to one line and names its last command:
 
@@ -405,9 +439,9 @@ ever grouped when they really ran next to each other.
 
 ```text
 ✓ Running 4 commands · 1.2s
-  └ ✓ pytest -k "not slow" tests/unit 320ms
-  └ ✓ ruff check src 180ms
-  └ ✗ scripts/seed.py --force 700ms
+  └ ✓ pytest -k "not slow" tests/unit
+  └ ✓ ruff check src
+  └ ✗ scripts/seed.py --force
   └ … $ python3 -m uvicorn app.main:app
 ```
 
@@ -416,22 +450,21 @@ A `└` line keeps the command, minus noise: a leading `cd <cwd> &&` is dropped,
 `pip`). A pipeline or a chain is **not** reduced to its last stage — `head -40 src/a.ts | head`
 still reads as that. The command may take up to 70 % of the width; past that the middle collapses
 (`program arg … last-path`), then the arguments go (`program … tail`), and only the program is left
-when nothing else fits. A duration is the last thing on the text, never pushed out to the right
-edge of the row, so a row ends where its text ends; `blocked` / `denied` ride with the command,
-left of it. Only the folded header names the last segment.
+when nothing else fits. `blocked` / `denied` ride with the command, left of it, and the line ends
+where its text ends. Only the folded header names the last segment.
 
 A `codemode` call gets its own row too: a fixed `codemode` title with its timer, the script's first
-statement, and one line per inner call with that call's mark and duration:
+statement, and one line per inner call with that call's mark:
 
 ```text
 ✓ codemode · 3s
   └ await tools.searchTools("rank")
-  └ ✓ mcp:dev-radius:search rank 120ms
-  └ ✓ read src/config.ts 8ms
+  └ ✓ mcp:dev-radius:search rank
+  └ ✓ read src/config.ts
 ```
 
-Inner calls are live (`…` while running, then `✓` or `✗` with its time) and never become rows of
-their own.
+Inner calls are live (`…` while running, then `✓` or `✗`) and never become rows of their own, so a
+`codemode` run stays one row however many tools it calls.
 
 A blocked or denied command is never silent: a single command says so on its row
 (`✗ Running 1 command denied`), and inside a group the word rides on the command line
@@ -441,7 +474,7 @@ A streaming thought rides on the live row in brackets and stays Pi's own block o
 
 ```text
 ● Running 2 commands (thinking 4s) · 26s
-  └ ✓ $ npm test 1.4s
+  └ ✓ $ npm test
   └ … $ npm run build
 ```
 
@@ -459,14 +492,15 @@ Expanding is Pi's too — `compact` never redraws Pi's block. Click a folded row
 for every call in the group — same frame, same padding, same background, same preview line as
 `full` — then click again for the full output, and once more to fold it back. A group that is
 already the newest row shows its `└` lines, so its first click goes straight to Pi's block; a read
-run never jumps from one folded line to three file bodies. The compact row is only the collapsed level of that same
-view.
+run never jumps from one folded line to three file bodies. The compact row is only the collapsed
+level of that same view.
 
 - The choice is stored in `~/.pi/agent/tool-view.json` (`{"view": "compact"}`), so the next session
   agrees. Missing or unparsable file → `full`.
 - Default: `full`. Nothing changes until you switch it on.
 - Display only: the row renderer never reads or writes the policy, and every security decision —
-  sandbox, guard, ask prompt, audit log — is identical in both views.
+  sandbox, guard, ask prompt, audit log — is identical in both views. The tool view is not a
+  permission setting and never changes what runs.
 
 ---
 
@@ -529,8 +563,103 @@ Add it to `network.allowedDomains` in `<cwd>/.pi/sandbox.json` or `~/.pi/agent/e
 ### Why was my tool call or command blocked?
 Run `/security` to inspect active policy rules and the last 10 audit events. Check `~/.pi/agent/audit.log` to view the exact matching rule (`reason`).
 
+### Where is the Claude tool view for Pi?
+Pi ships its own tool blocks. This package adds the **Claude Code style tool view** on top of them: run `/tool-view compact` (or pick it from `/tool-view`) and each run of shell commands, `read` calls and `codemode` collapses into one row — a mark, a count, one timer, and a `└` line per command or file — instead of a full block per call. `/tool-view full` puts Pi's own output back, and the choice is remembered in `~/.pi/agent/tool-view.json`.
+
+### Is the tool view a permission or security setting?
+No. The tool view is a renderer: it never reads or writes `sandbox.json`, and every allow/deny decision, ask prompt and audit entry is the same in `compact` and `full`. Switching views cannot make a blocked call run, and a blocked or denied call keeps its `✗` mark and the word `blocked` / `denied` on its row.
+
+### What is “auto secure” mode?
+“Auto secure” is the `advanced-secure` permission mode (`/permission-mode` → **Advanced Secure**). It keeps every rule from the policy file and adds secret and credential detection, risk scoring for MCP tools, and real-time redaction of anything that looks like a token before the model sees it. It can only add asks or blocks; it never loosens a rule.
+
+### Does it protect PyPI credentials and `pip install` runs?
+Yes. `pypi-…` upload tokens are matched, hidden and redacted like any other credential, `~/.pypirc` asks before a read or a write in the shipped policy, and `pypi.org` / `*.pypi.org` are governed hosts, so a `pip install` cannot quietly ship your package index token to another endpoint. The same rules cover OpenAI, Anthropic, GitHub, AWS and Stripe credentials.
+
+### How is this different from Claude Code's permission system?
+Claude Code's permission system belongs to Claude Code. This package implements the same ideas for the **Pi** coding agent as an extension: two enforced layers (OS sandbox + in-process tool guard), the same ask-tier prompts, project policy files with a trust step, a JSONL audit log, and a Claude-style compact tool view — all configurable through `sandbox.json`. It does not run, wrap or require Claude Code.
+
 ### Does it work on Windows?
 Layer 2 (In-Process Tool Guard) and Layer 3 (Output Redactor) are platform-independent. Layer 1 (OS Sandbox) requires `sandbox-exec` (macOS, built-in) or `bubblewrap` + `socat` (Linux).
+
+---
+
+## Glossary & entities
+
+One spelling per thing, so a person and a model mean the same thing when they talk about this package.
+
+### Entities
+
+| Entity | What it is | Canonical name / aliases |
+|---|---|---|
+| **Auto Permission System** | This package | npm `auto-permission-system`, GitHub `Navin009/auto-permission-system` |
+| **Pi** | The coding agent this package extends | Pi coding agent, `@earendil-works/pi-coding-agent`, [pi.dev](https://pi.dev) |
+| **Pi permission system** | The two enforced layers plus the redactor in this package | “security for Pi”, “permissions for Pi”, “permission system for Pi” |
+| **Claude auto mode for Pi** | The autonomous, fail-closed posture and its `sandbox.claude.json` preset | “Claude auto mode”, “safe auto mode”, “Claude-style auto mode” |
+| **Auto Secure** | The `advanced-secure` permission mode | “auto secure”, “secure it”, `advanced-secure` |
+| **Pi tool view** | The compact tool-call renderer | “Claude tool view for Pi”, “Claude-style tool view”, `/tool-view` |
+| **Claude Code** | The AI coding tool whose auto mode and compact tool rows inspired these two features | Anthropic's CLI agent — inspiration, not a dependency |
+| **Navin Kumar** | Author and maintainer | GitHub [@Navin009](https://github.com/Navin009) |
+
+### Terms
+
+| Term | Definition |
+|---|---|
+| **Layer 1** | The OS-level sandbox around `bash`: `bubblewrap` on Linux, `sandbox-exec` on macOS. Enforces write roots, deny-read paths and network egress from outside the agent process, so a block holds even when the model was not asked. |
+| **Layer 2** | The in-process tool guard: a `tool_call` hook that applies the same policy file to `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search` and MCP tools, and a `tool_result` hook that filters denied files out of search output. |
+| **Layer 3 / Auto Secure** | The content redactor: scans tool output for credential patterns and asks or redacts before the text reaches the model's context. |
+| **Permission mode** | `default` (rules only), `advanced-secure` (rules + secret detection + MCP risk scoring) or `YOLO` (every layer off). Chosen with `/permission-mode`, saved to the global `sandbox.json`. |
+| **`sandbox.json`** | The plain-JSON policy file. Merged from four places: the shipped default, the shipped Claude preset, the global file and the project file. |
+| **Ask tier** | A rule that prompts instead of blocking: read, write, domain or MCP call. Answers can last one call, one conversation, this project or all projects. |
+| **Absolute-deny tier** | Paths that are always blocked and need two confirmations to allow, even interactively: `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key`, `~/.pi/agent/auth.json`. |
+| **Project trust** | A project's `.pi/sandbox.json` may only **tighten** the policy until you run `/security trust`; the trust store records the exact file content. |
+| **MCP gate** | The Advanced Secure check that risk-scores `mcp__<server>__<tool>` calls by name and arguments and asks before destructive ones run. |
+| **Row** | One line in the compact tool view: a mark, a count and one timer, standing for a run of calls. A `└` line under it is one command, one file or one inner `codemode` call. |
+| **Audit log** | `~/.pi/agent/audit.log`, append-only JSONL, one entry per allow, block, ask or redaction decision. |
+
+---
+
+## Trust & provenance
+
+Why the claims on this page can be checked instead of taken on faith.
+
+- **Author and maintenance.** Written and maintained by [Navin Kumar](https://github.com/Navin009). Every change lands on `main` as a Conventional Commit — `commitlint` rejects the rest — and the reasoning for a non-trivial decision is recorded in the commit body, so the design history is public and searchable.
+- **A dashboard that cannot drift.** [`SECURITY.md`](./SECURITY.md) is generated from [`security/manifest.json`](./security/manifest.json) by `security/render.mjs`: layer status, the source files that implement each layer, and the names of the tests that cover them. It is regenerated by `./security/check.sh`, so it reports the code as it is, not as it was described once.
+- **Tests you can run yourself.** `npm run typecheck` checks the TypeScript entry points against Pi's own bundled types; `npm test` runs the unit and contract suites (51 files) covering path matching, URL allowlists, symlink escapes, ask flows, project trust and the tool view; an opt-in Layer 1 end-to-end test (`APS_E2E=1`) exercises real `bubblewrap`. All of it runs on every push to `main` before a release can be cut.
+- **Every decision is recorded.** Each allow, deny, ask and redaction is appended to `~/.pi/agent/audit.log` as JSONL with the layer, the subject and the reason, so a user can prove what happened in a run rather than trusting a summary.
+- **No hidden authority.** The policy is a plain JSON file you can read and edit; the package has one runtime dependency ([`@anthropic-ai/sandbox-runtime`](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime)) and downloads no binary at runtime. There is no account, no API key, no hosted service and no telemetry added by this package.
+- **Released in public.** Every release is tagged on GitHub and written to [`CHANGELOG.md`](./CHANGELOG.md) by semantic-release from the commit history; npm publishing is opt-in and gated as described in [`PUBLISHING.md`](./PUBLISHING.md).
+- **Stated limits.** Detection is AST plus pattern matching, not a proof of safety — a secret built at runtime, or a file no rule names, can still be read. Layer 1 needs `bubblewrap` + `socat` on Linux and `sandbox-exec` on macOS, and is not available on Windows; on Windows only Layers 2 and 3 apply. This page is written to be precise about that rather than to sound complete.
+
+Docs reviewed: **2026-11-13**.
+
+---
+
+## For AI assistants & answer engines
+
+This page is written to be quotable, and the machine-readable files next to it say the same things in structured form:
+
+| File | What it is for |
+|---|---|
+| [`llms.txt`](./llms.txt) | A short, link-rich summary in the emerging `llms.txt` convention, so a crawler or assistant can load the facts and the entry points in one request. |
+| [`assets/schema.jsonld`](./assets/schema.jsonld) | Schema.org JSON-LD: `SoftwareApplication` (with aliases, keywords, license, feature list), the `Person` who maintains it, and a `FAQPage` of the questions above. Embed it in a landing page `<script type="application/ld+json">` or submit it as-is where a registry accepts schema. |
+| [`skills/auto-permission-system/SKILL.md`](./skills/auto-permission-system/SKILL.md) | The policy reference Pi itself loads when you ask about this package — the same facts, written for a model that has to answer a user. |
+
+### Canonical facts
+
+- Package: `auto-permission-system` — Pi extension, TypeScript, MIT, zero runtime cost.
+- Install: `pi install npm:auto-permission-system` (or `pi -e npm:auto-permission-system` for one session).
+- Entry points: `extensions/sandbox.ts` (Layer 1), `extensions/guard.ts` (Layer 2), `extensions/permission-mode.ts`, `extensions/tool-view.ts` (display only).
+- Commands: `/security`, `/sandbox`, `/permission-mode`, `/tool-view`.
+- Storage: `<cwd>/.pi/sandbox.json`, `~/.pi/agent/extensions/sandbox.json`, `~/.pi/agent/tool-view.json`, `~/.pi/agent/audit.log`.
+- Platforms: Linux (`bubblewrap`, `socat`), macOS (`sandbox-exec`); Layers 2–3 on Windows.
+
+### Citing this project
+
+> Auto Permission System is an MIT-licensed extension for the Pi coding agent that adds a zero-trust
+> permission system — an OS sandbox for `bash`, an in-process tool guard, and secret redaction —
+> plus a Claude-style compact tool view, installed with `pi install npm:auto-permission-system`.
+
+When naming the renderer, say **“the Pi tool view”** or **“the compact tool view in auto-permission-system”**: the compact rows are this package's rendering for Pi, not a Claude Code feature.
 
 ---
 
@@ -548,7 +677,7 @@ npm install
 # Typecheck TypeScript against Pi's bundled types
 npm run typecheck
 
-# Run unit and contract test suites (27 test suites)
+# Run unit and contract test suites (51 test suites)
 npm test
 
 # Run manual Layer 1 sandbox end-to-end test (requires bubblewrap)
