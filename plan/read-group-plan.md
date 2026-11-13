@@ -65,21 +65,21 @@ level 1 (folded, after a later call)
 level 2 (newest row — the file list)
 
 ✓ Reading 3 files · 4s
-  └ ✓ src/config.ts 0.3s
-  └ ✓ src/loader.ts 0.4s
-  └ ✓ src/settings.ts 0.2s
+  └ ✓ src/config.ts
+  └ ✓ src/loader.ts
+  └ ✓ src/settings.ts
 
 level 3 (one file, content collapsed — Pi's own block)
 
 ✓ Reading 3 files · 4s
-  └ ✓ src/config.ts 0.3s
+  └ ✓ src/config.ts
 
   read
     src/loader.ts
   ──────────────────────────────────────────
   ⋯ 84 more lines · ctrl+o to expand
 
-  └ ✓ src/settings.ts 0.2s
+  └ ✓ src/settings.ts
 
 level 4 (same file, full content — Pi's own block)
 
@@ -129,8 +129,8 @@ While the last one still runs:
 
 ```text
 ● Reading 3 files · 1s
-  └ ✓ src/config.ts 0.3s
-  └ ✓ src/loader.ts 0.4s
+  └ ✓ src/config.ts
+  └ ✓ src/loader.ts
   └ … src/settings.ts
 ```
 
@@ -138,9 +138,9 @@ Settled — the run is still the newest row, so the list stays open:
 
 ```text
 ✓ Reading 3 files · 4s
-  └ ✓ src/config.ts 0.3s
-  └ ✓ src/loader.ts 0.4s
-  └ ✓ src/settings.ts 0.2s
+  └ ✓ src/config.ts
+  └ ✓ src/loader.ts
+  └ ✓ src/settings.ts
 ```
 
 The next call takes the row over and the list becomes one line:
@@ -174,9 +174,9 @@ When a later call starts it folds to today's form:
 
 ```text
 ✓ Reading 3 files · 2s
-  └ ✓ src/core/tool-view/row-group.ts 0.3s
-  └ ✓ src/core/tool-view/row-group.ts:120-179 0.2s
-  └ ✓ plan/tool-rows-views.md:1-60 0.1s
+  └ ✓ src/core/tool-view/row-group.ts
+  └ ✓ src/core/tool-view/row-group.ts:120-179
+  └ ✓ plan/tool-rows-views.md:1-60
 ```
 
 - A range makes the line longer than the path it came from; the file name still wins the cut.
@@ -186,9 +186,9 @@ When a later call starts it folds to today's form:
 
 ```text
 ✓ Reading 3 files · 2s
-  └ ✓ src/config.ts 0.3s
+  └ ✓ src/config.ts
   └ ✗ ~/.ssh/id_rsa blocked
-  └ ✓ src/c.ts 0.2s
+  └ ✓ src/c.ts
 ```
 
 - The blocked line carries the word and no duration (there is no work to time).
@@ -218,8 +218,8 @@ Inside an open run the same cut applies to the child line, never to the header:
 
 ```text
 ✓ Reading 2 files · 2s
-  └ ✓ … core/tool-view/target-summary.ts 0.3s
-  └ ✓ src/a.ts 0.1s
+  └ ✓ … core/tool-view/target-summary.ts
+  └ ✓ src/a.ts
 ```
 
 Narrower than 40 columns the group comes folded, because every line would be `…` — the existing
@@ -231,8 +231,8 @@ The active thought is Pi's own block in its own place; the row carries only the 
 
 ```text
 ● Reading 2 files (thinking 3s) · 2s
-  └ ✓ src/a.ts 0.4s
-  └ ✓ src/b.ts 0.2s
+  └ ✓ src/a.ts
+  └ ✓ src/b.ts
 ```
 
 After those reads settle, the next read draws its own file line in its own slot and the run keeps

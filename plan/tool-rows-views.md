@@ -1,18 +1,18 @@
 # Tool rows
 
-**Status:** the collapsed row is shipped for shell commands and reads. Shipped: the mark in
-column 1, a `  └` line per command with its own mark and duration, the fold to one line once a
-later call starts, the `(last command)` target, `blocked` / `denied` on the row, the
-`(thinking Ns)` bracket on the live row, a 70 %-wide command column, every duration at the end of
-its own text, the group's `└` lines as the first click level (§4), `Reading N files` rows for
-`read` with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps
-Pi's own components in Pi's own frame and never redraws them. In `compact` Pi's hidden-thinking
-label is blanked, so a hidden thought takes no line and no gap; while one streams the row carries the
+**Status:** the collapsed row is shipped for shell commands, reads and `codemode`. Shipped: the mark
+in column 1, a `  └` line per command with its own mark, the fold to one line once a later call
+starts, the `(last command)` target, `blocked` / `denied` on the row, the `(thinking Ns)` bracket on
+the live row, a 70 %-wide command column, one timer per row at the end of the header text and none
+on a `└` line, the group's `└` lines as the first click level (§4), `Reading N files` rows for `read`
+with one `  └ <path>` line per file (§3), and Pi's own block on expand — `compact` wraps Pi's own
+components in Pi's own frame and never redraws them. In `compact` Pi's hidden-thinking label is
+blanked, so a hidden thought takes no line and no gap; while one streams the row carries the
 `(thinking Ns)` bracket and keeps counting. The header is drawn once at the first call and each
 later call draws its own `└` line in its own slot, so even a thought Pi renders visibly cannot push a
 command line above it (§5). Compact children stay command-only.
-Not shipped: rows for `edit` (§1, §3), inner `codemode` calls with their own click, and
-per-`└`-line clicks (§4).
+Not shipped: rows for `edit` (§1, §3), a click on a single `codemode` inner call, and per-`└`-line
+clicks (§4).
 
 ## Commands
 
@@ -47,7 +47,7 @@ Finished work then tightens twice, on its own:
 | Level | When | What you see |
 | --- | --- | --- |
 | running | the command is running | its row, with Pi's own output drawn under the line |
-| grouped | that command finished, its group is still the newest row | one `└ ✓ $ cmd 1.2s` line per command, output gone |
+| grouped | that command finished, its group is still the newest row | one `└ ✓ $ cmd` line per command, output gone |
 | one line | a later call started | the whole group as a single row, `└` lines gone |
 
 The newest group always keeps its `└` lines. Everything above it has already become one line, so
@@ -123,16 +123,16 @@ its own `└` line:
 ✓ Reading 1 file (src/settings.ts) ctrl+o to expand · 1s
 
 ✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
-  └ ✗ $ npm test 2.4s
-  └ ✓ $ git status 0.2s
+  └ ✓ $ npm run typecheck
+  └ ✗ $ npm test
+  └ ✓ $ git status
 ```
 
 - Same row shape as above, `3 commands` instead of `1 command`, one line per command in the
   order it ran. The lines are open because this is the newest row on screen.
-- `✓` / `✗` per line, each with its own duration. The row's own mark is the mark of the command
-  that ran last: this run ends `✓`, `✗`, `✓`, so the row reads `✓` and the failure keeps its own
-  `└ ✗` line.
+- `✓` / `✗` per line, with no time of its own: the header keeps the only timer. The row's own mark
+  is the mark of the command that ran last: this run ends `✓`, `✗`, `✓`, so the row reads `✓` and the
+  failure keeps its own `└ ✗` line.
 - No output under a finished command: it is drawn only under the command still running and
   hidden the moment that one ends (§3). The frozen lines are the whole record.
 - The next call folds the whole list to `✓ Running 3 commands (git status) ctrl+o to expand · 4s`
@@ -292,7 +292,7 @@ Three moments of one `bash` call, with a thought in the middle:
 
 A `codemode` call is its own row: the title is fixed (`codemode`, never a command count), the first
 child line is the script's first statement, and every inner call the script makes gets one line with
-its own mark and duration.
+its own mark. Only the header carries a time.
 
 ```text
 ● codemode · 1ms
@@ -306,12 +306,13 @@ When the script finishes, the header settles and the inner lines take their outc
 ```text
 ✓ codemode · 3s
   └ await tools.searchTools("rank")
-  └ ✓ mcp:dev-radius:search rank 120ms
-  └ ✓ read src/config.ts 8ms
+  └ ✓ mcp:dev-radius:search rank
+  └ ✓ read src/config.ts
 ```
 
 - The inner calls come from `tool_execution_start` / `tool_execution_end` events carrying
-  `parentToolCallId`, so each line is live: `…` while it runs, then `✓` or `✗` with its duration.
+  `parentToolCallId`, so each line is live: `…` while it runs, then `✓` or `✗`. Durations are not
+  tracked per inner call — the `codemode` row's own timer covers the whole script.
 - Inner calls are never rows of their own and never change the title: a codemode run reads
   `codemode`, not `Running 2 commands`.
 
@@ -323,7 +324,7 @@ output under a finished command:
 
 ```text
 ● Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
+  └ ✓ $ npm test
   └ … $ npm run build
      > tsc -p tsconfig.json
 ```
@@ -332,8 +333,8 @@ When they finish, the output goes away and only the command lines stay:
 
 ```text
 ✓ Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
-  └ ✓ $ npm run build 3.0s
+  └ ✓ $ npm test
+  └ ✓ $ npm run build
 ```
 
 Output is shown only under the command that is **still running**. The moment a command finishes
@@ -373,7 +374,7 @@ lines stay as rows:
 
 ```text
 ✓ Running 2 commands · 5s
-  └ ✓ $ npm test 1.2s
+  └ ✓ $ npm test
 
 bash
   npm run build
@@ -422,14 +423,14 @@ is running at the same moment — so every line carries `…` and draws its own 
      On branch main
 ```
 
-Each line settles on its own, with its own mark and its own duration; the group ends when the
-last one does:
+Each line settles on its own, with its own mark; the header keeps the only time. The group ends when
+the last one does:
 
 ```text
 ✓ Running 3 commands · 4s
-  └ ✓ $ npm test 3.2s
-  └ ✓ $ npm run lint 2.1s
-  └ ✓ $ git status 0.3s
+  └ ✓ $ npm test
+  └ ✓ $ npm run lint
+  └ ✓ $ git status
 ```
 
 - The header duration is the group's own elapsed time, never the sum of the lines: three
@@ -471,13 +472,13 @@ file, then Pi's blocks.
 
 ```text
 ● Reading 3 files · 1s
-  └ ✓ src/config.ts 300ms
-  └ ✓ src/loader.ts 400ms
+  └ ✓ src/config.ts
+  └ ✓ src/loader.ts
   └ … src/settings.ts
 ```
 
 - No `$` prompt on a read line: the path is the line. A sliced read carries its range
-  (`  └ ✓ src/app.ts:120-179 300ms`); a whole-file read carries none.
+  (`  └ ✓ src/app.ts:120-179`); a whole-file read carries none.
 - A single read in the group draws no mark and no duration — `  └ src/a.ts` — because the header
   already carries both, exactly like a single command.
 - A blocked or denied read keeps its word on its own line, after the path:
@@ -516,9 +517,9 @@ the mark, the count, the target and the duration stay exactly where they were.
 
 ```text
 ✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
-  └ ✗ $ npm test 2.4s
-  └ ✓ $ git status 0.2s
+  └ ✓ $ npm run typecheck
+  └ ✗ $ npm test
+  └ ✓ $ git status
 ```
 
 ### Level 3 — Pi's block for one call, result collapsed
@@ -528,7 +529,7 @@ lines stay as rows:
 
 ```text
 ✓ Running 3 commands · 4s
-  └ ✓ $ npm run typecheck 1.1s
+  └ ✓ $ npm run typecheck
 
 bash
   npm test
@@ -536,7 +537,7 @@ bash
 ✗ tests/rows-summary.mjs (7)
 … 11 more lines · ctrl+o to expand
 
-  └ ✓ $ git status 0.2s
+  └ ✓ $ git status
 ```
 
 ### Level 4 — the same block, fully expanded
@@ -630,7 +631,7 @@ only its bracket, and Pi's label can be clicked normally:
 
 ```text
 ● Running 1 command (thinking 4s) · 1s
-  └ ✓ $ npm run build 1s
+  └ ✓ $ npm run build
 
  Thinking...
 ```
@@ -639,7 +640,7 @@ When `npm test` arrives next, it draws its own line in its own slot and the run 
 
 ```text
 ● Running 2 commands · 6s
-  └ ✓ $ npm run build 1s
+  └ ✓ $ npm run build
 
  Thinking...
 
@@ -777,9 +778,10 @@ stop after this build, run the linter next
    showing `└ $ cmd` carry no hint. The hint and the duration stay with the text — a duration
    ends its own text and is never pushed out to the display's right edge, so a row ends where its
    text ends.
-6. Several shell commands in a row are one group of `└ $ cmd` lines, each with `✓`/`✗` and how
-   long it took. Output shows only under the command still running; when it finishes its output
-   is hidden — click the line or `ctrl+o` to read it. No collapsed one-liner to open first.
+6. Several shell commands in a row are one group of `└ $ cmd` lines, each with `✓`/`✗`; the
+   group's header is the only place a time is printed. Output shows only under the command still
+   running; when it finishes its output is hidden — click the line or `ctrl+o` to read it. No
+   collapsed one-liner to open first.
 7. Thinking streams in the row's target slot — `● Running 1 command (thinking 4s) · 1s` — and
    that bracket is dropped the moment the thought completes. It is never counted as a call and
    never restarts the row's own `· 4s`; the row keeps counting while the thought streams and

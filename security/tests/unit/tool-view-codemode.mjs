@@ -44,17 +44,17 @@ resetThinking();
 rememberNestedStart('call-code', 'call-code/1', 'mcp:dev-radius:search', { query: 'rank' });
 rememberNestedStart('call-code', 'call-code/2', 'read', { path: 'src/config.ts' });
 now += 120;
-rememberNestedEnd('call-code', 'call-code/1', false, 120);
+rememberNestedEnd('call-code', 'call-code/1', false);
 now += 8;
-rememberNestedEnd('call-code', 'call-code/2', false, 8);
+rememberNestedEnd('call-code', 'call-code/2', false);
 
 const subLines = codemodeSubLines('call-code', { code: 'await tools.searchTools("rank")\nconst x = 1' });
 check('the script line comes first', subLines[0].text === 'await tools.searchTools("rank")');
 check('the script line has no mark of its own', subLines[0].status === undefined);
 check('the nested calls follow', subLines.length === 3);
 check('a nested call names its tool and first argument', subLines[1].text === 'mcp:dev-radius:search rank');
-check('a finished nested call carries its time', subLines[1].durationMilliseconds === 120);
-check('a nested call keeps its status', subLines[1].status === ToolStatus.Ok);
+check('a finished nested call keeps its status', subLines[1].status === ToolStatus.Ok);
+check('a nested call carries no timer of its own', !('durationMilliseconds' in subLines[1]));
 
 const group = joinRowGroup({
 	toolCallId: 'call-code',
@@ -67,8 +67,8 @@ const group = joinRowGroup({
 const running = linesOf(group);
 check('the header reads codemode and its timer', lineText(running[0]) === '● codemode · 0ms');
 check('the row draws the script under the code row', lineText(running[1]) === '  └ await tools.searchTools("rank")');
-check('each nested call keeps its own line', lineText(running[2]) === '  └ ✓ mcp:dev-radius:search rank 120ms');
-check('a nested call line carries its duration', lineText(running[3]) === '  └ ✓ read src/config.ts 8ms');
+check('each nested call keeps its own line', lineText(running[2]) === '  └ ✓ mcp:dev-radius:search rank');
+check('a nested call line carries no time', lineText(running[3]) === '  └ ✓ read src/config.ts');
 check('codemode never counts commands in the header', !running[0].text.includes('Running'));
 
 now += 1_000;

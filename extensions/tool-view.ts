@@ -138,7 +138,6 @@ export default function (pi: ExtensionAPI) {
 			event.parentToolCallId,
 			event.toolCallId,
 			event.isError,
-			event.durationMs,
 		);
 		repaintCurrentGroup();
 	});

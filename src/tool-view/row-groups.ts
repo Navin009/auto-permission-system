@@ -282,14 +282,10 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 }
 
 function rowSummary(kind: RowKind, member: RowMember): RowSummary {
-	const runningDuration =
-		member.status === ToolStatus.Running ? Date.now() - member.startedAt : undefined;
-
 	return {
 		target: member.target,
 		hint: kind === RowKind.Shell ? programHint(member.target) : undefined,
 		status: member.status,
-		durationMilliseconds: member.durationMilliseconds ?? runningDuration,
 		segmentIndex: member.segmentIndex,
 		subLines: member.subLines.length > 0 ? member.subLines : undefined,
 	};

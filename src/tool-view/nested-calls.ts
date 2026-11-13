@@ -5,7 +5,6 @@ export interface NestedCall {
 	name: string;
 	detail: string;
 	status: NestedCallStatus;
-	durationMilliseconds: number | undefined;
 }
 
 const ARGUMENT_PREVIEW_LENGTH = 40;
@@ -31,7 +30,6 @@ export function rememberNestedStart(
 		name: toolName,
 		detail: argumentPreview(args),
 		status: "running",
-		durationMilliseconds: undefined,
 	});
 	callsByParent.set(parentToolCallId, calls);
 }
@@ -40,7 +38,6 @@ export function rememberNestedEnd(
 	parentToolCallId: string,
 	toolCallId: string,
 	isError: boolean,
-	durationMilliseconds: number | undefined,
 ): void {
 	const call = callsByParent
 		.get(parentToolCallId)
@@ -51,7 +48,6 @@ export function rememberNestedEnd(
 	}
 
 	call.status = isError ? "error" : "ok";
-	call.durationMilliseconds = durationMilliseconds;
 }
 
 export function nestedCallsFor(parentToolCallId: string): readonly NestedCall[] {

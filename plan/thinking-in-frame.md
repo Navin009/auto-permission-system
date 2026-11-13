@@ -50,8 +50,8 @@ thought is actually rendered.
 
 ```text
 ● Running 3 commands (thinking 2s) · 8s
-  └ ✓ $ head -150 plan/tool-rows-views.md 900ms
-  └ ✓ $ sed -n '1,40p' src/tool-view/renderers.ts 800ms
+  └ ✓ $ head -150 plan/tool-rows-views.md
+  └ ✓ $ sed -n '1,40p' src/tool-view/renderers.ts
   └ … $ npm test
 ```
 
@@ -79,7 +79,7 @@ because each call draws its own line:
 
 ```text
 ✓ Running 2 commands · 6s
-  └ ✓ $ head -150 plan/tool-rows-views.md 900ms
+  └ ✓ $ head -150 plan/tool-rows-views.md
 
   I should read the plan doc next.
 

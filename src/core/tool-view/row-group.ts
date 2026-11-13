@@ -6,13 +6,11 @@ import { thinkingPart, type ThinkingState } from "./thinking.ts";
 export interface SubLineSummary {
 	text: string;
 	status: ToolStatus | undefined;
-	durationMilliseconds: number | undefined;
 }
 
 export interface RowSummary {
 	target: string;
 	status: ToolStatus;
-	durationMilliseconds: number | undefined;
 	segmentIndex: number;
 	hint?: string;
 	subLines?: readonly SubLineSummary[];
@@ -63,8 +61,6 @@ const MINIMUM_TARGET_WIDTH = 4;
 const NAME_LIMITS: readonly number[] = [4, 3, 2, 1];
 const NAME_SEPARATOR = ", ";
 const OVERFLOW_PREFIX = "+";
-const HIDDEN_TIME_OPEN = " (";
-const HIDDEN_TIME_CLOSE = ")";
 const COMMAND_COLUMN_PERCENT = 70;
 const PERCENT = 100;
 const DRAWING_MEMBER_INDEX = 0;
@@ -208,15 +204,9 @@ function namesText(summary: RowGroupSummary, budget: number): string {
 		}
 	}
 
-	for (const withTime of [true, false]) {
-		const overflow = overflowText(summary, summary.rows.length, withTime);
+	const overflow = overflowText(summary.rows.length).trim();
 
-		if (overflow && overflow.trim().length <= budget) {
-			return `${SPACE}(${overflow.trim()})`;
-		}
-	}
-
-	return BLANK;
+	return overflow.length <= budget ? `${SPACE}(${overflow})` : BLANK;
 }
 
 function namesCandidate(
@@ -241,31 +231,11 @@ function namesCandidate(
 		return namesPart;
 	}
 
-	const withTime = overflowText(summary, overflowCount, true);
-
-	return withTime ? `${namesPart}${withTime}` : `${namesPart}${overflowText(summary, overflowCount, false)}`;
+	return `${namesPart}${overflowText(overflowCount)}`;
 }
 
-function overflowText(
-	summary: RowGroupSummary,
-	hiddenCount: number,
-	withTime: boolean,
-): string | undefined {
-	const overflowPart = `${OVERFLOW_PREFIX}${hiddenCount}`;
-
-	if (!withTime) {
-		return `${SPACE}${overflowPart}`;
-	}
-
-	const hiddenMilliseconds = summary.rows
-		.slice(summary.rows.length - hiddenCount)
-		.reduce((total, row) => total + (row.durationMilliseconds ?? 0), 0);
-
-	if (hiddenMilliseconds === 0) {
-		return undefined;
-	}
-
-	return `${SPACE}${overflowPart}${HIDDEN_TIME_OPEN}${formatCommandDuration(hiddenMilliseconds)}${HIDDEN_TIME_CLOSE}`;
+function overflowText(hiddenCount: number): string {
+	return `${SPACE}${OVERFLOW_PREFIX}${hiddenCount}`;
 }
 
 function headerDuration(durationMilliseconds: number | undefined): string | undefined {
@@ -351,10 +321,7 @@ function subLineLine(
 		indent: LINE_INDENT,
 		mark,
 		text: fitTarget(subLine.text, budget) ?? ELLIPSIS,
-		duration:
-			subLine.durationMilliseconds === undefined
-				? undefined
-				: formatCommandDuration(subLine.durationMilliseconds),
+		duration: undefined,
 		hint: undefined,
 		isDim: true,
 		memberIndex,
@@ -378,7 +345,7 @@ function childLine(
 		indent: LINE_INDENT,
 		mark,
 		text: childLineText(kind, row, budget, wordPart),
-		duration: childDuration(row, isSingle),
+		duration: undefined,
 		hint: undefined,
 		isDim: true,
 		memberIndex,
@@ -407,14 +374,6 @@ function readLineText(target: string, budget: number): string {
 	const path = toSingleLine(target);
 
 	return fitTarget(path, budget) ?? ELLIPSIS;
-}
-
-function childDuration(row: RowSummary, isSingle: boolean): string | undefined {
-	if (isSingle || row.status === ToolStatus.Running || row.durationMilliseconds === undefined) {
-		return undefined;
-	}
-
-	return formatCommandDuration(row.durationMilliseconds);
 }
 
 function childColumnWidth(width: number): number {

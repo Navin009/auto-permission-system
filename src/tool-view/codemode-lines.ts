@@ -22,14 +22,13 @@ export function codemodeSubLines(
 	const script = scriptPreview(args);
 
 	if (script) {
-		lines.push({ text: script, status: undefined, durationMilliseconds: undefined });
+		lines.push({ text: script, status: undefined });
 	}
 
 	for (const call of nestedCallsFor(toolCallId)) {
 		lines.push({
 			text: nestedCallText(call),
 			status: STATUS_BY_NESTED_CALL[call.status],
-			durationMilliseconds: call.durationMilliseconds,
 		});
 	}
 

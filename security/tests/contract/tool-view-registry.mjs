@@ -110,7 +110,7 @@ check(
 const readGroup = lines(resultOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read', durationMs: 800 }));
 check('the first read draws the header and both file lines', readGroup.length === 3);
 check('the read row counts both files', headerShape(readGroup[0]).startsWith('✓ Reading 2 files · '));
-check('every read keeps its own file line', readGroup[1] === '  └ ✓ src/a.ts 800ms');
+check('every read keeps its own file line', readGroup[1] === '  └ ✓ src/a.ts');
 
 resetRowGroups();
 const slashedRead = callOf('read', { path: 'src/a.ts', offset: 120, limit: 60 }, { toolCallId: 'call-slice' });
@@ -142,7 +142,7 @@ const repaintedGroup = lines(resultOf('bash', { command: 'npm test' }, { toolCal
 check('the header counts both commands', headerShape(repaintedGroup[0]).startsWith('● Running 2 commands · '));
 check('the group row takes the last command mark', headerShape(repaintedGroup[0]).startsWith('●'));
 check('an open group carries no expand hint', !repaintedGroup[0].includes('ctrl+o'));
-check('the first command keeps its mark and duration', repaintedGroup[1] === '  └ ✗ $ npm test 1.5s');
+check('the header carries the only duration', repaintedGroup[1] === '  └ ✗ $ npm test');
 
 const settledSecond = resultOf('bash', { command: 'npm run build' }, { toolCallId: 'call-build', durationMs: 3000 });
 check('a later command settling is drawn by its segment slot', lines(settledSecond).length === 0);
