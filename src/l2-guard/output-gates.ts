@@ -2,6 +2,7 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionContext, ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput } from "../core/index.ts";
+import { redactText } from "../detect/index.ts";
 import { collectExposure } from "./exposure.ts";
 import { askExposure, withheldNotice } from "../ui/ask-flow.ts";
 import { audit } from "../shared/audit.ts";
@@ -99,7 +100,11 @@ function resolveOutputSubject(rawInput: Record<string, unknown>, toolName: strin
 
 	if (toolName === "bash") {
 		const commandInput = (rawInput as { command?: string }).command;
-		return commandInput ? `bash (${commandInput})` : "bash";
+
+		if (!commandInput) return "bash";
+
+		/* The audit log outlives the command, so an inline credential is redacted here. */
+		return `bash (${redactText(commandInput).text})`;
 	}
 
 	return toolName;
@@ -132,7 +137,7 @@ export async function gateSensitiveToolOutput(
 	const rawInput = (event.input ?? {}) as Record<string, unknown>;
 	const subject = resolveOutputSubject(rawInput, event.toolName);
 
-	const { types, hits } = collectExposure(event.content, subject);
+	const { types, hits } = collectExposure(event.content, subject, { flagNonText: event.toolName !== "read" });
 
 	if (!types.length) {
 		return undefined;

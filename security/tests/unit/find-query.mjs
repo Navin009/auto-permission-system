@@ -1,4 +1,4 @@
-import { askReadFindings, findReadCandidates, parseFindQuery, ReadExposure } from "../../../src/core/index.ts";
+import { askReadFindings, findReadCandidates, parseFindQueries, parseFindQuery, ReadExposure } from "../../../src/core/index.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };
@@ -20,8 +20,9 @@ const listDirectory = (directory, maximumDepth) => {
 };
 
 const query = (tokens) => parseFindQuery(tokens);
-const candidates = (tokens, checkFileExists = () => false) =>
-	findReadCandidates(tokens, cwd, home, checkFileExists, { listDirectory });
+const queries = (tokens) => parseFindQueries(tokens);
+const candidates = (tokens, checkFileExists = () => false, isDirectory = () => undefined) =>
+	findReadCandidates(tokens, cwd, home, checkFileExists, { listDirectory, isDirectory });
 
 check("the search root is a target, not a predicate value", (() => {
 	const parsed = query([".", "-name", ".markdownlint*", "-maxdepth", "2"]);
@@ -78,6 +79,72 @@ check("mindepth drops the shallow files", (() => {
 check("a name pattern keeps only matches", (() => {
 	const found = candidates([".", "-name", "*.env"]);
 	return found.length === 3 && !found.includes(appFile);
+})());
+
+check("-iname filters like -name but ignores case", (() => {
+	const found = candidates([".", "-iname", "*.ENV"]);
+
+	return found.length === 3 && !found.includes(appFile) && found.includes(envFile);
+})());
+
+check("-type d drops every file from the candidate list", !candidates([".", "-type", "d"], () => false, () => false).length);
+check("-type d keeps directories find would print", (() => {
+	const found = candidates([".", "-type", "d"], () => false, (path) => !path.includes(".env"));
+
+	return found.length === 0 || found.every((path) => !path.endsWith(".env"));
+})());
+check("-type f drops a directory", (() => {
+	const found = candidates([".", "-type", "f"], () => false, (path) => path.includes("config"));
+
+	return found.length > 0 && !found.includes(`${cwd}/config`);
+})());
+check("an unstattable path is kept, so protection never under-reports", candidates([".", "-type", "d"]).length === tree.length);
+
+check("an alternation is read as a union of its branches", (() => {
+	const parsed = queries([".", "-name", "*.env", "-o", "-name", "*.ts"]);
+
+	return parsed !== undefined && parsed.length === 2 && parsed[1].namePatterns[0] === "*.ts";
+})());
+check("every branch inherits the search target", (() => {
+	const parsed = queries(["/root", "-name", "a", "-o", "-name", "b"]);
+
+	return parsed.every((branch) => branch.targets[0] === "/root");
+})());
+check("a grouped alternation keeps its shared filter", (() => {
+	const parsed = queries([".", "-type", "d", "\\(", "-iname", "a*", "-o", "-iname", "b*", "\\)"]);
+
+	return parsed.length === 2 && parsed.every((branch) => branch.directoriesOnly && branch.insensitiveNamePatterns.length === 1);
+})());
+check("a negated group becomes one clause of exclusions", (() => {
+	const parsed = queries([".", "-not", "\\(", "-path", "./node_modules/*", "-o", "-path", "./.git/*", "\\)"]);
+
+	return parsed !== undefined && parsed.length === 1 && parsed[0].excludedPaths.length === 2;
+})());
+check("a negated group that hides a directory walk keeps its own filters", (() => {
+	const parsed = queries([".", "-maxdepth", "2", "-type", "d", "-not", "\\(", "-name", "a", "-o", "-name", "b", "\\)"]);
+
+	return parsed !== undefined && parsed.length === 1 && parsed[0].directoriesOnly && parsed[0].excludedNames.length === 2;
+})());
+check("a negated conjunction inside a group cannot be flattened", queries([".", "-not", "\\(", "-name", "a", "-size", "1", "-o", "-name", "b", "\\)"]) === undefined);
+check("a negated branch becomes its own clause", (() => {
+	const parsed = queries([".", "-name", "a", "-o", "-not", "-name", "b"]);
+
+	return parsed !== undefined && parsed.length === 2 && parsed[1].excludedNames[0] === "b";
+})());
+check("the union of both branches is returned", (() => {
+	const found = candidates([".", "-name", "*.env", "-o", "-name", "app.ts"]);
+
+	return found.length === 4 && found.includes(appFile) && found.includes(envFile);
+})());
+
+check("a directory-only walk of a workspace names no credential file", (() => {
+	const filesystem = { askRead: [".env"], denyRead: [], allowWrite: ["."], denyWrite: [] };
+	const command = `find ${cwd} -maxdepth 4 -type d \\( -iname 'src*' -o -iname '*env*' \\)`;
+
+	return askReadFindings(command, cwd, home, filesystem, () => false, (path) => path, {
+		listDirectory,
+		isDirectory: () => false,
+	}).length === 0;
 })());
 
 check("a bare target still reports the file", candidates([".env"], () => true).includes(`${cwd}/.env`));

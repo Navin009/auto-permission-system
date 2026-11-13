@@ -193,7 +193,12 @@ export function shellSegments(command: string): string[] {
 	return segments;
 }
 
+/** A backslash-escaped paren is an argument (`find . \\( -name a -o -name b \\)`), not a shell wrapper. */
+const ESCAPED_PAREN_START = "\\";
+
 function stripWrappingParentheses(token: string): string {
+	if (token.startsWith(ESCAPED_PAREN_START)) return token;
+
 	const withoutLeadingParens = token.replace(WRAPPING_PARENTHESES_START, "");
 
 	if (SUBSTITUTION_MARKERS.some((marker) => withoutLeadingParens.includes(marker))) return withoutLeadingParens;

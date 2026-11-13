@@ -14,16 +14,42 @@ const ROW_LABEL = {
 	finding: "Finding  ",
 };
 
+/**
+ * A data block (an image, a base64 attachment) carries bytes the text scanner
+ * never sees, so it is reported as unscannable rather than forwarded silently.
+ * `read` is the one tool that returns such blocks on purpose, so it is exempt.
+ */
+const NON_TEXT_TYPE = "NON_TEXT_OUTPUT";
+
+export interface ExposureOptions {
+	flagNonText?: boolean;
+}
+
+function nonTextRow(block: { type: string; mimeType?: string; data?: string }): string {
+	const label = block.mimeType ?? block.type;
+	const byteCount = block.data?.length ?? 0;
+
+	return `${ROW_LABEL.finding}${label} payload, ${byteCount} bytes, not scannable`;
+}
+
 export function collectExposure(
-	content: ReadonlyArray<{ type: string; text?: string }>,
+	content: ReadonlyArray<{ type: string; text?: string; data?: string; mimeType?: string }>,
 	subject: string,
+	options?: ExposureOptions,
 ): Exposure {
 	const types = new Set<string>();
 	const evidenceRows: string[] = [];
 	const findingRows = new Set<string>();
 
 	for (const block of content) {
-		if (block.type !== "text" || typeof block.text !== "string") continue;
+		if (block.type !== "text" || typeof block.text !== "string") {
+			if (options?.flagNonText && typeof block.data === "string" && block.data.length > 0) {
+				types.add(NON_TEXT_TYPE);
+				findingRows.add(nonTextRow(block));
+			}
+
+			continue;
+		}
 
 		const scan = scanToolOutput({ output: block.text });
 

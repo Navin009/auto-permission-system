@@ -1,5 +1,6 @@
 // Shipped baseline (sandbox.default.json) + shared policy overlaying. The JSON is the only place default lists live.
-import { loadDefaultPolicy, overlayPolicy, shippedPolicy } from '../../../src/core/index.ts';
+import { homedir } from 'node:os';
+import { loadDefaultPolicy, matchesPolicyPattern, overlayPolicy, shippedPolicy } from '../../../src/core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -17,6 +18,10 @@ check('default: modelDenyRead is empty', (fs.modelDenyRead ?? []).length === 0);
 check('default: credential filenames ask on read', ['id_rsa', '*.pem', '*.key'].every((p) => (fs.askRead ?? []).includes(p)));
 check('default: agent secrets ask on read', ['auth.json', 'mcp.json', 'mcp-auth.json'].every((p) => (fs.askRead ?? []).includes(p)));
 check('default: code-execution writes ask', ['~/.bashrc', '~/.pi/agent/extensions'].every((p) => (fs.askWrite ?? []).includes(p)));
+check('default: session transcripts ask by folder path, not as a bare name', (fs.askRead ?? []).includes('~/.pi/agent/sessions') && !(fs.askRead ?? []).includes('sessions'));
+check('default: a transcript file matches the sessions entry', matchesPolicyPattern(`${homedir()}/.pi/agent/sessions/--home-me-proj--/s.jsonl`, '~/.pi/agent/sessions', process.cwd(), homedir()));
+check('default: writing a transcript is asked', (fs.askWrite ?? []).includes('~/.pi/agent/sessions'));
+check('default: socket and localhost relaxations stay on (deliberate)', d?.network?.allowAllUnixSockets === true && d?.network?.allowLocalhost === true);
 check('default: allowWrite is project, /tmp and home', ['.', '/tmp', '~'].every((p) => (fs.allowWrite ?? []).includes(p)));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
 

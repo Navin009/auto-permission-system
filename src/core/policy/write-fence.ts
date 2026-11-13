@@ -1,6 +1,6 @@
 import { commandHead, commandSegments, shellTokens } from "./shell-command.ts";
 import { somePatternMatches } from "./patterns.ts";
-import { looksLikePath, resolveTokenPaths, type PathCandidateOptions } from "./path-tokens.ts";
+import { embeddedPathTokens, looksLikePath, resolveTokenPaths, type PathCandidateOptions } from "./path-tokens.ts";
 import type { FilesystemPolicy } from "./classify.ts";
 
 const WRITE_COMMANDS = new Set([
@@ -20,11 +20,47 @@ const WRITE_COMMANDS = new Set([
 
 const COPY_COMMANDS = new Set(["cp", "mv", "install", "ln", "rsync", "scp"]);
 
+/**
+ * Heads that take the program as an inline argument. `node -e "…"` writes with
+ * its own file API, so no redirect, known writer or in-place flag names the
+ * target: the program text is the only evidence, and a write API next to a
+ * protected path is what this rule reads (ADR-051).
+ */
+const INLINE_CODE_HEADS = new Set([
+	"node",
+	"nodejs",
+	"deno",
+	"bun",
+	"python",
+	"python2",
+	"python3",
+	"perl",
+	"ruby",
+	"php",
+	"lua",
+	"osascript",
+	"powershell",
+	"pwsh",
+]);
+
+const INLINE_CODE_FLAGS = new Set(["-e", "--eval", "-p", "--print", "-c", "-r", "eval", "-Command"]);
+
+/** File-writing APIs. Reading one of these next to a path is what a reader is not. */
+const WRITE_API_PATTERN =
+	/\b(?:writeFile|appendFile|createWriteStream|writeSync|writelines|write_text|write_bytes|openSync|shutil\.|copyFile|renameSync|unlinkSync|rmSync|rmdirSync|mkdirSync|chmodSync|truncate)|\.write\(/;
+
 const IN_PLACE_EDITORS = new Set(["sed", "perl"]);
 const IN_PLACE_FLAG = /^(?:-i|--in-place)/;
 const REDIRECT_PATTERN = /^(?:\d*)(?:>>?|<)(.+)$/;
 const REDIRECT_OPERATOR_PATTERN = /^(?:\d*)(?:>>?|<)$/;
 const DATA_DESTINATION_PATTERN = /^of=(.+)$/;
+
+function isInlineCodeWrite(head: string, operands: readonly string[], segment: string): boolean {
+	if (!INLINE_CODE_HEADS.has(head)) return false;
+	if (!operands.some((operand) => INLINE_CODE_FLAGS.has(operand))) return false;
+
+	return WRITE_API_PATTERN.test(segment);
+}
 
 function writePathCandidates(
 	command: string,
@@ -60,6 +96,14 @@ function writePathCandidates(
 
 			const dataDestination = DATA_DESTINATION_PATTERN.exec(token)?.[1];
 			if (dataDestination) addPaths(dataDestination);
+		}
+
+		if (isInlineCodeWrite(head, operands, segment)) {
+			for (const operand of operands) {
+				for (const token of embeddedPathTokens(operand)) addPaths(token);
+			}
+
+			continue;
 		}
 
 		if (WRITE_COMMANDS.has(head)) {

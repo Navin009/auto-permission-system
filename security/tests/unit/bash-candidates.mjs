@@ -76,6 +76,12 @@ check("a touch operand is a write", writes("touch .env").includes(envPath));
 check("an in-place edit is a write", writes("sed -i s/a/b/ .env").includes(envPath));
 check("a plain sed read is not a write", writes("sed -n 1p .env").length === 0);
 check("reading a secret is not a write", writes("cat .env").length === 0);
+check("an inline program writing a path is a write", writes("node -e \"require('fs').writeFileSync('.env','x')\"").includes(envPath));
+check("an inline python write is a write", writes("python3 -c \"open('.env','w').write('x')\"").includes(envPath));
+check("an inline program that only reads stays a read", writes("node -e \"readFileSync('.env')\"").length === 0);
+check("an inline program with no write API is not a write", writes("python3 -c \"print(open('.env').read())\"").length === 0);
+check("an interpreter without an eval flag is not a write", writes("node script.js .env").length === 0);
+check("a file write outside the policy is not a denied write", writes("node -e \"writeFileSync('build/out.txt','x')\"").length === 0);
 
 const askWrites = askWriteCandidates("echo x > .env", cwd, home, { ...filesystem, denyWrite: [], askWrite: [".env"] }, (path) => path);
 check("an askWrite candidate is reported", askWrites.includes(envPath));

@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 import { matchesPolicyPattern, normalizeAbs } from "./patterns.ts";
 import { normalizeUserPath } from "./user-path.ts";
@@ -37,6 +37,20 @@ const UNLIMITED_DEPTH = Number.MAX_SAFE_INTEGER;
 export interface PathCandidateOptions {
 	expandGlob?: (absolutePattern: string) => string[];
 	listDirectory?: (absoluteDirectory: string, maximumDepth?: number) => string[];
+	/** `undefined` when the path cannot be stat'ed, so the caller can over-approximate. */
+	isDirectory?: (absolutePath: string) => boolean | undefined;
+}
+
+/**
+ * `find -type` needs one stat per candidate. An unreadable path answers
+ * `undefined` so a caller that must not under-report a candidate can keep it.
+ */
+export function isDirectoryPath(absolutePath: string): boolean | undefined {
+	try {
+		return statSync(absolutePath).isDirectory();
+	} catch {
+		return undefined;
+	}
 }
 
 export function looksLikePath(token: string): boolean {
