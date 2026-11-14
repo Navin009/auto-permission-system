@@ -3,6 +3,7 @@
 import { join } from "node:path";
 import {
 	askReadCandidates,
+	askReadFindings,
 	askWriteCandidates,
 	commandMentionsPath,
 	commandSegments,
@@ -86,6 +87,12 @@ check("a file write outside the policy is not a denied write", writes("node -e \
 const askWrites = askWriteCandidates("echo x > .env", cwd, home, { ...filesystem, denyWrite: [], askWrite: [".env"] }, (path) => path);
 check("an askWrite candidate is reported", askWrites.includes(envPath));
 
+check(
+	"a quoted prose token is not a relative path",
+	askWriteCandidates('chmod "0755 /run/user/1000/libpod"', cwd, home, { ...filesystem, askWrite: ["."] }, (path) => path).length === 0,
+);
+check("an absolute path keeps its spaces", reads('cat "/tmp/a b/.env"').includes("/tmp/a b/.env"));
+
 check("a mentioned absolute path is recognised", commandMentionsPath("touch '/home/me/proj/.env'", envPath, cwd, home));
 check("a mentioned relative path is recognised", commandMentionsPath("touch .env", envPath, cwd, home));
 check("a mentioned bare name is recognised", commandMentionsPath("touch .env", join(cwd, "sub", ".env"), cwd, home));
@@ -97,6 +104,19 @@ check("a separator inside quotes does not split", commandSegments('grep -rnE "a|
 check("a quoted pattern leaves no fabricated operand", reads('grep -rnE "^  └ .* (ms|s)$" plan/*.md').length === 0);
 check("an escaped separator does not split", commandSegments("echo a\\; b").length === 1);
 check("an unterminated quote keeps the plain split", commandSegments('grep "a|b && cat .env').length === 3);
+
+const findingsFor = (command, options) =>
+	askReadFindings(command, cwd, home, { ...filesystem, askRead: [".env"] }, () => true, (path) => path, options);
+const listing = () => [envPath];
+
+check(
+	"a recursive search walks names, not contents",
+	findingsFor("grep -rn API .", { listDirectory: listing }).every((finding) => finding.exposure === "name"),
+);
+check(
+	"a recursive search still asks for a dotfile it names",
+	findingsFor("grep -rn API .env", { listDirectory: listing }).some((finding) => finding.exposure === "content"),
+);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

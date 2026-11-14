@@ -33,6 +33,8 @@ const SKIPPED_DIRECTORY_NAMES = new Set([
 
 const MAXIMUM_DIRECTORY_FILES = 1000;
 const UNLIMITED_DEPTH = Number.MAX_SAFE_INTEGER;
+const WHITESPACE_PATTERN = /\s/;
+const RELATIVE_PATH_ANCHORS = ["./", "../"];
 
 export interface PathCandidateOptions {
 	expandGlob?: (absolutePattern: string) => string[];
@@ -128,12 +130,31 @@ export function listDirectoryFiles(absoluteDirectory: string, maximumDepth: numb
 	}
 }
 
+/**
+ * A token that is several words with no path anchor is prose, not a path.
+ *
+ * `chmod 0755 /run/user/1000/libpod` reaches the write pre-flight as one token
+ * when the words came from a quoted or substituted string. Resolving that
+ * against the cwd invented `<cwd>/chmod 0755 /run/user/1000/libpod`, asked to
+ * write a path that cannot exist, and then reported the grant it had just been
+ * given as ineffective (ADR-052). Absolute, home-anchored and explicitly
+ * relative spellings keep their spaces: those are real paths.
+ */
+function namesNothingButProse(token: string): boolean {
+	if (!WHITESPACE_PATTERN.test(token)) return false;
+	if (token.startsWith("/") || token.startsWith("~")) return false;
+
+	return !RELATIVE_PATH_ANCHORS.some((anchor) => token.startsWith(anchor));
+}
+
 export function resolveTokenPaths(
 	token: string,
 	workingDirectory: string,
 	homeDirectory: string,
 	options: PathCandidateOptions,
 ): string[] {
+	if (namesNothingButProse(token)) return [];
+
 	const absolutePattern = toAbsolutePath(token, workingDirectory, homeDirectory);
 	const expandGlob = options.expandGlob ?? expandGlobPattern;
 	const matches = GLOB_PATTERN.test(absolutePattern) ? expandGlob(absolutePattern) : [absolutePattern];

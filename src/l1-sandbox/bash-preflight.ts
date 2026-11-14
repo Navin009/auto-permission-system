@@ -74,9 +74,6 @@ function templateHasNoSecrets(absolutePath: string): boolean {
 	}
 }
 
-const isInsideProject = (absolutePath: string, workingDirectory: string): boolean =>
-	absolutePath === workingDirectory || absolutePath.startsWith(`${workingDirectory}/`);
-
 const recordSessionGrant = (grants: string[], absolutePath: string): void => {
 	const parentDirectory = dirname(absolutePath);
 
@@ -115,22 +112,16 @@ async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promi
 	});
 }
 
+/** Only a content read reaches this prompt: a name-only finding never asks (ADR-049). */
 function describeAskRead(finding: AskReadFinding, command: string): { title: string; body: string } {
 	const credentialLabel = getCredentialLabel(finding.path);
-	const isNameOnly = finding.exposure === ReadExposure.Name;
 
-	const title = isNameOnly
-		? `Let this command list your ${credentialLabel} by name?`
-		: `Let this command read your ${credentialLabel}?`;
-
-	const riskLine = isNameOnly
-		? "only the file name \u2014 this command never opens the file"
-		: "the AI will see any keys in it";
+	const title = `Let this command read your ${credentialLabel}?`;
 
 	const bodyLines = [
 		`File     ${finding.path}`,
 		`Command  ${command.trim()}`,
-		`Risk     ${riskLine}`,
+		`Risk     the AI will see any keys in it`,
 		`Why      ${displayWhy(`askRead matched "${finding.pattern}"`)}`,
 		`Note     ${CREDENTIAL_NOTE}`,
 	];
@@ -142,12 +133,21 @@ export const sessionReadGrants: string[] = [];
 export const sessionWriteGrants: string[] = [];
 export const sessionAskReadGrants: string[] = [];
 export const sessionAskWriteGrants: string[] = [];
+/**
+ * Paths the user refused in this conversation. A refusal is an answer, so it is
+ * remembered like a grant: asking again for the same `.env` on the next command
+ * taught nothing and cost a prompt per call (ADR-053).
+ */
+export const sessionAskReadDenials: string[] = [];
+export const sessionAskWriteDenials: string[] = [];
 
 export function clearFilesystemSessionGrants(): void {
 	sessionReadGrants.length = 0;
 	sessionWriteGrants.length = 0;
 	sessionAskReadGrants.length = 0;
 	sessionAskWriteGrants.length = 0;
+	sessionAskReadDenials.length = 0;
+	sessionAskWriteDenials.length = 0;
 }
 
 export function filesystemSessionGrantSummary(): string {
@@ -155,8 +155,10 @@ export function filesystemSessionGrantSummary(): string {
 	const reads = sessionReadGrants.map((entryPath) => `read:${entryPath}`);
 	const askReads = sessionAskReadGrants.map((entryPath) => `askRead:${entryPath}`);
 	const askWrites = sessionAskWriteGrants.map((entryPath) => `askWrite:${entryPath}`);
+	const refusedReads = sessionAskReadDenials.map((entryPath) => `refused-read:${entryPath}`);
+	const refusedWrites = sessionAskWriteDenials.map((entryPath) => `refused-write:${entryPath}`);
 
-	return [...writes, ...reads, ...askReads, ...askWrites].join(", ");
+	return [...writes, ...reads, ...askReads, ...askWrites, ...refusedReads, ...refusedWrites].join(", ");
 }
 
 export async function preflightSensitiveCommands(
@@ -255,6 +257,17 @@ export async function preflightWriteAccess(
 			continue;
 		}
 
+		if (sessionGrantCovers(sessionAskWriteDenials, absolutePath)) {
+			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write-remembered-deny", cwd: workingDirectory });
+			onData(
+				Buffer.from(
+					`\n[Security Block] sandbox: write access to ${absolutePath} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
+				),
+			);
+
+			return { exitCode: 1 };
+		}
+
 		const askContext = options?.ctx as AskCtx | undefined;
 
 		if (!askContext?.hasUI || !askContext.ui?.select) {
@@ -275,6 +288,7 @@ export async function preflightWriteAccess(
 		}
 
 		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write", cwd: workingDirectory });
+		sessionAskWriteDenials.push(absolutePath);
 		onData(Buffer.from(`\n${formatBlockedLine("Write", `write access to ${absolutePath} was denied by user`, "written")}\n`));
 
 		return { exitCode: 1 };
@@ -311,7 +325,10 @@ export async function preflightAskReads(
 	const askContext = options?.ctx as AskCtx | undefined;
 
 	for (const finding of findings) {
-		if (finding.exposure === ReadExposure.Name && isInsideProject(finding.path, workingDirectory)) {
+		// A name is not a read (ADR-049). Only the content exposure is a secret,
+		// so a listing, a walk or a search that merely passes over `.env` says
+		// nothing about its contents and never asks.
+		if (finding.exposure === ReadExposure.Name) {
 			auditLayer1Bash({ subject: finding.path, decision: "allow", note: "ask-read-name-only", cwd: workingDirectory });
 			continue;
 		}
@@ -323,6 +340,17 @@ export async function preflightAskReads(
 
 		if (sessionGrantCovers(sessionAskReadGrants, finding.path)) {
 			continue;
+		}
+
+		if (sessionGrantCovers(sessionAskReadDenials, finding.path)) {
+			auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read-remembered-deny", cwd: workingDirectory });
+			onData(
+				Buffer.from(
+					`\n[Security Block] sandbox: read access to ${finding.path} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
+				),
+			);
+
+			return { exitCode: 1 };
 		}
 
 		if (!askContext?.hasUI || !askContext.ui?.select) {
@@ -349,6 +377,7 @@ export async function preflightAskReads(
 		}
 
 		auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read", cwd: workingDirectory });
+		sessionAskReadDenials.push(finding.path);
 		onData(
 			Buffer.from(`\n[Security Block] sandbox: read access to ${finding.path} was denied by user. Command was not executed.\n`),
 		);

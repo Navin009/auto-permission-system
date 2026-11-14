@@ -35,6 +35,14 @@ const run = (command, options = { ctx }) => {
 	return preflightAskReads(command, project, options, (chunk) => blocks.push(String(chunk)));
 };
 
+/** Same command line again, without clearing what the conversation already decided. */
+const askAgain = (command, options = { ctx }) => {
+	prompts.length = 0;
+	blocks.length = 0;
+
+	return preflightAskReads(command, project, options, (chunk) => blocks.push(String(chunk)));
+};
+
 await run("cat .env");
 check("a content read asks", prompts.length === 1, prompts.length);
 check("the asked file is named", prompts[0]?.includes(`File     ${project}/.env`) === true);
@@ -66,7 +74,15 @@ await run("rg -n 'API_TOKEN' .");
 check("rg does not ask for the dotfile it never opens", prompts.length === 0, prompts[0]);
 
 await run("grep -rn 'API_TOKEN' .");
-check("grep -r still asks for the dotfile it reads", prompts.length === 1, prompts.length);
+check("a recursive search that merely walks over a dotfile does not ask", prompts.length === 0, prompts[0]);
+
+await run("grep -rn 'API_TOKEN' .env");
+check("a recursive search that names the dotfile still asks", prompts.length === 1, prompts.length);
+
+await run("cat .env", { ctx });
+await askAgain("cat .env", { ctx });
+check("a refusal is remembered instead of asked again", prompts.length === 0, prompts.length);
+check("the remembered refusal still blocks", blocks.join("").includes("was refused earlier in this conversation"));
 
 await run("cat .env.example");
 check("a clean env template does not ask", prompts.length === 0, prompts[0]);
@@ -76,9 +92,8 @@ await run("cat .env.sample");
 check("a template that carries a real key still asks", prompts.length === 1, prompts.length);
 
 await run(`find ${outerFolder} -name .env`);
-check("a name-only listing outside the project still asks", prompts.length === 1, prompts.length);
-check("the outside title says the name is what is exposed", prompts[0]?.startsWith("🔑  Let this command list your .env file by name?") === true, prompts[0]?.split("\n")[0]);
-check("the outside body states the name-only exposure", prompts[0]?.includes("Risk     only the file name") === true);
+check("a name-only walk outside the project does not ask at the read gate", prompts.length === 0, prompts.length);
+check("the outside-project fence is the gate for it instead", blocks.length === 0);
 
 await run(`cat ${outerFolder}/.env`);
 check("a content read outside the project asks", prompts.length === 1, prompts.length);

@@ -130,7 +130,12 @@ function readPathCandidates(
 			for (const token of embeddedPathTokens(rawToken)) {
 				for (const absolutePath of resolveTokenPaths(token, workingDirectory, homeDirectory, options)) {
 					if (isRecursiveSearch) {
-						recordListedFiles(foundCandidates, absolutePath, exposure, listDirectory, skipsHiddenEntries);
+						// A walk of a directory only ever learns the entries' names. The command
+						// opens a file when it is named on the command line (a path or a glob),
+						// not when a search happens to pass over it: `grep -rn build .` in a tree
+						// that contains a `.npmrc` must not be scored as reading that file
+						// (ADR-049). Content exposure stays for the paths the command names.
+						recordListedFiles(foundCandidates, absolutePath, ReadExposure.Name, listDirectory, skipsHiddenEntries);
 					}
 
 					if (checkFileExists(absolutePath)) recordCandidate(foundCandidates, absolutePath, exposure);

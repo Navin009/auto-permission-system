@@ -194,7 +194,8 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
 - **Preselected Default:** `No` is preselected. Pressing Enter immediately blocks the read.
 - **Expiry:** If unattended for 10 seconds, the prompt resolves safely to **No** (Block).
 - **Trigger shown:** the `Command` line names the part of the command that caused the ask, so a `find` or a `grep` is never guessed at.
-- **Name-only listings don't ask:** `find .`, `ls -R` and `tree` print names, not contents. Inside the project that is not a read (the AI can already list its own files); outside the project it still asks and says only the name is exposed (ADR-049).
+- **Name-only results don't ask:** `find .`, `ls -R`, `tree` and any directory walk print names, not contents, so they never ask at the read gate — a walk that happens to pass over a `.npmrc` is not a read of it. Outside the project the outside-project fence still asks before the command runs (ADR-015, ADR-049).
+- **A refusal is remembered:** saying no once for a path blocks it for the rest of the conversation without asking again (ADR-053).
 - **Patterns and templates aren't reads either:** `ls -a | grep -v '\.env'` asks nothing — after `grep`/`rg`/`ag`/`ack` the first free word is a pattern, not a file. `rg`/`fd` never prompt for the dotfiles they skip, and `.env.example` asks only when its content really holds a key (ADR-050).
 
 ### 2. Governed Network Egress Prompt
@@ -561,7 +562,13 @@ Claude Code popularized autonomous "auto mode", allowing developers to let AI co
 Add it to `network.allowedDomains` in `<cwd>/.pi/sandbox.json` or `~/.pi/agent/extensions/sandbox.json`, or run a curl command once and select **Yes, always… → All in group in this project**.
 
 ### Why was my tool call or command blocked?
-Run `/security` to inspect active policy rules and the last 10 audit events. Check `~/.pi/agent/audit.log` to view the exact matching rule (`reason`).
+Run `/security` to inspect active policy rules and the last 10 audit events. Check `~/.pi/agent/audit.log` to view the exact matching rule (`reason`). A **name-only** result (`ask-read-name-only`) never asks, and a refused path stays refused for the rest of the conversation (`ask-read-remembered-deny`) instead of prompting on every command.
+
+### Why does `docker` fail with `permission denied … docker.sock` inside the sandbox?
+On Linux the layer is bubblewrap, and its mandatory `--unshare-user` drops every supplementary group and refuses `setgroups`. A `/var/run/docker.sock` owned by `root:docker` is therefore unreachable inside even when the same user reaches it from a normal shell, and `sg docker -c …` cannot help (`setgroups: Operation not permitted`). No policy entry restores a group, so a `docker`, `podman`, `nerdctl`, `buildah` or `skopeo` command gets its daemon socket bridged from the host: a user-owned socket forwards to the real one and is selected through `DOCKER_HOST` / `CONTAINER_HOST`. The client then behaves exactly as it does in your own shell, and every other rule still applies to it. `sudo` is separate and stays refused by design — bubblewrap sets `no_new_privs`.
+
+### Why does `npm install` fail with `E407 Proxy Authentication Required`?
+The sandbox proxy authenticates every connection, and its credential travels inside `HTTPS_PROXY`. npm parses that variable itself, drops the userinfo and gets challenged, so the same URL is also handed to npm as `npm_config_proxy` / `npm_config_https_proxy`, which keep it. An `E407` for a host that is already in `allowedDomains` is this client-side drop, not a policy decision. `EROFS` under `~/.npm/_cacache` would mean `allowWrite` does not cover `~`, which the shipped default does.
 
 ### Where is the Claude tool view for Pi?
 Pi ships its own tool blocks. This package adds the **Claude Code style tool view** on top of them: run `/tool-view compact` (or pick it from `/tool-view`) and each run of shell commands, `read` calls and `codemode` collapses into one row — a mark, a count, one timer, and a `└` line per command or file — instead of a full block per call. `/tool-view full` puts Pi's own output back, and the choice is remembered in `~/.pi/agent/tool-view.json`.

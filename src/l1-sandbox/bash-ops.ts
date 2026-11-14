@@ -7,6 +7,14 @@ import { sandboxFilesystem } from "../core/index.ts";
 import { loadConfig } from "./config.ts";
 import { injectBridgesIntoBwrap, startHostPortBridges, type HostPortBridge } from "./host-bridge.ts";
 import {
+	daemonClientHeads,
+	hostDaemonSockets,
+	injectNpmProxyEnv,
+	injectSocketBridgesIntoBwrap,
+	startHostSocketBridges,
+	type HostSocketBridge,
+} from "./host-bridge.ts";
+import {
 	cleanupWorkspaceArtifacts,
 	stripNonExistentWorkspaceMounts,
 } from "./bash-artifacts.ts";
@@ -113,6 +121,10 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 					bridges = await startHostPortBridges(hostPorts);
 				}
 
+				const socketBridges: HostSocketBridge[] = daemonClientHeads(command).length
+					? await startHostSocketBridges(hostDaemonSockets())
+					: [];
+
 				const rawWrapped = await SandboxManager.wrapWithSandbox(
 					command,
 					undefined,
@@ -122,6 +134,9 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 				let wrappedCommand = rawWrapped;
 
 				if (process.platform === "linux") {
+					wrappedCommand = injectSocketBridgesIntoBwrap(wrappedCommand, socketBridges);
+					wrappedCommand = injectNpmProxyEnv(wrappedCommand);
+
 					if (allowLocalhost) {
 						wrappedCommand = wrappedCommand.replace(" --unshare-net ", " ");
 					} else if (bridges.length > 0) {
@@ -133,6 +148,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 
 				const cleanupBridges = () => {
 					bridges.forEach((bridge) => bridge.close());
+					socketBridges.forEach((bridge) => bridge.close());
 				};
 
 				return new Promise((resolve, reject) => {
