@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.0.3](https://github.com/Navin009/auto-permission-system/compare/v6.0.2...v6.0.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **security:** stop asking for names, remember refusals, bridge daemon sockets ([9cc5029](https://github.com/Navin009/auto-permission-system/commit/9cc50295e45046c3ad74416f6af17cce631cbdcf))
+
 ## [6.0.2](https://github.com/Navin009/auto-permission-system/compare/v6.0.1...v6.0.2) (2026-11-13)
 
 
