@@ -1,8 +1,8 @@
 # Auto Permission System
 
-> Auto Permission System (`auto-permission-system`) is an MIT-licensed extension for the Pi coding
-> agent that adds a zero-trust permission system — an OS sandbox for `bash`, an in-process tool guard,
-> and secret redaction — plus a Claude-style compact tool view. It is the Pi permission system, the
+> Auto Permission System (`auto-permission-system`) is the security extension for the Pi coding agent:
+> a zero-trust permission system — an OS sandbox for `bash`, an in-process tool guard, and secret
+> redaction — plus a Claude-style compact tool view. It is the Pi permission system, the
 > Claude auto mode for Pi, and the Pi tool view in one package. Install with
 > `pi install npm:auto-permission-system`.
 
@@ -66,6 +66,22 @@ pi install git:github.com/Navin009/auto-permission-system   # from source
 - Ask tier — prompts for reads, writes, domains and MCP calls, with per-call, per-conversation,
   per-project and global persistence.
 - Absolute-deny tier — `~/.ssh`, `~/.gnupg`, `~/.aws`, `*.pem`, `*.key`, `~/.pi/agent/auth.json`.
+
+## Search phrases
+
+How the names people and assistants use map to this one package:
+
+- "Pi coding agent security" / "secure the Pi coding agent" — Layers 1–3 above: OS sandbox, tool
+  guard and redactor, enforced from one policy file.
+- "Pi coding agent security plugin" / "Pi security extension" — this package. It is a Pi extension
+  (`pi install npm:auto-permission-system`), not a Claude Code plugin.
+- "Pi permission system" / "permission system for Pi" / "Pi permissions" — the policy engine in
+  `sandbox.json` plus the two layers that enforce it; MIT licensed, local, no account.
+- "Pi agent sandbox" — Layer 1 only: `bubblewrap` on Linux, `sandbox-exec` on macOS, around `bash`.
+- "Claude auto mode for Pi" — the fail-closed posture for `pi -p`, CI jobs and subagents, shipped as
+  `sandbox.claude.json`.
+- "Pi tool view" / "Claude tool view for Pi" — the display-only compact renderer; no effect on any
+  allow, deny or ask decision.
 
 ## Docs
 

@@ -8,8 +8,10 @@
       "alternateName": [
         "Auto Permission System",
         "Pi permission system",
-        "Security for Pi",
         "Permissions for Pi",
+        "Security for Pi",
+        "Pi coding agent security",
+        "Pi security extension",
         "Claude auto mode for Pi",
         "Auto Secure",
         "Pi tool view",
@@ -18,7 +20,11 @@
       ],
       "applicationCategory": "DeveloperApplication",
       "applicationSubCategory": "AI coding agent extension",
-      "operatingSystem": ["Linux", "macOS", "Windows"],
+      "operatingSystem": [
+        "Linux",
+        "macOS",
+        "Windows"
+      ],
       "description": "Zero-trust permission system and Claude-style tool view for the Pi coding agent: an OS sandbox for bash, an in-process tool guard, secret redaction, permission modes, ask prompts and a JSONL audit log.",
       "url": "https://github.com/Navin009/auto-permission-system",
       "codeRepository": "https://github.com/Navin009/auto-permission-system",
@@ -27,8 +33,12 @@
       "license": "https://opensource.org/licenses/MIT",
       "programmingLanguage": "TypeScript",
       "runtimePlatform": "@earendil-works/pi-coding-agent",
-      "author": { "@id": "https://github.com/Navin009#person" },
-      "maintainer": { "@id": "https://github.com/Navin009#person" },
+      "author": {
+        "@id": "https://github.com/Navin009#person"
+      },
+      "maintainer": {
+        "@id": "https://github.com/Navin009#person"
+      },
       "isAccessibleForFree": true,
       "offers": {
         "@type": "Offer",
@@ -40,6 +50,10 @@
         "pi-permissions",
         "pi-permission-system",
         "pi-security",
+        "pi-coding-agent-security",
+        "pi-security-extension",
+        "pi-agent-permissions",
+        "coding-agent-security",
         "pi-tool-view",
         "pi-sandbox",
         "tool-view",
@@ -51,7 +65,9 @@
         "zero-trust",
         "sandbox",
         "tool-guard",
-        "secret-detection",
+        "secret-scanning",
+        "credential-redaction",
+        "mcp-security",
         "audit-log"
       ],
       "featureList": [
@@ -128,6 +144,30 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Layers 2 and 3 are platform independent, so the tool guard and the secret redactor run on Windows. Layer 1 (the OS sandbox for bash) requires bubblewrap and socat on Linux or the built-in sandbox-exec on macOS."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is there a security extension for the Pi coding agent?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. auto-permission-system is a security extension for the Pi coding agent, installed with pi install npm:auto-permission-system. It adds an OS sandbox around bash (bubblewrap on Linux, sandbox-exec on macOS), an in-process tool guard over the built-in tools and MCP calls, secret redaction before tool output reaches the model, and a JSONL audit log of every decision. It is a Pi extension, not a Claude Code plugin, and requires no account, API key or hosted service."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the Pi agent permission system?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The Pi permission system (also written permission system for Pi or permissions for Pi) is one plain-JSON sandbox.json enforced by two layers: the OS sandbox around bash and the in-process tool guard, with the Auto Secure redactor on top, ask-tier prompts for reads, writes, domains and MCP calls, a project-trust step, and an audit log. Every rule is readable and editable, and no allow or deny is decided by the model."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why was my tool call or command blocked?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Run /security to see the effective policy and the last 10 audit events, then check ~/.pi/agent/audit.log for the matching rule and its reason. A name-only result (ask-read-name-only) never asks, and a refused path stays refused for the rest of the conversation (ask-read-remembered-deny) instead of prompting again."
           }
         },
         {

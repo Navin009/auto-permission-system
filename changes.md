@@ -330,3 +330,63 @@ Goal: remove guesswork for parsers.
 3. `Docs reviewed:` date bumped in the README.
 4. GitHub About description and topics match `package.json` `description` and `keywords`.
 5. `SECURITY.md` regenerated with `./security/check.sh`, never hand-edited.
+
+---
+
+## 8. Search-phrase audit — 2026-11-15
+
+The phrases a developer or an assistant actually types were missing as exact strings, even though the
+capability was documented. This pass puts each one on the page in a sentence a person would write, not
+as a keyword list.
+
+### The phrases this package must answer for
+
+| Phrase | Where it now appears verbatim | Intent |
+|---|---|---|
+| `pi coding agent security` | README H1, "Also known as" line, `package.json` description, JSON-LD `alternateName` | Top of funnel: "is there security for Pi?" |
+| `pi coding agent security plugin` / `extension` | README Quick answers row, FAQ heading, keyword `pi-security-extension` | Install intent: "what do I add?" |
+| `pi permission system`, `permission system for Pi` | README H2 "Pi permission system and modes", FAQ question, glossary entity, JSON-LD FAQ | Feature comparison |
+| `pi agent`, `pi agent permissions` | "Also known as" line, keyword `pi-agent-permissions` | Short-form query |
+| `pi agent sandbox` | "Also known as" line, glossary, keyword `pi-agent-sandbox` | Technical query |
+| `claude auto mode for Pi` | README H2 and badge, keyword, JSON-LD alias | Differentiator |
+| `claude tool view for Pi` | README H2 and "Also known as" line, keyword | Secondary feature |
+
+### Shipped in this pass
+
+- **README H1** now reads *Security & Permissions for the Pi Coding Agent (Claude Auto Mode +
+  Claude-Style Tool View)*, so the two phrases people search sit in the title GitHub renders.
+- **Two H2s renamed to the query form**: "Security for the Pi coding agent" and "Pi permission system
+  and modes", with the Contents list and the two badge anchors updated in the same edit.
+- **"Also known as" paragraph** after the intro: the five names this package goes by, in one sentence,
+  so the entity resolves from any of them without a keyword list.
+- **Quick answers + FAQ**: a security-extension row and two new Q&As — "Is there a security extension
+  for the Pi coding agent?" and "What is the Pi agent permission system?" — phrased as the question a
+  searcher types.
+- **`package.json`**: description front-loads "Security for the Pi coding agent" inside the pi.dev
+  truncation window; keywords 58 → 68, adding `pi-coding-agent-security`, `pi-security-extension`,
+  `pi-security-plugin`, `pi-agent-permissions`, `pi-agent-sandbox`, `coding-agent-security`,
+  `agent-permissions`, `secret-scanning`, `credential-redaction`, `mcp-security`.
+- **`llms.txt`**: new "Search phrases" section mapping each phrase to the canonical fact, so an
+  assistant answering "what is the Pi permission system?" quotes one source.
+- **`assets/schema.jsonld`**: 11 aliases, 23 keywords, 10 `FAQPage` entries.
+
+### Still to do outside the repo
+
+1. **GitHub → About**: description matching `package.json`, and topics: `pi`, `pi-coding-agent`,
+   `pi-extension`, `permission-system`, `sandbox`, `tool-guard`, `secret-scanning`, `claude-code`,
+   `ai-agent-security`.
+2. **npm**: keywords and description sync from `package.json` on the next release; confirm after
+   publishing.
+3. **Social preview**: 1280×640 image with the H1 text in it, so link previews carry the phrase.
+4. **Third-party mentions**: titles in a dev.to post, an `awesome-pi`-style list entry and a Reddit
+   post must use the exact phrase ("security for the Pi coding agent"), since off-site anchors carry
+   more weight than on-page repetition.
+5. **Answer engines**: re-submit `llms.txt` and the JSON-LD wherever a registry accepts schema.
+
+### Verify
+
+```bash
+grep -c 'Pi coding agent security' README.md llms.txt
+grep -o '"pi-security-extension"' package.json
+python3 -c "import json;json.load(open('assets/schema.jsonld'))"   # schema still valid
+```

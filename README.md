@@ -4,7 +4,7 @@
   </a>
 </p>
 
-# Auto Permission System: Secure Auto Mode, Permissions & Claude-Style Tool View for Pi Coding Agent
+# Auto Permission System: Security & Permissions for the Pi Coding Agent (Claude Auto Mode + Claude-Style Tool View)
 
 [![npm version](https://img.shields.io/npm/v/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
 [![npm downloads](https://img.shields.io/npm/dm/auto-permission-system.svg)](https://www.npmjs.com/package/auto-permission-system)
@@ -12,8 +12,8 @@
 [![Pi package](https://img.shields.io/badge/pi--package-gallery-blueviolet)](https://pi.dev/packages)
 [![CI](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml/badge.svg)](https://github.com/Navin009/auto-permission-system/actions/workflows/ci.yml)
 [![Claude Auto Mode for Pi](https://img.shields.io/badge/Pi-Claude_Auto_Mode-blue.svg)](#secure-auto-mode--claude-auto-mode)
-[![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-pi-how-it-works)
-[![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#permission-system--modes)
+[![Security for Pi](https://img.shields.io/badge/Security-for_Pi-green.svg)](#security-for-the-pi-coding-agent)
+[![Permission System for Pi](https://img.shields.io/badge/Permission_System-for_Pi-orange.svg)](#pi-permission-system-and-modes)
 [![Tool View for Pi](https://img.shields.io/badge/Tool_View-for_Pi-purple.svg)](#tool-view-for-pi-claude-style-compact-rows-display-only)
 
 **Auto Permission System** is a zero-trust permission architecture and **Secure Auto Mode / Claude Auto Mode for the [Pi coding agent](https://pi.dev)**. It brings the confidence of **Claude's auto mode** to Pi—enabling autonomous agent workflows while actively scanning files, shell commands, and tool content to **prevent data breaches and credential exfiltration**.
@@ -21,6 +21,8 @@
 It also ships a **Pi tool view**: `/tool-view compact` draws tool calls as Claude-style compact rows — one row per run, one mark, one timer — next to `/tool-view full`, which leaves Pi's own output untouched. The tool view is presentation only; the **Pi permission system** (sandbox, guard, ask prompts, audit log) is identical in both views.
 
 Whether running interactively with keyboard-driven ask prompts or running headlessly in CI/CD pipelines, this package enforces multi-layer boundaries across filesystem access, network egress, shell commands, and MCP tools.
+
+**Also known as:** the Pi permission system · permissions for the Pi coding agent · a security extension for Pi · the Pi agent sandbox · Claude auto mode for Pi · the Claude Code style tool view for Pi. Same package, one install: `pi install npm:auto-permission-system`.
 
 ---
 
@@ -38,6 +40,7 @@ each one is in the sections below.
 | **What is “auto secure”?** | The `advanced-secure` permission mode: secret and credential detection, MCP risk scoring and real-time redaction on top of the same policy file. Choose it with `/permission-mode`. |
 | **Does it protect PyPI credentials?** | Yes. `pypi-…` upload tokens are detected and redacted, `~/.pypirc` asks before a read or a write instead of being handed over, and `pypi.org` / `*.pypi.org` egress is governed like any other host. |
 | **Is it a Claude Code plugin?** | No. It is a **Pi** extension. It borrows the ideas developers know from Claude Code — auto mode, permission prompts, a compact tool view — and implements them for Pi. |
+| **Is there a security plugin for the Pi coding agent?** | Yes — this package is a security extension for the Pi coding agent: an OS sandbox around `bash`, an in-process tool guard for the built-in tools and MCP calls, secret redaction, and an audit log. Installed with `pi install npm:auto-permission-system`. |
 | **What does it cost?** | Nothing. MIT licensed, runs locally, no account, no API key, no telemetry added by this package. |
 
 ---
@@ -61,11 +64,11 @@ each one is in the sections below.
 - [Quickstart & Installation](#quickstart--installation)
 - [Requirements](#requirements)
 - [Key Features at a Glance](#key-features-at-a-glance)
-- [Security for Pi: How It Works](#security-for-pi-how-it-works)
+- [Security for the Pi coding agent](#security-for-the-pi-coding-agent)
 - [Interactive Ask Prompts](#interactive-ask-prompts)
 - [Secure Auto Mode & Claude Auto Mode](#secure-auto-mode--claude-auto-mode)
 - [Real-Time Secret Detection & Content Scanning](#real-time-secret-detection--content-scanning)
-- [Permission System & Modes](#permission-system--modes)
+- [Pi permission system and modes](#pi-permission-system-and-modes)
 - [Configuration Reference](#configuration-reference)
 - [Commands & Mid-Session Controls](#commands--mid-session-controls)
 - [Tool view for Pi: Claude-style compact rows](#tool-view-for-pi-claude-style-compact-rows-display-only)
@@ -134,7 +137,7 @@ Once installed, the extension automatically loads whenever you launch `pi`. Chec
 
 ---
 
-## Security for Pi: How It Works
+## Security for the Pi coding agent
 
 `auto-permission-system` employs a defense-in-depth model across three coordinated layers:
 
@@ -291,7 +294,7 @@ When running in **Advanced Secure Mode** (`advanced-secure`), `auto-permission-s
 
 ---
 
-## Permission System & Modes
+## Pi permission system and modes
 
 `auto-permission-system` provides three selectable permission modes:
 
@@ -552,6 +555,12 @@ grep '"finding"' ~/.pi/agent/audit.log | tail -n 10
 
 A selection of common questions is below.
 
+### Is there a security extension for the Pi coding agent?
+Yes — this package. `pi install npm:auto-permission-system` adds a **security extension for the Pi coding agent**: an OS sandbox around `bash` (`bubblewrap` on Linux, `sandbox-exec` on macOS), an in-process tool guard over the built-in tools and MCP calls, secret redaction before tool output reaches the model, and a JSONL audit log of every decision. It is a Pi extension, not a Claude Code plugin, and it needs no account, API key or hosted service.
+
+### What is the Pi agent permission system?
+The Pi permission system — also written “permission system for Pi” or “permissions for Pi” — is the policy engine in this package. One plain-JSON `sandbox.json` is enforced by two layers (the OS sandbox around `bash` and the in-process tool guard), with the Auto Secure redactor on top, ask-tier prompts for reads, writes, domains and MCP calls, a project-trust step, and an audit log. Every rule is readable and editable, and no allow or deny is ever decided by the model itself.
+
 ### How does Claude Auto Mode secure unattended runs?
 In headless mode (`pi -p` or subagent executions), interactive ask prompts cannot be presented to a human. Auto Permission System operates in a fail-closed posture: any tool call or bash command targeting an unlisted domain, credential file, or outside-project path is automatically blocked, and the refusal reason is provided to the agent and recorded in the audit log.
 
@@ -637,7 +646,7 @@ Why the claims on this page can be checked instead of taken on faith.
 - **Released in public.** Every release is tagged on GitHub and written to [`CHANGELOG.md`](./CHANGELOG.md) by semantic-release from the commit history; npm publishing is opt-in and gated as described in [`PUBLISHING.md`](./PUBLISHING.md).
 - **Stated limits.** Detection is AST plus pattern matching, not a proof of safety — a secret built at runtime, or a file no rule names, can still be read. Layer 1 needs `bubblewrap` + `socat` on Linux and `sandbox-exec` on macOS, and is not available on Windows; on Windows only Layers 2 and 3 apply. This page is written to be precise about that rather than to sound complete.
 
-Docs reviewed: **2026-11-13**.
+Docs reviewed: **2026-11-15**.
 
 ---
 
