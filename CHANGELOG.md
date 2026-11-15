@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.1.0](https://github.com/Navin009/auto-permission-system/compare/v6.0.5...v6.1.0) (2026-11-15)
+
+### Features
+
+* **skill:** cover the searched phrasings for the Pi coding agent ([35510fd](https://github.com/Navin009/auto-permission-system/commit/35510fd9f6adb4455e1d170cf9c67f962d75b114))
+
+### Documentation
+
+* **seo:** target the phrases people actually search for ([4a432f4](https://github.com/Navin009/auto-permission-system/commit/4a432f449a2dda6da5d0f235834c8e3ae0e88565))
+
 ## [6.0.5](https://github.com/Navin009/auto-permission-system/compare/v6.0.4...v6.0.5) (2026-11-15)
 
 ### Bug Fixes
