@@ -15,6 +15,22 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 ./security/check.sh    # tests + regenerate SECURITY.md (or: `tests`|`render` only)
 ```
 
+## Releases
+
+One keyword decides it: a push to `main` whose head commit message contains `release` releases; every other push does not.
+
+```bash
+git commit -m "fix(guard): handle X release"     # commits and releases (patch)
+git commit -m "feat(tool-view): add Y release"   # commits and releases (minor)
+git commit -m "refactor(guard): split parser"    # commits only
+```
+
+- Never hand-edit `package.json` → `version`, `CHANGELOG.md`, or git tags. semantic-release owns all three: it bumps the version from the Conventional Commit types since the last tag (patch `fix:`, minor `feat:`, major `feat!:` / `BREAKING CHANGE:`), writes `CHANGELOG.md`, commits `chore(release): x.y.z [skip ci]`, tags `vX.Y.Z`, and publishes the GitHub Release.
+- The keyword only decides *whether* to release; the commit types decide *how much*. A `docs:`/`chore:` commit containing `release` releases nothing — pair the keyword with a `fix:`/`feat:` commit.
+- The job runs `npm run typecheck` and `npm test` before semantic-release, so a red `main` produces no tag and no changelog commit. `ci.yml` does not run on push to `main`, so this is the verification gate.
+- `NPM_PUBLISH` (repository variable, default off) gates npm publishing; the GitHub Release is created either way.
+- Verify after: `git pull --tags`, then `git tag --sort=-v:refname | head -3`, `gh release list --limit 3`, `head -20 CHANGELOG.md`.
+
 ## Docs map — read the right one, don't duplicate across them
 
 | File | Audience | Edit? |
@@ -31,6 +47,6 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 
 ## Conventions
 
-- Conventional Commits required (`commitlint`); `fix:`/`feat:`/`feat!:` drive semantic-release version bumps on `main`. `docs:`/`chore:`/`refactor:` don't release.
+- Conventional Commits required (`commitlint`); `fix:`/`feat:`/`feat!:` drive the version bump, and the release itself is triggered by the word `release` in the commit message — see `## Releases`. `docs:`/`chore:`/`refactor:` don't release.
 - New non-trivial design decisions → record the reasoning in the commit message body, and in `security/manifest.json` when layer status changes; don't leave it undocumented.
 - Policy file shape and layer semantics are documented once, in `skills/auto-permission-system/SKILL.md` — check there before re-explaining sandbox.json fields elsewhere.

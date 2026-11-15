@@ -1,13 +1,19 @@
 name: CI
 
+# Not run on push to main: work lands on main directly, and release.yml runs
+# typecheck and tests itself before semantic-release. This workflow guards pull
+# requests and can also be started by hand.
+
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  NODE_VERSION: 24
 
 jobs:
   typecheck:
@@ -17,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
 
       - run: npm install
 
@@ -32,7 +38,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
 
       - run: npm install
 
