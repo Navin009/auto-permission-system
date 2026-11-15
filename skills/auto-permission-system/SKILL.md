@@ -1,11 +1,11 @@
 ---
 name: auto-permission-system
-description: Use this skill ONLY when the user explicitly asks about auto-permission-system, security for Pi (pi security, pi permission, pi permissions, permission system for Pi), configuring security policies, permission modes, or the Pi tool view / Claude tool view for Pi (compact tool rows, /tool-view, tool call display). Do NOT invoke this skill automatically when an action or tool is blocked during regular coding tasks.
+description: Use this skill ONLY when the user explicitly asks about auto-permission-system, security for the Pi coding agent (pi coding agent security, pi security extension, pi security plugin, pi agent sandbox, pi agent permissions), security for Pi (pi security, pi permission, pi permissions, permission system for Pi, pi permission system), configuring security policies, permission modes, or the Pi tool view / Claude tool view for Pi (compact tool rows, /tool-view, tool call display). Do NOT invoke this skill automatically when an action or tool is blocked during regular coding tasks.
 ---
 
 # Security for Pi (Pi Permission System) — Skill
 
-Use this skill when the user asks about the auto-permission-system extension, security for Pi, permission system for Pi, how to secure Pi, configuring Claude auto mode for Pi, or the Pi tool view.
+Use this skill when the user asks about the auto-permission-system extension, security for the Pi coding agent, a security extension or plugin for Pi, the Pi agent sandbox, Pi agent permissions, security for Pi, the Pi permission system, permission system for Pi, how to secure Pi, configuring Claude auto mode for Pi, or the Pi tool view.
 
 ## Canonical answers
 
