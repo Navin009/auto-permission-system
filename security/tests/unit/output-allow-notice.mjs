@@ -21,6 +21,7 @@ process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 const { clearAllowNotices, clearProgramIds, gateSensitiveToolOutput } = await import(
 	'../../../src/l2-guard/output-gates.ts'
 );
+const { clearGateNotes, gateNoteFor } = await import('../../../src/shared/gate-notes.ts');
 
 const AUDIT_PATH = join(scratchAgentDir, 'audit.log');
 const ALLOW_ONCE = 'this once';
@@ -54,11 +55,13 @@ const auditDecisions = () =>
 
 clearAllowNotices();
 clearProgramIds();
+clearGateNotes();
 
 const first = [];
 const firstResult = await gateSensitiveToolOutput(event('codemode', 'call-1'), contextFor(first), policy);
 check('the answer is confirmed to the user', first.length === 1 && first[0] === CODEMODE_NOTICE);
 check('an allowed call is not rewritten', firstResult === undefined);
+check('an allowed call keeps its warning for the expanded row', gateNoteFor('call-1') === CODEMODE_NOTICE);
 
 const second = [];
 await gateSensitiveToolOutput(event('codemode', 'call-2'), contextFor(second), policy);
@@ -77,6 +80,18 @@ const hiddenResult = await gateSensitiveToolOutput(
 );
 check('a hidden answer warns instead of confirming', hidden.length === 1 && hidden[0].includes('Sensitive data protected'));
 check('a hidden answer withholds the output', hiddenResult?.content?.[0]?.text.includes('was hidden') === true);
+check(
+	'a hidden call keeps its warning for the expanded row',
+	gateNoteFor('call-4') === 'Sensitive data protected: codemode output was hidden from the AI (potential secrets detected).',
+);
+
+const nested = { ...event('codemode', 'call-nested/1'), parentToolCallId: 'call-nested' };
+await gateSensitiveToolOutput(nested, contextFor([], KEEP_HIDDEN), policy);
+check('a nested answer lands on the call that issued it', gateNoteFor('call-nested')?.includes('Sensitive data protected') === true);
+check('a nested answer keeps no note of its own', gateNoteFor('call-nested/1') === undefined);
+
+clearGateNotes();
+check('a session reset forgets the warnings', gateNoteFor('call-1') === undefined);
 
 clearAllowNotices();
 const afterReset = [];

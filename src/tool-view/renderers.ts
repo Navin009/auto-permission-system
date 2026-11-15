@@ -28,6 +28,7 @@ import {
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
 import { codemodeSubLines } from "./codemode-lines.ts";
+import { gateNoteFor } from "../shared/gate-notes.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type ResultRenderer = NonNullable<ToolRenderers["renderResult"]>;
@@ -54,6 +55,7 @@ const SETTLED_STATE_KEY = "settled";
 const PI_CALL_STATE_KEY = "piCall";
 const PI_RESULT_STATE_KEY = "piResult";
 const NATIVE_BLOCK_STATE_KEY = "nativeBlock";
+const GATE_NOTE_STATE_KEY = "gateNote";
 const EMPTY_LINE = "";
 const NO_PADDING = 0;
 const BLOCK_PADDING_Y = 1;
@@ -235,8 +237,22 @@ function nativeResultBlock(
 
 	context.state[PI_RESULT_STATE_KEY] = resultComponent;
 	block.addChild(resultComponent);
+	addGateNote(block, theme, context);
 
 	return emptyComponent();
+}
+
+function addGateNote(block: Box, theme: RenderTheme, context: RenderContext): void {
+	const note = gateNoteFor(context.toolCallId);
+
+	if (!note || context.state[GATE_NOTE_STATE_KEY]) {
+		return;
+	}
+
+	const line = new Text(theme.fg("warning", note), NO_PADDING, NO_PADDING);
+
+	context.state[GATE_NOTE_STATE_KEY] = line;
+	block.addChild(line);
 }
 
 function nativeBackground(theme: RenderTheme, context: RenderContext): (line: string) => string {

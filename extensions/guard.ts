@@ -16,6 +16,7 @@ import { clearSessionGrants, type UICtx } from "../src/l2-guard/prompts.ts";
 import { clearProgramOutputSessionGrants } from "../src/l2-guard/program-grants.ts";
 import { programIdForToolCall } from "../src/l2-guard/program-id.ts";
 import { emitDomainGrant } from "../src/shared/network-grants.ts";
+import { clearGateNotes } from "../src/shared/gate-notes.ts";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent.ts";
 import { onYolo } from "../src/shared/yolo.ts";
 import {
@@ -133,6 +134,7 @@ export default function (pi: ExtensionAPI) {
 		clearProgramOutputSessionGrants();
 		clearProgramIds();
 		clearAllowNotices();
+		clearGateNotes();
 	});
 
 	pi.on("tool_call", async (event, context) => {

@@ -6,6 +6,7 @@ import { redactText } from "../detect/index.ts";
 import { collectExposure } from "./exposure.ts";
 import { askExposure, withheldNotice } from "../ui/ask-flow.ts";
 import { audit } from "../shared/audit.ts";
+import { rememberGateNote } from "../shared/gate-notes.ts";
 import { canonicalize, isAskRead, isDeniedRead } from "./matching.ts";
 import { grantProgramOutputSession, isProgramOutputGranted } from "./program-grants.ts";
 import type { Policy } from "./policy.ts";
@@ -154,6 +155,7 @@ export async function gateSensitiveToolOutput(
 		context as unknown as UICtx;
 
 	const userChoice = uiContext.hasUI !== false ? await askExposure(uiContext, hits, programId) : "block";
+	const noteCallId = event.parentToolCallId ?? event.toolCallId;
 
 	if (userChoice === "allow" || userChoice === "program-session") {
 		if (userChoice === "program-session" && programId) {
@@ -169,7 +171,10 @@ export async function gateSensitiveToolOutput(
 				cwd: context.cwd,
 			});
 
-			context.ui.notify(`Output permitted: allowed all ${programId} output for this conversation.`, "info");
+			const grantNotice = `Output permitted: allowed all ${programId} output for this conversation.`;
+
+			rememberGateNote(noteCallId, grantNotice);
+			context.ui.notify(grantNotice, "info");
 		} else {
 			audit({
 				layer: 2,
@@ -181,6 +186,8 @@ export async function gateSensitiveToolOutput(
 			});
 
 			const allowNotice = `Output permitted: allowed ${event.toolName} output for this call.`;
+
+			rememberGateNote(noteCallId, allowNotice);
 
 			if (!shownAllowNotices.has(allowNotice)) {
 				shownAllowNotices.add(allowNotice);
@@ -200,10 +207,10 @@ export async function gateSensitiveToolOutput(
 		cwd: context.cwd,
 	});
 
-	context.ui.notify(
-		`Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`,
-		"warning",
-	);
+	const protectedNotice = `Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`;
+
+	rememberGateNote(noteCallId, protectedNotice);
+	context.ui.notify(protectedNotice, "warning");
 
 	return { content: [{ type: "text" as const, text: withheldNotice(subject) }] };
 }
