@@ -12,6 +12,11 @@ import type { Policy } from "./policy.ts";
 import type { UICtx } from "./prompts.ts";
 
 const programIdByCallId = new Map<string, string>();
+const shownAllowNotices = new Set<string>();
+
+export function clearAllowNotices(): void {
+	shownAllowNotices.clear();
+}
 
 export function recordProgramIdForCall(toolCallId: string, programId: string): void {
 	programIdByCallId.set(toolCallId, programId);
@@ -175,7 +180,12 @@ export async function gateSensitiveToolOutput(
 				cwd: context.cwd,
 			});
 
-			context.ui.notify(`Output permitted: allowed ${event.toolName} output for this call.`, "info");
+			const allowNotice = `Output permitted: allowed ${event.toolName} output for this call.`;
+
+			if (!shownAllowNotices.has(allowNotice)) {
+				shownAllowNotices.add(allowNotice);
+				context.ui.notify(allowNotice, "info");
+			}
 		}
 
 		return undefined;

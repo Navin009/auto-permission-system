@@ -30,6 +30,7 @@ import {
 	extractUrlsFromInput,
 } from "../src/l2-guard/tool-gates.ts";
 import {
+	clearAllowNotices,
 	clearProgramIds,
 	filterGrepToolResult,
 	gateSensitiveToolOutput,
@@ -131,6 +132,7 @@ export default function (pi: ExtensionAPI) {
 		clearDetectionGrants();
 		clearProgramOutputSessionGrants();
 		clearProgramIds();
+		clearAllowNotices();
 	});
 
 	pi.on("tool_call", async (event, context) => {
