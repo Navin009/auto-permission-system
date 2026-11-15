@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.1.1](https://github.com/Navin009/auto-permission-system/compare/v6.1.0...v6.1.1) (2026-11-15)
+
+### Bug Fixes
+
+* **guard:** announce an allowed output gate once per conversation release ([30f77d5](https://github.com/Navin009/auto-permission-system/commit/30f77d525cf4be7b800199fb7f4ba6b25aeb45e7))
+
 ## [6.1.0](https://github.com/Navin009/auto-permission-system/compare/v6.0.5...v6.1.0) (2026-11-15)
 
 ### Features
