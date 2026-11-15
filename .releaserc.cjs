@@ -10,11 +10,41 @@
 // version); flip the repository variable NPM_PUBLISH=true to also publish.
 const npmPublish = process.env.NPM_PUBLISH === 'true';
 
+// Every commit type gets a section in the release notes, so one release lists
+// everything that landed since the previous tag. The version bump is decided
+// separately by @semantic-release/commit-analyzer, which only counts feat:,
+// fix:, perf: and breaking changes.
+const commitTypes = [
+  { type: 'feat', section: 'Features' },
+  { type: 'fix', section: 'Bug Fixes' },
+  { type: 'perf', section: 'Performance Improvements' },
+  { type: 'revert', section: 'Reverts' },
+  { type: 'refactor', section: 'Code Refactoring' },
+  { type: 'docs', section: 'Documentation' },
+  { type: 'build', section: 'Build System' },
+  { type: 'ci', section: 'Continuous Integration' },
+  { type: 'test', section: 'Tests' },
+  { type: 'style', section: 'Styles' },
+  { type: 'chore', section: 'Chores' },
+];
 module.exports = {
   branches: ['main'],
   plugins: [
-    '@semantic-release/commit-analyzer',
-    '@semantic-release/release-notes-generator',
+    // Release notes cover the whole range from the previous tag to HEAD.
+    [
+      '@semantic-release/commit-analyzer',
+      {
+        preset: 'conventionalcommits',
+        presetConfig: { types: commitTypes },
+      },
+    ],
+    [
+      '@semantic-release/release-notes-generator',
+      {
+        preset: 'conventionalcommits',
+        presetConfig: { types: commitTypes },
+      },
+    ],
     [
       '@semantic-release/changelog',
       {
