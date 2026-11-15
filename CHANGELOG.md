@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
 
+## [6.0.5](https://github.com/Navin009/auto-permission-system/compare/v6.0.4...v6.0.5) (2026-11-15)
+
+### Bug Fixes
+
+* **ci:** exercise the combined notes release ([0a256f6](https://github.com/Navin009/auto-permission-system/commit/0a256f69d14070a789c850600d4713c91dd2db43))
+
+### Documentation
+
+* **release:** document the combined notes ([7d98dd4](https://github.com/Navin009/auto-permission-system/commit/7d98dd4fdd6c9d46a3c3cd238c76ce651228b22a))
+
+### Build System
+
+* **release:** list every commit type in the notes ([b76151a](https://github.com/Navin009/auto-permission-system/commit/b76151ac64e15ae3a2d6572d66728d58b841eb75))
+
 ## [6.0.4](https://github.com/Navin009/auto-permission-system/compare/v6.0.3...v6.0.4) (2026-11-15)
 
 
