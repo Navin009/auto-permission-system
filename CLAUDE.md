@@ -25,6 +25,8 @@ git commit -m "feat(tool-view): add Y release"   # commits and releases (minor)
 git commit -m "refactor(guard): split parser"    # commits only
 ```
 
+- One release covers **every** commit since the previous tag (previous tag → HEAD). The bump is the highest type among them (`feat!` > `feat` > `fix`/`perf`), and the notes list them all: `Features`, `Bug Fixes`, `Performance Improvements`, `Reverts`, `Code Refactoring`, `Documentation`, `Build System`, `Continuous Integration`, `Tests`, `Styles`, `Chores`. Only `feat:`/`fix:`/`perf:`/breaking change the version.
+- One release, many commits: several pending `fix:`/`feat:` commits all land in the same release when the keyword push happens, so the notes never lose work.
 - Never hand-edit `package.json` → `version`, `CHANGELOG.md`, or git tags. semantic-release owns all three: it bumps the version from the Conventional Commit types since the last tag (patch `fix:`, minor `feat:`, major `feat!:` / `BREAKING CHANGE:`), writes `CHANGELOG.md`, commits `chore(release): x.y.z [skip ci]`, tags `vX.Y.Z`, and publishes the GitHub Release.
 - The keyword only decides *whether* to release; the commit types decide *how much*. A `docs:`/`chore:` commit containing `release` releases nothing — pair the keyword with a `fix:`/`feat:` commit.
 - The job runs `npm run typecheck` and `npm test` before semantic-release, so a red `main` produces no tag and no changelog commit. `ci.yml` does not run on push to `main`, so this is the verification gate.
