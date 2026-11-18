@@ -1,7 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-Entries below [1.0.0] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/) — do not edit by hand.
+Entries up to [6.1.1] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/); [6.1.2] and later are written by hand because releases are cut by pushing a tag — do not edit a released section by hand.
+
+## [6.1.2](https://github.com/Navin009/auto-permission-system/compare/v6.1.1...v6.1.2) (2026-11-18)
+
+### Continuous Integration
+
+* **release:** create the GitHub Release from a pushed tag ([0ec851e](https://github.com/Navin009/auto-permission-system/commit/0ec851e0a93570c1c19d8367fd7b5d42b5ef7e01))
 
 ## [6.1.1](https://github.com/Navin009/auto-permission-system/compare/v6.1.0...v6.1.1) (2026-11-15)
 
