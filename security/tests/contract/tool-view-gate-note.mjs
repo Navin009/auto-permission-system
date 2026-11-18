@@ -28,6 +28,7 @@ const fallback = {
 const renderers = toolViewRenderers('codemode', fallback);
 const ALLOW_NOTE = 'Output permitted: allowed codemode output for this call.';
 const HIDDEN_NOTE = 'Sensitive data protected: codemode output was hidden from the AI (potential secrets detected).';
+const BASH_HIDDEN_NOTE = 'Sensitive data protected: bash output was hidden from the AI (potential secrets detected).';
 const result = { content: [{ type: 'text', text: 'ok' }] };
 const options = { expanded: true, isPartial: false };
 
@@ -69,8 +70,9 @@ check('an allowed call shows its warning in Pi view', yesLines.some((line) => li
 check('the warning sits under Pi own result', yesShown.at(-1) === ALLOW_NOTE);
 check('Pi own block is still drawn', yesLines.some((line) => line.includes('pi result')));
 
+const repaintBlock = renderers.renderCall({ code: 'await tools.x()' }, theme, yesContext());
 renderers.renderResult(result, options, theme, yesContext());
-const repainted = yesBlock.render(WIDTH).filter((line) => line.trim() === ALLOW_NOTE);
+const repainted = repaintBlock.render(WIDTH).filter((line) => line.trim() === ALLOW_NOTE);
 
 check('a repaint keeps one warning line', repainted.length === 1);
 
@@ -100,6 +102,41 @@ const clearedBlock = renderers.renderCall({ code: 'await tools.x()' }, theme, cl
 renderers.renderResult(result, options, theme, clearedContext());
 
 check('a new conversation draws no old warning', !clearedBlock.render(WIDTH).some((line) => line.trim() === ALLOW_NOTE));
+
+resetRowGroups();
+clearGateNotes();
+
+const bashRenderers = toolViewRenderers('bash', fallback);
+const bashArgs = { command: 'git status' };
+const bashState = {};
+const bashContext = contextOf(bashState);
+const bashAtRow = { toolCallId: 'row-1', args: bashArgs, expanded: false };
+
+rememberGateNote('row-1', BASH_HIDDEN_NOTE);
+
+bashRenderers.renderCall(bashArgs, theme, bashContext(bashAtRow));
+const bashBlock = bashRenderers.renderResult(result, options, theme, bashContext(bashAtRow));
+
+const bashText = bashBlock.render(WIDTH).map((line) => line.trim()).filter(Boolean).join(' ');
+
+check('a command row carries its warning', bashText.includes(BASH_HIDDEN_NOTE));
+check('the command row still draws the command', bashText.includes('$ git status'));
+
+const readRenderers = toolViewRenderers('read', fallback);
+const readArgs = { file_path: 'a.ts' };
+const readContext = contextOf({});
+const readAtRow = { toolCallId: 'row-2', args: readArgs, expanded: false, durationMs: undefined };
+
+readRenderers.renderCall(readArgs, theme, readContext(readAtRow));
+readRenderers.renderResult(result, options, theme, readContext(readAtRow));
+
+const foldedLines = bashBlock.render(WIDTH).filter((line) => line.trim());
+
+check('a new kind of call folds the command row away', foldedLines.length === 1);
+check('the folded row drops its warning', !foldedLines.join(' ').includes(BASH_HIDDEN_NOTE));
+
+resetRowGroups();
+clearGateNotes();
 
 resetRowGroups();
 resetThinking();

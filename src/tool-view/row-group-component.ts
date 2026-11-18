@@ -79,6 +79,10 @@ export class RowGroupComponent implements Component {
 	}
 
 	private bodyText(line: RowLine): string {
+		if (line.isWarning) {
+			return this.theme.fg("warning", line.text);
+		}
+
 		return line.isDim ? this.theme.fg("dim", line.text) : line.text;
 	}
 

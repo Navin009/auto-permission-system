@@ -5,6 +5,7 @@ import { programHint } from "../core/tool-view/target-summary.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
 import { thoughtsVisibleInTranscript } from "./session.ts";
+import { gateNoteFor } from "../shared/gate-notes.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 250;
 
@@ -288,6 +289,7 @@ function rowSummary(kind: RowKind, member: RowMember): RowSummary {
 		status: member.status,
 		segmentIndex: member.segmentIndex,
 		subLines: member.subLines.length > 0 ? member.subLines : undefined,
+		note: gateNoteFor(member.toolCallId),
 	};
 }
 

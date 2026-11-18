@@ -210,7 +210,6 @@ export async function gateSensitiveToolOutput(
 	const protectedNotice = `Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`;
 
 	rememberGateNote(noteCallId, protectedNotice);
-	context.ui.notify(protectedNotice, "warning");
 
 	return { content: [{ type: "text" as const, text: withheldNotice(subject) }] };
 }

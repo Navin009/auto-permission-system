@@ -10,6 +10,7 @@ import {
 	TOOL_VIEW_SETTINGS_FILE_NAME,
 } from "../src/core/tool-view/settings.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
+import { setGateNoteRepaint } from "../src/shared/gate-notes.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { getActiveViewMode, setActiveViewMode, setThoughtsVisibleLookup } from "../src/tool-view/session.ts";
@@ -70,6 +71,7 @@ function rememberSessionThoughts(context: SessionContext): void {
 export default function (pi: ExtensionAPI) {
 	setThoughtsVisibleLookup(() => pi.getSettings?.().hideThinkingBlock === false);
 	setThinkingRepaint(repaintCurrentRow);
+	setGateNoteRepaint(repaintCurrentGroup);
 	startSession();
 
 	pi.on("session_start", (_event, context) => {

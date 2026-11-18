@@ -14,6 +14,7 @@ export interface RowSummary {
 	segmentIndex: number;
 	hint?: string;
 	subLines?: readonly SubLineSummary[];
+	note?: string;
 }
 
 export interface RowGroupSummary {
@@ -37,6 +38,7 @@ export interface RowLine {
 	duration: string | undefined;
 	hint: string | undefined;
 	isDim: boolean;
+	isWarning?: boolean;
 	memberIndex?: number;
 	segmentIndex?: number;
 }
@@ -45,6 +47,7 @@ const NEWEST_ROW_LIMIT = 8;
 const SINGLE_ROW_COUNT = 1;
 const EARLIER_CALL_NOUN = "call";
 const LINE_INDENT = "  └ ";
+const NOTE_INDENT = "    ";
 const SHELL_PROMPT = "$";
 const RUNNING_LINE_MARK = "…";
 const OVERFLOW_MARK = "...";
@@ -276,7 +279,7 @@ function childLines(summary: RowGroupSummary, width: number, showsChildLines: bo
 	visibleRows.forEach((row, offset) => {
 		const memberIndex = hiddenCount + offset;
 
-		for (const line of memberChildLines(summary.kind, row, isSingle, childColumn, memberIndex)) {
+		for (const line of memberChildLines(summary.kind, row, isSingle, childColumn, memberIndex, width)) {
 			lines.push(line);
 		}
 	});
@@ -298,12 +301,61 @@ function memberChildLines(
 	isSingle: boolean,
 	childColumn: number,
 	memberIndex: number,
+	width: number,
 ): RowLine[] {
-	if (!row.subLines) {
-		return [childLine(kind, row, isSingle, childColumn, memberIndex, row.segmentIndex)];
+	const rowLines = row.subLines
+		? row.subLines.map((subLine) => subLineLine(subLine, childColumn, memberIndex, row.segmentIndex))
+		: [childLine(kind, row, isSingle, childColumn, memberIndex, row.segmentIndex)];
+
+	return [...rowLines, ...noteLines(row, width, memberIndex, row.segmentIndex)];
+}
+
+function noteLines(
+	row: RowSummary,
+	width: number,
+	memberIndex: number,
+	segmentIndex: number,
+): RowLine[] {
+	if (!row.note) {
+		return [];
 	}
 
-	return row.subLines.map((subLine) => subLineLine(subLine, childColumn, memberIndex, row.segmentIndex));
+	const budget = Math.max(1, width - NOTE_INDENT.length);
+
+	return wrapText(toSingleLine(row.note), budget).map((text) => ({
+		indent: NOTE_INDENT,
+		mark: undefined,
+		text,
+		duration: undefined,
+		hint: undefined,
+		isDim: false,
+		isWarning: true,
+		memberIndex,
+		segmentIndex,
+	}));
+}
+
+function wrapText(text: string, budget: number): string[] {
+	const lines: string[] = [];
+	let currentLine = BLANK;
+
+	for (const word of text.split(SPACE)) {
+		const candidate = currentLine ? `${currentLine}${SPACE}${word}` : word;
+
+		if (!currentLine || candidate.length <= budget) {
+			currentLine = candidate;
+			continue;
+		}
+
+		lines.push(currentLine);
+		currentLine = word;
+	}
+
+	if (currentLine) {
+		lines.push(currentLine);
+	}
+
+	return lines;
 }
 
 function subLineLine(

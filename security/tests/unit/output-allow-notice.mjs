@@ -21,7 +21,9 @@ process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 const { clearAllowNotices, clearProgramIds, gateSensitiveToolOutput } = await import(
 	'../../../src/l2-guard/output-gates.ts'
 );
-const { clearGateNotes, gateNoteFor } = await import('../../../src/shared/gate-notes.ts');
+const { clearGateNotes, gateNoteFor, rememberGateNote, setGateNoteRepaint } = await import(
+	'../../../src/shared/gate-notes.ts'
+);
 
 const AUDIT_PATH = join(scratchAgentDir, 'audit.log');
 const ALLOW_ONCE = 'this once';
@@ -78,12 +80,19 @@ const hiddenResult = await gateSensitiveToolOutput(
 	contextFor(hidden, KEEP_HIDDEN),
 	policy,
 );
-check('a hidden answer warns instead of confirming', hidden.length === 1 && hidden[0].includes('Sensitive data protected'));
+check('a hidden answer writes nothing to the chat', hidden.length === 0);
 check('a hidden answer withholds the output', hiddenResult?.content?.[0]?.text.includes('was hidden') === true);
 check(
 	'a hidden call keeps its warning for the expanded row',
 	gateNoteFor('call-4') === 'Sensitive data protected: codemode output was hidden from the AI (potential secrets detected).',
 );
+
+let repaints = 0;
+setGateNoteRepaint(() => {
+	repaints++;
+});
+rememberGateNote('call-repaint', 'a note');
+check('a new note repaints the rows that show it', repaints === 1);
 
 const nested = { ...event('codemode', 'call-nested/1'), parentToolCallId: 'call-nested' };
 await gateSensitiveToolOutput(nested, contextFor([], KEEP_HIDDEN), policy);
