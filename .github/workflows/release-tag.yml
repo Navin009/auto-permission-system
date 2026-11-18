@@ -1,0 +1,77 @@
+name: Release Tag
+
+# Releases are created from a tag you push from your own machine. Nothing is
+# computed, committed or bumped here: the tag you pushed IS the release, and the
+# notes are GitHub's auto-generated notes for it (commits since the previous
+# tag). No release commit, no CHANGELOG edit, no package.json version bump.
+#
+#   git tag -a v6.2.0 -m "fix(guard): handle X"
+#   git push origin v6.2.0        # or: git push --tags
+#
+# This is the only automatic release path: release.yml no longer runs on pushes
+# to main (semantic-release stays available by hand via workflow_dispatch).
+#
+# The job runs typecheck and tests before creating the Release, so a red tag
+# produces no Release page. ci.yml does not run on tag pushes.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub Release
+
+env:
+  NODE_VERSION: 24
+  TAG: ${{ github.ref_name }}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - run: npm install
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Warn-only on purpose: a mismatch must not block the Release, but it does
+      # mean a later npm publish would not match the tag.
+      - name: Compare package.json version with the tag
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$TAG" ]; then
+            echo "::warning::package.json is $version, tag is $TAG"
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — nothing to do."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "$TAG" \
+            --generate-notes

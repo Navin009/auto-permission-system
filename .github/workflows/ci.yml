@@ -1,8 +1,8 @@
 name: CI
 
-# Not run on push to main: work lands on main directly, and release.yml runs
-# typecheck and tests itself before semantic-release. This workflow guards pull
-# requests and can also be started by hand.
+# Not run on push to main: work lands on main directly, and release-tag.yml runs
+# typecheck and tests itself before creating a Release. This workflow guards
+# pull requests and can also be started by hand.
 
 on:
   pull_request:

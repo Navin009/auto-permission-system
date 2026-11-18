@@ -1,21 +1,17 @@
-name: Release
+name: Release (semantic-release, manual)
 
-# Release when the commit message says "release". Any push to main whose head
-# commit contains that word runs semantic-release, which bumps the version from
-# the Conventional Commit types, writes CHANGELOG.md, commits the bump, tags
-# vX.Y.Z and publishes the GitHub Release. Every other push is skipped at the
-# job level, before a runner starts.
+# MANUAL FALLBACK ONLY — no longer runs on its own.
 #
-#   git commit -m "fix(guard): handle X release"    # commits and releases
-#   git commit -m "feat(tool-view): add Y release"  # minor bump
-#   git commit -m "refactor(guard): split parser"   # commits only
+# Automatic releases come from a pushed tag: `.github/workflows/release-tag.yml`
+# creates the GitHub Release for `git push origin vX.Y.Z` and commits nothing.
+# This workflow is the older semantic-release path kept for when you want the
+# full Conventional Commit treatment (version bump + CHANGELOG.md + tag commit)
+# instead of a hand-made tag. Start it by hand from the Actions tab.
 #
-# The bump size still comes from the commit type (fix: patch, feat: minor,
-# feat!: major) of everything since the last tag. A docs:/chore: commit that
-# mentions release runs the job and releases nothing.
+#   gh workflow run release.yml
 #
-# semantic-release's own commit `chore(release): x.y.z [skip ci]` contains the
-# word too, so the job condition excludes it: no release loop.
+# The bump size comes from the commit types since the last tag (fix: patch,
+# feat: minor, feat!: major); a docs:/chore:-only range releases nothing.
 #
 # Publishing uses npm Trusted Publishing (OIDC) — no NPM_TOKEN secret needed.
 # Configure the trusted publisher once at:
@@ -30,8 +26,7 @@ name: Release
 # releases nothing. ci.yml does not run on push to main.
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write   # to push the release commit/tag and create the GH release
@@ -45,9 +40,6 @@ concurrency:
 
 jobs:
   release:
-    if: >-
-      contains(github.event.head_commit.message, 'release')
-      && !startsWith(github.event.head_commit.message, 'chore(release)')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -4,7 +4,8 @@ This package ships on **npm**, and npm is what makes it appear in the
 **[Pi package gallery](https://pi.dev/packages)** — there is no separate pi.dev
 upload. Publish once to npm with the right manifest, and pi.dev discovers it.
 
-The release pipeline is already automated (`semantic-release` on `main`). This
+The GitHub Release is created by pushing a tag (`release-tag.yml`). The npm
+publish still runs through `semantic-release`, by hand (`release.yml`). This
 document covers the **one-time bootstrap** that has to happen before the
 automation can take over, plus the discovery metadata.
 
@@ -64,11 +65,9 @@ git tag -a v2.20.0 -m "chore(release): 2.20.0"
 git push origin main --follow-tags
 ```
 
-> Pushing also triggers the `CI` workflow, which in turn triggers `Release`. On
-> that first run npm publishing is still off (`NPM_PUBLISH` unset), so
-> `semantic-release` will compute the next version from commits — it will see
-> `v2.20.0` as the last release and skip if there is nothing new. That is the
-> intended behaviour; it creates the GitHub Release if a version is pending.
+> Pushing the tag triggers the `Release Tag` workflow, which runs typecheck and
+> tests and then creates the GitHub Release for `v2.20.0` with auto-generated
+> notes. Nothing is committed, so `package.json` stays the version of record.
 
 ## 3. Enable npm Trusted Publishing
 
@@ -84,7 +83,8 @@ git push origin main --follow-tags
 
 GitHub's `GITHUB_TOKEN` is injected automatically; the `id-token: write`
 permission in `.github/workflows/release.yml` is what lets npm's OIDC exchange
-succeed. No `NPM_TOKEN` secret is needed.
+succeed. No `NPM_TOKEN` secret is needed. The tag-push Release workflow
+(`release-tag.yml`) does not publish to npm — it only creates the Release page.
 
 ## 4. Turn the automated npm publish on
 
@@ -99,9 +99,10 @@ New repository variable**
 - Value: `true`
 
 `release.yml` passes it through as `NPM_PUBLISH`, and `.releaserc.cjs` gates the
-npm plugin on `process.env.NPM_PUBLISH === 'true'`. The next push to `main` will
-then publish to npm with provenance. Unset it (or set it to anything other than
-`true`) to pause npm publishing without touching the release flow.
+npm plugin on `process.env.NPM_PUBLISH === 'true'`. The next manual run of
+`release.yml` (`gh workflow run release.yml`) will then publish to npm with
+provenance. Unset it (or set it to anything other than `true`) to pause npm
+publishing without touching the Release flow.
 
 ## 5. Pi package gallery (pi.dev) discoverability
 

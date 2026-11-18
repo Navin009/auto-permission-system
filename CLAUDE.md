@@ -17,21 +17,21 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 
 ## Releases
 
-One keyword decides it: a push to `main` whose head commit message contains `release` releases; every other push does not.
+A pushed tag releases; nothing else does. `git tag` + `git push` creates the GitHub Release and commits nothing.
 
 ```bash
-git commit -m "fix(guard): handle X release"     # commits and releases (patch)
-git commit -m "feat(tool-view): add Y release"   # commits and releases (minor)
-git commit -m "refactor(guard): split parser"    # commits only
+git tag -a v6.2.0 -m "fix(guard): handle X"
+git push origin v6.2.0          # or: git push --tags
 ```
 
-- One release covers **every** commit since the previous tag (previous tag → HEAD). The bump is the highest type among them (`feat!` > `feat` > `fix`/`perf`), and the notes list them all: `Features`, `Bug Fixes`, `Performance Improvements`, `Reverts`, `Code Refactoring`, `Documentation`, `Build System`, `Continuous Integration`, `Tests`, `Styles`, `Chores`. Only `feat:`/`fix:`/`perf:`/breaking change the version.
-- One release, many commits: several pending `fix:`/`feat:` commits all land in the same release when the keyword push happens, so the notes never lose work.
-- Never hand-edit `package.json` → `version`, `CHANGELOG.md`, or git tags. semantic-release owns all three: it bumps the version from the Conventional Commit types since the last tag (patch `fix:`, minor `feat:`, major `feat!:` / `BREAKING CHANGE:`), writes `CHANGELOG.md`, commits `chore(release): x.y.z [skip ci]`, tags `vX.Y.Z`, and publishes the GitHub Release.
-- The keyword only decides *whether* to release; the commit types decide *how much*. A `docs:`/`chore:` commit containing `release` releases nothing — pair the keyword with a `fix:`/`feat:` commit.
-- The job runs `npm run typecheck` and `npm test` before semantic-release, so a red `main` produces no tag and no changelog commit. `ci.yml` does not run on push to `main`, so this is the verification gate.
-- `NPM_PUBLISH` (repository variable, default off) gates npm publishing; the GitHub Release is created either way.
-- Verify after: `git pull --tags`, then `git tag --sort=-v:refname | head -3`, `gh release list --limit 3`, `head -20 CHANGELOG.md`.
+- `.github/workflows/release-tag.yml` runs on `push: tags: v*`: typecheck + tests, then `gh release create <tag> --generate-notes`. No release commit, no `CHANGELOG.md` edit, no `package.json` bump — the tag is the version of record.
+- The notes are GitHub's auto-generated notes for `previous tag → tag`, so the grouping is GitHub's default rather than semantic-release's Conventional Commit sections.
+- Bump `package.json` → `version` and `CHANGELOG.md` yourself before tagging when you want the files in step with the tag; the workflow only warns on a mismatch, it never edits them.
+- A tag whose typecheck or tests fail produces no Release page. `ci.yml` runs on pull requests only, so this tag run is the release gate.
+- `release.yml` (semantic-release: version bump commit + `CHANGELOG.md` commit + tag + npm publish) is `workflow_dispatch` only now — start it by hand (`gh workflow run release.yml`) when you want that fully automated path instead.
+- Re-tagging is only safe before the Release page exists: once it is created, the workflow skips instead of overwriting it.
+- `NPM_PUBLISH` (repository variable, default off) gates npm publishing and is read only by the manual `release.yml` path.
+- Verify after: `git pull --tags`, `gh release list --limit 3`, `gh release view <tag>`.
 
 ## Docs map — read the right one, don't duplicate across them
 
