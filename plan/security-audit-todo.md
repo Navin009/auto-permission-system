@@ -85,15 +85,15 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 
 - [ ] **B2** — `currentWorkingDirectory` from `context.cwd`, replacing `initialWorkingDirectory`
       everywhere it is used. Test: `L1-cwd-source`.
-- [ ] **S11** — atomic policy writes (temp + `fsync` + rename + re-parse) and one in-process lock
+- [x] **S11** — `c6eb540` — atomic policy writes (temp + `fsync` + rename + re-parse) and one in-process lock
       shared by both layers. Test: `L1-L2-policy-write`.
 - [ ] **B3** — `/permission-mode` reports a project `mode` override and writes the project file
       when trusted. Test: extend `L1-L2-permission-mode`.
-- [ ] **B4** — wire `ASK_TIMEOUT_BY_ACTION` or delete it; fix ADR-030 either way. Test: extend
+- [x] **B4** — `520a893` — wire `ASK_TIMEOUT_BY_ACTION` or delete it; fix ADR-030 either way. Test: extend
       `L1-L2-ask-selector`.
 - [ ] **B5** — `askQueued()` exported from `ask-flow.ts`; use it for the trust dialog and the mode
       picker. Test: `L1-L2-ask-queue`.
-- [ ] **B6** — clear the status chip on disable/stop; clear `latestBashCommand` on `tool_result`;
+- [x] **B6** — `a5701c3` — clear the status chip on disable/stop; clear `latestBashCommand` on `tool_result`;
       tail-read `audit.log` in `/security`. Test: `L1-L2-status-chip`.
 
 ## Batch 5 — detection and logging
@@ -154,12 +154,12 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 1 quick hardening | 6 | 6 |
 | 2 one matcher + deny | 4 | 4 |
 | 3 fail-open | 4 | 4 |
-| 4 state/lifecycle | 6 | 0 |
+| 4 state/lifecycle | 6 | 3 |
 | 5 detection/logging | 5 | 0 |
 | 6 simplification | 8 | 0 |
 | 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **47** | **18** |
+| **total** | **47** | **21** |
 
 ## Landed so far
 
@@ -191,6 +191,10 @@ fix(sandbox): scope "just this once" to the command that asked     0603181
 fix(sandbox): deny when a network prompt runs out                  489a398
 fix(guard): block a URL tool whose target cannot be read           387eff8
 fix(sandbox): refuse bash when no sandbox is running               233840e
+test(guard): pin the fail-closed network timeout in the contract    <contract>
+fix(policy): write the policy file atomically                      c6eb540
+refactor(ui): drop the unused per-action timeout table             520a893
+fix(ui): clear the sandbox chip and the last command                a5701c3
 ```
 
 Two findings were added while doing batches 0-1, both surfaced by tooling rather than by reading:

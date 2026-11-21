@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0-3 landed (C2, T1, T2, T3, T6, S4, S7, S8, S14, B7, C11, C1, S1, S15, S2, B1, S3, S5, S13). The working order lives in
+**Status:** open — batches 0-3 landed, plus S11, B4 and B6 from batch 4 (21 of 47). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -270,6 +270,8 @@ on that project, a denied read is still blocked.
 
 ### S11 — policy writes are non-atomic and two layers share one file
 
+**Status:** ✅ fixed in `c6eb540` — see the commit body for the reasoning.
+
 - **Severity:** med — lost updates and total policy loss on a crash.
 - **Where:** `src/core/policy/overrides.ts:36`, `src/core/policy/policy-file.ts:36`
 - **Read:** both do `writeFileSync(path, JSON.stringify(...))` directly on `<cwd>/.pi/sandbox.json`.
@@ -413,6 +415,8 @@ on that project, a denied read is still blocked.
 
 ### B4 — `ASK_TIMEOUT_BY_ACTION` is dead; real timeouts differ from the docs
 
+**Status:** ✅ fixed in `520a893` — see the commit body for the reasoning.
+
 - **Severity:** low.
 - **Where:** `src/ui/ask-flow.ts:77` (exported, never imported — verified with `rg`)
 - **Read:** documented values are read 15 s, write 15 s, network 30 s, remember 60 s; the code
@@ -438,6 +442,8 @@ on that project, a denied read is still blocked.
   for the first; the timeout of the first does not dispose the second.
 
 ### B6 — stale status chip, stale `latestBashCommand`, whole-file audit read
+
+**Status:** ✅ fixed in `a5701c3` — see the commit body for the reasoning.
 
 - **Severity:** low.
 - **Where:** `extensions/permission-mode.ts:54`, `extensions/sandbox.ts:263`, `src/l2-guard/report.ts:146`
