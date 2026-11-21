@@ -52,6 +52,7 @@ function renderSandboxChip(context: ExtensionContext): void {
 	}
 
 	if (!config.enabled) {
+		context.ui.setStatus("sandbox", undefined);
 		return;
 	}
 

@@ -280,6 +280,12 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
+	pi.on("tool_result", (event) => {
+		if (event.toolName === "bash") {
+			latestBashCommand = undefined;
+		}
+	});
+
 	pi.on("session_start", async (_event, context) => {
 		latestExtensionContext = context;
 		activeUiContext =
