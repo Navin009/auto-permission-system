@@ -28,6 +28,7 @@ import {
 	type SandboxedBashOpts,
 } from "./bash-preflight.ts";
 import { handleBlockedBashExecution } from "./bash-recovery.ts";
+import { piScratchDirectory } from "./scratch.ts";
 
 export {
 	cleanupWorkspaceArtifacts,
@@ -94,9 +95,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 				};
 			};
 
-			const userIdentifier = process.getuid?.() ?? 0;
-			const temporaryBaseDirectory = existsSync("/private/tmp") ? "/private/tmp" : "/tmp";
-			const temporaryDirectory = `${temporaryBaseDirectory}/pi-${userIdentifier}`;
+			const temporaryDirectory = piScratchDirectory();
 
 			const grantedWriteFolders = new Set<string>();
 			const grantedWriteFiles = new Set<string>();

@@ -2,13 +2,13 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-21T21:35:16.164Z
+Generated: 2026-11-21T21:52:15.838Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
-| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-host-bridge`, `L1-outside-fence`, `L1-ask-commands`, `L1-bash-candidates`, `L1-find-query`, `L1-read-operands`, `L1-ask-read-preflight`, `L1-session-grants`, `L1-ghost-dotfiles`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
+| **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-host-bridge`, `L1-bridge-perms`, `L1-outside-fence`, `L1-ask-commands`, `L1-bash-candidates`, `L1-find-query`, `L1-read-operands`, `L1-ask-read-preflight`, `L1-session-grants`, `L1-ghost-dotfiles`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
 | **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
@@ -31,7 +31,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 **Source files**
 
 - ✓ `extensions/sandbox.ts` — 312 lines, mtime 2026-11-21
-- ✓ `src/l1-sandbox/` — dir, mtime 2026-11-04
+- ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-12
 - ✓ `src/shared/` — dir, mtime 2026-11-15
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-15
@@ -40,6 +40,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 - `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=64, FAIL=0
 - `L1-host-bridge` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/host-bridge.mjs` → expects PASS=26, FAIL=0
+- `L1-bridge-perms` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/bridge-perms.mjs` → expects PASS=17, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=18, FAIL=0
 - `L1-bash-candidates` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/bash-candidates.mjs` → expects PASS=66, FAIL=0

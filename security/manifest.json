@@ -29,6 +29,11 @@
           "expected": "PASS=26, FAIL=0"
         },
         {
+          "id": "L1-bridge-perms",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/bridge-perms.mjs",
+          "expected": "PASS=17, FAIL=0"
+        },
+        {
           "id": "L1-outside-fence",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs",
           "expected": "PASS=38, FAIL=0"

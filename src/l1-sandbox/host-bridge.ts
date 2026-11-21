@@ -15,9 +15,9 @@
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, statSync, unlinkSync } from "node:fs";
 import net from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commandHead, commandSegments, shellTokens } from "../core/index.ts";
+import { piScratchDirectory } from "./scratch.ts";
 
 export interface HostPortBridge {
 	port: number;
@@ -122,7 +122,7 @@ export function hostDaemonSockets(
  */
 export async function startHostSocketBridge(envName: string, targetPath: string): Promise<HostSocketBridge> {
 	const id = randomBytes(6).toString("hex");
-	const sockPath = join(tmpdir(), `pi-daemon-bridge-${id}.sock`);
+	const sockPath = join(piScratchDirectory(), `pi-daemon-bridge-${id}.sock`);
 
 	const server = net.createServer((client) => {
 		const target = net.connect(targetPath);
@@ -214,7 +214,7 @@ export function injectNpmProxyEnv(wrappedCommand: string): string {
  */
 export async function startHostPortBridge(port: number): Promise<HostPortBridge> {
 	const id = randomBytes(6).toString("hex");
-	const sockPath = join(tmpdir(), `pi-host-bridge-${port}-${id}.sock`);
+	const sockPath = join(piScratchDirectory(), `pi-host-bridge-${port}-${id}.sock`);
 
 	const server = net.createServer((client) => {
 		const target = net.connect(port, "127.0.0.1");
@@ -227,6 +227,8 @@ export async function startHostPortBridge(port: number): Promise<HostPortBridge>
 		server.listen(sockPath, () => resolve());
 		server.on("error", reject);
 	});
+
+	chmodSync(sockPath, 0o600);
 
 	return {
 		port,
