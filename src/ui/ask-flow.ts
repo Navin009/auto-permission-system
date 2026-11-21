@@ -78,14 +78,6 @@ export type MainChoice = (typeof MainChoice)[keyof typeof MainChoice];
  * needs more time on screen 2 than on the fast yes/no of screen 1. */
 export const ASK_TIMEOUT_MS = 15_000;
 
-/** Per-action overrides; `0` means no countdown (the prompt stays open until Esc/select). */
-export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remember", number> = {
-	read: 15_000,
-	write: 15_000,
-	network: 30_000,
-	remember: 60_000,
-};
-
 /** Icons per prompt type. Header takes the icon + title. */
 export const ICON = {
 	ask: "❓",
