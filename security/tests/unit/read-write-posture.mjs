@@ -95,5 +95,27 @@ check("a permanent grant still refuses a credential folder", !isSafeFolderGrant(
 check("a permanent grant still refuses a credential child", !isSafeFolderGrant(`${home}/.aws/sso`, home));
 check("a permanent grant allows an ordinary folder", isSafeFolderGrant(`${home}/work/shared`, home));
 
+const overridePolicy = {
+	enabled: true,
+	network: { allowedDomains: [], deniedDomains: [] },
+	filesystem: {
+		denyRead: [`${home}/deny-only`],
+		modelDenyRead: [],
+		denyWrite: [`${home}/deny-write-only`],
+		askRead: [`${home}/ask-only`],
+		askWrite: [`${home}/ask-write-only`],
+		allowWrite: [home],
+	},
+	overrides: {
+		allowRead: [`${home}/deny-only`, `${home}/ask-only`],
+		allowWrite: [`${home}/deny-write-only`, `${home}/ask-write-only`],
+	},
+};
+
+check("an allowRead override cannot un-deny denyRead", isDeniedRead(`${home}/deny-only/x`, home, overridePolicy) !== null);
+check("an allowWrite override cannot un-deny denyWrite", isDeniedWrite(`${home}/deny-write-only/x`, home, overridePolicy) !== null);
+check("an allowRead override still beats askRead", isAskRead(`${home}/ask-only/x`, home, overridePolicy) === null);
+check("an allowWrite override still beats askWrite", isDeniedWrite(`${home}/ask-write-only/x`, home, overridePolicy) === null);
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

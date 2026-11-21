@@ -59,15 +59,32 @@ export function isOverridden(absPath: string, cwd: string, patterns: string[] | 
  */
 export function isDeniedRead(rawPath: string, cwd: string, policy: Policy): string | null {
 	const absolute = canonicalize(rawPath, cwd);
+	const denyReason = hasDenyReadMatch(absolute, cwd, policy);
+
+	if (denyReason) return denyReason;
+	if (isOverridden(absolute, cwd, policy.overrides?.allowRead)) return null;
+
+	return null;
+}
+
+/** The read tiers a grant cannot un-den': absolute-deny, modelDenyRead and denyRead. */
+export function hasDenyReadMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
 	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
-	if (isOverridden(absolute, cwd, policy.overrides?.allowRead)) return null;
+
+	return hasPatternDenyReadMatch(absolute, cwd, policy);
+}
+
+/** The read tiers that are terminal for a model tool: modelDenyRead and denyRead. */
+export function hasPatternDenyReadMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	for (const pattern of policy.filesystem.modelDenyRead ?? []) {
 		if (matchPattern(absolute, pattern, cwd)) return `modelDenyRead matched "${pattern}" → ${absolute}`;
 	}
+
 	for (const pattern of policy.filesystem.denyRead) {
 		if (matchPattern(absolute, pattern, cwd)) return `denyRead matched "${pattern}" → ${absolute}`;
 	}
+
 	return null;
 }
 
@@ -84,17 +101,35 @@ export function isAskRead(rawPath: string, cwd: string, policy: Policy): string 
 
 export function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): string | null {
 	const absolute = canonicalize(rawPath, cwd);
-	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
-	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
+	const denyReason = hasDenyWriteMatch(absolute, cwd, policy);
+
+	if (denyReason) return denyReason;
 	if (isOverridden(absolute, cwd, policy.overrides?.allowWrite)) return null;
-	for (const pattern of policy.filesystem.denyWrite) {
-		if (matchPattern(absolute, pattern, cwd)) return `denyWrite matched "${pattern}" → ${absolute}`;
-	}
+
 	for (const pattern of policy.filesystem.askWrite ?? []) {
 		if (matchPattern(absolute, pattern, cwd)) return `askWrite matched "${pattern}" → ${absolute}`;
 	}
+
 	const allowed = policy.filesystem.allowWrite.some((pattern) => matchPattern(absolute, pattern, cwd));
 	if (!allowed) return `not under any allowWrite root → ${absolute}`;
+
+	return null;
+}
+
+/** The write tiers a grant cannot un-den': absolute-deny and denyWrite. */
+export function hasDenyWriteMatch(absolute: string, cwd: string, policy: Policy): string | null {
+	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
+	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
+
+	return hasPatternDenyWriteMatch(absolute, cwd, policy);
+}
+
+/** The write tier that is terminal for a model tool: denyWrite. */
+export function hasPatternDenyWriteMatch(absolute: string, cwd: string, policy: Policy): string | null {
+	for (const pattern of policy.filesystem.denyWrite) {
+		if (matchPattern(absolute, pattern, cwd)) return `denyWrite matched "${pattern}" → ${absolute}`;
+	}
+
 	return null;
 }
 

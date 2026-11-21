@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-21T22:25:30.384Z
+Generated: 2026-11-21T22:27:13.267Z
 
 ## At a glance
 
@@ -110,7 +110,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-output-allow-notice` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs` → expects PASS=14, FAIL=0
 - `L2-program-id` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/program-id.mjs` → expects PASS=20, FAIL=0
 - `L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=17, FAIL=0
-- `L1-L2-read-write-posture` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-write-posture.mjs` → expects PASS=25, FAIL=0
+- `L1-L2-read-write-posture` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-write-posture.mjs` → expects PASS=29, FAIL=0
 - `L1-L2-user-path` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-path.mjs` → expects PASS=18, FAIL=0
 
 **Known gaps / accepted risks**

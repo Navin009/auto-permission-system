@@ -252,7 +252,7 @@
         {
           "id": "L1-L2-read-write-posture",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/read-write-posture.mjs",
-          "expected": "PASS=25, FAIL=0"
+          "expected": "PASS=29, FAIL=0"
         },
         {
           "id": "L1-L2-user-path",
