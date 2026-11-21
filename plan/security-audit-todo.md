@@ -44,11 +44,11 @@ verifiable. Each is an isolated commit.
 - [x] **S7** — `6be8652` — `fileHash` requires a regular file; a present-but-unreadable policy path
       is *untrusted* (the naive fix would have made it trusted); loaders skip non-files; both
       `session_start` handlers fail closed. Test: `L1-L2-policy-dir` (17).
-- [ ] **S8** — `isAbsolute(printed) ? printed : join(searchRoot, printed)`. Test: extend
+- [x] **S8** — `e80177e` — `isAbsolute(printed) ? printed : join(searchRoot, printed)`. Test: extend
       `L2-grep-filter` with absolute paths.
-- [ ] **S14** — add `askWrite` to `ADDITIVE_DENY_KEYS`. Test: extend `L1-L2-project-trust`.
-- [ ] **B7** — `Buffer.byteLength` for string leaves in `estimateSize`. Test: `L2-detect-size`.
-- [ ] **C11** — `path-matcher.mjs` imports the shipped `matchPattern`; delete the local copies.
+- [x] **S14** — `7d1f9ea` — add `askWrite` to `ADDITIVE_DENY_KEYS`. Test: extend `L1-L2-project-trust`.
+- [x] **B7** — `6719c1c` — `Buffer.byteLength` for string leaves in `estimateSize`. Test: `L2-detect-size`.
+- [x] **C11** — `8495500` — `path-matcher.mjs` imports the shipped `matchPattern`; delete the local copies.
       Case rows will fail until S15 — expected, keep them as `XFAIL`-style labelled cases.
 
 ## Batch 2 — one matcher, then deny semantics
@@ -56,13 +56,13 @@ verifiable. Each is an isolated commit.
 Order matters: C1 decides where the semantics live, S1/S15 change them, S2 changes what a deny
 means. One commit each.
 
-- [ ] **C1** — move the matcher into `src/core/policy/`, re-export from `matching.ts`, delete the
+- [x] **C1** — `331ac24` — move the matcher into `src/core/policy/`, re-export from `matching.ts`, delete the
       duplicate. Test: `L1-L2-path-parity` (both entry points, one table).
-- [ ] **S1** — move the `overrides.allowRead`/`allowWrite` checks below the deny loops. Test:
+- [x] **S1** — `420798b` — move the `overrides.allowRead`/`allowWrite` checks below the deny loops. Test:
       `L2-deny-precedence`. **Update ADR-047 text** to match the final order.
-- [ ] **S15** — basename globs case-insensitive on every platform; full-path prefixes stay
+- [x] **S15** — `8c531bd` — basename globs case-insensitive on every platform; full-path prefixes stay
       case-sensitive on Linux. Test: `L2-path-case`.
-- [ ] **S2** — decide the contract (terminal `denyRead`, or a `hardDeny` pair) and implement it +
+- [x] **S2** — `a047b26` — decide the contract (terminal `denyRead`, or a `hardDeny` pair) and implement it +
       the docs. Test: `L2-deny-terminal`. Needs a manifest `knownGaps`/purpose edit.
 
 **Stop here and write a release note**: S1 + S2 + S15 change what a `denyRead` entry means. That is
@@ -70,15 +70,15 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 
 ## Batch 3 — close the fail-open paths
 
-- [ ] **B1** — arm `beginNetworkCommand`/`endNetworkCommand` around `attemptExecution` in
+- [x] **B1** — `0603181` — arm `beginNetworkCommand`/`endNetworkCommand` around `attemptExecution` in
       `bash-ops.ts`. Test: `L1-network-once`. (Highest value per line in this whole list: the logic
       and 45 tests already exist, only the wiring is missing.)
-- [ ] **S3** — on `startSandbox` failure (and on `enabled: false`), register a `tool_call` +
+- [x] **S3** — `233840e` — on `startSandbox` failure (and on `enabled: false`), register a `tool_call` +
       `user_bash` block for bash with a clear reason; `--yolo` stays the only bypass. Test:
       `L1-fail-closed`. Status chip must say `Sandbox: unavailable` rather than nothing.
-- [ ] **S5** — deny on network prompt expiry; optional `network.allowOnTimeout` (default `false`).
+- [x] **S5** — `489a398` — deny on network prompt expiry; optional `network.allowOnTimeout` (default `false`).
       Test: `L1-network-timeout`. Update ADR-024/030 text.
-- [ ] **S13** — ask/block when a URL tool yields zero URLs; audit the raw input keys. Test:
+- [x] **S13** — `387eff8` — ask/block when a URL tool yields zero URLs; audit the raw input keys. Test:
       `L2-url-unparsed`. Confirm the real `fetch_content` schema first.
 
 ## Batch 4 — state and lifecycle
@@ -151,15 +151,15 @@ These are the "no functional diff" batch: every existing test must stay green **
 | Batch | Items | Done |
 | --- | --- | --- |
 | 0 foundations | 4 | 4 |
-| 1 quick hardening | 6 | 2 |
-| 2 one matcher + deny | 4 | 0 |
-| 3 fail-open | 4 | 0 |
+| 1 quick hardening | 6 | 6 |
+| 2 one matcher + deny | 4 | 4 |
+| 3 fail-open | 4 | 4 |
 | 4 state/lifecycle | 6 | 0 |
 | 5 detection/logging | 5 | 0 |
 | 6 simplification | 8 | 0 |
 | 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **47** | **7** |
+| **total** | **47** | **18** |
 
 ## Landed so far
 
@@ -175,7 +175,22 @@ chore(format): keep JSON, YAML and Markdown at two spaces          a9b8ba3
 chore(format): gate the whole repo, not just the sources           488ba1c
 fix(ci): pin every action and scope write access                   c22a047
 fix(sandbox): keep the bridge sockets owner-only                   b393fda
+fix(ci): pin every action and scope write access                   c22a047
+fix(sandbox): keep the bridge sockets owner-only                   b393fda
 fix(trust): treat a policy path that is not a file as untrusted    6be8652
+fix(guard): stop re-rooting an absolute grep path                  e80177e
+refactor: keep the added comments describing behaviour             44919ec
+fix(trust): let an untrusted project add askWrite rules            7d1f9ea
+fix(detect): measure output size in bytes at every depth           6719c1c
+test(paths): import the shipped matcher instead of copying it      8495500
+refactor(guard): one pattern matcher for both layers               331ac24
+fix(guard): a deny rule outranks a saved grant                     420798b
+fix(paths): match a credential name regardless of case             8c531bd
+fix(guard): a deny blocks instead of offering a prompt             a047b26
+fix(sandbox): scope "just this once" to the command that asked     0603181
+fix(sandbox): deny when a network prompt runs out                  489a398
+fix(guard): block a URL tool whose target cannot be read           387eff8
+fix(sandbox): refuse bash when no sandbox is running               233840e
 ```
 
 Two findings were added while doing batches 0-1, both surfaced by tooling rather than by reading:

@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0 and 1 landed (C2, T1, T2, T3, T6, S4). The working order lives in
+**Status:** open — batches 0-3 landed (C2, T1, T2, T3, T6, S4, S7, S8, S14, B7, C11, C1, S1, S15, S2, B1, S3, S5, S13). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -76,6 +76,8 @@ process.exit(fail ? 1 : 0);
 
 ### S1 — `overrides.allowRead` / `allowWrite` defeat the deny tiers
 
+**Status:** ✅ fixed in `420798b` — see the commit body for the reasoning.
+
 - **Severity:** high — an explicit deny is bypassed by a grant the prompt itself offers to write.
 - **Where:** `src/l2-guard/matching.ts:84`, `src/l2-guard/matching.ts:109`
 - **Executed:**
@@ -104,6 +106,8 @@ process.exit(fail ? 1 : 0);
 
 ### S2 — `denyRead` is askable, so a "deny" is really an ask
 
+**Status:** ✅ fixed in `a047b26` — see the commit body for the reasoning.
+
 - **Severity:** high — the user-facing contract ("hard deny") does not hold.
 - **Where:** `src/l2-guard/tool-gates.ts:73`, `src/core/policy/patterns.ts` (no separate tier)
 - **Read:** only the six `ABSOLUTE_DENY_PATTERNS` (`matching.ts:61`) are terminal. Every other
@@ -119,6 +123,8 @@ process.exit(fail ? 1 : 0);
 - **Depends on:** S1 (same evaluation order).
 
 ### S3 — bash is unguarded when the L1 sandbox cannot start
+
+**Status:** ✅ fixed in `233840e` — see the commit body for the reasoning.
 
 - **Severity:** high — the only fail-open path in the product.
 - **Where:** `extensions/guard.ts` (no `bash` branch in `tool_call`), `extensions/sandbox.ts:172`
@@ -152,6 +158,8 @@ process.exit(fail ? 1 : 0);
   the parent directory is `0700`; the daemon bridge keeps its `0600`.
 
 ### S5 — a network prompt timing out counts as *allow once*
+
+**Status:** ✅ fixed in `489a398` — see the commit body for the reasoning.
 
 - **Severity:** med — unattended egress, and inconsistent with the read/write gates.
 - **Where:** `src/ui/ask-flow.ts:359` (`if (expired && opts.allowFirst) return MainChoice.Once;`)
@@ -212,6 +220,8 @@ on that project, a denied read is still blocked.
 - **Test:** `L1-L2-policy-dir` — hash, trust answers, the three loaders, and the contract case.
 
 ### S8 — grep result filter misses absolute printed paths
+
+**Status:** ✅ fixed in `e80177e` — see the commit body for the reasoning.
 
 - **Severity:** med — deny/ask-filtered lines can reach the model.
 - **Where:** `src/l2-guard/output-gates.ts:65-66`
@@ -289,6 +299,8 @@ on that project, a denied read is still blocked.
 
 ### S13 — `fetch_content` with no parseable URL is unrestricted
 
+**Status:** ✅ fixed in `387eff8` — see the commit body for the reasoning.
+
 - **Severity:** med — a silent bypass if the tool's input shape differs.
 - **Where:** `src/l2-guard/tool-gates.ts:124-144`
 - **Read:** only `input.url` (string) and `input.urls` (array of strings) are collected. Any other
@@ -303,6 +315,8 @@ on that project, a denied read is still blocked.
 
 ### S14 — `askWrite` is not treated as a tightening by the untrusted merge
 
+**Status:** ✅ fixed in `7d1f9ea` — see the commit body for the reasoning.
+
 - **Severity:** low — a false warning, and a tightening an untrusted project cannot express.
 - **Where:** `src/core/trust.ts:149` (`ADDITIVE_DENY_KEYS`), `src/core/trust.ts:346`
 - **Read:** the additive list is `denyRead, modelDenyRead, denyWrite, askRead`. An untrusted
@@ -315,6 +329,8 @@ on that project, a denied read is still blocked.
   `describeLoosening` reports nothing for it; a genuinely loosening key still reports.
 
 ### S15 — credential basename globs are case-sensitive on Linux
+
+**Status:** ✅ fixed in `8c531bd` — see the commit body for the reasoning.
 
 - **Severity:** low-med — `SECRET.PEM`/`ID_RSA`-style names miss the deny/ask tier on Linux.
 - **Where:** `src/l2-guard/matching.ts:29` (`process.platform === "darwin" ? "i" : ""`)
@@ -350,6 +366,8 @@ on that project, a denied read is still blocked.
 | B7 | `estimateSize` mixes UTF-16 length and bytes |
 
 ### B1 — network "just this once" is never armed in production
+
+**Status:** ✅ fixed in `0603181` — see the commit body for the reasoning.
 
 - **Severity:** high (functional) — the documented behaviour does not exist.
 - **Where:** `src/l1-sandbox/network-ask.ts:41-49`, `:157`, `:182`
@@ -434,6 +452,8 @@ on that project, a denied read is still blocked.
 
 ### B7 — `estimateSize` mixes UTF-16 length and bytes
 
+**Status:** ✅ fixed in `6719c1c` — see the commit body for the reasoning.
+
 - **Severity:** low.
 - **Where:** `src/detect/tool-output-scanner/size.ts:25` vs `:41`
 - **Read:** the top-level string path uses `Buffer.byteLength`; nested strings use
@@ -464,6 +484,8 @@ on that project, a denied read is still blocked.
 | C12 | mixed import specifiers: `.ts` in 57 files, extensionless in 10 |
 
 ### C1 — two glob matchers; L1 and L2 disagree on the same policy entry
+
+**Status:** ✅ fixed in `331ac24` — see the commit body for the reasoning.
 
 - **Severity:** high (quality) — this is the "both layers share one policy" invariant.
 - **Where:** `src/core/policy/patterns.ts:matchesPolicyPattern` (L1) vs
@@ -590,6 +612,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 - **Test:** n/a (CI step).
 
 ### C11 — `path-matcher.mjs` is a copy of the matcher, not a test of it
+
+**Status:** ✅ fixed in `8495500` — see the commit body for the reasoning.
 
 - **Executed:** `grep -c '^import .*src/' security/tests/unit/path-matcher.mjs` → `0`. The file
   re-implements `expandHome`, `globToRegex`, `canonicalize` and `matchPattern` inline (its header
