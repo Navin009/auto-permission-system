@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-21T22:23:00.124Z
+Generated: 2026-11-21T22:23:48.781Z
 
 ## At a glance
 
@@ -84,7 +84,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Tests**
 
-- `L2-paths` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/path-matcher.mjs` → expects PASS=13, FAIL=0
+- `L2-paths` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/path-matcher.mjs` → expects PASS=16, FAIL=0
 - `L2-urls` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs` → expects PASS=8, FAIL=0
 - `L2-url-deny` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/url-gate.mjs` → expects PASS=12, FAIL=0
 - `L2-symlink` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs` → expects PASS=5, FAIL=0

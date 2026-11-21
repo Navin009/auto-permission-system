@@ -122,7 +122,7 @@
         {
           "id": "L2-paths",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/path-matcher.mjs",
-          "expected": "PASS=13, FAIL=0"
+          "expected": "PASS=16, FAIL=0"
         },
         {
           "id": "L2-urls",
