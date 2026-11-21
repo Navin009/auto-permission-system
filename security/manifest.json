@@ -142,7 +142,7 @@
         {
           "id": "L2-grep-filter",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs",
-          "expected": "PASS=15, FAIL=0"
+          "expected": "PASS=21, FAIL=0"
         },
         {
           "id": "L2-name-only",

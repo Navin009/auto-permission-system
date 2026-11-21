@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { ExtensionContext, ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import { filterGrepOutput } from "../core/index.ts";
 import { redactText } from "../detect/index.ts";
@@ -61,9 +61,17 @@ export function filterGrepToolResult(
 
 		const filterResult = filterGrepOutput(
 			contentBlock.text,
-			(printed) =>
-				isDeniedRead(join(searchRoot, printed), context.cwd, policy) !== null ||
-				isAskRead(join(searchRoot, printed), context.cwd, policy) !== null,
+			(printed) => {
+				// The filter reconstructs the file a line came from. A printed path is
+				// relative today, but `join` would keep the root for an absolute one and
+				// the deny/ask check would look at a path that does not exist.
+				const targetPath = isAbsolute(printed) ? printed : join(searchRoot, printed);
+
+				return (
+					isDeniedRead(targetPath, context.cwd, policy) !== null ||
+					isAskRead(targetPath, context.cwd, policy) !== null
+				);
+			},
 		);
 
 		removedLineCount += filterResult.removedLines;

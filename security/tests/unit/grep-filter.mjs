@@ -46,6 +46,50 @@ check('readPolicyForUpdate: absent file is empty', Object.keys(readPolicyForUpda
 let threw = false;
 try { readPolicyForUpdate(bad); } catch { threw = true; }
 check('readPolicyForUpdate: refuses to overwrite unparseable file', threw);
+
+// Integration: the guard builds the path it checks from what grep printed. An
+// absolute printed path must not be re-rooted under the search directory,
+// because `join('/root', '/abs/file')` is `/root/abs/file` -- a path that does
+// not exist, so the deny/ask check would pass the line through.
+process.env.PI_CODING_AGENT_DIR = join(dir, 'agent');
+const { filterGrepToolResult } = await import('../../../src/l2-guard/output-gates.ts');
+
+const deniedDirectory = join(dir, 'denied');
+const askedDirectory = join(dir, 'asked');
+const guardPolicy = {
+  enabled: true,
+  network: { allowedDomains: [], deniedDomains: [] },
+  filesystem: {
+    denyRead: [deniedDirectory],
+    askRead: [askedDirectory],
+    allowWrite: [dir],
+    denyWrite: [],
+  },
+  overrides: { allowRead: [], allowWrite: [] },
+};
+const guardContext = { cwd: dir };
+const grepEvent = (text) => ({ toolName: 'grep', isError: false, input: { path: dir }, content: [{ type: 'text', text }] });
+
+const absoluteLines = [
+  `${join(deniedDirectory, 'secret.txt')}:1: sk-live-absolute`,
+  `${join(askedDirectory, 'token.txt')}:2: token-absolute`,
+  'src/app.ts:3: harmless',
+].join('\n');
+const absoluteResult = filterGrepToolResult(grepEvent(absoluteLines), guardContext, guardPolicy);
+const absoluteText = JSON.stringify(absoluteResult ?? {});
+
+check('absolute denyRead path is filtered', !absoluteText.includes('sk-live-absolute'), absoluteText);
+check('absolute askRead path is filtered', !absoluteText.includes('token-absolute'), absoluteText);
+check('an allowed line survives the absolute case', absoluteText.includes('harmless'), absoluteText);
+
+const relativeLines = ['denied/secret.txt:4: sk-live-relative', 'src/app.ts:5: harmless'].join('\n');
+const relativeResult = filterGrepToolResult(grepEvent(relativeLines), guardContext, guardPolicy);
+const relativeText = JSON.stringify(relativeResult ?? {});
+
+check('a relative denied path is still filtered', !relativeText.includes('sk-live-relative'), relativeText);
+check('the removal is reported', relativeText.includes('removed 1 line'), relativeText);
+check('a clean result is left untouched', filterGrepToolResult(grepEvent('src/app.ts:6: harmless'), guardContext, guardPolicy) === undefined);
+
 rmSync(dir, { recursive: true, force: true });
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
