@@ -76,7 +76,7 @@
         {
           "id": "L1-network-ask",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs",
-          "expected": "PASS=45, FAIL=0"
+          "expected": "PASS=49, FAIL=0"
         },
         {
           "id": "L1-L2-network-grants",

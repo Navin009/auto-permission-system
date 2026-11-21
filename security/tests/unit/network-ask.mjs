@@ -2,7 +2,7 @@
 // unknown hosts through the shared ask-tier (once / session / remember),
 // single-flights overlapping connections, and scopes "once" to one command.
 // Pure: drives createNetworkAsk with a scripted ctx.ui.select and stub deps.
-import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand } from '../../../src/l1-sandbox/network-ask.ts';
+import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand, runInNetworkCommand } from '../../../src/l1-sandbox/network-ask.ts';
 import { ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
@@ -234,6 +234,40 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('untrusted screen 2 hides in-this-project rows', !!screen2 && screen2.length > 0 && !screen2.some((o) => o.includes('in this project')), JSON.stringify(screen2));
 	check('untrusted remember persists global scope', JSON.stringify(persisted) === '[["*.example.com","global"]]', JSON.stringify(persisted));
 	check('untrusted remember audited always-global', audits.some((e) => e.decision === 'always-global' && e.scope === 'global'));
+}
+
+{
+	reset();
+	const c = mkCtx([(o) => o[1], (o) => o[1]]);
+	const { deps } = mkDeps(c.ctx);
+	const ask = createNetworkAsk(deps);
+	const promptsInside = await runInNetworkCommand(async () => {
+		await ask({ host: 'example.com', port: 443 });
+		await ask({ host: 'example.com', port: 443 });
+		return c.seen.length;
+	});
+	check('the command window covers every connection', promptsInside === 1);
+	await ask({ host: 'example.com', port: 443 });
+	check('the window closes when the command ends', c.seen.length === 2);
+}
+
+{
+	reset();
+	const c = mkCtx([(o) => o[1], (o) => o[1]]);
+	const { deps } = mkDeps(c.ctx);
+	const ask = createNetworkAsk(deps);
+	let threw = false;
+	try {
+		await runInNetworkCommand(async () => {
+			await ask({ host: 'example.com', port: 443 });
+			throw new Error('command failed');
+		});
+	} catch {
+		threw = true;
+	}
+	check('a failed command still propagates', threw);
+	await ask({ host: 'example.com', port: 443 });
+	check('a failed command closes the window', c.seen.length === 2);
 }
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

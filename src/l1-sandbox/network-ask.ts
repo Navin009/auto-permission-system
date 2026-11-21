@@ -56,6 +56,17 @@ export function endNetworkCommand(): void {
 	if (commandDepth === 0) commandGrants = null;
 }
 
+/** Run one bash command with the per-command grant window open, retries included. */
+export async function runInNetworkCommand<T>(run: () => Promise<T>): Promise<T> {
+	beginNetworkCommand();
+
+	try {
+		return await run();
+	} finally {
+		endNetworkCommand();
+	}
+}
+
 /** The active pi context at ask time (set at session_start; sandbox.ts owns it). */
 export type NetworkAskCtx = AskCtx & {
 	ui: AskCtx["ui"] & { notify?: (m: string, l?: string) => void };

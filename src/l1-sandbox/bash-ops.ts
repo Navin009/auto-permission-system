@@ -28,6 +28,7 @@ import {
 	type SandboxedBashOpts,
 } from "./bash-preflight.ts";
 import { handleBlockedBashExecution } from "./bash-recovery.ts";
+import { runInNetworkCommand } from "./network-ask.ts";
 import { piScratchDirectory } from "./scratch.ts";
 
 export {
@@ -229,7 +230,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 				});
 			};
 
-			return attemptExecution([]);
+			return runInNetworkCommand(() => attemptExecution([]));
 		},
 	};
 }
