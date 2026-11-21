@@ -7,9 +7,10 @@
  */
 
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { ReadPosture } from "../core/index";
+import { matchExpandedPattern, ReadPosture } from "../core/index";
 import { normalizeUserPath } from "../core/policy/user-path";
 import { canonicalize } from "../shared/canonicalize";
 import type { Policy } from "./policy";
@@ -18,42 +19,21 @@ export function expandHome(path: string): string {
 	return normalizeUserPath(path);
 }
 
-/** Convert glob to RegExp. Supports `*`, `**`, `?`. */
-function globToRegex(pattern: string): RegExp {
-	const source =
-		"^" +
-		pattern
-			.replace(/[.+^${}()|[\]\\]/g, "\\$&")
-			.replace(/\*\*/g, "\x00")
-			.replace(/\*/g, "[^/]*")
-			.replace(/\x00/g, ".*")
-			.replace(/\?/g, "[^/]") +
-		"$";
-	return new RegExp(source, process.platform === "darwin" ? "i" : "");
-}
-
 export { canonicalize } from "../shared/canonicalize";
 
 /**
  * Match an absolute path against a policy pattern.
  *
- *   - Patterns starting with `/` or `~` → full-path match (prefix or glob).
- *   - `.` → matches anything under cwd (handled by callers via roots).
- *   - Other (`.env`, `*.pem`) → basename match against the file's basename.
+ *   - `.` -> anything under the resolved cwd.
+ *   - everything else -> `matchExpandedPattern`, the same matcher Layer 1 uses.
  */
 export function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
-	const expandedPattern = expandHome(pattern);
-	if (expandedPattern === ".") {
+	if (normalizeUserPath(pattern) === ".") {
 		const resolvedCwd = canonicalize(cwd, cwd);
 		return absPath === resolvedCwd || absPath.startsWith(`${resolvedCwd}/`);
 	}
-	if (expandedPattern.startsWith("/")) {
-		if (expandedPattern.includes("*")) return globToRegex(expandedPattern).test(absPath);
-		return absPath === expandedPattern || absPath.startsWith(`${expandedPattern}/`);
-	}
-	const basenameOfPath = basename(absPath);
-	if (expandedPattern.includes("*")) return globToRegex(expandedPattern).test(basenameOfPath);
-	return basenameOfPath === expandedPattern;
+
+	return matchExpandedPattern(absPath, pattern, homedir());
 }
 
 const ABSOLUTE_DENY_PATTERNS = ["~/.ssh", "~/.gnupg", "~/.aws", "*.pem", "*.key", `${getAgentDir()}/auth.json`];

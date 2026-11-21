@@ -125,6 +125,11 @@
           "expected": "PASS=16, FAIL=0"
         },
         {
+          "id": "L1-L2-path-parity",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/path-parity.mjs",
+          "expected": "PASS=32, FAIL=0"
+        },
+        {
           "id": "L2-urls",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs",
           "expected": "PASS=8, FAIL=0"

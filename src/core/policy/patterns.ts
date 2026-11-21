@@ -6,6 +6,8 @@
  * sandboxed command's output.
  */
 
+import { normalizeUserPath } from "./user-path.ts";
+
 /**
  * Filesystem-refusal evidence in a sandboxed command's output. Linux
  * bubblewrap reports a write outside `allowWrite` as `EROFS: read-only file
@@ -282,20 +284,31 @@ export function matchesGlob(text: string, pattern: string, caseInsensitive = fal
 	return compileGlob(pattern, caseInsensitive).test(text);
 }
 
-export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
-	let expandedPattern = pattern;
-	if (expandedPattern === "~") expandedPattern = home;
-	else if (expandedPattern.startsWith("~/")) expandedPattern = `${home}/${expandedPattern.slice(2)}`;
-	if (expandedPattern === ".") return absPath === cwd || absPath.startsWith(`${cwd}/`);
+/**
+ * One pattern matcher for both layers: `~`, `@` and `file://` spellings, an
+ * absolute prefix, and a basename or glob. The `.` case is the caller's, because
+ * Layer 1 matches the cwd it was handed and Layer 2 matches the resolved one.
+ */
+export function matchExpandedPattern(absPath: string, pattern: string, home: string): boolean {
+	const expandedPattern = normalizeUserPath(pattern, home);
+
 	if (expandedPattern.startsWith("/")) {
 		if (expandedPattern.includes("*")) return matchesGlob(absPath, expandedPattern, CASE_INSENSITIVE_PLATFORM);
 		return absPath === expandedPattern || absPath.startsWith(`${expandedPattern}/`);
 	}
+
 	const basename = absPath.slice(absPath.lastIndexOf("/") + 1);
 	if (expandedPattern.includes("*")) return matchesGlob(basename, expandedPattern, CASE_INSENSITIVE_PLATFORM);
-	return CASE_INSENSITIVE_PLATFORM
-		? basename.toLowerCase() === expandedPattern.toLowerCase()
-		: basename === expandedPattern;
+
+	return CASE_INSENSITIVE_PLATFORM ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+}
+
+export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
+	const expandedPattern = normalizeUserPath(pattern, home);
+
+	if (expandedPattern === ".") return absPath === cwd || absPath.startsWith(`${cwd}/`);
+
+	return matchExpandedPattern(absPath, expandedPattern, home);
 }
 
 export function firstMatchingPattern(
