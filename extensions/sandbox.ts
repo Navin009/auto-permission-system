@@ -125,12 +125,29 @@ export default function (pi: ExtensionAPI) {
 		await resetSandbox();
 	};
 
-	const startSandbox = async (context: ExtensionContext): Promise<void> => {
+	const readSandboxConfig = (context: ExtensionContext): SandboxConfig | undefined => {
+		try {
+			return loadConfig(context.cwd);
+		} catch (error) {
+			// Reading the policy used to sit outside every try, so a broken policy path
+			// threw out of session_start and the sandbox silently never started.
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			context.ui.notify(`Sandbox initialization failed: ${errorMessage}`, "error");
+			return undefined;
+		}
+	};
+
+	const startSandbox = async (context: ExtensionContext, loadedConfig?: SandboxConfig): Promise<void> => {
 		if (isRuntimeYolo || (isSandboxEnabled && isSandboxInitialized)) {
 			return;
 		}
 
-		const config = loadConfig(context.cwd);
+		const config = loadedConfig ?? readSandboxConfig(context);
+
+		if (!config) {
+			isSandboxEnabled = false;
+			return;
+		}
 
 		if (!config.enabled) {
 			isSandboxEnabled = false;
@@ -261,7 +278,10 @@ export default function (pi: ExtensionAPI) {
 
 		setPiDeclinedTrust((context as { isProjectTrusted?: () => boolean }).isProjectTrusted?.() === false);
 
-		isRuntimeYolo = yoloFromFlags(pi) || loadConfig(context.cwd).mode === "yolo";
+		const flagYolo = yoloFromFlags(pi);
+		const config = readSandboxConfig(context);
+
+		isRuntimeYolo = flagYolo || config?.mode === "yolo";
 		emitYolo(pi.events, isRuntimeYolo);
 
 		if (isRuntimeYolo) {
@@ -271,7 +291,12 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
-		await startSandbox(context);
+		if (!config) {
+			isSandboxEnabled = false;
+			return;
+		}
+
+		await startSandbox(context, config);
 	});
 
 	pi.on("session_shutdown", async () => {

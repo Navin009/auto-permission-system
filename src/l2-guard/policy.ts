@@ -4,7 +4,7 @@
  * Adapter module: uses pi (`getAgentDir`) but no UI and no event wiring.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	applyUntrustedProject,
@@ -15,6 +15,7 @@ import {
 	normalizeMode,
 	ReadPosture,
 	SubagentNetwork,
+	isPolicyFile,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -89,7 +90,7 @@ export function projectTrusted(cwd: string): boolean {
 /** What an untrusted project file tries to make weaker, in plain sentences. Empty when trusted or deny-only. */
 export function untrustedProjectChanges(cwd: string): string[] {
 	const projectPath = projectPolicyPath(cwd);
-	if (!existsSync(projectPath) || projectTrusted(cwd)) return [];
+	if (!isPolicyFile(projectPath) || projectTrusted(cwd)) return [];
 	try {
 		return describeLoosening(JSON.parse(readFileSync(projectPath, "utf-8")));
 	} catch {
@@ -109,7 +110,7 @@ export function loadPolicy(cwd: string): Policy {
 	const policyPaths = [globalPolicyPath(getAgentDir()), projectPolicyPath(cwd)];
 	let policy: Policy = structuredClone(DEFAULT_POLICY);
 	for (const path of policyPaths) {
-		if (!existsSync(path)) continue;
+		if (!isPolicyFile(path)) continue;
 		try {
 			const parsed = JSON.parse(readFileSync(path, "utf-8"));
 			if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {

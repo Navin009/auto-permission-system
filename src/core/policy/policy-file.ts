@@ -1,6 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { normalizeMode, type PermissionMode } from "./mode.ts";
+
+/** True when the path holds a policy file; a directory (or absent path) is not one. */
+export function isPolicyFile(policyFilePath: string): boolean {
+	try {
+		return statSync(policyFilePath).isFile();
+	} catch {
+		return false;
+	}
+}
 
 export function policyFileError(policyFilePath: string): string | null {
 	if (!existsSync(policyFilePath)) {
@@ -8,6 +17,10 @@ export function policyFileError(policyFilePath: string): string | null {
 	}
 
 	try {
+		if (!statSync(policyFilePath).isFile()) {
+			return `${policyFilePath} is not a file`;
+		}
+
 		JSON.parse(readFileSync(policyFilePath, "utf-8"));
 		return null;
 	} catch (error) {

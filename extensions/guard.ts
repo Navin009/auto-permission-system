@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { policyFileError, isProjectFileDeclined, ReadExposure } from "../src/core/index.ts";
 import { classifyFilename } from "../src/detect/index.ts";
@@ -71,7 +71,7 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("session_start", (_event, context) => {
+	const initializeSession = (context: ExtensionContext): void => {
 		for (const policyPath of [`${getAgentDir()}/extensions/sandbox.json`, `${context.cwd}/.pi/sandbox.json`]) {
 			const parseError = policyFileError(policyPath);
 
@@ -131,6 +131,23 @@ export default function (pi: ExtensionAPI) {
 		clearProgramIds();
 		clearAllowNotices();
 		clearGateNotes();
+	};
+
+	pi.on("session_start", (_event, context) => {
+		try {
+			initializeSession(context);
+		} catch (error) {
+			// Setup used to throw out of this handler, which left the guard inactive for
+			// the whole session: every unreadable policy path was a bypass. Stay on with
+			// the rules each tool call loads for itself, and say so.
+			isPolicyEnabled = true;
+			updateActiveState();
+			audit({ layer: 2, event: "session-start-failed", error: String(error), cwd: context.cwd });
+			context.ui.notify(
+				`security-guard: session setup failed (${error}); the guard stays on with the default rules`,
+				"error",
+			);
+		}
 	});
 
 	pi.on("tool_call", async (event, context) => {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { MODE_ORDER, PermissionMode } from "./policy/mode.ts";
 import { projectPolicyPath } from "./policy/paths.ts";
@@ -11,12 +11,21 @@ interface TrustStore {
 	declined: Record<string, string>;
 }
 
+/**
+ * SHA-256 of a policy file, or `null` when it is missing or is not a regular
+ * file. A directory named `.pi/sandbox.json` used to throw `EISDIR` here, and
+ * the throw escaped `session_start` before either layer was armed.
+ */
 export function fileHash(filePath: string): string | null {
-	if (!existsSync(filePath)) {
+	try {
+		if (!statSync(filePath).isFile()) {
+			return null;
+		}
+
+		return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+	} catch {
 		return null;
 	}
-
-	return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
 function readStore(storePath: string): TrustStore {
@@ -46,7 +55,9 @@ export function isProjectFileTrusted(projectPath: string, storePath: string): bo
 	const currentHash = fileHash(projectPath);
 
 	if (currentHash === null) {
-		return true;
+		// No file is nothing to distrust; something that exists but cannot be read
+		// as a file is not "nothing", so it stays untrusted.
+		return !existsSync(projectPath);
 	}
 
 	return readStore(storePath).trusted[projectPath] === currentHash;

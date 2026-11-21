@@ -8,7 +8,7 @@
  * share it.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
@@ -18,6 +18,7 @@ import {
 	overlayPolicy,
 	normalizeMode,
 	ReadPosture,
+	isPolicyFile,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -103,7 +104,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 	let globalConfig: Partial<SandboxConfig> = {};
 	let projectConfig: Partial<SandboxConfig> = {};
 
-	if (existsSync(globalConfigPath)) {
+	if (isPolicyFile(globalConfigPath)) {
 		try {
 			globalConfig = JSON.parse(readFileSync(globalConfigPath, "utf-8"));
 		} catch (error) {
@@ -111,7 +112,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 		}
 	}
 
-	if (existsSync(projectConfigPath)) {
+	if (isPolicyFile(projectConfigPath)) {
 		try {
 			projectConfig = JSON.parse(readFileSync(projectConfigPath, "utf-8"));
 		} catch (error) {
@@ -121,7 +122,7 @@ export function loadConfig(cwd: string): SandboxConfig {
 
 	const base = overlayPolicy(DEFAULT_CONFIG, globalConfig);
 	let merged: SandboxConfig;
-	if (existsSync(projectConfigPath) && !projectTrusted(cwd)) {
+	if (isPolicyFile(projectConfigPath) && !projectTrusted(cwd)) {
 		const baseRecord =
 			/* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<
 				string,
