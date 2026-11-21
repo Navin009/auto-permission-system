@@ -339,8 +339,7 @@ export type MainOpts = {
 	 * unanswered countdown resolves to Allow once. File and credential asks keep `No`
 	 * preselected and an unanswered countdown blocks.
 	 */
-	allowFirst?: boolean;
-	/** Per-screen footer; defaults to a sensible choice from `allowFirst`. Pass `null` to suppress. */
+	/** Per-screen footer; defaults to the blocking answer. Pass `null` to suppress. */
 	footer?: string | null;
 	/** Prefix the title with an icon. */
 	icon?: IconKey;
@@ -350,9 +349,8 @@ export type MainOpts = {
 
 /**
  * Compose header + icon + body + options for screen 1. Option order is always
- * No / Yes (just this once) / session / remember; ADR-024 preselects "Yes, just
- * this once" for network (allowFirst), so `No` stays in the list but is not
- * highlighted.
+ * No / Yes (just this once) / session / remember, and an unanswered prompt is
+ * No: every gate in this extension fails closed.
  */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
 	const sessionLabel = opts.sessionLabel ?? "Yes, for this conversation";
@@ -361,16 +359,16 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: MainChoice.Once });
 	if (opts.session) choices.push({ label: sessionLabel, value: MainChoice.Session });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: MainChoice.Remember });
-	const footer = opts.footer ?? (opts.allowFirst ? "Default: Yes, just this once" : "Default: No");
+	const footer = opts.footer ?? "Default: No";
 	const title = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body].join("\n");
-	const { picked, expired } = await askSelect(
+	const { picked } = await askSelect(
 		ctx,
 		title,
 		choices.map((c) => c.label),
 		opts.timeoutMs,
 		{ footer },
 	);
-	if (expired && opts.allowFirst) return MainChoice.Once;
+
 	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
 }
 

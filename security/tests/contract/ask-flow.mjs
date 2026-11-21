@@ -40,22 +40,22 @@ check(
 	withSessionTitle[0] === 'No' && withSessionTitle[2] === 'Yes, for this conversation' && withSessionTitle[3] === 'Yes, always\u2026',
 );
 
-const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true, allowFirst: true }));
+const allowFirstOpts = await optionsOf((ctx) => askMain(ctx, 'H', 'b', { session: true }));
 check(
-	'askMain allowFirst = No / Yes, just this once / session / remember',
+	'askMain network = No / Yes, just this once / session / remember',
 	allowFirstOpts.join('|') === 'No|Yes, just this once|Yes, for this conversation|Yes, always\u2026',
 );
 const pickAllowFirst = async (pick) =>
-	askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true, allowFirst: true });
-check('askMain allowFirst o0 → block', (await pickAllowFirst((o) => o[0])) === 'block');
-check('askMain allowFirst o1 → once', (await pickAllowFirst((o) => o[1])) === 'once');
-check('askMain allowFirst o2 → session', (await pickAllowFirst((o) => o[2])) === 'session');
-check('askMain allowFirst o3 → remember', (await pickAllowFirst((o) => o[3])) === 'remember');
+	askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });
+check('askMain o0 → block', (await pickAllowFirst((o) => o[0])) === 'block');
+check('askMain o1 → once', (await pickAllowFirst((o) => o[1])) === 'once');
+check('askMain o2 → session', (await pickAllowFirst((o) => o[2])) === 'session');
+check('askMain o3 → remember', (await pickAllowFirst((o) => o[3])) === 'remember');
 check('askMain allowFirst undefined (Esc) → block', (await pickAllowFirst(undefined)) === 'block');
 
 const expires = { hasUI: true, ui: { select: async () => { await new Promise((r) => setTimeout(r, 30)); return undefined; } } };
-check('askMain allowFirst countdown expiry → once', (await askMain(expires, 'H', 'b', { allowFirst: true, timeoutMs: 10 })) === 'once');
-check('askMain countdown expiry stays block for file asks', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
+check('askMain countdown expiry blocks a network ask', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
+
 
 // Navigation cancels the countdown in the select fallback too, and the timer
 // records the expiry itself, so an unanswered-but-engaged prompt blocks rather
@@ -267,14 +267,14 @@ check('ask timeout defaults to 15s', ASK_TIMEOUT_MS === 15_000);
 				}),
 		},
 	};
-	const main = askMain(ctx, 'H', 'b', { allowFirst: true });
+	const main = askMain(ctx, 'H', 'b', {});
 	const ready = await Promise.race([
 		factoryCalled.then(() => true),
 		new Promise((r) => setTimeout(() => r(false), 10_000)),
 	]);
 	check('askMain tui: renders through ui.custom, not ui.select', ready && !!component);
 	if (component) {
-		check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: Yes, just this once (15s)'));
+		check('askMain tui: footer carries the live countdown', component.render(80).join('\n').includes('Default: No (15s)'));
 		component.handleInput('\r');
 		check('askMain tui: custom pick maps to a decision', (await main) === 'block');
 	} else {

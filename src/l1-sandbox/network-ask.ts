@@ -149,7 +149,6 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 			{
 				session: true,
 				sessionLabel: "Yes, all in group for this conversation",
-				allowFirst: true,
 				icon: "net",
 				timeoutMs: ASK_TIMEOUT_MS,
 			},

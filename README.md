@@ -214,9 +214,9 @@ When an unlisted domain, `.env` file, or directory write is requested during an 
     Yes, all in group for this conversation
     Yes, always…
 
-  Default: Yes, just this once (15s)
+  Default: No (15s)
 ```
-- **Network Expiry Rule:** Domain prompts feature a 15-second countdown defaulting to `Allow once` for smooth browsing. Pressing `↑` or `↓` immediately stops the countdown, returning complete control to Enter/Esc.
+- **Network Expiry Rule:** Domain prompts feature a 15-second countdown that **denies** like every other gate, so an unattended prompt cannot open egress. Pressing `↑` or `↓` immediately stops the countdown, returning complete control to Enter/Esc.
 
 ### 3. Real-Time Token Leak Redaction Prompt
 ```

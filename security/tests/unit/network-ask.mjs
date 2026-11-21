@@ -96,8 +96,8 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	Date.now = () => clock;
 	const c = mkCtx([() => { clock = realNow() + ASK_TIMEOUT_MS + 1; return undefined; }]);
 	const { deps, audits } = mkDeps(c.ctx);
-	check('countdown expiry → allow', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === true);
-	check('countdown expiry audited as yes', audits.some((e) => e.decision === 'yes'));
+	check('countdown expiry → deny', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false);
+	check('countdown expiry audited as no', audits.some((e) => e.decision === 'no'));
 	Date.now = realNow;
 }
 

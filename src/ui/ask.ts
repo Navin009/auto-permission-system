@@ -394,7 +394,6 @@ export async function askDecision(
 	const mainDialogOptions = {
 		session: true,
 		sessionLabel,
-		allowFirst: action === AskAction.Network,
 		icon: selectPromptIcon(action, askDetails),
 	};
 
