@@ -27,11 +27,7 @@ import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import { classifyFilename } from "../filename-gate/index.ts";
 import { allowsUnquotedAssignment } from "./assignment.ts";
-import {
-  DEFAULT_ASK_THRESHOLD,
-  IGNORED_EXTENSIONS,
-  MAX_FILE_SIZE_BYTES,
-} from "./constants.ts";
+import { DEFAULT_ASK_THRESHOLD, IGNORED_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "./constants.ts";
 import { scanTextContent } from "./content-scan.ts";
 import { decodeTextBuffer, readFileCapped } from "./decoding.ts";
 import { isTestContext } from "./patterns.ts";
@@ -39,186 +35,174 @@ import { decide, filenameFinding, scoreFindings, skipResult } from "./scoring.ts
 import type { Finding, ReadDecision, ScanInput, ScanResult } from "./types.ts";
 
 export async function scanFile(input: ScanInput): Promise<ScanResult> {
-  const hardCap = MAX_FILE_SIZE_BYTES;
-  const requested = input.maxSizeBytes ?? hardCap;
-  const maxSizeBytes = Math.min(Math.max(1, requested), hardCap);
-  const askThreshold = input.askThreshold ?? DEFAULT_ASK_THRESHOLD;
+	const hardCap = MAX_FILE_SIZE_BYTES;
+	const requested = input.maxSizeBytes ?? hardCap;
+	const maxSizeBytes = Math.min(Math.max(1, requested), hardCap);
+	const askThreshold = input.askThreshold ?? DEFAULT_ASK_THRESHOLD;
 
-  const absolutePath = path.resolve(input.filePath);
-  const baseName = path.basename(absolutePath);
-  const fileName = input.fileName ?? baseName;
-  const extension = path.extname(baseName).toLowerCase();
+	const absolutePath = path.resolve(input.filePath);
+	const baseName = path.basename(absolutePath);
+	const fileName = input.fileName ?? baseName;
+	const extension = path.extname(baseName).toLowerCase();
 
-  const verdict = classifyFilename(absolutePath);
-  const ignoredByExtension = IGNORED_EXTENSIONS.has(extension);
+	const verdict = classifyFilename(absolutePath);
+	const ignoredByExtension = IGNORED_EXTENSIONS.has(extension);
 
+	let stat: Stats;
 
-  let stat: Stats;
+	try {
+		stat = await fs.lstat(absolutePath);
+	} catch {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: 0,
+			reason: "FILE_NOT_FOUND",
+			verdict,
+			askThreshold,
+			failClosed: verdict.risk === "strong",
+		});
+	}
 
-  try {
-    stat = await fs.lstat(absolutePath);
-  } catch {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: 0,
-      reason: "FILE_NOT_FOUND",
-      verdict,
-      askThreshold,
-      failClosed: verdict.risk === "strong",
-    });
-  }
+	if (stat.isSymbolicLink()) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: 0,
+			reason: "SYMLINK",
+			verdict,
+			askThreshold,
+			failClosed: !ignoredByExtension,
+		});
+	}
 
-  if (stat.isSymbolicLink()) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: 0,
-      reason: "SYMLINK",
-      verdict,
-      askThreshold,
-      failClosed: !ignoredByExtension,
-    });
-  }
+	if (!stat.isFile()) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: "NOT_A_FILE",
+			verdict,
+			askThreshold,
+			failClosed: !ignoredByExtension,
+		});
+	}
 
-  if (!stat.isFile()) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: "NOT_A_FILE",
-      verdict,
-      askThreshold,
-      failClosed: !ignoredByExtension,
-    });
-  }
+	if (ignoredByExtension) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: "BINARY_EXTENSION",
+			verdict,
+			askThreshold,
+			failClosed: verdict.candidate,
+		});
+	}
 
-  if (ignoredByExtension) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: "BINARY_EXTENSION",
-      verdict,
-      askThreshold,
-      failClosed: verdict.candidate,
-    });
-  }
+	if (stat.size > maxSizeBytes) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: `FILE_TOO_LARGE_LIMIT_${maxSizeBytes}`,
+			verdict,
+			askThreshold,
+			failClosed: true,
+		});
+	}
 
-  if (stat.size > maxSizeBytes) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: `FILE_TOO_LARGE_LIMIT_${maxSizeBytes}`,
-      verdict,
-      askThreshold,
-      failClosed: true,
-    });
-  }
+	let buffer: Buffer;
 
+	try {
+		buffer = await readFileCapped(absolutePath, maxSizeBytes);
+	} catch {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: "READ_ERROR",
+			verdict,
+			askThreshold,
+			failClosed: true,
+		});
+	}
 
-  let buffer: Buffer;
+	if (buffer.length > maxSizeBytes) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: `FILE_TOO_LARGE_LIMIT_${maxSizeBytes}`,
+			verdict,
+			askThreshold,
+			failClosed: true,
+		});
+	}
 
-  try {
-    buffer = await readFileCapped(absolutePath, maxSizeBytes);
-  } catch {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: "READ_ERROR",
-      verdict,
-      askThreshold,
-      failClosed: true,
-    });
-  }
+	const decoded = decodeTextBuffer(buffer);
 
-  if (buffer.length > maxSizeBytes) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: `FILE_TOO_LARGE_LIMIT_${maxSizeBytes}`,
-      verdict,
-      askThreshold,
-      failClosed: true,
-    });
-  }
+	if (!decoded) {
+		return skipResult({
+			absolutePath,
+			fileName,
+			sizeBytes: stat.size,
+			reason: "BINARY_FILE",
+			verdict,
+			askThreshold,
+			failClosed: true,
+		});
+	}
 
-  const decoded = decodeTextBuffer(buffer);
+	const textResult = scanTextContent(decoded.text, {
+		allowUnquoted: allowsUnquotedAssignment(baseName, extension),
+		testContext: isTestContext(absolutePath),
+	});
+	const findings: Finding[] = [...textResult.findings];
 
-  if (!decoded) {
-    return skipResult({
-      absolutePath,
-      fileName,
-      sizeBytes: stat.size,
-      reason: "BINARY_FILE",
-      verdict,
-      askThreshold,
-      failClosed: true,
-    });
-  }
+	/**
+	 * Filename evidence is included for sensitive names, even when the
+	 * content scan finds nothing.
+	 */
+	if (verdict.candidate) {
+		findings.push(filenameFinding(verdict, fileName));
+	}
 
-  const textResult = scanTextContent(decoded.text, {
-    allowUnquoted: allowsUnquotedAssignment(baseName, extension),
-    testContext: isTestContext(absolutePath),
-  });
-  const findings: Finding[] = [...textResult.findings];
+	const uniqueFindings = Array.from(
+		new Map(findings.map((finding) => [`${finding.type}:${finding.line ?? 0}`, finding])).values(),
+	);
 
-  /**
-   * Filename evidence is included for sensitive names, even when the
-   * content scan finds nothing.
-   */
-  if (verdict.candidate) {
-    findings.push(filenameFinding(verdict, fileName));
-  }
+	const riskScore = scoreFindings(uniqueFindings);
+	const decision = decide(riskScore, askThreshold);
 
-  const uniqueFindings = Array.from(
-    new Map(
-      findings.map((finding) => [
-        `${finding.type}:${finding.line ?? 0}`,
-        finding,
-      ])
-    ).values()
-  );
+	const hasCritical = uniqueFindings.some((finding) => finding.severity === "CRITICAL");
 
-  const riskScore = scoreFindings(uniqueFindings);
-  const decision = decide(riskScore, askThreshold);
-
-  const hasCritical = uniqueFindings.some(
-    (finding) => finding.severity === "CRITICAL"
-  );
-
-  return {
-    decision,
-    riskScore,
-    askThreshold,
-    status: hasCritical || decision === "ask" ? "ALERT" : "ALLOW",
-    filePath: absolutePath,
-    fileName,
-    sizeBytes: stat.size,
-    findings: uniqueFindings,
-    encoding: decoded.encoding,
-    reason:
-      decision === "ask"
-        ? "SENSITIVE_INFORMATION_DETECTED"
-        : "NO_SENSITIVE_INFORMATION_DETECTED",
-  };
+	return {
+		decision,
+		riskScore,
+		askThreshold,
+		status: hasCritical || decision === "ask" ? "ALERT" : "ALLOW",
+		filePath: absolutePath,
+		fileName,
+		sizeBytes: stat.size,
+		findings: uniqueFindings,
+		encoding: decoded.encoding,
+		reason: decision === "ask" ? "SENSITIVE_INFORMATION_DETECTED" : "NO_SENSITIVE_INFORMATION_DETECTED",
+	};
 }
 
 /**
  * Convenience wrapper for the read gate.
  */
 export async function evaluateRead(input: ScanInput): Promise<{
-  decision: ReadDecision;
-  riskScore: number;
-  findings: Finding[];
+	decision: ReadDecision;
+	riskScore: number;
+	findings: Finding[];
 }> {
-  const result = await scanFile(input);
-  return {
-    decision: result.decision,
-    riskScore: result.riskScore,
-    findings: result.findings,
-  };
+	const result = await scanFile(input);
+	return {
+		decision: result.decision,
+		riskScore: result.riskScore,
+		findings: result.findings,
+	};
 }

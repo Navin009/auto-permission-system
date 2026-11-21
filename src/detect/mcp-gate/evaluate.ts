@@ -16,242 +16,180 @@
 
 import { MCP_DEFAULT_ASK_THRESHOLD, MCP_OPAQUE_TOOL_SCORE, MCP_UNKNOWN_BASE_SCORE } from "./constants.ts";
 import {
-  addFinding,
-  analyzeSchema,
-  containsProduction,
-  createState,
-  isSimpleChange,
-  walkArguments,
+	addFinding,
+	analyzeSchema,
+	containsProduction,
+	createState,
+	isSimpleChange,
+	walkArguments,
 } from "./signals.ts";
-import type {
-  McpClassification,
-  McpDecision,
-  McpFinding,
-  McpGateInput,
-  McpGateResult,
-} from "./types.ts";
-import {
-  CLASSIFICATION_RANK,
-  classifyDescription,
-  classifyName,
-  stripServerPrefix,
-  tokenize,
-} from "./verbs.ts";
+import type { McpClassification, McpDecision, McpFinding, McpGateInput, McpGateResult } from "./types.ts";
+import { CLASSIFICATION_RANK, classifyDescription, classifyName, stripServerPrefix, tokenize } from "./verbs.ts";
 
 export function evaluateMcpCall(input: McpGateInput): McpGateResult {
-  const policy = input.policy ?? {};
-  const askThreshold = policy.askThreshold ?? MCP_DEFAULT_ASK_THRESHOLD;
-  const toolName = input.call?.name ?? input.tool.name;
-  const lowered = toolName.toLowerCase();
+	const policy = input.policy ?? {};
+	const askThreshold = policy.askThreshold ?? MCP_DEFAULT_ASK_THRESHOLD;
+	const toolName = input.call?.name ?? input.tool.name;
+	const lowered = toolName.toLowerCase();
 
-  const baseResult = (
-    decision: McpDecision,
-    classification: McpClassification,
-    riskScore: number,
-    reason: string,
-    findings: McpFinding[],
-    summary: string
-  ): McpGateResult => ({
-    decision,
-    classification,
-    riskScore,
-    askThreshold,
-    findings,
-    reason,
-    summary,
-  });
+	const baseResult = (
+		decision: McpDecision,
+		classification: McpClassification,
+		riskScore: number,
+		reason: string,
+		findings: McpFinding[],
+		summary: string,
+	): McpGateResult => ({
+		decision,
+		classification,
+		riskScore,
+		askThreshold,
+		findings,
+		reason,
+		summary,
+	});
 
-  if (policy.askTools?.includes(toolName)) {
-    return baseResult(
-      "ask",
-      "unknown",
-      100,
-      "POLICY_ASK",
-      [],
-      `${toolName} is explicitly ask-listed by policy`
-    );
-  }
+	if (policy.askTools?.includes(toolName)) {
+		return baseResult("ask", "unknown", 100, "POLICY_ASK", [], `${toolName} is explicitly ask-listed by policy`);
+	}
 
-  if (
-    policy.allowTools?.includes(toolName) ||
-    policy.allowPrefixes?.some((prefix) =>
-      lowered.startsWith(prefix.toLowerCase())
-    )
-  ) {
-    return baseResult(
-      "allow",
-      "unknown",
-      0,
-      "POLICY_ALLOW",
-      [],
-      `${toolName} is explicitly allowed by policy`
-    );
-  }
+	if (
+		policy.allowTools?.includes(toolName) ||
+		policy.allowPrefixes?.some((prefix) => lowered.startsWith(prefix.toLowerCase()))
+	) {
+		return baseResult("allow", "unknown", 0, "POLICY_ALLOW", [], `${toolName} is explicitly allowed by policy`);
+	}
 
-  const operationName = stripServerPrefix(toolName);
-  const nameTokens = tokenize(`${input.tool.title ?? ""} ${operationName}`);
-  const nameHit = classifyName(nameTokens);
+	const operationName = stripServerPrefix(toolName);
+	const nameTokens = tokenize(`${input.tool.title ?? ""} ${operationName}`);
+	const nameHit = classifyName(nameTokens);
 
-  let classification: McpClassification = nameHit?.classification ?? "unknown";
-  let baseScore = nameHit?.score ?? MCP_UNKNOWN_BASE_SCORE;
+	let classification: McpClassification = nameHit?.classification ?? "unknown";
+	let baseScore = nameHit?.score ?? MCP_UNKNOWN_BASE_SCORE;
 
-  const descriptionHit = classifyDescription(input.tool.description);
+	const descriptionHit = classifyDescription(input.tool.description);
 
-  if (
-    descriptionHit &&
-    (CLASSIFICATION_RANK[descriptionHit.classification] >
-      CLASSIFICATION_RANK[classification] ||
-      classification === "unknown")
-  ) {
-    classification = descriptionHit.classification;
-    baseScore = Math.max(baseScore, descriptionHit.score);
-  }
+	if (
+		descriptionHit &&
+		(CLASSIFICATION_RANK[descriptionHit.classification] > CLASSIFICATION_RANK[classification] ||
+			classification === "unknown")
+	) {
+		classification = descriptionHit.classification;
+		baseScore = Math.max(baseScore, descriptionHit.score);
+	}
 
-  const state = createState();
+	const state = createState();
 
-  if (!input.tool.description?.trim()) {
-    addFinding(
-      state,
-      "opaque-tool",
-      "no description; the operation cannot be classified",
-      MCP_OPAQUE_TOOL_SCORE
-    );
-  }
+	if (!input.tool.description?.trim()) {
+		addFinding(state, "opaque-tool", "no description; the operation cannot be classified", MCP_OPAQUE_TOOL_SCORE);
+	}
 
-  if (containsProduction(`${input.tool.title ?? ""} ${operationName}`)) {
-    state.production = true;
-    addFinding(state, "production-target", "tool name references production/live", 15);
-  }
+	if (containsProduction(`${input.tool.title ?? ""} ${operationName}`)) {
+		state.production = true;
+		addFinding(state, "production-target", "tool name references production/live", 15);
+	}
 
-  analyzeSchema(input.tool.inputSchema, state);
+	analyzeSchema(input.tool.inputSchema, state);
 
-  if (input.call?.arguments) {
-    walkArguments(input.call.arguments, "arguments", state, 0);
-  }
+	if (input.call?.arguments) {
+		walkArguments(input.call.arguments, "arguments", state, 0);
+	}
 
-  if (
-    state.destructiveArg &&
-    CLASSIFICATION_RANK[classification] < CLASSIFICATION_RANK.destructive
-  ) {
-    classification = "destructive";
-    baseScore = Math.max(baseScore, 45);
-  }
+	if (state.destructiveArg && CLASSIFICATION_RANK[classification] < CLASSIFICATION_RANK.destructive) {
+		classification = "destructive";
+		baseScore = Math.max(baseScore, 45);
+	}
 
-  const annotations = input.tool.annotations ?? {};
-  let annotationScore = 0;
+	const annotations = input.tool.annotations ?? {};
+	let annotationScore = 0;
 
-  if (annotations.idempotentHint === true) {
-    annotationScore -= 5;
-  }
+	if (annotations.idempotentHint === true) {
+		annotationScore -= 5;
+	}
 
-  if (annotations.openWorldHint === true) {
-    annotationScore += 10;
-  }
+	if (annotations.openWorldHint === true) {
+		annotationScore += 10;
+	}
 
-  if (annotations.destructiveHint === true) {
-    annotationScore += 20;
-    if (CLASSIFICATION_RANK[classification] < CLASSIFICATION_RANK.mutating) {
-      classification = "mutating";
-      baseScore = Math.max(baseScore, 45);
-    }
-  }
+	if (annotations.destructiveHint === true) {
+		annotationScore += 20;
+		if (CLASSIFICATION_RANK[classification] < CLASSIFICATION_RANK.mutating) {
+			classification = "mutating";
+			baseScore = Math.max(baseScore, 45);
+		}
+	}
 
-  if (annotations.readOnlyHint === true) {
-    const contradicted =
-      classification === "destructive" ||
-      classification === "mutating" ||
-      state.destructiveArg ||
-      state.exec;
+	if (annotations.readOnlyHint === true) {
+		const contradicted =
+			classification === "destructive" || classification === "mutating" || state.destructiveArg || state.exec;
 
-    if (contradicted) {
-      annotationScore += 15;
-      addFinding(
-        state,
-        "annotation-conflict",
-        "readOnlyHint contradicted by destructive evidence",
-        15
-      );
-    } else if (policy.trustAnnotations) {
-      return baseResult(
-        "allow",
-        "read",
-        0,
-        "READ_ONLY",
-        state.findings,
-        `${toolName} is marked read-only by the server and policy trusts annotations`
-      );
-    } else {
-      annotationScore -= 10;
-    }
-  }
+		if (contradicted) {
+			annotationScore += 15;
+			addFinding(state, "annotation-conflict", "readOnlyHint contradicted by destructive evidence", 15);
+		} else if (policy.trustAnnotations) {
+			return baseResult(
+				"allow",
+				"read",
+				0,
+				"READ_ONLY",
+				state.findings,
+				`${toolName} is marked read-only by the server and policy trusts annotations`,
+			);
+		} else {
+			annotationScore -= 10;
+		}
+	}
 
-  const extras = state.findings.reduce((sum, finding) => sum + finding.score, 0);
-  let score = baseScore + annotationScore + extras;
-  let reason = "SENSITIVE_OPERATION";
+	const extras = state.findings.reduce((sum, finding) => sum + finding.score, 0);
+	let score = baseScore + annotationScore + extras;
+	let reason = "SENSITIVE_OPERATION";
 
-  if (state.dryRun) {
-    score -= 25;
-    reason = "DRY_RUN";
-  }
+	if (state.dryRun) {
+		score -= 25;
+		reason = "DRY_RUN";
+	}
 
-  const simpleChange =
-    policy.allowSimpleUpdates !== false &&
-    isSimpleChange(toolName, state, classification);
+	const simpleChange = policy.allowSimpleUpdates !== false && isSimpleChange(toolName, state, classification);
 
-  if (simpleChange) {
-    score -= 30;
-    reason = "SIMPLE_UPDATE";
-  }
+	if (simpleChange) {
+		score -= 30;
+		reason = "SIMPLE_UPDATE";
+	}
 
-  score = Math.min(100, Math.max(0, Math.round(score)));
+	score = Math.min(100, Math.max(0, Math.round(score)));
 
-  if (classification === "destructive") {
-    reason = "DESTRUCTIVE_OPERATION";
-  } else if (
-    classification === "read" &&
-    reason === "SENSITIVE_OPERATION" &&
-    score < askThreshold
-  ) {
-    reason = "READ_ONLY";
-  } else if (classification === "unknown" && reason === "SENSITIVE_OPERATION") {
-    reason = "UNKNOWN_OPERATION";
-  }
+	if (classification === "destructive") {
+		reason = "DESTRUCTIVE_OPERATION";
+	} else if (classification === "read" && reason === "SENSITIVE_OPERATION" && score < askThreshold) {
+		reason = "READ_ONLY";
+	} else if (classification === "unknown" && reason === "SENSITIVE_OPERATION") {
+		reason = "UNKNOWN_OPERATION";
+	}
 
-  const topLabels = state.findings
-    .filter((finding) => finding.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map((finding) => finding.label);
+	const topLabels = state.findings
+		.filter((finding) => finding.score > 0)
+		.sort((a, b) => b.score - a.score)
+		.slice(0, 3)
+		.map((finding) => finding.label);
 
-  const summaryParts = [`${toolName} (${classification})`];
+	const summaryParts = [`${toolName} (${classification})`];
 
-  if (topLabels.length > 0) {
-    summaryParts.push(topLabels.join("; "));
-  } else if (nameHit) {
-    summaryParts.push(`verb: ${nameHit.label}`);
-  }
+	if (topLabels.length > 0) {
+		summaryParts.push(topLabels.join("; "));
+	} else if (nameHit) {
+		summaryParts.push(`verb: ${nameHit.label}`);
+	}
 
-  if (state.dryRun) summaryParts.push("dry-run requested");
-  if (simpleChange) summaryParts.push("narrow field update");
-  if (state.truncated) summaryParts.push("arguments truncated at analysis limits");
+	if (state.dryRun) summaryParts.push("dry-run requested");
+	if (simpleChange) summaryParts.push("narrow field update");
+	if (state.truncated) summaryParts.push("arguments truncated at analysis limits");
 
-  const decision =
-    classification === "destructive" || score >= askThreshold ? "ask" : "allow";
+	const decision = classification === "destructive" || score >= askThreshold ? "ask" : "allow";
 
-  const resultReason =
-    decision === "ask" ||
-    reason === "SIMPLE_UPDATE" ||
-    reason === "DRY_RUN" ||
-    reason === "READ_ONLY"
-      ? reason
-      : "ALLOWED";
+	const resultReason =
+		decision === "ask" || reason === "SIMPLE_UPDATE" || reason === "DRY_RUN" || reason === "READ_ONLY"
+			? reason
+			: "ALLOWED";
 
-  return baseResult(
-    decision,
-    classification,
-    score,
-    resultReason,
-    state.findings,
-    summaryParts.join(": ")
-  );
+	return baseResult(decision, classification, score, resultReason, state.findings, summaryParts.join(": "));
 }

@@ -2,25 +2,97 @@ import { existsSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { firstMatchingPattern, normalizeAbs, somePatternMatches, toSandboxPatterns } from "./patterns.ts";
 import { commandHead, commandSegments, shellTokens } from "./shell-command.ts";
-import {
-	embeddedPathTokens,
-	listDirectoryFiles,
-	resolveTokenPaths,
-	type PathCandidateOptions,
-} from "./path-tokens.ts";
+import { embeddedPathTokens, listDirectoryFiles, resolveTokenPaths, type PathCandidateOptions } from "./path-tokens.ts";
 import { findReadCandidates } from "./find-query.ts";
 import { readTargetTokens } from "./operands.ts";
 import { ReadPosture, outsideProjectMode, outsideProjectReadDenied, type FilesystemPolicy } from "./classify.ts";
 
 const READ_COMMANDS = new Set([
-	"ls", "cat", "find", "grep", "rg", "ag", "ack", "fd", "head", "tail", "stat", "file",
-	"tree", "wc", "readlink", "realpath", "sed", "awk", "less", "more", "du", "bat", "nl",
-	"strings", "xxd", "od", "cd", "pushd", "popd", "dirname", "basename", "cp", "mv",
-	"install", "dd", "tar", "zip", "unzip", "gzip", "gunzip", "zcat", "bzip2", "xz", "zstd",
-	"base64", "openssl", "gpg", "jq", "yq", "node", "deno", "bun", "python", "python2",
-	"python3", "perl", "ruby", "php", "lua", "git", "gh", "docker", "kubectl", "aws", "gcloud",
-	"az", "vault", "pass", "ssh", "scp", "rsync", "curl", "wget", "sqlite3", "psql", "mysql",
-	"mongosh", "redis-cli", "java", "dotnet", "cargo", "tee", "xargs", "parallel", "tr",
+	"ls",
+	"cat",
+	"find",
+	"grep",
+	"rg",
+	"ag",
+	"ack",
+	"fd",
+	"head",
+	"tail",
+	"stat",
+	"file",
+	"tree",
+	"wc",
+	"readlink",
+	"realpath",
+	"sed",
+	"awk",
+	"less",
+	"more",
+	"du",
+	"bat",
+	"nl",
+	"strings",
+	"xxd",
+	"od",
+	"cd",
+	"pushd",
+	"popd",
+	"dirname",
+	"basename",
+	"cp",
+	"mv",
+	"install",
+	"dd",
+	"tar",
+	"zip",
+	"unzip",
+	"gzip",
+	"gunzip",
+	"zcat",
+	"bzip2",
+	"xz",
+	"zstd",
+	"base64",
+	"openssl",
+	"gpg",
+	"jq",
+	"yq",
+	"node",
+	"deno",
+	"bun",
+	"python",
+	"python2",
+	"python3",
+	"perl",
+	"ruby",
+	"php",
+	"lua",
+	"git",
+	"gh",
+	"docker",
+	"kubectl",
+	"aws",
+	"gcloud",
+	"az",
+	"vault",
+	"pass",
+	"ssh",
+	"scp",
+	"rsync",
+	"curl",
+	"wget",
+	"sqlite3",
+	"psql",
+	"mysql",
+	"mongosh",
+	"redis-cli",
+	"java",
+	"dotnet",
+	"cargo",
+	"tee",
+	"xargs",
+	"parallel",
+	"tr",
 ]);
 
 const RECURSIVE_SEARCH_COMMANDS = new Set(["grep", "rg", "ag", "ack", "find", "tree", "du", "fd"]);
@@ -48,8 +120,18 @@ const HIDDEN_VISIBILITY_FLAGS = new Set([
 ]);
 
 const NAME_ONLY_COMMANDS = new Set([
-	"ls", "find", "tree", "du", "stat", "readlink", "realpath", "dirname", "basename",
-	"cd", "pushd", "popd",
+	"ls",
+	"find",
+	"tree",
+	"du",
+	"stat",
+	"readlink",
+	"realpath",
+	"dirname",
+	"basename",
+	"cd",
+	"pushd",
+	"popd",
 ]);
 
 export const ReadExposure = {
@@ -113,7 +195,13 @@ function readPathCandidates(
 		const exposure = NAME_ONLY_COMMANDS.has(head) ? ReadExposure.Name : ReadExposure.Content;
 
 		if (head === "find") {
-			const findCandidates = findReadCandidates(tokens.slice(headIndex + 1), workingDirectory, homeDirectory, checkFileExists, options);
+			const findCandidates = findReadCandidates(
+				tokens.slice(headIndex + 1),
+				workingDirectory,
+				homeDirectory,
+				checkFileExists,
+				options,
+			);
 
 			if (findCandidates) {
 				for (const candidatePath of findCandidates) recordCandidate(foundCandidates, candidatePath, exposure);

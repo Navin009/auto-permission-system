@@ -19,11 +19,7 @@ import { emitDomainGrant } from "../src/shared/network-grants.ts";
 import { clearGateNotes } from "../src/shared/gate-notes.ts";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent.ts";
 import { onYolo } from "../src/shared/yolo.ts";
-import {
-	askDetectionConfirmation,
-	clearDetectionGrants,
-	detectMcpAsk,
-} from "../src/l2-guard/detection.ts";
+import { askDetectionConfirmation, clearDetectionGrants, detectMcpAsk } from "../src/l2-guard/detection.ts";
 import {
 	checkNetworkAccess,
 	checkReadAccess,
@@ -206,22 +202,15 @@ export default function (pi: ExtensionAPI) {
 		const toolInput = event.input as Record<string, unknown> | undefined;
 
 		if (event.toolName === "fetch_content" || event.toolName === "get_search_content") {
-			const subagentReason = subagentNetworkBlock(
-				context as { hasUI?: boolean; sessionManager?: unknown },
-				policy,
-			);
+			const subagentReason = subagentNetworkBlock(context as { hasUI?: boolean; sessionManager?: unknown }, policy);
 
 			if (subagentReason) {
 				return { block: true, reason: subagentReason };
 			}
 
 			const targetUrls = extractUrlsFromInput(toolInput);
-			const networkResult = await checkNetworkAccess(
-				targetUrls,
-				event.toolName,
-				context,
-				policy,
-				(domain) => emitDomainGrant(pi.events, domain),
+			const networkResult = await checkNetworkAccess(targetUrls, event.toolName, context, policy, (domain) =>
+				emitDomainGrant(pi.events, domain),
 			);
 
 			if (networkResult) {
@@ -230,10 +219,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (event.toolName === "web_search") {
-			const subagentReason = subagentNetworkBlock(
-				context as { hasUI?: boolean; sessionManager?: unknown },
-				policy,
-			);
+			const subagentReason = subagentNetworkBlock(context as { hasUI?: boolean; sessionManager?: unknown }, policy);
 
 			if (subagentReason) {
 				return { block: true, reason: subagentReason };

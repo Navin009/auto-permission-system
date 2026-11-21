@@ -9,7 +9,15 @@ import { homedir } from "node:os";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { DANGEROUS_FILES, DANGEROUS_DIRECTORIES } from "@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { addOverride, addProjectOverride, globalPolicyPath, projectPolicyPath, sandboxFilesystem, GrantScope, OverrideKind } from "../core/index";
+import {
+	addOverride,
+	addProjectOverride,
+	globalPolicyPath,
+	projectPolicyPath,
+	sandboxFilesystem,
+	GrantScope,
+	OverrideKind,
+} from "../core/index";
 import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config";
 import { createNetworkAsk, type NetworkAskDeps } from "./network-ask";
 
@@ -118,12 +126,7 @@ export function applyNetworkGrant(host: string): void {
  * Never writes a grant into an untrusted project file: recording the new hash
  * would trust whatever else is in it.
  */
-async function writeLayer1Override(
-	cwd: string,
-	kind: OverrideKind,
-	value: string,
-	scope: GrantScope,
-): Promise<string> {
+async function writeLayer1Override(cwd: string, kind: OverrideKind, value: string, scope: GrantScope): Promise<string> {
 	const path = scope === GrantScope.Cwd ? projectPolicyPath(cwd) : globalPolicyPath(getAgentDir());
 	if (scope === GrantScope.Cwd && !projectTrusted(cwd)) {
 		throw new Error(`${path} is not trusted; run /security trust first, or choose an "ALL projects" option`);

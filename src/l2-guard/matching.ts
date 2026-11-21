@@ -128,14 +128,16 @@ export function piPackageRoot(): string | null {
 		let directory = dirname(realpathSync(process.argv[1] ?? ""));
 		for (let depth = 0; depth < 6; depth++) {
 			const packageJsonPath = join(directory, "package.json");
-			if (existsSync(packageJsonPath) && JSON.parse(readFileSync(packageJsonPath, "utf-8")).name === "@earendil-works/pi-coding-agent") {
+			if (
+				existsSync(packageJsonPath) &&
+				JSON.parse(readFileSync(packageJsonPath, "utf-8")).name === "@earendil-works/pi-coding-agent"
+			) {
 				piRootCache = directory;
 				break;
 			}
 			directory = dirname(directory);
 		}
-	} catch {
-	}
+	} catch {}
 	return piRootCache;
 }
 
@@ -144,7 +146,11 @@ export function outsideProjectReason(abs: string, cwd: string, policy: Policy): 
 	if (mode === ReadPosture.Allow) return null;
 	const projectRoot = canonicalize(cwd, cwd);
 	if (abs === projectRoot || abs.startsWith(`${projectRoot}/`)) return null;
-	const allowedRoots = [...policy.filesystem.allowWrite, ...(policy.filesystem.outsideProject?.allowRead ?? []), piPackageRoot()]
+	const allowedRoots = [
+		...policy.filesystem.allowWrite,
+		...(policy.filesystem.outsideProject?.allowRead ?? []),
+		piPackageRoot(),
+	]
 		.filter((root): root is string => !!root)
 		.map((root) => (root.startsWith("/") ? canonicalize(root, cwd) : root));
 	if (allowedRoots.some((root) => matchPattern(abs, root, cwd))) return null;

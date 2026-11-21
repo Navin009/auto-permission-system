@@ -5,9 +5,7 @@ const AUDIT_LOG_FILENAME = "audit.log";
 
 export const AUDIT_PATH = `${getAgentDir()}/${AUDIT_LOG_FILENAME}`;
 
-export function audit(
-	auditPayload: Record<string, unknown>,
-): void {
+export function audit(auditPayload: Record<string, unknown>): void {
 	try {
 		const entryWithTimestamp = {
 			timestamp: new Date().toISOString(),

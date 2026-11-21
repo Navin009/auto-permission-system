@@ -7,7 +7,17 @@
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { addOverride, addProjectOverride, extractUserMessages, globalPolicyPath, isSessionFolderGrant, projectPolicyPath, userNamedFile, GrantScope, OverrideKind } from "../core/index";
+import {
+	addOverride,
+	addProjectOverride,
+	extractUserMessages,
+	globalPolicyPath,
+	isSessionFolderGrant,
+	projectPolicyPath,
+	userNamedFile,
+	GrantScope,
+	OverrideKind,
+} from "../core/index";
 import { audit } from "../shared/audit";
 import { canonicalize, matchPattern } from "./matching";
 import { projectTrusted, TRUST_STORE } from "./policy";
@@ -49,7 +59,10 @@ export function sessionGrantSummary(): string {
 function sessionGranted(ask: AskKind, cwd: string): string | null {
 	for (const grant of sessionGrants) {
 		if (grant.kind !== ask.overrideKind) continue;
-		const matched = grant.kind === OverrideKind.AllowDomains ? domainMatches(ask.overrideValue, grant.value) : matchPattern(ask.subject, grant.value, cwd);
+		const matched =
+			grant.kind === OverrideKind.AllowDomains
+				? domainMatches(ask.overrideValue, grant.value)
+				: matchPattern(ask.subject, grant.value, cwd);
 		if (matched) return grant.value;
 	}
 	return null;
@@ -80,13 +93,29 @@ export async function askOrBlock(
 	if (!absoluteDenyPattern) {
 		const granted = sessionGranted(ask, ctx.cwd);
 		if (granted) {
-			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "session-grant", grant: granted, cwd: ctx.cwd });
+			audit({
+				layer: 2,
+				tool: ask.tool,
+				subject: ask.subject,
+				reason: ask.reason,
+				decision: "session-grant",
+				grant: granted,
+				cwd: ctx.cwd,
+			});
 			return null;
 		}
 		if (ask.outside && ctx.hasUI !== false) {
 			const named = userNamedOutside(ctx as SessionCtx, ask);
 			if (named) {
-				audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "user-named", named, cwd: ctx.cwd });
+				audit({
+					layer: 2,
+					tool: ask.tool,
+					subject: ask.subject,
+					reason: ask.reason,
+					decision: "user-named",
+					named,
+					cwd: ctx.cwd,
+				});
 				ctx.ui.notify(`Allowed reading ${ask.subject} once (mentioned in your prompt).`, "info");
 				return null;
 			}
@@ -108,23 +137,63 @@ export async function askOrBlock(
 		ctx.ui.notify(`Allowed for this conversation: ${value}`, "info");
 		return null;
 	}
-	if (decision === Decision.AlwaysCwd || decision === Decision.AlwaysGlobal || decision === Decision.AlwaysCwdFolder || decision === Decision.AlwaysGlobalFolder) {
+	if (
+		decision === Decision.AlwaysCwd ||
+		decision === Decision.AlwaysGlobal ||
+		decision === Decision.AlwaysCwdFolder ||
+		decision === Decision.AlwaysGlobalFolder
+	) {
 		if (absoluteDenyPattern) {
-			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "no", note: "always-refused-for-absolute-deny", cwd: ctx.cwd });
+			audit({
+				layer: 2,
+				tool: ask.tool,
+				subject: ask.subject,
+				reason: ask.reason,
+				decision: "no",
+				note: "always-refused-for-absolute-deny",
+				cwd: ctx.cwd,
+			});
 			return { block: true, reason: denyMessage(ask.overrideKind, ask.reason) };
 		}
-		const scope = decision === Decision.AlwaysCwd || decision === Decision.AlwaysCwdFolder ? GrantScope.Cwd : GrantScope.Global;
+		const scope =
+			decision === Decision.AlwaysCwd || decision === Decision.AlwaysCwdFolder ? GrantScope.Cwd : GrantScope.Global;
 		const useFolder = decision === Decision.AlwaysCwdFolder || decision === Decision.AlwaysGlobalFolder;
 		const value = useFolder ? dirname(ask.overrideValue) : ask.overrideValue;
 		try {
 			const path = persistOverride(scope, ctx.cwd, ask.overrideKind, value);
 			onPersist?.(ask.overrideKind, value, scope);
-			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, scope, granularity: useFolder ? "folder" : "file", cwd: ctx.cwd, persisted_to: path, override: { [ask.overrideKind]: value } });
-			const scopeLabel = scope === GrantScope.Cwd ? "this project (stored in project settings)" : "all projects (stored in global settings)";
+			audit({
+				layer: 2,
+				tool: ask.tool,
+				subject: ask.subject,
+				reason: ask.reason,
+				decision,
+				scope,
+				granularity: useFolder ? "folder" : "file",
+				cwd: ctx.cwd,
+				persisted_to: path,
+				override: { [ask.overrideKind]: value },
+			});
+			const scopeLabel =
+				scope === GrantScope.Cwd
+					? "this project (stored in project settings)"
+					: "all projects (stored in global settings)";
 			ctx.ui.notify(`Rule saved for ${scopeLabel}.`, "info");
 		} catch (error) {
-			audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "yes", note: `always-persist-failed: ${error}`, scope, cwd: ctx.cwd });
-			ctx.ui.notify(`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this call only.`, "warning");
+			audit({
+				layer: 2,
+				tool: ask.tool,
+				subject: ask.subject,
+				reason: ask.reason,
+				decision: "yes",
+				note: `always-persist-failed: ${error}`,
+				scope,
+				cwd: ctx.cwd,
+			});
+			ctx.ui.notify(
+				`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this call only.`,
+				"warning",
+			);
 		}
 		return null;
 	}
@@ -138,5 +207,10 @@ type SessionCtx = UICtx & { sessionManager?: { getBranch?: () => unknown[] } };
 function userNamedOutside(ctx: SessionCtx, ask: AskKind): string | null {
 	const messages = extractUserMessages(ctx.sessionManager?.getBranch?.() ?? []);
 	if (!messages.length) return null;
-	return userNamedFile(messages, { canonical: ask.subject, spelled: ask.spelled, cwd: canonicalize(ctx.cwd, ctx.cwd), home: homedir() });
+	return userNamedFile(messages, {
+		canonical: ask.subject,
+		spelled: ask.spelled,
+		cwd: canonicalize(ctx.cwd, ctx.cwd),
+		home: homedir(),
+	});
 }

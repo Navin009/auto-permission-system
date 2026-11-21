@@ -13,11 +13,7 @@ import {
 	resetSandbox,
 	writeNetworkOverride,
 } from "../src/l1-sandbox/manager.ts";
-import {
-	clearNetworkSessionGrants,
-	type NetworkAskCtx,
-	type NetworkAskDeps,
-} from "../src/l1-sandbox/network-ask.ts";
+import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask.ts";
 import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } from "../src/l1-sandbox/config.ts";
 import { audit } from "../src/shared/audit.ts";
 import { onDomainGrant } from "../src/shared/network-grants.ts";
@@ -73,14 +69,16 @@ export default function (pi: ExtensionAPI) {
 	let latestExtensionContext: ExtensionContext | undefined;
 	let latestBashCommand: string | undefined;
 
-	let activeUiContext: {
-		cwd: string;
-		hasUI?: boolean;
-		ui?: {
-			select?: (title: string, options: string[], opts?: { timeout?: number }) => Promise<string | undefined>;
-			notify?: (message: string, level?: string) => void;
-		};
-	} | undefined;
+	let activeUiContext:
+		| {
+				cwd: string;
+				hasUI?: boolean;
+				ui?: {
+					select?: (title: string, options: string[], opts?: { timeout?: number }) => Promise<string | undefined>;
+					notify?: (message: string, level?: string) => void;
+				};
+		  }
+		| undefined;
 
 	const createNetworkDependencies = (currentWorkingDirectory: string): NetworkAskDeps => ({
 		cwd: currentWorkingDirectory,
@@ -269,10 +267,7 @@ export default function (pi: ExtensionAPI) {
 		if (isRuntimeYolo) {
 			await stopSandbox();
 			context.ui.setStatus("sandbox", context.ui.theme.fg("error", YOLO_STATUS));
-			context.ui.notify(
-				context.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."),
-				"info",
-			);
+			context.ui.notify(context.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."), "info");
 			return;
 		}
 

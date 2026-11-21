@@ -34,14 +34,8 @@ export function rememberNestedStart(
 	callsByParent.set(parentToolCallId, calls);
 }
 
-export function rememberNestedEnd(
-	parentToolCallId: string,
-	toolCallId: string,
-	isError: boolean,
-): void {
-	const call = callsByParent
-		.get(parentToolCallId)
-		?.find((candidate) => candidate.toolCallId === toolCallId);
+export function rememberNestedEnd(parentToolCallId: string, toolCallId: string, isError: boolean): void {
+	const call = callsByParent.get(parentToolCallId)?.find((candidate) => candidate.toolCallId === toolCallId);
 
 	if (!call) {
 		return;
@@ -79,7 +73,5 @@ function argumentPreview(args: unknown): string {
 function shorten(text: string): string {
 	const oneLine = text.replace(/\s+/g, NAME_SEPARATOR).trim();
 
-	return oneLine.length > ARGUMENT_PREVIEW_LENGTH
-		? `${oneLine.slice(0, ARGUMENT_PREVIEW_LENGTH - 1)}…`
-		: oneLine;
+	return oneLine.length > ARGUMENT_PREVIEW_LENGTH ? `${oneLine.slice(0, ARGUMENT_PREVIEW_LENGTH - 1)}…` : oneLine;
 }

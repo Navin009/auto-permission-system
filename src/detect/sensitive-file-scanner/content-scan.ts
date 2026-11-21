@@ -8,22 +8,18 @@
  */
 
 import { analyzeAssignment, findContinuationValue } from "./assignment.ts";
-import {
-  BASE_SCORES,
-  HIGH_ENTROPY_BONUS,
-  TEST_CONTEXT_PENALTY,
-} from "./constants.ts";
+import { BASE_SCORES, HIGH_ENTROPY_BONUS, TEST_CONTEXT_PENALTY } from "./constants.ts";
 import { entropy } from "./entropy.ts";
 import { containsJwt } from "./jwt.ts";
 import { normalizeKey } from "./keys.ts";
 import {
-  BEARER_REGEX,
-  CONNECTION_STRING_REGEX,
-  DB_CONNECTION_REGEX,
-  KNOWN_SECRET_FORMATS,
-  PRIVATE_KEY_REGEX,
-  URL_CREDENTIAL_REGEX,
-  URL_QUERY_CREDENTIAL_REGEX,
+	BEARER_REGEX,
+	CONNECTION_STRING_REGEX,
+	DB_CONNECTION_REGEX,
+	KNOWN_SECRET_FORMATS,
+	PRIVATE_KEY_REGEX,
+	URL_CREDENTIAL_REGEX,
+	URL_QUERY_CREDENTIAL_REGEX,
 } from "./patterns.ts";
 import { redactValuePreview } from "./redaction.ts";
 import { contentFinding, getSeverity, scoreFindings } from "./scoring.ts";
@@ -35,168 +31,156 @@ import { isPlaceholder, looksLikeRealSecret } from "./value-analysis.ts";
  */
 
 function hasRealValue(regex: RegExp, content: string): boolean {
-  const globalFlags = regex.flags.includes("g") ? regex.flags : `${regex.flags}g`;
-  const global = new RegExp(regex.source, globalFlags);
+	const globalFlags = regex.flags.includes("g") ? regex.flags : `${regex.flags}g`;
+	const global = new RegExp(regex.source, globalFlags);
 
-  for (const match of content.matchAll(global)) {
-    if (match[1] && !isPlaceholder(match[1])) {
-      return true;
-    }
-  }
+	for (const match of content.matchAll(global)) {
+		if (match[1] && !isPlaceholder(match[1])) {
+			return true;
+		}
+	}
 
-  return false;
+	return false;
 }
 
 function contentFindings(content: string): Finding[] {
-  const findings: Finding[] = [];
+	const findings: Finding[] = [];
 
-  if (PRIVATE_KEY_REGEX.test(content)) {
-    findings.push(
-      contentFinding("PRIVATE_KEY", { preview: "Private key detected" })
-    );
-  }
+	if (PRIVATE_KEY_REGEX.test(content)) {
+		findings.push(contentFinding("PRIVATE_KEY", { preview: "Private key detected" }));
+	}
 
-  if (containsJwt(content)) {
-    findings.push(contentFinding("JWT", { preview: "JWT-like token detected" }));
-  }
+	if (containsJwt(content)) {
+		findings.push(contentFinding("JWT", { preview: "JWT-like token detected" }));
+	}
 
-  if (BEARER_REGEX.test(content)) {
-    findings.push(
-      contentFinding("BEARER_TOKEN", { preview: "Bearer token detected" })
-    );
-  }
+	if (BEARER_REGEX.test(content)) {
+		findings.push(contentFinding("BEARER_TOKEN", { preview: "Bearer token detected" }));
+	}
 
-  if (DB_CONNECTION_REGEX.test(content)) {
-    findings.push(
-      contentFinding("DATABASE_CREDENTIAL", {
-        preview: "Database connection string contains credentials",
-      })
-    );
-  }
+	if (DB_CONNECTION_REGEX.test(content)) {
+		findings.push(
+			contentFinding("DATABASE_CREDENTIAL", {
+				preview: "Database connection string contains credentials",
+			}),
+		);
+	}
 
-  if (URL_CREDENTIAL_REGEX.test(content)) {
-    findings.push(
-      contentFinding("URL_CREDENTIAL", {
-        preview: "URL contains embedded credentials",
-      })
-    );
-  }
+	if (URL_CREDENTIAL_REGEX.test(content)) {
+		findings.push(
+			contentFinding("URL_CREDENTIAL", {
+				preview: "URL contains embedded credentials",
+			}),
+		);
+	}
 
-  if (hasRealValue(CONNECTION_STRING_REGEX, content)) {
-    findings.push(
-      contentFinding("DATABASE_CREDENTIAL", {
-        preview: "Connection string contains a password",
-      })
-    );
-  }
+	if (hasRealValue(CONNECTION_STRING_REGEX, content)) {
+		findings.push(
+			contentFinding("DATABASE_CREDENTIAL", {
+				preview: "Connection string contains a password",
+			}),
+		);
+	}
 
-  if (hasRealValue(URL_QUERY_CREDENTIAL_REGEX, content)) {
-    findings.push(
-      contentFinding("URL_CREDENTIAL", {
-        preview: "URL query parameter contains a credential",
-      })
-    );
-  }
+	if (hasRealValue(URL_QUERY_CREDENTIAL_REGEX, content)) {
+		findings.push(
+			contentFinding("URL_CREDENTIAL", {
+				preview: "URL query parameter contains a credential",
+			}),
+		);
+	}
 
-  for (const format of KNOWN_SECRET_FORMATS) {
-    if (format.regex.test(content)) {
-      findings.push({
-        type: format.type,
-        severity: format.severity,
-        score: format.score,
-        preview: format.label,
-      });
-    }
-  }
+	for (const format of KNOWN_SECRET_FORMATS) {
+		if (format.regex.test(content)) {
+			findings.push({
+				type: format.type,
+				severity: format.severity,
+				score: format.score,
+				preview: format.label,
+			});
+		}
+	}
 
-  return findings;
+	return findings;
 }
 
-export function scanTextContent(
-  content: string,
-  options: TextScanOptions = {}
-): TextScanResult {
-  const allowUnquoted = options.allowUnquoted ?? true;
-  const testContext = options.testContext ?? false;
-  const maxFindings = options.maxFindings ?? Number.POSITIVE_INFINITY;
-  const lines = content.split(/\r?\n/);
-  const findings: Finding[] = contentFindings(content);
+export function scanTextContent(content: string, options: TextScanOptions = {}): TextScanResult {
+	const allowUnquoted = options.allowUnquoted ?? true;
+	const testContext = options.testContext ?? false;
+	const maxFindings = options.maxFindings ?? Number.POSITIVE_INFINITY;
+	const lines = content.split(/\r?\n/);
+	const findings: Finding[] = contentFindings(content);
 
-  for (let i = 0; i < lines.length; i++) {
-    if (findings.length >= maxFindings) {
-      break;
-    }
+	for (let i = 0; i < lines.length; i++) {
+		if (findings.length >= maxFindings) {
+			break;
+		}
 
-    const line = lines[i];
-    const hit = analyzeAssignment(line, allowUnquoted);
+		const line = lines[i];
+		const hit = analyzeAssignment(line, allowUnquoted);
 
-    if (!hit) {
-      continue;
-    }
+		if (!hit) {
+			continue;
+		}
 
-    let value = hit.value;
-    let previewLine = line;
-    let valueStart = hit.valueStart;
-    let valueEnd = hit.valueEnd;
-    let lineNumber = i + 1;
+		let value = hit.value;
+		let previewLine = line;
+		let valueStart = hit.valueStart;
+		let valueEnd = hit.valueEnd;
+		let lineNumber = i + 1;
 
-    if (value === null) {
-      if (!hit.block) {
-        continue;
-      }
+		if (value === null) {
+			if (!hit.block) {
+				continue;
+			}
 
-      const continuation = findContinuationValue(lines, i);
+			const continuation = findContinuationValue(lines, i);
 
-      if (!continuation) {
-        continue;
-      }
+			if (!continuation) {
+				continue;
+			}
 
-      value = continuation.value;
-      previewLine = continuation.previewLine;
-      valueStart = continuation.valueStart;
-      valueEnd = continuation.valueEnd;
-      lineNumber = continuation.line;
-    }
+			value = continuation.value;
+			previewLine = continuation.previewLine;
+			valueStart = continuation.valueStart;
+			valueEnd = continuation.valueEnd;
+			lineNumber = continuation.line;
+		}
 
-    if (value.length === 0) {
-      continue;
-    }
+		if (value.length === 0) {
+			continue;
+		}
 
-    const normalized = normalizeKey(hit.keyword);
+		const normalized = normalizeKey(hit.keyword);
 
-    if (!looksLikeRealSecret(value, normalized)) {
-      continue;
-    }
+		if (!looksLikeRealSecret(value, normalized)) {
+			continue;
+		}
 
-    let score = BASE_SCORES.SECRET_ASSIGNMENT;
+		let score = BASE_SCORES.SECRET_ASSIGNMENT;
 
-    if (entropy(value) >= 4.0) {
-      score += HIGH_ENTROPY_BONUS;
-    } else if (testContext) {
-      score -= TEST_CONTEXT_PENALTY;
-    }
+		if (entropy(value) >= 4.0) {
+			score += HIGH_ENTROPY_BONUS;
+		} else if (testContext) {
+			score -= TEST_CONTEXT_PENALTY;
+		}
 
-    findings.push({
-      type: "SECRET_ASSIGNMENT",
-      keyword: hit.keyword,
-      line: lineNumber,
-      severity: getSeverity("SECRET_ASSIGNMENT"),
-      preview: redactValuePreview(previewLine, valueStart, valueEnd),
-      score,
-    });
-  }
+		findings.push({
+			type: "SECRET_ASSIGNMENT",
+			keyword: hit.keyword,
+			line: lineNumber,
+			severity: getSeverity("SECRET_ASSIGNMENT"),
+			preview: redactValuePreview(previewLine, valueStart, valueEnd),
+			score,
+		});
+	}
 
-  const uniqueFindings = Array.from(
-    new Map(
-      findings.map((finding) => [
-        `${finding.type}:${finding.line ?? 0}`,
-        finding,
-      ])
-    ).values()
-  );
+	const uniqueFindings = Array.from(
+		new Map(findings.map((finding) => [`${finding.type}:${finding.line ?? 0}`, finding])).values(),
+	);
 
-  return {
-    findings: uniqueFindings,
-    riskScore: scoreFindings(uniqueFindings),
-  };
+	return {
+		findings: uniqueFindings,
+		riskScore: scoreFindings(uniqueFindings),
+	};
 }

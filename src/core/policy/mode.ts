@@ -21,7 +21,11 @@ export type PermissionMode = (typeof PermissionMode)[keyof typeof PermissionMode
 export const DEFAULT_MODE: PermissionMode = PermissionMode.Default;
 
 /** Weakest → strictest. Used by the untrusted-project tighten-only merge. */
-export const MODE_ORDER: readonly PermissionMode[] = [PermissionMode.Yolo, PermissionMode.Default, PermissionMode.AdvancedSecure];
+export const MODE_ORDER: readonly PermissionMode[] = [
+	PermissionMode.Yolo,
+	PermissionMode.Default,
+	PermissionMode.AdvancedSecure,
+];
 
 /** Anything that is not one of the known modes resolves to the default. */
 export function normalizeMode(value: unknown): PermissionMode {

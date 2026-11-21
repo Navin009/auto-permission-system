@@ -15,241 +15,230 @@ import { isSourceExtension } from "../filename-gate/index.ts";
 import { isSensitiveKey, normalizeKey } from "./keys.ts";
 
 interface Operator {
-  start: number;
-  end: number;
+	start: number;
+	end: number;
 }
 
 function findAssignmentOperator(line: string): Operator | null {
-  for (let i = 0; i < line.length; i++) {
-    if (line.charCodeAt(i) !== 0x3d) {
-      continue;
-    }
+	for (let i = 0; i < line.length; i++) {
+		if (line.charCodeAt(i) !== 0x3d) {
+			continue;
+		}
 
-    const previous = line[i - 1];
-    const next = line[i + 1];
+		const previous = line[i - 1];
+		const next = line[i + 1];
 
-    if (next === "=" || next === ">") {
-      i += 1;
-      continue;
-    }
+		if (next === "=" || next === ">") {
+			i += 1;
+			continue;
+		}
 
-    if (
-      previous === "=" ||
-      previous === "!" ||
-      previous === "<" ||
-      previous === ">"
-    ) {
-      continue;
-    }
+		if (previous === "=" || previous === "!" || previous === "<" || previous === ">") {
+			continue;
+		}
 
-    return { start: i, end: i + 1 };
-  }
+		return { start: i, end: i + 1 };
+	}
 
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] !== ":") {
-      continue;
-    }
+	for (let i = 0; i < line.length; i++) {
+		if (line[i] !== ":") {
+			continue;
+		}
 
-    if (line[i + 1] === ":" || line[i - 1] === ":") {
-      continue;
-    }
+		if (line[i + 1] === ":" || line[i - 1] === ":") {
+			continue;
+		}
 
-    if (line[i + 1] === "/" && line[i + 2] === "/") {
-      continue;
-    }
+		if (line[i + 1] === "/" && line[i + 2] === "/") {
+			continue;
+		}
 
-    return { start: i, end: i + 1 };
-  }
+		return { start: i, end: i + 1 };
+	}
 
-  return null;
+	return null;
 }
 
 function extractSensitiveKey(left: string): string | null {
-  const tokens = left.match(/[A-Za-z0-9_$.-]+/g);
+	const tokens = left.match(/[A-Za-z0-9_$.-]+/g);
 
-  if (!tokens) {
-    return null;
-  }
+	if (!tokens) {
+		return null;
+	}
 
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    if (isSensitiveKey(normalizeKey(tokens[i]))) {
-      return tokens[i];
-    }
-  }
+	for (let i = tokens.length - 1; i >= 0; i--) {
+		if (isSensitiveKey(normalizeKey(tokens[i]))) {
+			return tokens[i];
+		}
+	}
 
-  return null;
+	return null;
 }
 
 interface AssignmentAnalysis {
-  keyword: string;
-  value: string | null;
-  valueStart: number;
-  valueEnd: number;
-  block: boolean;
+	keyword: string;
+	value: string | null;
+	valueStart: number;
+	valueEnd: number;
+	block: boolean;
 }
 
 const BLOCK_VALUE_REGEX = /^(?:[|>][+-]?|\\)$/;
 
-export function analyzeAssignment(
-  line: string,
-  allowUnquoted: boolean
-): AssignmentAnalysis | null {
-  const operator = findAssignmentOperator(line);
+export function analyzeAssignment(line: string, allowUnquoted: boolean): AssignmentAnalysis | null {
+	const operator = findAssignmentOperator(line);
 
-  if (!operator) {
-    return null;
-  }
+	if (!operator) {
+		return null;
+	}
 
-  const key = extractSensitiveKey(line.slice(0, operator.start));
+	const key = extractSensitiveKey(line.slice(0, operator.start));
 
-  if (!key) {
-    return null;
-  }
+	if (!key) {
+		return null;
+	}
 
-  const rest = line.slice(operator.end);
-  let index = 0;
+	const rest = line.slice(operator.end);
+	let index = 0;
 
-  while (index < rest.length && (rest[index] === " " || rest[index] === "\t")) {
-    index++;
-  }
+	while (index < rest.length && (rest[index] === " " || rest[index] === "\t")) {
+		index++;
+	}
 
-  const valueStart = operator.end + index;
-  const tail = rest.slice(index).trim();
-  const isBlock = tail === "" || BLOCK_VALUE_REGEX.test(tail);
-  const quote = rest[index];
+	const valueStart = operator.end + index;
+	const tail = rest.slice(index).trim();
+	const isBlock = tail === "" || BLOCK_VALUE_REGEX.test(tail);
+	const quote = rest[index];
 
-  if (quote === '"' || quote === "'" || quote === "`") {
-    let end = index + 1;
+	if (quote === '"' || quote === "'" || quote === "`") {
+		let end = index + 1;
 
-    while (end < rest.length) {
-      if (rest[end] === "\\") {
-        end += 2;
-        continue;
-      }
+		while (end < rest.length) {
+			if (rest[end] === "\\") {
+				end += 2;
+				continue;
+			}
 
-      if (rest[end] === quote) {
-        break;
-      }
+			if (rest[end] === quote) {
+				break;
+			}
 
-      end++;
-    }
+			end++;
+		}
 
-    if (end >= rest.length) {
-      return {
-        keyword: key,
-        value: null,
-        valueStart,
-        valueEnd: valueStart,
-        block: false,
-      };
-    }
+		if (end >= rest.length) {
+			return {
+				keyword: key,
+				value: null,
+				valueStart,
+				valueEnd: valueStart,
+				block: false,
+			};
+		}
 
-    return {
-      keyword: key,
-      value: rest.slice(index + 1, end),
-      valueStart: valueStart + 1,
-      valueEnd: operator.end + end,
-      block: false,
-    };
-  }
+		return {
+			keyword: key,
+			value: rest.slice(index + 1, end),
+			valueStart: valueStart + 1,
+			valueEnd: operator.end + end,
+			block: false,
+		};
+	}
 
-  if (!allowUnquoted || isBlock) {
-    return {
-      keyword: key,
-      value: null,
-      valueStart,
-      valueEnd: valueStart,
-      block: isBlock,
-    };
-  }
+	if (!allowUnquoted || isBlock) {
+		return {
+			keyword: key,
+			value: null,
+			valueStart,
+			valueEnd: valueStart,
+			block: isBlock,
+		};
+	}
 
-  let end = index;
+	let end = index;
 
-  while (end < rest.length && !/[\s"'#;,)\]}]/.test(rest[end])) {
-    end++;
-  }
+	while (end < rest.length && !/[\s"'#;,)\]}]/.test(rest[end])) {
+		end++;
+	}
 
-  if (end === index) {
-    return {
-      keyword: key,
-      value: null,
-      valueStart,
-      valueEnd: valueStart,
-      block: false,
-    };
-  }
+	if (end === index) {
+		return {
+			keyword: key,
+			value: null,
+			valueStart,
+			valueEnd: valueStart,
+			block: false,
+		};
+	}
 
-  return {
-    keyword: key,
-    value: rest.slice(index, end),
-    valueStart,
-    valueEnd: valueStart + (end - index),
-    block: false,
-  };
+	return {
+		keyword: key,
+		value: rest.slice(index, end),
+		valueStart,
+		valueEnd: valueStart + (end - index),
+		block: false,
+	};
 }
 
 function leadingIndent(line: string): number {
-  let count = 0;
+	let count = 0;
 
-  while (count < line.length && (line[count] === " " || line[count] === "\t")) {
-    count++;
-  }
+	while (count < line.length && (line[count] === " " || line[count] === "\t")) {
+		count++;
+	}
 
-  return count;
+	return count;
 }
 
 interface ContinuationValue {
-  value: string;
-  previewLine: string;
-  valueStart: number;
-  valueEnd: number;
-  line: number;
+	value: string;
+	previewLine: string;
+	valueStart: number;
+	valueEnd: number;
+	line: number;
 }
 
-function findContinuationValue(
-  lines: string[],
-  index: number
-): ContinuationValue | null {
-  const baseIndent = leadingIndent(lines[index]);
-  const limit = Math.min(lines.length, index + 4);
+function findContinuationValue(lines: string[], index: number): ContinuationValue | null {
+	const baseIndent = leadingIndent(lines[index]);
+	const limit = Math.min(lines.length, index + 4);
 
-  for (let i = index + 1; i < limit; i++) {
-    const candidate = lines[i];
+	for (let i = index + 1; i < limit; i++) {
+		const candidate = lines[i];
 
-    if (candidate.trim() === "") {
-      continue;
-    }
+		if (candidate.trim() === "") {
+			continue;
+		}
 
-    if (leadingIndent(candidate) < baseIndent) {
-      return null;
-    }
+		if (leadingIndent(candidate) < baseIndent) {
+			return null;
+		}
 
-    const trimmed = candidate.trim();
+		const trimmed = candidate.trim();
 
-    if (trimmed.startsWith("- ")) {
-      return null;
-    }
+		if (trimmed.startsWith("- ")) {
+			return null;
+		}
 
-    if (/^[A-Za-z0-9_.-]+\s*[:=]/.test(trimmed)) {
-      return null;
-    }
+		if (/^[A-Za-z0-9_.-]+\s*[:=]/.test(trimmed)) {
+			return null;
+		}
 
-    if (trimmed.length < 4) {
-      return null;
-    }
+		if (trimmed.length < 4) {
+			return null;
+		}
 
-    const start = candidate.indexOf(trimmed);
+		const start = candidate.indexOf(trimmed);
 
-    return {
-      value: trimmed,
-      previewLine: candidate,
-      valueStart: start,
-      valueEnd: start + trimmed.length,
-      line: i + 1,
-    };
-  }
+		return {
+			value: trimmed,
+			previewLine: candidate,
+			valueStart: start,
+			valueEnd: start + trimmed.length,
+			line: i + 1,
+		};
+	}
 
-  return null;
+	return null;
 }
 
 export { findContinuationValue };
@@ -260,43 +249,40 @@ export { findContinuationValue };
  * unquoted value is usually an expression (`generateToken()`), so it is
  * ignored.
  */
-export function allowsUnquotedAssignment(
-  fileName: string,
-  extension: string
-): boolean {
-  const lower = fileName.toLowerCase();
+export function allowsUnquotedAssignment(fileName: string, extension: string): boolean {
+	const lower = fileName.toLowerCase();
 
-  if (lower === "dockerfile" || lower.startsWith("dockerfile.")) {
-    return true;
-  }
+	if (lower === "dockerfile" || lower.startsWith("dockerfile.")) {
+		return true;
+	}
 
-  const unquotedExtensions = new Set([
-    ".env",
-    ".sh",
-    ".bash",
-    ".zsh",
-    ".ksh",
-    ".fish",
-    ".tf",
-    ".tfvars",
-    ".hcl",
-    ".sql",
-    ".ini",
-    ".properties",
-    ".conf",
-    ".cfg",
-    ".cnf",
-    ".config",
-    ".toml",
-    ".yaml",
-    ".yml",
-    ".json",
-    ".json5",
-  ]);
+	const unquotedExtensions = new Set([
+		".env",
+		".sh",
+		".bash",
+		".zsh",
+		".ksh",
+		".fish",
+		".tf",
+		".tfvars",
+		".hcl",
+		".sql",
+		".ini",
+		".properties",
+		".conf",
+		".cfg",
+		".cnf",
+		".config",
+		".toml",
+		".yaml",
+		".yml",
+		".json",
+		".json5",
+	]);
 
-  if (unquotedExtensions.has(extension)) {
-    return true;
-  }
+	if (unquotedExtensions.has(extension)) {
+		return true;
+	}
 
-  return !isSourceExtension(extension);
+	return !isSourceExtension(extension);
 }

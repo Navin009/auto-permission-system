@@ -27,12 +27,7 @@ export class RowGroupComponent implements Component {
 	private readonly onClick: () => void;
 	private readonly segmentIndex: number;
 
-	constructor(
-		summary: () => RowGroupSummary,
-		theme: Theme,
-		onClick: () => void,
-		segmentIndex: number,
-	) {
+	constructor(summary: () => RowGroupSummary, theme: Theme, onClick: () => void, segmentIndex: number) {
 		this.summary = summary;
 		this.theme = theme;
 		this.onClick = onClick;

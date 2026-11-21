@@ -1,7 +1,4 @@
-import {
-	AssistantMessageComponent,
-	initTheme,
-} from "@earendil-works/pi-coding-agent";
+import { AssistantMessageComponent, initTheme } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 import { thoughtForCall, type MessageContent } from "./thought-store.ts";
 
@@ -9,9 +6,7 @@ const COLLAPSED_THINKING_BLOCK = true;
 const THINKING_LABEL = "Thinking...";
 const LEADING_SPACER_INDEX = 0;
 
-type AssistantMessage = NonNullable<
-	ConstructorParameters<typeof AssistantMessageComponent>[0]
->;
+type AssistantMessage = NonNullable<ConstructorParameters<typeof AssistantMessageComponent>[0]>;
 
 interface ComponentInternals {
 	contentContainer?: { children: Component[] };

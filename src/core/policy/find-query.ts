@@ -28,21 +28,71 @@ const PATH_PREDICATES = new Set(["-path", "-wholename"]);
 const NEGATABLE_PREDICATES = new Set([NAME_PREDICATE, ...PATH_PREDICATES]);
 
 const FLAG_ONLY_PREDICATES = new Set([
-	"-print", "-print0", "-ls", "-prune", "-depth", "-d", "-empty", "-readable",
-	"-writable", "-executable", "-mount", "-xdev", "-noleaf", "-quit", "-true", "-false",
+	"-print",
+	"-print0",
+	"-ls",
+	"-prune",
+	"-depth",
+	"-d",
+	"-empty",
+	"-readable",
+	"-writable",
+	"-executable",
+	"-mount",
+	"-xdev",
+	"-noleaf",
+	"-quit",
+	"-true",
+	"-false",
 ]);
 
 const VALUE_PREDICATES = new Set([
-	NAME_PREDICATE, MAXIMUM_DEPTH_PREDICATE, MINIMUM_DEPTH_PREDICATE,
-	"-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex",
-	"-lname", "-ilname", "-type", "-xtype", "-size", "-perm", "-user", "-group",
-	"-uid", "-gid", "-newer", "-anewer", "-cnewer", "-mtime", "-atime", "-ctime",
-	"-mmin", "-amin", "-cmin", "-links", "-inum", "-samefile", "-fstype",
+	NAME_PREDICATE,
+	MAXIMUM_DEPTH_PREDICATE,
+	MINIMUM_DEPTH_PREDICATE,
+	"-iname",
+	"-path",
+	"-ipath",
+	"-wholename",
+	"-iwholename",
+	"-regex",
+	"-iregex",
+	"-lname",
+	"-ilname",
+	"-type",
+	"-xtype",
+	"-size",
+	"-perm",
+	"-user",
+	"-group",
+	"-uid",
+	"-gid",
+	"-newer",
+	"-anewer",
+	"-cnewer",
+	"-mtime",
+	"-atime",
+	"-ctime",
+	"-mmin",
+	"-amin",
+	"-cmin",
+	"-links",
+	"-inum",
+	"-samefile",
+	"-fstype",
 ]);
 
 const UNSUPPORTED_PREDICATES = new Set([
-	"-exec", "-execdir", "-ok", "-okdir", "-delete",
-	"-printf", "-fprint", "-fprint0", "-fprintf", "-fls",
+	"-exec",
+	"-execdir",
+	"-ok",
+	"-okdir",
+	"-delete",
+	"-printf",
+	"-fprint",
+	"-fprint0",
+	"-fprintf",
+	"-fls",
 ]);
 
 const DEPTH_VALUE_PATTERN = /^\d+$/;
@@ -363,11 +413,7 @@ function absoluteExclusionPattern(pattern: string, workingDirectory: string): st
 	return `${workingDirectory}/${relativePattern}`;
 }
 
-function isExcludedByQuery(
-	candidatePath: string,
-	query: FindQuery,
-	workingDirectory: string,
-): boolean {
+function isExcludedByQuery(candidatePath: string, query: FindQuery, workingDirectory: string): boolean {
 	const basename = candidatePath.slice(candidatePath.lastIndexOf("/") + 1);
 
 	const isExcludedPath = query.excludedPaths.some((pattern) =>

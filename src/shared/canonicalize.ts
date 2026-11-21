@@ -16,8 +16,9 @@ export function canonicalize(targetPath: string, workingDirectory: string): stri
 				return resolvedPath;
 			}
 
-			const reversedSuffix = unresolvableSuffixComponents
-				.reduceRight((combinedPath, component) => `${combinedPath}/${component}`);
+			const reversedSuffix = unresolvableSuffixComponents.reduceRight(
+				(combinedPath, component) => `${combinedPath}/${component}`,
+			);
 			return `${resolvedPath}/${reversedSuffix}`;
 		} catch {
 			const parentDirectory = dirname(currentPath);

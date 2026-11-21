@@ -11,7 +11,18 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, createProjectTrust, shippedPolicy, overlayPolicy, normalizeMode, ReadPosture, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
+import {
+	applyUntrustedProject,
+	createProjectTrust,
+	shippedPolicy,
+	overlayPolicy,
+	normalizeMode,
+	ReadPosture,
+	globalPolicyPath,
+	projectPolicyPath,
+	trustStorePath,
+	type PermissionMode,
+} from "../core/index";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -111,9 +122,19 @@ export function loadConfig(cwd: string): SandboxConfig {
 	const base = overlayPolicy(DEFAULT_CONFIG, globalConfig);
 	let merged: SandboxConfig;
 	if (existsSync(projectConfigPath) && !projectTrusted(cwd)) {
-		const baseRecord = /* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<string, unknown>;
-		const projectRecord = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<string, unknown>;
-		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(baseRecord, projectRecord).merged as unknown as SandboxConfig;
+		const baseRecord =
+			/* SAFETY: SandboxConfig is parsed JSON, readable as a plain record. */ base as unknown as Record<
+				string,
+				unknown
+			>;
+		const projectRecord = /* SAFETY: project sandbox.json is parsed JSON. */ projectConfig as unknown as Record<
+			string,
+			unknown
+		>;
+		merged = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(
+			baseRecord,
+			projectRecord,
+		).merged as unknown as SandboxConfig;
 	} else {
 		merged = overlayPolicy(base, projectConfig);
 	}
@@ -138,6 +159,7 @@ function foldOverrides(config: SandboxConfig): SandboxConfig {
 	const network = config.network ? { ...config.network } : { allowedDomains: [], deniedDomains: [] };
 	if (overrides.allowWrite?.length) filesystem.allowWrite = [...(filesystem.allowWrite ?? []), ...overrides.allowWrite];
 	if (overrides.allowRead?.length) filesystem.allowRead = [...(filesystem.allowRead ?? []), ...overrides.allowRead];
-	if (overrides.allowDomains?.length) network.allowedDomains = [...(network.allowedDomains ?? []), ...overrides.allowDomains];
+	if (overrides.allowDomains?.length)
+		network.allowedDomains = [...(network.allowedDomains ?? []), ...overrides.allowDomains];
 	return { ...config, filesystem, network };
 }

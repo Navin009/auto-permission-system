@@ -109,8 +109,7 @@ export async function handleBlockedBashExecution(
 				hardDenialReason = hardReason;
 
 				isOutsideDenied =
-					!isWriteDenied &&
-					outsideProjectReadDenied(offendingPath, workingDirectory, homedir(), filesystemConfig);
+					!isWriteDenied && outsideProjectReadDenied(offendingPath, workingDirectory, homedir(), filesystemConfig);
 				outsideReadMode = outsideProjectMode(filesystemConfig);
 			}
 
@@ -138,9 +137,7 @@ export async function handleBlockedBashExecution(
 
 		if (loopbackResult.blocked) {
 			const endpoint = loopbackResult.endpoint;
-			const endpointString = endpoint?.port
-				? `${endpoint.host}:${endpoint.port}`
-				: (endpoint?.host ?? "127.0.0.1");
+			const endpointString = endpoint?.port ? `${endpoint.host}:${endpoint.port}` : (endpoint?.host ?? "127.0.0.1");
 			const serviceName = endpoint?.service;
 
 			auditLayer1Bash({
@@ -298,10 +295,7 @@ export async function handleBlockedBashExecution(
 					});
 
 					const folderLabel = grant.folder ? ", folder" : "";
-					options.ctx.ui?.notify?.(
-						`sandbox: allowed read of ${subject} (${grant.scope}${folderLabel})`,
-						"info",
-					);
+					options.ctx.ui?.notify?.(`sandbox: allowed read of ${subject} (${grant.scope}${folderLabel})`, "info");
 
 					onData(
 						Buffer.from(

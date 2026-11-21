@@ -1,13 +1,5 @@
 import type { Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
-import {
-	Box,
-	Container,
-	MouseRegion,
-	Spacer,
-	Text,
-	type Component,
-	type TuiMouseEvent,
-} from "@earendil-works/pi-tui";
+import { Box, Container, MouseRegion, Spacer, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { rowTarget } from "../core/tool-view/arguments.ts";
 import type { SubLineSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
@@ -98,13 +90,15 @@ function renderRowCall(toolName: string, fallback: RendererFallback, parameters:
 		return nativeCallBlock(fallback, parameters, ExpansionLevel.Collapsed, group);
 	}
 
-	const joined = group ?? joinRowGroup({
-		toolCallId: context.toolCallId,
-		kind,
-		target,
-		invalidate: context.invalidate,
-		subLines: subLinesFor(toolName, context.toolCallId, args as ToolCallArguments),
-	});
+	const joined =
+		group ??
+		joinRowGroup({
+			toolCallId: context.toolCallId,
+			kind,
+			target,
+			invalidate: context.invalidate,
+			subLines: subLinesFor(toolName, context.toolCallId, args as ToolCallArguments),
+		});
 
 	return rowComponent(joined, context, theme);
 }
@@ -212,11 +206,7 @@ function nativeCallBlock(
 	return clicking(view, group);
 }
 
-function nativeResultBlock(
-	fallback: RendererFallback,
-	parameters: ResultParameters,
-	level: ExpansionLevel,
-) {
+function nativeResultBlock(fallback: RendererFallback, parameters: ResultParameters, level: ExpansionLevel) {
 	const [result, options, theme, context] = parameters;
 	const renderPiResult = fallback?.renderResult;
 	const block = context.state[NATIVE_BLOCK_STATE_KEY] as Box | undefined;
@@ -227,12 +217,11 @@ function nativeResultBlock(
 
 	const isFull = level === ExpansionLevel.Full;
 	const lastComponent = context.state[PI_RESULT_STATE_KEY] as Component | undefined;
-	const resultComponent = renderPiResult(
-		result,
-		{ ...options, expanded: isFull },
-		theme,
-		{ ...context, expanded: isFull, lastComponent },
-	);
+	const resultComponent = renderPiResult(result, { ...options, expanded: isFull }, theme, {
+		...context,
+		expanded: isFull,
+		lastComponent,
+	});
 
 	context.state[PI_RESULT_STATE_KEY] = resultComponent;
 	block.addChild(resultComponent);
@@ -296,11 +285,7 @@ function fallbackResult(fallback: RendererFallback, parameters: ResultParameters
 	return fallback?.renderResult?.(...parameters) ?? emptyComponent();
 }
 
-function subLinesFor(
-	toolName: string,
-	toolCallId: string,
-	args: ToolCallArguments,
-): SubLineSummary[] | undefined {
+function subLinesFor(toolName: string, toolCallId: string, args: ToolCallArguments): SubLineSummary[] | undefined {
 	if (toolName !== CODEMODE_TOOL_NAME) {
 		return undefined;
 	}

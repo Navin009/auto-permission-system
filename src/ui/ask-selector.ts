@@ -98,8 +98,7 @@ class Border implements Component {
 	constructor(color: (text: string) => string) {
 		this.color = color;
 	}
-	invalidate(): void {
-	}
+	invalidate(): void {}
 	render(width: number): string[] {
 		return [this.color("─".repeat(Math.max(1, width)))];
 	}
@@ -359,7 +358,8 @@ export class AskSelector extends Container {
 
 	/** The `Default: …` line, with the live `(Ns)` suffix while counting down. */
 	private footerValue(): string {
-		const text = this.timeoutMs > 0 && this.footerBase ? `${this.footerBase} (${this.remaining}s)` : this.footerBase ?? "";
+		const text =
+			this.timeoutMs > 0 && this.footerBase ? `${this.footerBase} (${this.remaining}s)` : (this.footerBase ?? "");
 		return this.theme.fg("accent", this.theme.bold(text));
 	}
 

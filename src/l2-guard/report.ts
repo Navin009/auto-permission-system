@@ -55,7 +55,10 @@ export async function handleProjectTrustCommand(
 	if (selectedOption !== dialogOptions[1]) {
 		recordProjectDeclined(projectPolicy, TRUST_STORE);
 		audit({ layer: 2, event: "project-trust-declined", file: projectPolicy, changes, cwd: context.cwd });
-		context.ui.notify("OK. auto-permission-system ignores these changes. It does not ask again until the file changes.", "info");
+		context.ui.notify(
+			"OK. auto-permission-system ignores these changes. It does not ask again until the file changes.",
+			"info",
+		);
 		return;
 	}
 
@@ -138,10 +141,7 @@ export function formatSecurityGuardReport(policy: Policy, context: ExtensionCont
 	}
 
 	try {
-		const auditTail = readFileSync(AUDIT_PATH, "utf-8")
-			.trim()
-			.split("\n")
-			.slice(-RECENT_AUDIT_LOG_LINE_COUNT);
+		const auditTail = readFileSync(AUDIT_PATH, "utf-8").trim().split("\n").slice(-RECENT_AUDIT_LOG_LINE_COUNT);
 
 		if (auditTail.length && auditTail[0]) {
 			reportLines.push("", `Recent audit (last ${RECENT_AUDIT_LOG_LINE_COUNT}):`);

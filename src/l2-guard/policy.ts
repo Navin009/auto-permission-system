@@ -6,7 +6,20 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { applyUntrustedProject, createProjectTrust, describeLoosening, shippedPolicy, overlayPolicy, normalizeMode, ReadPosture, SubagentNetwork, globalPolicyPath, projectPolicyPath, trustStorePath, type PermissionMode } from "../core/index";
+import {
+	applyUntrustedProject,
+	createProjectTrust,
+	describeLoosening,
+	shippedPolicy,
+	overlayPolicy,
+	normalizeMode,
+	ReadPosture,
+	SubagentNetwork,
+	globalPolicyPath,
+	projectPolicyPath,
+	trustStorePath,
+	type PermissionMode,
+} from "../core/index";
 import type { McpPolicy } from "../detect";
 
 export interface Policy {
@@ -100,8 +113,12 @@ export function loadPolicy(cwd: string): Policy {
 		try {
 			const parsed = JSON.parse(readFileSync(path, "utf-8"));
 			if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
-				const policyRecord = /* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
-				policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(policyRecord, parsed).merged as unknown as Policy;
+				const policyRecord =
+					/* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
+				policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(
+					policyRecord,
+					parsed,
+				).merged as unknown as Policy;
 				continue;
 			}
 			policy = overlayPolicy(policy, parsed as Partial<Policy>);

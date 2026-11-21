@@ -43,7 +43,12 @@ export type AskTui = {
 };
 
 export type AskCustomUi = (
-	factory: (tui: AskTui, theme: AskTheme, keybindings: AskKeybindings, done: (result: string | undefined) => void) => AskComponent,
+	factory: (
+		tui: AskTui,
+		theme: AskTheme,
+		keybindings: AskKeybindings,
+		done: (result: string | undefined) => void,
+	) => AskComponent,
 ) => Promise<string | undefined>;
 
 export type AskCtx = {
@@ -75,9 +80,9 @@ export const ASK_TIMEOUT_MS = 15_000;
 
 /** Per-action overrides; `0` means no countdown (the prompt stays open until Esc/select). */
 export const ASK_TIMEOUT_BY_ACTION: Record<"read" | "write" | "network" | "remember", number> = {
-	read:     15_000,
-	write:    15_000,
-	network:  30_000,
+	read: 15_000,
+	write: 15_000,
+	network: 30_000,
 	remember: 60_000,
 };
 
@@ -133,7 +138,10 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 		}
 	};
 	const queued = queueTail().then(run, run);
-	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(() => undefined, () => undefined);
+	(globalThis as AskChainGlobal)[ASK_CHAIN_GLOBAL] = queued.then(
+		() => undefined,
+		() => undefined,
+	);
 	return queued;
 }
 
@@ -193,22 +201,23 @@ async function askWithCustom(
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const { AskSelector } = await import("./ask-selector");
 	let expired = false;
-	const picked = await ctx.ui.custom!((tui, theme, keybindings, done) =>
-		new AskSelector({
-			title,
-			footer,
-			question,
-			note,
-			options,
-			timeoutMs,
-			tui,
-			theme,
-			keybindings,
-			done,
-			onExpire: () => {
-				expired = true;
-			},
-		}),
+	const picked = await ctx.ui.custom!(
+		(tui, theme, keybindings, done) =>
+			new AskSelector({
+				title,
+				footer,
+				question,
+				note,
+				options,
+				timeoutMs,
+				tui,
+				theme,
+				keybindings,
+				done,
+				onExpire: () => {
+					expired = true;
+				},
+			}),
 	);
 	return { picked, expired };
 }
@@ -285,13 +294,14 @@ async function askSelectWithActivity(
 		offInput();
 	};
 
-	offInput = ctx.ui.onTerminalInput?.((data: string) => {
-		if (settled || engaged) return;
-		if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
-			engaged = true;
-			clearTimer();
-		}
-	}) ?? (() => {});
+	offInput =
+		ctx.ui.onTerminalInput?.((data: string) => {
+			if (settled || engaged) return;
+			if (data.includes("\x1b[") || data === "\t" || data === "\r" || data === "\n") {
+				engaged = true;
+				clearTimer();
+			}
+		}) ?? (() => {});
 
 	currentTimer = setTimeout(() => {
 		expired = true;
@@ -351,11 +361,15 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: MainChoice.Once });
 	if (opts.session) choices.push({ label: sessionLabel, value: MainChoice.Session });
 	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: MainChoice.Remember });
-	const footer = opts.footer ?? (opts.allowFirst
-		? "Default: Yes, just this once"
-		: "Default: No");
+	const footer = opts.footer ?? (opts.allowFirst ? "Default: Yes, just this once" : "Default: No");
 	const title = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body].join("\n");
-	const { picked, expired } = await askSelect(ctx, title, choices.map((c) => c.label), opts.timeoutMs, { footer });
+	const { picked, expired } = await askSelect(
+		ctx,
+		title,
+		choices.map((c) => c.label),
+		opts.timeoutMs,
+		{ footer },
+	);
 	if (expired && opts.allowFirst) return MainChoice.Once;
 	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
 }
@@ -408,12 +422,22 @@ export async function askRememberFile(
 	const choices: Array<{ label: string; value: ScopeChoice }> = [];
 	const showCwd = !opts.untrusted;
 	if (showCwd && folderLabel) choices.push({ label: folderLabel, value: { scope: GrantScope.Cwd, folder: true } });
-	if (showCwd) choices.push({ label: `Only ${basename}   in this project`, value: { scope: GrantScope.Cwd, folder: false } });
-	if (folderLabel) choices.push({ label: `All in folder   in all projects`, value: { scope: GrantScope.Global, folder: true } });
+	if (showCwd)
+		choices.push({ label: `Only ${basename}   in this project`, value: { scope: GrantScope.Cwd, folder: false } });
+	if (folderLabel)
+		choices.push({ label: `All in folder   in all projects`, value: { scope: GrantScope.Global, folder: true } });
 	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: GrantScope.Global, folder: false } });
-	const footer = opts.footer ?? `Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
+	const footer =
+		opts.footer ??
+		`Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { footer });
+	const { picked } = await askSelect(
+		ctx,
+		prompt,
+		choices.map((c) => c.label),
+		undefined,
+		{ footer },
+	);
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
@@ -449,11 +473,23 @@ export async function askRememberHost(
 	const exactLabel = `Only ${host}   in this project`;
 	if (showCwd && hasWildcard) choices.push({ label: groupLabel, value: { scope: GrantScope.Cwd, pattern: wildcard } });
 	if (showCwd) choices.push({ label: exactLabel, value: { scope: GrantScope.Cwd, pattern: host } });
-	if (hasWildcard) choices.push({ label: `All in group   (${wildcard})   in all projects`, value: { scope: GrantScope.Global, pattern: wildcard } });
+	if (hasWildcard)
+		choices.push({
+			label: `All in group   (${wildcard})   in all projects`,
+			value: { scope: GrantScope.Global, pattern: wildcard },
+		});
 	choices.push({ label: `Only ${host}   in all projects`, value: { scope: GrantScope.Global, pattern: host } });
-	const footer = opts.footer ?? `Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
+	const footer =
+		opts.footer ??
+		`Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
 	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(ctx, prompt, choices.map((c) => c.label), undefined, { footer });
+	const { picked } = await askSelect(
+		ctx,
+		prompt,
+		choices.map((c) => c.label),
+		undefined,
+		{ footer },
+	);
 	const found = choices.find((c) => c.label === picked);
 	return found?.value ?? null;
 }
@@ -474,13 +510,20 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 		{ label: "No, keep it hidden   (recommended)", value: ExposureChoice.Block },
 		{ label: "Yes, show it this once", value: ExposureChoice.Allow },
 	];
-	if (programId) choices.push({ label: `Yes, all ${programId} output for this conversation`, value: ExposureChoice.ProgramSession });
+	if (programId)
+		choices.push({ label: `Yes, all ${programId} output for this conversation`, value: ExposureChoice.ProgramSession });
 	const titleParts = [`${ICON.warn}  Sensitive information detected`, hits.join("\n\n")];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices.map((c) => c.label), undefined, {
-		footer: "Default: No",
-		question: "Question Should the AI be allowed to see it?",
-		note: "Note     you'll be asked again each time a secret shows up",
-	});
+	const { picked } = await askSelect(
+		ctx,
+		titleParts.join("\n"),
+		choices.map((c) => c.label),
+		undefined,
+		{
+			footer: "Default: No",
+			question: "Question Should the AI be allowed to see it?",
+			note: "Note     you'll be asked again each time a secret shows up",
+		},
+	);
 	return choices.find((c) => c.label === picked)?.value ?? ExposureChoice.Block;
 }
 

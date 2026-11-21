@@ -84,7 +84,9 @@ function socketPathFromEnv(name: string): string | undefined {
  * per-user socket wins over the root-owned one, because it is the one a normal
  * user session already uses.
  */
-export function hostDaemonSockets(userIdentifier: number = process.getuid?.() ?? 0): { envName: string; targetPath: string }[] {
+export function hostDaemonSockets(
+	userIdentifier: number = process.getuid?.() ?? 0,
+): { envName: string; targetPath: string }[] {
 	const candidates: { envName: string; targetPath: string | undefined }[] = [
 		{ envName: "DOCKER_HOST", targetPath: socketPathFromEnv("DOCKER_HOST") },
 		{ envName: "CONTAINER_HOST", targetPath: socketPathFromEnv("CONTAINER_HOST") },
@@ -173,9 +175,7 @@ export function injectSocketBridgesIntoBwrap(wrappedCommand: string, bridges: Ho
 	if (dashIndex === -1) return wrappedCommand;
 
 	const binds = bridges.map((bridge) => `--bind ${bridge.sockPath} ${bridge.sockPath}`).join(" ");
-	const envs = bridges
-		.map((bridge) => `--setenv ${bridge.envName} ${UNIX_SOCKET_PREFIX}${bridge.sockPath}`)
-		.join(" ");
+	const envs = bridges.map((bridge) => `--setenv ${bridge.envName} ${UNIX_SOCKET_PREFIX}${bridge.sockPath}`).join(" ");
 
 	return `${wrappedCommand.slice(0, dashIndex)} ${binds} ${envs} -- ${wrappedCommand.slice(dashIndex + 4)}`;
 }
@@ -270,7 +270,10 @@ export function injectBridgesIntoBwrap(wrappedCommand: string, bridges: HostPort
 
 	// 2. Start socat listeners inside the container
 	const socatStarters = bridges
-		.map((b) => `socat TCP-LISTEN:${b.port},fork,reuseaddr UNIX-CONNECT:${b.sockPath} >/dev/null 2>&1 &\n_pi_bridge_pids="$_pi_bridge_pids $!"`)
+		.map(
+			(b) =>
+				`socat TCP-LISTEN:${b.port},fork,reuseaddr UNIX-CONNECT:${b.sockPath} >/dev/null 2>&1 &\n_pi_bridge_pids="$_pi_bridge_pids $!"`,
+		)
 		.join("\n");
 
 	if (shellPart.includes("socat TCP-LISTEN:3128")) {

@@ -44,12 +44,15 @@ export function extractBinaryName(command: string): string {
 	return command.trim().split(/\s+/)[0] ?? command;
 }
 
-export function formatBlockedLine(action: "Read" | "Write", reason: string, outcome: "read" | "written" | "run"): string {
+export function formatBlockedLine(
+	action: "Read" | "Write",
+	reason: string,
+	outcome: "read" | "written" | "run",
+): string {
 	return `[Security Policy Notice] ${action} blocked by policy: ${reason}. Nothing was ${outcome}. Inform the user; do not attempt workarounds.`;
 }
 
-export const auditLayer1Bash = (entry: Record<string, unknown>) =>
-	audit({ layer: 1, tool: "bash", ...entry });
+export const auditLayer1Bash = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
 
 const deduplicatePaths = (paths: readonly string[]): string[] => [...new Set(paths)];
 
@@ -180,7 +183,12 @@ export async function preflightSensitiveCommands(
 	}
 
 	if (!options?.ctx?.hasUI || !options.ctx.ui?.select) {
-		auditLayer1Bash({ subject: matchedCommands.join(", "), decision: "no", note: "sensitive-command-headless", cwd: workingDirectory });
+		auditLayer1Bash({
+			subject: matchedCommands.join(", "),
+			decision: "no",
+			note: "sensitive-command-headless",
+			cwd: workingDirectory,
+		});
 
 		return blockAutomated("command", matchedCommands.join(", "), onData);
 	}
@@ -241,9 +249,7 @@ export async function preflightWriteAccess(
 
 	if (deniedPaths.length) {
 		auditLayer1Bash({ subject: deniedPaths.join(", "), decision: "no", note: "deny-write", cwd: workingDirectory });
-		onData(
-			Buffer.from(`\n${formatBlockedLine("Write", `denyWrite matched ${deniedPaths.join(", ")}`, "written")}\n`),
-		);
+		onData(Buffer.from(`\n${formatBlockedLine("Write", `denyWrite matched ${deniedPaths.join(", ")}`, "written")}\n`));
 
 		return { exitCode: 1 };
 	}
@@ -258,7 +264,12 @@ export async function preflightWriteAccess(
 		}
 
 		if (sessionGrantCovers(sessionAskWriteDenials, absolutePath)) {
-			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write-remembered-deny", cwd: workingDirectory });
+			auditLayer1Bash({
+				subject: absolutePath,
+				decision: "no",
+				note: "ask-write-remembered-deny",
+				cwd: workingDirectory,
+			});
 			onData(
 				Buffer.from(
 					`\n[Security Block] sandbox: write access to ${absolutePath} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
@@ -289,7 +300,9 @@ export async function preflightWriteAccess(
 
 		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write", cwd: workingDirectory });
 		sessionAskWriteDenials.push(absolutePath);
-		onData(Buffer.from(`\n${formatBlockedLine("Write", `write access to ${absolutePath} was denied by user`, "written")}\n`));
+		onData(
+			Buffer.from(`\n${formatBlockedLine("Write", `write access to ${absolutePath} was denied by user`, "written")}\n`),
+		);
 
 		return { exitCode: 1 };
 	}
@@ -309,13 +322,8 @@ export async function preflightAskReads(
 		return undefined;
 	}
 
-	const findings = askReadFindings(
-		command,
-		workingDirectory,
-		homedir(),
-		filesystemPolicy,
-		undefined,
-		(path) => canonicalize(path, workingDirectory),
+	const findings = askReadFindings(command, workingDirectory, homedir(), filesystemPolicy, undefined, (path) =>
+		canonicalize(path, workingDirectory),
 	);
 
 	if (!findings.length) {
@@ -343,7 +351,12 @@ export async function preflightAskReads(
 		}
 
 		if (sessionGrantCovers(sessionAskReadDenials, finding.path)) {
-			auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read-remembered-deny", cwd: workingDirectory });
+			auditLayer1Bash({
+				subject: finding.path,
+				decision: "no",
+				note: "ask-read-remembered-deny",
+				cwd: workingDirectory,
+			});
 			onData(
 				Buffer.from(
 					`\n[Security Block] sandbox: read access to ${finding.path} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
@@ -379,7 +392,9 @@ export async function preflightAskReads(
 		auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read", cwd: workingDirectory });
 		sessionAskReadDenials.push(finding.path);
 		onData(
-			Buffer.from(`\n[Security Block] sandbox: read access to ${finding.path} was denied by user. Command was not executed.\n`),
+			Buffer.from(
+				`\n[Security Block] sandbox: read access to ${finding.path} was denied by user. Command was not executed.\n`,
+			),
 		);
 
 		return { exitCode: 1 };
@@ -457,20 +472,39 @@ export async function preflightOutsideReads(
 		);
 
 		if (choice === MainChoice.Once) {
-			auditLayer1Bash({ subject: absolutePath, decision: "once", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			auditLayer1Bash({
+				subject: absolutePath,
+				decision: "once",
+				reason: "outside-project-read",
+				note: "preflight",
+				cwd: workingDirectory,
+			});
 			allowedOncePaths.push(absolutePath);
 			continue;
 		}
 
 		if (choice === MainChoice.Session) {
 			sessionReadGrants.push(absolutePath);
-			auditLayer1Bash({ subject: absolutePath, decision: "session", scope: "session", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			auditLayer1Bash({
+				subject: absolutePath,
+				decision: "session",
+				scope: "session",
+				reason: "outside-project-read",
+				note: "preflight",
+				cwd: workingDirectory,
+			});
 			options.ctx.ui?.notify?.(`sandbox: allowed read of ${absolutePath} for this conversation (not saved)`, "info");
 			continue;
 		}
 
 		if (choice !== MainChoice.Remember || !grant) {
-			auditLayer1Bash({ subject: absolutePath, decision: "no", reason: "outside-project-read", note: "preflight", cwd: workingDirectory });
+			auditLayer1Bash({
+				subject: absolutePath,
+				decision: "no",
+				reason: "outside-project-read",
+				note: "preflight",
+				cwd: workingDirectory,
+			});
 			onData(Buffer.from(`\n${formatBlockedLine("Read", "outside the project", "run")}\n`));
 			return { blocked: { exitCode: 1 } };
 		}
@@ -480,11 +514,26 @@ export async function preflightOutsideReads(
 
 		try {
 			const persistedPath = await options.onAlwaysRead(targetSubject, targetScope);
-			auditLayer1Bash({ subject: targetSubject, decision: targetScope === "cwd" ? "always-cwd" : "always-global", scope: targetScope, cwd: workingDirectory, persisted_to: persistedPath, note: "preflight" });
+			auditLayer1Bash({
+				subject: targetSubject,
+				decision: targetScope === "cwd" ? "always-cwd" : "always-global",
+				scope: targetScope,
+				cwd: workingDirectory,
+				persisted_to: persistedPath,
+				note: "preflight",
+			});
 			options.ctx.ui?.notify?.(`sandbox: allowed read of ${targetSubject} (${targetScope})`, "warning");
 		} catch (error) {
-			auditLayer1Bash({ subject: targetSubject, scope: targetScope, cwd: workingDirectory, error: String(error), note: "preflight" });
-			onData(Buffer.from(`\n❌ sandbox: could not save the permission (${error}). ${targetSubject} remains blocked.\n`));
+			auditLayer1Bash({
+				subject: targetSubject,
+				scope: targetScope,
+				cwd: workingDirectory,
+				error: String(error),
+				note: "preflight",
+			});
+			onData(
+				Buffer.from(`\n❌ sandbox: could not save the permission (${error}). ${targetSubject} remains blocked.\n`),
+			);
 			return { blocked: { exitCode: 1 } };
 		}
 	}

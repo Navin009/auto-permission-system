@@ -14,10 +14,7 @@ import {
 	startHostSocketBridges,
 	type HostSocketBridge,
 } from "./host-bridge.ts";
-import {
-	cleanupWorkspaceArtifacts,
-	stripNonExistentWorkspaceMounts,
-} from "./bash-artifacts.ts";
+import { cleanupWorkspaceArtifacts, stripNonExistentWorkspaceMounts } from "./bash-artifacts.ts";
 import {
 	clearFilesystemSessionGrants,
 	filesystemSessionGrantSummary,
@@ -50,12 +47,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 				throw new Error(`Working directory does not exist: ${workingDirectory}`);
 			}
 
-			const sensitiveCommandResult = await preflightSensitiveCommands(
-				command,
-				workingDirectory,
-				options,
-				onData,
-			);
+			const sensitiveCommandResult = await preflightSensitiveCommands(command, workingDirectory, options, onData);
 
 			if (sensitiveCommandResult) {
 				return sensitiveCommandResult;
@@ -111,8 +103,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 
 			const attemptExecution = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
 				const sandboxConfig = loadConfig(workingDirectory);
-				const allowLocalhost =
-					sandboxConfig.allowLocalhost ?? sandboxConfig.network?.allowLocalhost ?? true;
+				const allowLocalhost = sandboxConfig.allowLocalhost ?? sandboxConfig.network?.allowLocalhost ?? true;
 
 				let bridges: HostPortBridge[] = [];
 
@@ -125,11 +116,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 					? await startHostSocketBridges(hostDaemonSockets())
 					: [];
 
-				const rawWrapped = await SandboxManager.wrapWithSandbox(
-					command,
-					undefined,
-					buildCustomConfig(writeOnce),
-				);
+				const rawWrapped = await SandboxManager.wrapWithSandbox(command, undefined, buildCustomConfig(writeOnce));
 
 				let wrappedCommand = rawWrapped;
 

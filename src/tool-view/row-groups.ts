@@ -172,17 +172,13 @@ function nextSegmentIndex(group: RowGroup): number {
 		return 0;
 	}
 
-	return thinkingEpoch() > group.epochAtNewestMember
-		? previous.segmentIndex + 1
-		: previous.segmentIndex;
+	return thinkingEpoch() > group.epochAtNewestMember ? previous.segmentIndex + 1 : previous.segmentIndex;
 }
 
 export function groupSummary(group: RowGroup, hint: string | undefined): RowGroupSummary {
 	const first = frameMember(group);
 	const thinking = group === currentGroup ? thinkingState() : undefined;
-	const isLive =
-		thinking !== undefined ||
-		group.members.some((member) => member.status === ToolStatus.Running);
+	const isLive = thinking !== undefined || group.members.some((member) => member.status === ToolStatus.Running);
 	const endMilliseconds = liveEndMilliseconds(group, isLive);
 	const durationMilliseconds =
 		first && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - first.startedAt) : undefined;

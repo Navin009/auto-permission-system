@@ -19,25 +19,20 @@ const QUERY_CREDENTIAL_GLOBAL = new RegExp(URL_QUERY_CREDENTIAL_REGEX.source, "g
  * Build a preview that redacts the exact value span. The old quote-based
  * masking leaked unquoted values from .env/YAML files.
  */
-export function redactValuePreview(
-  line: string,
-  valueStart: number,
-  valueEnd: number,
-  maxLength = 220
-): string {
-  const start = Math.max(0, Math.min(valueStart, line.length));
-  const end = Math.max(start, Math.min(valueEnd, line.length));
-  const head = line.slice(0, Math.min(start, maxLength));
+export function redactValuePreview(line: string, valueStart: number, valueEnd: number, maxLength = 220): string {
+	const start = Math.max(0, Math.min(valueStart, line.length));
+	const end = Math.max(start, Math.min(valueEnd, line.length));
+	const head = line.slice(0, Math.min(start, maxLength));
 
-  if (start >= maxLength) {
-    return head;
-  }
+	if (start >= maxLength) {
+		return head;
+	}
 
-  const redacted = "***REDACTED***";
-  const remaining = maxLength - head.length - redacted.length;
-  const tail = remaining > 0 ? line.slice(end, end + remaining) : "";
+	const redacted = "***REDACTED***";
+	const remaining = maxLength - head.length - redacted.length;
+	const tail = remaining > 0 ? line.slice(end, end + remaining) : "";
 
-  return head + redacted + tail;
+	return head + redacted + tail;
 }
 
 /**
@@ -46,94 +41,92 @@ export function redactValuePreview(
  * Never guarantees completeness; callers should still gate on findings.
  */
 export function redactText(content: string): RedactedText {
-  let text = content;
-  let redactions = 0;
+	let text = content;
+	let redactions = 0;
 
-  const lines = text.split(/\r?\n/);
+	const lines = text.split(/\r?\n/);
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const hit = analyzeAssignment(line, true);
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const hit = analyzeAssignment(line, true);
 
-    if (!hit || hit.value === null || hit.value.length === 0) {
-      continue;
-    }
+		if (!hit || hit.value === null || hit.value.length === 0) {
+			continue;
+		}
 
-    if (!looksLikeRealSecret(hit.value, normalizeKey(hit.keyword))) {
-      continue;
-    }
+		if (!looksLikeRealSecret(hit.value, normalizeKey(hit.keyword))) {
+			continue;
+		}
 
-    if (hit.valueStart >= hit.valueEnd) {
-      continue;
-    }
+		if (hit.valueStart >= hit.valueEnd) {
+			continue;
+		}
 
-    lines[i] = `${line.slice(0, hit.valueStart)}***REDACTED***${line.slice(hit.valueEnd)}`;
-    redactions += 1;
-  }
+		lines[i] = `${line.slice(0, hit.valueStart)}***REDACTED***${line.slice(hit.valueEnd)}`;
+		redactions += 1;
+	}
 
-  text = lines.join("\n");
+	text = lines.join("\n");
 
-  text = text.replace(TOKEN_REGEX, (token) => {
-    if (!isJwtToken(token)) {
-      return token;
-    }
+	text = text.replace(TOKEN_REGEX, (token) => {
+		if (!isJwtToken(token)) {
+			return token;
+		}
 
-    redactions += 1;
-    return "[REDACTED:JWT]";
-  });
+		redactions += 1;
+		return "[REDACTED:JWT]";
+	});
 
-  const pemBody =
-    /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----[\s\S]{0,200000}?-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----/g;
-  const pemMatches = text.match(pemBody);
+	const pemBody =
+		/-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----[\s\S]{0,200000}?-----END [A-Z0-9 ]{0,40}PRIVATE KEY-----/g;
+	const pemMatches = text.match(pemBody);
 
-  if (pemMatches) {
-    redactions += pemMatches.length;
-    text = text.replace(pemBody, "[REDACTED:PRIVATE_KEY]");
-  }
+	if (pemMatches) {
+		redactions += pemMatches.length;
+		text = text.replace(pemBody, "[REDACTED:PRIVATE_KEY]");
+	}
 
-  const pemBegin = /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----/g;
-  const beginMatches = text.match(pemBegin);
+	const pemBegin = /-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY-----/g;
+	const beginMatches = text.match(pemBegin);
 
-  if (beginMatches) {
-    redactions += beginMatches.length;
-    text = text.replace(pemBegin, "[REDACTED:PRIVATE_KEY_BEGIN]");
-  }
+	if (beginMatches) {
+		redactions += beginMatches.length;
+		text = text.replace(pemBegin, "[REDACTED:PRIVATE_KEY_BEGIN]");
+	}
 
-  const bearer = /\bBearer[ \t]+[A-Za-z0-9._~+/=-]{20,}/gi;
-  const bearerMatches = text.match(bearer);
+	const bearer = /\bBearer[ \t]+[A-Za-z0-9._~+/=-]{20,}/gi;
+	const bearerMatches = text.match(bearer);
 
-  if (bearerMatches) {
-    redactions += bearerMatches.length;
-    text = text.replace(bearer, "Bearer [REDACTED]");
-  }
+	if (bearerMatches) {
+		redactions += bearerMatches.length;
+		text = text.replace(bearer, "Bearer [REDACTED]");
+	}
 
-  const urlCredentials =
-    /(\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mssql|redis|rediss|amqp|https?|ftp|sftp|ssh):\/\/[^:@\s/]{1,256}):[^@\s/]{1,256}@/gi;
+	const urlCredentials =
+		/(\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mssql|redis|rediss|amqp|https?|ftp|sftp|ssh):\/\/[^:@\s/]{1,256}):[^@\s/]{1,256}@/gi;
 
-  text = text.replace(urlCredentials, (_match, prefix: string) => {
-    redactions += 1;
-    return `${prefix}:***REDACTED***@`;
-  });
+	text = text.replace(urlCredentials, (_match, prefix: string) => {
+		redactions += 1;
+		return `${prefix}:***REDACTED***@`;
+	});
 
-  text = text.replace(QUERY_CREDENTIAL_GLOBAL, (match, value: string) => {
-    redactions += 1;
-    return `${match.slice(0, match.length - value.length)}***REDACTED***`;
-  });
+	text = text.replace(QUERY_CREDENTIAL_GLOBAL, (match, value: string) => {
+		redactions += 1;
+		return `${match.slice(0, match.length - value.length)}***REDACTED***`;
+	});
 
-  for (const format of KNOWN_SECRET_FORMATS) {
-    const flags = format.regex.flags.includes("g")
-      ? format.regex.flags
-      : `${format.regex.flags}g`;
-    const global = new RegExp(format.regex.source, flags);
-    const matches = text.match(global);
+	for (const format of KNOWN_SECRET_FORMATS) {
+		const flags = format.regex.flags.includes("g") ? format.regex.flags : `${format.regex.flags}g`;
+		const global = new RegExp(format.regex.source, flags);
+		const matches = text.match(global);
 
-    if (!matches) {
-      continue;
-    }
+		if (!matches) {
+			continue;
+		}
 
-    redactions += matches.length;
-    text = text.replace(global, `[REDACTED:${format.label}]`);
-  }
+		redactions += matches.length;
+		text = text.replace(global, `[REDACTED:${format.label}]`);
+	}
 
-  return { text, redactions };
+	return { text, redactions };
 }

@@ -85,7 +85,9 @@
   "homepage": "https://github.com/Navin009/auto-permission-system#readme",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node security/tests/run.mjs"
+    "test": "node security/tests/run.mjs",
+    "format": "prettier --write extensions src",
+    "format:check": "prettier --check extensions src"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.78"
@@ -100,6 +102,7 @@
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^11.0.1",
     "conventional-changelog-conventionalcommits": "^8.0.0",
+    "prettier": "^3.6.2",
     "semantic-release": "^25.0.9",
     "typescript": "^7.0.2"
   },

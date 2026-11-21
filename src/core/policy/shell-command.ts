@@ -284,7 +284,10 @@ function nestedCommands(segment: string): string[] {
 	}
 
 	if (COMMAND_STRING_COMMANDS.has(head)) {
-		const innerCommand = tokens.slice(headIndex + 1).join(" ").trim();
+		const innerCommand = tokens
+			.slice(headIndex + 1)
+			.join(" ")
+			.trim();
 
 		if (innerCommand) nested.push(innerCommand);
 	}

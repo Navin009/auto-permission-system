@@ -17,9 +17,18 @@ export function bashBinary(command: string | undefined): string | undefined {
 	while (i < tokens.length && /^[A-Z_][A-Z0-9_]*=/.test(tokens[i])) i++;
 	const WRAPPERS = new Set(["sudo", "nice", "command", "time", "strace", "stdbuf", "timeout"]);
 	while (i < tokens.length) {
-		if (WRAPPERS.has(tokens[i])) { i++; continue; }
-		if (tokens[i] === "-n" && i + 1 < tokens.length && /^\d+$/.test(tokens[i + 1])) { i += 2; continue; }
-		if (tokens[i].startsWith("-") && tokens[i].length > 1) { i++; continue; }
+		if (WRAPPERS.has(tokens[i])) {
+			i++;
+			continue;
+		}
+		if (tokens[i] === "-n" && i + 1 < tokens.length && /^\d+$/.test(tokens[i + 1])) {
+			i += 2;
+			continue;
+		}
+		if (tokens[i].startsWith("-") && tokens[i].length > 1) {
+			i++;
+			continue;
+		}
 		break;
 	}
 	return tokens[i];

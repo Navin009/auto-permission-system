@@ -12,10 +12,7 @@ export function resetThinkingVisibility(): void {
 	hasApplied = false;
 }
 
-export function applyThinkingVisibility(
-	viewMode: ViewMode,
-	ui: ExtensionUIContext | undefined,
-): void {
+export function applyThinkingVisibility(viewMode: ViewMode, ui: ExtensionUIContext | undefined): void {
 	const label = viewMode === ViewMode.Compact ? HIDDEN_LABEL_IN_COMPACT : RESTORED_LABEL;
 
 	if (!ui || (hasApplied && appliedLabel === label)) {

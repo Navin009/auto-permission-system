@@ -85,24 +85,14 @@ function modeNotice(mode: PermissionMode): { text: string; level: "info" | "warn
 	};
 }
 
-async function pickMode(
-	pi: ExtensionAPI,
-	context: ExtensionContext,
-	yoloState: { active: boolean },
-): Promise<void> {
-	const currentMode: PermissionMode = yoloState.active
-		? "yolo"
-		: normalizeMode(loadPolicy(context.cwd).mode);
+async function pickMode(pi: ExtensionAPI, context: ExtensionContext, yoloState: { active: boolean }): Promise<void> {
+	const currentMode: PermissionMode = yoloState.active ? "yolo" : normalizeMode(loadPolicy(context.cwd).mode);
 
-	const options = MODE_DEFINITIONS.map((definition) =>
-		menuOptionLine(definition, definition.value === currentMode),
-	);
+	const options = MODE_DEFINITIONS.map((definition) => menuOptionLine(definition, definition.value === currentMode));
 
-	const pickedOption = await context.ui.select(
-		"Select permission mode:",
-		options,
-		{ timeout: SELECTION_TIMEOUT_MILLISECONDS },
-	);
+	const pickedOption = await context.ui.select("Select permission mode:", options, {
+		timeout: SELECTION_TIMEOUT_MILLISECONDS,
+	});
 
 	if (pickedOption === undefined) {
 		return;
@@ -165,7 +155,8 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand?.("permission-mode", {
-		description: "Choose the permission mode: Default (rules), Advanced Secure (detection), or YOLO (all layers off). Saved to the global sandbox.json.",
+		description:
+			"Choose the permission mode: Default (rules), Advanced Secure (detection), or YOLO (all layers off). Saved to the global sandbox.json.",
 		handler: async (_args, context) => pickMode(pi, context, yoloState),
 	});
 }

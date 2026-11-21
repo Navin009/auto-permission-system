@@ -57,7 +57,8 @@ export interface LoopbackEndpointInfo {
 export function extractLoopbackEndpoint(output: string, command?: string): LoopbackEndpointInfo | undefined {
 	if (!isLoopbackConnectionRefused(output)) return undefined;
 
-	const isDiffusion = /diffusion studio is not running/i.test(output) || (command && /\b(?:dapi|diffusion)\b/i.test(command));
+	const isDiffusion =
+		/diffusion studio is not running/i.test(output) || (command && /\b(?:dapi|diffusion)\b/i.test(command));
 	if (isDiffusion) {
 		return { host: "127.0.0.1", port: "3274", service: "Diffusion Studio" };
 	}
@@ -144,7 +145,10 @@ function stripErrnoLeadIn(text: string): string {
 	const withoutPidPrefix = text.replace(/^\[[^\]]*\]\s*/, "");
 	return withoutPidPrefix
 		.replace(/^bwrap:\s*/i, "")
-		.replace(/^(?:open|cannot (?:touch|remove|create|open|stat|access)|(?:can't|failed to) create file|touch|creat|unlink|mkdir|rmdir|rename)\s+/i, "")
+		.replace(
+			/^(?:open|cannot (?:touch|remove|create|open|stat|access)|(?:can't|failed to) create file|touch|creat|unlink|mkdir|rmdir|rename)\s+/i,
+			"",
+		)
 		.trim();
 }
 
@@ -205,16 +209,7 @@ export function normalizeAbs(path: string): string {
 	return `/${parts.join("/")}`;
 }
 
-const PROTECTED_HOME_FOLDERS = [
-	".ssh",
-	".gnupg",
-	".aws",
-	".azure",
-	".kube",
-	".docker",
-	".pi",
-	".config",
-];
+const PROTECTED_HOME_FOLDERS = [".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".pi", ".config"];
 
 export const SYSTEM_FOLDERS = new Set([
 	"/etc",
@@ -233,14 +228,9 @@ export const SYSTEM_FOLDERS = new Set([
 ]);
 
 function isProtectedFolder(absoluteDirectory: string, absoluteHome: string): boolean {
-	const protectedFolders = [
-		...PROTECTED_HOME_FOLDERS.map((name) => `${absoluteHome}/${name}`),
-		...SYSTEM_FOLDERS,
-	];
+	const protectedFolders = [...PROTECTED_HOME_FOLDERS.map((name) => `${absoluteHome}/${name}`), ...SYSTEM_FOLDERS];
 
-	return protectedFolders.some(
-		(folder) => absoluteDirectory === folder || absoluteDirectory.startsWith(`${folder}/`),
-	);
+	return protectedFolders.some((folder) => absoluteDirectory === folder || absoluteDirectory.startsWith(`${folder}/`));
 }
 
 /**
@@ -303,7 +293,9 @@ export function matchesPolicyPattern(absPath: string, pattern: string, cwd: stri
 	}
 	const basename = absPath.slice(absPath.lastIndexOf("/") + 1);
 	if (expandedPattern.includes("*")) return matchesGlob(basename, expandedPattern, CASE_INSENSITIVE_PLATFORM);
-	return CASE_INSENSITIVE_PLATFORM ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+	return CASE_INSENSITIVE_PLATFORM
+		? basename.toLowerCase() === expandedPattern.toLowerCase()
+		: basename === expandedPattern;
 }
 
 export function firstMatchingPattern(
@@ -335,5 +327,7 @@ export function somePatternMatches(
  * are passed through unchanged.
  */
 export function toSandboxPatterns(patterns: readonly string[]): string[] {
-	return patterns.map((pattern) => (pattern === "." || pattern.includes("/") || pattern.startsWith("~") ? pattern : `**/${pattern}`));
+	return patterns.map((pattern) =>
+		pattern === "." || pattern.includes("/") || pattern.startsWith("~") ? pattern : `**/${pattern}`,
+	);
 }

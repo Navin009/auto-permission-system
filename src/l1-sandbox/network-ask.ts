@@ -19,8 +19,16 @@
  * projects so the user can't quietly trust a widening file.
  */
 
-import { domainMatches, GrantScope, OverrideKind } from "../core/index";
-import { askMainWithRemember, askRememberHost, ASK_TIMEOUT_MS, MainChoice, parentDomainWildcard, type AskCtx, type HostGrant } from "../ui/ask-flow";
+import { domainMatches, GrantScope } from "../core/index";
+import {
+	askMainWithRemember,
+	askRememberHost,
+	ASK_TIMEOUT_MS,
+	MainChoice,
+	parentDomainWildcard,
+	type AskCtx,
+	type HostGrant,
+} from "../ui/ask-flow";
 
 /** In-memory conversation grants ("Yes, for this conversation"). Cleared at session_start. */
 const sessionGrants: string[] = [];
@@ -82,7 +90,12 @@ function subjectOf(host: string, port: number | undefined): string {
 function firstWord(command: string | undefined): string | null {
 	if (!command) return null;
 	const word = command.trim().split(/\s+/)[0] ?? "";
-	return word.replace(/^sudo$/, "").replace(/^command$/, "").replace(/^\\\//, "") || null;
+	return (
+		word
+			.replace(/^sudo$/, "")
+			.replace(/^command$/, "")
+			.replace(/^\\\//, "") || null
+	);
 }
 
 /**
@@ -140,7 +153,10 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 				if (deps.projectTrusted === false) {
 					body.push(`Note     this project isn't trusted — run /security trust to save rules here`);
 				}
-				return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, { icon: "save", untrusted: deps.projectTrusted === false });
+				return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, {
+					icon: "save",
+					untrusted: deps.projectTrusted === false,
+				});
 			},
 		);
 	} catch {
@@ -175,13 +191,26 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	try {
 		const path = await deps.persist(pattern, scope);
 		deps.applyLive(pattern);
-		deps.audit({ ...base, decision: scope === GrantScope.Cwd ? "always-cwd" : "always-global", scope, persisted_to: path, pattern, requested: host });
-		const scopeLabel = scope === GrantScope.Cwd ? "this project (stored in project settings)" : "all projects (stored in global settings)";
+		deps.audit({
+			...base,
+			decision: scope === GrantScope.Cwd ? "always-cwd" : "always-global",
+			scope,
+			persisted_to: path,
+			pattern,
+			requested: host,
+		});
+		const scopeLabel =
+			scope === GrantScope.Cwd
+				? "this project (stored in project settings)"
+				: "all projects (stored in global settings)";
 		ctx.ui.notify?.(`Rule saved for ${scopeLabel}.`, "info");
 	} catch (error) {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes", note: `always-persist-failed: ${error}`, scope });
-		ctx.ui.notify?.(`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this command only.`, "warning");
+		ctx.ui.notify?.(
+			`Could not save rule for ${scope === GrantScope.Cwd ? "this project" : "all projects"} (${error}); allowing this command only.`,
+			"warning",
+		);
 	}
 	return true;
 }
@@ -196,7 +225,14 @@ export function createNetworkAsk(deps: NetworkAskDeps): (params: { host: string;
 		const key = host.toLowerCase();
 		const hit = granted(key);
 		if (hit) {
-			deps.audit({ layer: 1, tool: "network", subject: subjectOf(key, port), cwd: deps.cwd, decision: hit === "session" ? "session-grant" : "yes", note: `${hit}-grant` });
+			deps.audit({
+				layer: 1,
+				tool: "network",
+				subject: subjectOf(key, port),
+				cwd: deps.cwd,
+				decision: hit === "session" ? "session-grant" : "yes",
+				note: `${hit}-grant`,
+			});
 			return true;
 		}
 		const inflight = pending.get(key);

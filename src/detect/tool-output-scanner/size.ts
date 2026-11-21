@@ -3,16 +3,12 @@
  * limit is exceeded.
  */
 
-import {
-  TOOL_OUTPUT_DEFAULT_MAX_BYTES,
-  TOOL_OUTPUT_HARD_MAX_BYTES,
-  TOOL_OUTPUT_MAX_NODES,
-} from "./constants.ts";
+import { TOOL_OUTPUT_DEFAULT_MAX_BYTES, TOOL_OUTPUT_HARD_MAX_BYTES, TOOL_OUTPUT_MAX_NODES } from "./constants.ts";
 import type { SizeEstimate } from "./types.ts";
 
 export function clampLimit(value: number | undefined): number {
-  const requested = value ?? TOOL_OUTPUT_DEFAULT_MAX_BYTES;
-  return Math.min(Math.max(1, requested), TOOL_OUTPUT_HARD_MAX_BYTES);
+	const requested = value ?? TOOL_OUTPUT_DEFAULT_MAX_BYTES;
+	return Math.min(Math.max(1, requested), TOOL_OUTPUT_HARD_MAX_BYTES);
 }
 
 /**
@@ -21,60 +17,58 @@ export function clampLimit(value: number | undefined): number {
  * structure it is an approximate serialized size.
  */
 export function estimateSize(output: unknown, limit: number): SizeEstimate {
-  if (typeof output === "string") {
-    const bytes = Buffer.byteLength(output);
-    return { bytes, exceeded: bytes > limit, exact: true };
-  }
+	if (typeof output === "string") {
+		const bytes = Buffer.byteLength(output);
+		return { bytes, exceeded: bytes > limit, exact: true };
+	}
 
-  let bytes = 0;
-  let nodes = 0;
-  const stack: unknown[] = [output];
+	let bytes = 0;
+	let nodes = 0;
+	const stack: unknown[] = [output];
 
-  while (stack.length > 0) {
-    if (nodes++ > TOOL_OUTPUT_MAX_NODES) {
-      return { bytes, exceeded: true, exact: false };
-    }
+	while (stack.length > 0) {
+		if (nodes++ > TOOL_OUTPUT_MAX_NODES) {
+			return { bytes, exceeded: true, exact: false };
+		}
 
-    const current = stack.pop();
+		const current = stack.pop();
 
-    if (typeof current === "string") {
-      bytes += current.length + 2;
-    } else if (typeof current === "number") {
-      bytes += 8;
-    } else if (typeof current === "boolean") {
-      bytes += 5;
-    } else if (current === null || current === undefined) {
-      bytes += 4;
-    } else if (Array.isArray(current)) {
-      bytes += 2;
+		if (typeof current === "string") {
+			bytes += current.length + 2;
+		} else if (typeof current === "number") {
+			bytes += 8;
+		} else if (typeof current === "boolean") {
+			bytes += 5;
+		} else if (current === null || current === undefined) {
+			bytes += 4;
+		} else if (Array.isArray(current)) {
+			bytes += 2;
 
-      for (let i = 0; i < current.length; i++) {
-        stack.push(current[i]);
-        bytes += 4;
+			for (let i = 0; i < current.length; i++) {
+				stack.push(current[i]);
+				bytes += 4;
 
-        if (bytes > limit || stack.length > TOOL_OUTPUT_MAX_NODES) {
-          return { bytes, exceeded: true, exact: false };
-        }
-      }
-    } else if (typeof current === "object") {
-      bytes += 2;
+				if (bytes > limit || stack.length > TOOL_OUTPUT_MAX_NODES) {
+					return { bytes, exceeded: true, exact: false };
+				}
+			}
+		} else if (typeof current === "object") {
+			bytes += 2;
 
-      for (const [key, child] of Object.entries(
-        current as Record<string, unknown>
-      )) {
-        bytes += key.length + 4;
-        stack.push(child);
+			for (const [key, child] of Object.entries(current as Record<string, unknown>)) {
+				bytes += key.length + 4;
+				stack.push(child);
 
-        if (bytes > limit || stack.length > TOOL_OUTPUT_MAX_NODES) {
-          return { bytes, exceeded: true, exact: false };
-        }
-      }
-    }
+				if (bytes > limit || stack.length > TOOL_OUTPUT_MAX_NODES) {
+					return { bytes, exceeded: true, exact: false };
+				}
+			}
+		}
 
-    if (bytes > limit) {
-      return { bytes, exceeded: true, exact: false };
-    }
-  }
+		if (bytes > limit) {
+			return { bytes, exceeded: true, exact: false };
+		}
+	}
 
-  return { bytes, exceeded: false, exact: false };
+	return { bytes, exceeded: false, exact: false };
 }

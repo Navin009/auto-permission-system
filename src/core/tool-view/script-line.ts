@@ -17,7 +17,5 @@ export function scriptLine(code: string | undefined): string {
 		return BLANK;
 	}
 
-	return oneLine.length > SCRIPT_LINE_LENGTH
-		? `${oneLine.slice(0, SCRIPT_LINE_LENGTH - 1)}${ELLIPSIS}`
-		: oneLine;
+	return oneLine.length > SCRIPT_LINE_LENGTH ? `${oneLine.slice(0, SCRIPT_LINE_LENGTH - 1)}${ELLIPSIS}` : oneLine;
 }

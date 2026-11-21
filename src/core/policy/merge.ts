@@ -8,9 +8,11 @@
  * trust.ts) is the tighten-only merge for an untrusted project.
  */
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+	!!value && typeof value === "object" && !Array.isArray(value);
 
-const stringList = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+const stringList = (value: unknown): string[] =>
+	Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 
 /**
  * Overlay `top` onto `base`. Object keys merge shallowly; `overrides` is

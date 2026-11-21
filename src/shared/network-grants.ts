@@ -9,10 +9,7 @@ export function emitDomainGrant(bus: DomainGrantBus, grantedHostname: string): v
 	bus.emit(DOMAIN_GRANT_CHANNEL, { host: grantedHostname });
 }
 
-export function onDomainGrant(
-	bus: DomainGrantBus,
-	handler: (grantedHostname: string) => void,
-): () => void {
+export function onDomainGrant(bus: DomainGrantBus, handler: (grantedHostname: string) => void): () => void {
 	return bus.on(DOMAIN_GRANT_CHANNEL, (data) => {
 		const payload = data as { host?: unknown } | null | undefined;
 		const hostname = payload?.host;

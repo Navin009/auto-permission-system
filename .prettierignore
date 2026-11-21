@@ -1,0 +1,15 @@
+node_modules/
+package-lock.json
+
+# Hand-tuned prose and tables; formatting them rewrites the docs, not the code.
+*.md
+plan/
+
+# Generated or human-authored data, aligned for reading.
+assets/
+security/tests/fixtures/
+sandbox*.json
+
+# The test suite is hand-formatted on purpose: case tables are column-aligned
+# and a rewrite lands as a separate commit once C11/C8 stop editing them.
+security/

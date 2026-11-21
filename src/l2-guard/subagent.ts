@@ -17,13 +17,19 @@ const RESEARCH_AGENTS = new Set(["librarian", "scout", "researcher"]);
  * known research-agent marker. Best-effort — v2 should plumb agent
  * identity through `ctx`.
  */
-export function subagentNetworkBlock(ctx: { hasUI?: boolean; sessionManager?: unknown }, policy: Policy): string | null {
+export function subagentNetworkBlock(
+	ctx: { hasUI?: boolean; sessionManager?: unknown },
+	policy: Policy,
+): string | null {
 	if (ctx.hasUI !== false) return null;
 	const mode = policy.subagent?.network ?? SubagentNetwork.Allow;
 	if (mode === SubagentNetwork.Allow) return null;
-	if (mode === SubagentNetwork.Deny) return "[Security Policy Notice] Network access blocked: automated subagent network connections are restricted. Nothing was fetched. Inform the user; do not attempt workarounds.";
+	if (mode === SubagentNetwork.Deny)
+		return "[Security Policy Notice] Network access blocked: automated subagent network connections are restricted. Nothing was fetched. Inform the user; do not attempt workarounds.";
 	if (mode === SubagentNetwork.ResearchOnly) {
-		const sessionManager = ctx.sessionManager as { getBranch?: () => Array<{ type: string; text?: string }> } | undefined;
+		const sessionManager = ctx.sessionManager as
+			| { getBranch?: () => Array<{ type: string; text?: string }> }
+			| undefined;
 		const branch = sessionManager?.getBranch?.() ?? [];
 		const recentText = branch
 			.slice(-10)

@@ -1,36 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import {
-	carriesStreamingThought,
-	carriesVisibleText,
-} from "../src/core/tool-view/message-text.ts";
+import { carriesStreamingThought, carriesVisibleText } from "../src/core/tool-view/message-text.ts";
 import { rowKindOf } from "../src/core/tool-view/row-kind.ts";
-import {
-	readToolViewSettings,
-	TOOL_VIEW_SETTINGS_FILE_NAME,
-} from "../src/core/tool-view/settings.ts";
+import { readToolViewSettings, TOOL_VIEW_SETTINGS_FILE_NAME } from "../src/core/tool-view/settings.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "../src/tool-view/commands.ts";
 import { setGateNoteRepaint } from "../src/shared/gate-notes.ts";
 import { toolViewRenderers } from "../src/tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentGroup, repaintCurrentRow, resetRowGroups } from "../src/tool-view/row-groups.ts";
 import { getActiveViewMode, setActiveViewMode, setThoughtsVisibleLookup } from "../src/tool-view/session.ts";
-import {
-	applyThinkingVisibility,
-	resetThinkingVisibility,
-} from "../src/tool-view/thinking-visibility.ts";
+import { applyThinkingVisibility, resetThinkingVisibility } from "../src/tool-view/thinking-visibility.ts";
 import { rememberAssistantMessage, resetThoughts } from "../src/tool-view/thought-store.ts";
-import {
-	rememberNestedEnd,
-	rememberNestedStart,
-	resetNestedCalls,
-} from "../src/tool-view/nested-calls.ts";
+import { rememberNestedEnd, rememberNestedStart, resetNestedCalls } from "../src/tool-view/nested-calls.ts";
 import { resetNativeThoughts } from "../src/tool-view/native-thought.ts";
-import {
-	beginThinking,
-	endThinking,
-	resetThinking,
-	setThinkingRepaint,
-} from "../src/tool-view/thinking-clock.ts";
+import { beginThinking, endThinking, resetThinking, setThinkingRepaint } from "../src/tool-view/thinking-clock.ts";
 
 const SETTINGS_FILE_PATH = `${getAgentDir()}/${TOOL_VIEW_SETTINGS_FILE_NAME}`;
 const USER_ROLE = "user";
@@ -136,11 +118,7 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
-		rememberNestedEnd(
-			event.parentToolCallId,
-			event.toolCallId,
-			event.isError,
-		);
+		rememberNestedEnd(event.parentToolCallId, event.toolCallId, event.isError);
 		repaintCurrentGroup();
 	});
 

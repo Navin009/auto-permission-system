@@ -194,7 +194,8 @@ function buildDetailLines(askDetails: AskKind, action: AskAction, noteText?: str
 		detailLines.push(`Command  ${askDetails.command}`);
 	}
 
-	const reasonExplanation = action === AskAction.Network ? networkWhy(askDetails.reason) : displayWhy(askDetails.reason);
+	const reasonExplanation =
+		action === AskAction.Network ? networkWhy(askDetails.reason) : displayWhy(askDetails.reason);
 	detailLines.push(`Why      ${reasonExplanation}`);
 
 	if (noteText) {
@@ -254,7 +255,12 @@ function selectPromptIcon(action: AskAction, askDetails: AskKind): "net" | "warn
 	return "ask";
 }
 
-function formatCredentialBody(askDetails: AskKind, action: AskAction, riskDescription: string, noteDescription: string): string {
+function formatCredentialBody(
+	askDetails: AskKind,
+	action: AskAction,
+	riskDescription: string,
+	noteDescription: string,
+): string {
 	const bodyLines: string[] = [];
 
 	if (action !== AskAction.Network) {
@@ -381,7 +387,8 @@ export async function askDecision(
 	}
 
 	const promptHeader = formatPromptHeader(action, askDetails.subject, askDetails);
-	const sessionLabel = action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
+	const sessionLabel =
+		action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
 	const isUntrustedProject = askDetails.projectTrusted === false;
 
 	const mainDialogOptions = {
@@ -470,14 +477,10 @@ export async function askDecision(
 			const actionVerb = action === AskAction.Write ? "saving" : "reading";
 			const titleText = `Always allow ${actionVerb} — what, and where?`;
 
-			return askRememberFile(
-				context,
-				titleText,
-				rememberLines.join("\n"),
-				askDetails.subject,
-				parentFolder,
-				{ icon: "save", untrusted: isUntrustedProject },
-			);
+			return askRememberFile(context, titleText, rememberLines.join("\n"), askDetails.subject, parentFolder, {
+				icon: "save",
+				untrusted: isUntrustedProject,
+			});
 		},
 	);
 

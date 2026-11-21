@@ -14,10 +14,10 @@
 export type NameRisk = "none" | "weak" | "config" | "generic" | "strong";
 
 export interface NameVerdict {
-  candidate: boolean;
-  risk: NameRisk;
-  score: number;
-  reasons: string[];
+	candidate: boolean;
+	risk: NameRisk;
+	score: number;
+	reasons: string[];
 }
 
 /**
@@ -26,8 +26,8 @@ export interface NameVerdict {
  * "ask" even when the content looks clean.
  */
 export const RISK_SCORES: Record<Exclude<NameRisk, "none">, number> = {
-  weak: 15,
-  config: 30,
-  generic: 35,
-  strong: 45,
+	weak: 15,
+	config: 30,
+	generic: 35,
+	strong: 45,
 };

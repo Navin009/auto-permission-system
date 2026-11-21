@@ -2,10 +2,7 @@ export const YOLO_CHANNEL = "auto-permission-system:yolo";
 export const YOLO_STATUS = "🚨  YOLO — all security layers disabled";
 
 export interface YoloFlagProvider {
-	registerFlag(
-		name: string,
-		options: { description: string; type: "boolean"; default: boolean },
-	): void;
+	registerFlag(name: string, options: { description: string; type: "boolean"; default: boolean }): void;
 	getFlag(name: string): boolean | string | undefined;
 }
 

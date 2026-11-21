@@ -1,5 +1,6 @@
 import { formatCommandDuration } from "./duration.ts";
-import { RowKind, rowLabelOf } from "./row-kind.ts";import { statusMark, statusWord, ToolStatus } from "./status.ts";
+import { RowKind, rowLabelOf } from "./row-kind.ts";
+import { statusMark, statusWord, ToolStatus } from "./status.ts";
 import { displayShellCommand, fitCommand, fitTarget, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
 
@@ -81,24 +82,12 @@ export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[
 	return [header, ...childLines(summary, width, showsChildLines)];
 }
 
-export function rowGroupLinesForMember(
-	summary: RowGroupSummary,
-	width: number,
-	memberIndex: number,
-): RowLine[] {
-	return rowGroupLines(summary, width).filter(
-		(line) => (line.memberIndex ?? DRAWING_MEMBER_INDEX) === memberIndex,
-	);
+export function rowGroupLinesForMember(summary: RowGroupSummary, width: number, memberIndex: number): RowLine[] {
+	return rowGroupLines(summary, width).filter((line) => (line.memberIndex ?? DRAWING_MEMBER_INDEX) === memberIndex);
 }
 
-export function rowGroupLinesForSegment(
-	summary: RowGroupSummary,
-	width: number,
-	segmentIndex: number,
-): RowLine[] {
-	return rowGroupLines(summary, width).filter(
-		(line) => (line.segmentIndex ?? DRAWING_MEMBER_INDEX) === segmentIndex,
-	);
+export function rowGroupLinesForSegment(summary: RowGroupSummary, width: number, segmentIndex: number): RowLine[] {
+	return rowGroupLines(summary, width).filter((line) => (line.segmentIndex ?? DRAWING_MEMBER_INDEX) === segmentIndex);
 }
 
 export function pluralize(noun: string, count: number): string {
@@ -123,12 +112,7 @@ function headerStatus(summary: RowGroupSummary): ToolStatus {
 	return lastStatus;
 }
 
-function headerLine(
-	summary: RowGroupSummary,
-	status: ToolStatus,
-	hintsFolded: boolean,
-	width: number,
-): RowLine {
+function headerLine(summary: RowGroupSummary, status: ToolStatus, hintsFolded: boolean, width: number): RowLine {
 	const hint = hintsFolded && !showsCommandNames(summary) ? summary.hint : undefined;
 	const duration = headerDuration(summary.durationMilliseconds);
 	const tail = tailWidth(hint, duration);
@@ -143,12 +127,7 @@ function headerLine(
 	};
 }
 
-function headerText(
-	summary: RowGroupSummary,
-	status: ToolStatus,
-	hintsFolded: boolean,
-	width: number,
-): string {
+function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: boolean, width: number): string {
 	const countPart = countText(summary);
 	const thoughtPart = summary.thinking ? `${SPACE}${thinkingPart(summary.thinking)}` : "";
 	const wordPart = wordText(status, hintsFolded || summary.rows.length === SINGLE_ROW_COUNT);
@@ -212,20 +191,14 @@ function namesText(summary: RowGroupSummary, budget: number): string {
 	return overflow.length <= budget ? `${SPACE}(${overflow})` : BLANK;
 }
 
-function namesCandidate(
-	summary: RowGroupSummary,
-	withHints: boolean,
-	limit: number,
-): string | undefined {
+function namesCandidate(summary: RowGroupSummary, withHints: boolean, limit: number): string | undefined {
 	const shown = Math.min(limit, summary.rows.length);
 
 	if (shown === 0) {
 		return undefined;
 	}
 
-	const names = summary.rows
-		.slice(0, shown)
-		.map((row) => (withHints ? row.hint ?? row.target : row.target));
+	const names = summary.rows.slice(0, shown).map((row) => (withHints ? (row.hint ?? row.target) : row.target));
 
 	const namesPart = names.join(NAME_SEPARATOR);
 	const overflowCount = summary.rows.length - shown;
@@ -310,12 +283,7 @@ function memberChildLines(
 	return [...rowLines, ...noteLines(row, width, memberIndex, row.segmentIndex)];
 }
 
-function noteLines(
-	row: RowSummary,
-	width: number,
-	memberIndex: number,
-	segmentIndex: number,
-): RowLine[] {
+function noteLines(row: RowSummary, width: number, memberIndex: number, segmentIndex: number): RowLine[] {
 	if (!row.note) {
 		return [];
 	}
@@ -358,15 +326,8 @@ function wrapText(text: string, budget: number): string[] {
 	return lines;
 }
 
-function subLineLine(
-	subLine: SubLineSummary,
-	childColumn: number,
-	memberIndex: number,
-	segmentIndex: number,
-): RowLine {
-	const mark = subLine.status
-		? { glyph: childMark(subLine.status), status: subLine.status }
-		: undefined;
+function subLineLine(subLine: SubLineSummary, childColumn: number, memberIndex: number, segmentIndex: number): RowLine {
+	const mark = subLine.status ? { glyph: childMark(subLine.status), status: subLine.status } : undefined;
 	const budget = childColumn - LINE_INDENT.length - markColumnWidth(mark);
 
 	return {

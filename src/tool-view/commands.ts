@@ -48,9 +48,7 @@ export async function runToolViewCommand(
 		return;
 	}
 
-	const chosenDefinition = argument.trim()
-		? definitionFromArgument(argument, context)
-		: await pickDefinition(context);
+	const chosenDefinition = argument.trim() ? definitionFromArgument(argument, context) : await pickDefinition(context);
 
 	if (!chosenDefinition) {
 		return;
@@ -59,14 +57,9 @@ export async function runToolViewCommand(
 	applyViewMode(settingsFilePath, chosenDefinition, context);
 }
 
-function definitionFromArgument(
-	argument: string,
-	context: ExtensionCommandContext,
-): ViewDefinition | undefined {
+function definitionFromArgument(argument: string, context: ExtensionCommandContext): ViewDefinition | undefined {
 	const requestedMode = argument.trim().toLowerCase();
-	const matchedDefinition = VIEW_DEFINITIONS.find(
-		(definition) => definition.mode === requestedMode,
-	);
+	const matchedDefinition = VIEW_DEFINITIONS.find((definition) => definition.mode === requestedMode);
 
 	if (!matchedDefinition) {
 		context.ui.notify(USAGE_NOTICE, "warning");
@@ -77,9 +70,7 @@ function definitionFromArgument(
 
 async function pickDefinition(context: ExtensionCommandContext): Promise<ViewDefinition | undefined> {
 	const currentMode = getActiveViewMode();
-	const options = VIEW_DEFINITIONS.map((definition) =>
-		menuOptionLine(definition, definition.mode === currentMode),
-	);
+	const options = VIEW_DEFINITIONS.map((definition) => menuOptionLine(definition, definition.mode === currentMode));
 	const selectionOptions = { timeout: SELECTION_TIMEOUT_MILLISECONDS };
 	const pickedOption = await context.ui.select(MENU_TITLE, options, selectionOptions);
 
@@ -92,11 +83,7 @@ async function pickDefinition(context: ExtensionCommandContext): Promise<ViewDef
 	return pickedIndex >= 0 ? VIEW_DEFINITIONS[pickedIndex] : undefined;
 }
 
-function applyViewMode(
-	settingsFilePath: string,
-	definition: ViewDefinition,
-	context: ExtensionCommandContext,
-): void {
+function applyViewMode(settingsFilePath: string, definition: ViewDefinition, context: ExtensionCommandContext): void {
 	const viewMode = definition.mode;
 
 	if (viewMode === getActiveViewMode()) {
