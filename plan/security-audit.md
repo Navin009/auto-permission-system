@@ -1,10 +1,10 @@
 # Security and quality audit — findings
 
-**Status:** open — batch 0 landed (C2, T1, T2, T3). The working order lives in
+**Status:** open — batches 0 and 1 landed (C2, T1, T2, T3, T6, S4). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
-**One line:** 15 security findings, 7 behaviour bugs, 12 quality and 6 tooling items — 9 of them
+**One line:** 15 security findings, 7 behaviour bugs, 12 quality and 7 tooling items — 9 of them
 carrying a reproduced output — each with the missing test named, so a fix is never "trust me".
 
 ---
@@ -136,6 +136,10 @@ process.exit(fail ? 1 : 0);
   `commands.ask`/`askRead` parsers) is a bigger change; blocking is the honest minimum.
 
 ### S4 — host-port bridge socket is world-connectable
+
+**Status:** ✅ fixed in `b393fda` — both bridges and the bash tool's TMPDIR share `<tmp>/pi-<uid>`
+(0700, created or adopted, symlink/file/foreign-owner rejected with no fallback); the port socket is
+`0600` like the daemon one; `L1-bridge-perms` (17 cases) covers it.
 
 - **Severity:** med-high — local privilege/information crossing on a shared machine.
 - **Where:** `src/l1-sandbox/host-bridge.ts:227` (no chmod) vs `:138` (chmod present)
@@ -663,6 +667,14 @@ on `ubuntu-latest` that installs `bubblewrap` + `socat` and runs it.
 
 ### T6 — workflow actions are pinned to mutable tags
 
+**Status:** ✅ fixed in `c22a047` — 12 `uses:` pinned to commit SHAs (checkout v7.0.1, setup-node
+v7.1.0), `commitlint.yml` runs the `@commitlint/cli` devDependency instead of a third-party action,
+write permissions scoped to the job that needs them, `persist-credentials: false` on every checkout
+that does not push, Dependabot keeps the pins moving (7-day cooldown), and `ci.yml` fails on a
+mutable ref. One rule is suppressed inline with its reason: zizmor's `cache-poisoning` on the
+`npm install` in `release-tag.yml`, because no step caches anything and the write-capable job
+installs nothing. Revisit if the release path is ever split.
+
 - **Where:** `.github/workflows/ci.yml`, `release-tag.yml`, `release.yml`, `commitlint.yml`
   (`actions/checkout@v7`, `actions/setup-node@v7`)
 - **Read:** a tag is mutable — whoever controls the action repository can repoint `v7` at new code —
@@ -671,6 +683,21 @@ on `ubuntu-latest` that installs `bubblewrap` + `socat` and runs it.
 - **Fix:** `uses: actions/checkout@<40-hex> # v7.x.y` in every workflow, plus Dependabot for
   `github-actions` so the pins do not rot.
 - **Test:** n/a — a CI grep (`uses: .*@v[0-9]` must not appear) is the test.
+
+### T7 — the publish job installs dependencies with no lockfile
+
+- **Where:** `.github/workflows/release.yml` (one job: `npm install` → typecheck/tests →
+  semantic-release), `.gitignore` (`package-lock.json`)
+- **Read:** the repository tracks no lockfile, so `npm install` resolves the whole tree fresh on
+  every run — and the job that runs it also holds `contents: write` and `id-token: write`. A
+  malicious or compromised transitive release published in that window executes with publish
+  authority. `ci.yml` has the same non-reproducible install, but read-only, so it is a correctness
+  problem there rather than an authority one.
+- **Fix:** track `package-lock.json` and use `npm ci` everywhere (both workflows, the docs, and
+  `PUBLISHING.md`); a lockfile is also what makes "the tests passed" mean the same tree twice.
+  If a lockfile is deliberately out of scope, split the publish job from the install job so no
+  process that resolved a fresh tree ever holds `id-token: write`.
+- **Test:** n/a — `npm ci` fails on a missing or drifted lockfile, which is the assertion.
 
 ---
 

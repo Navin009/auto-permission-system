@@ -38,8 +38,9 @@ verifiable. Each is an isolated commit.
 
 ## Batch 1 — quick hardening (one-liners, no design risk)
 
-- [ ] **S4** — `chmodSync(sockPath, 0o600)` in `startHostPortBridge`; move both bridges into
-      `/tmp/pi-<uid>/` (`0700`). Test: `L1-bridge-perms`.
+- [x] **S4** — `b393fda` — both bridges and the bash TMPDIR live in `<tmp>/pi-<uid>` (0700), the
+      port socket is `0600`, and a symlinked or foreign scratch path throws instead of falling back.
+      Test: `L1-bridge-perms` (17).
 - [ ] **S7** — `fileHash` returns `null` for a non-file; wrap the `loadConfig`/`loadPolicy` calls in
       `session_start`. Test: `L1-L2-policy-dir`.
 - [ ] **S8** — `isAbsolute(printed) ? printed : join(searchRoot, printed)`. Test: extend
@@ -128,8 +129,10 @@ These are the "no functional diff" batch: every existing test must stay green **
       unknown-key report to the loaders (notify + audit, never throw). This catches the
       `strictAllowlst` class of support issue.
 - [ ] **T5** — scheduled e2e job (`bubblewrap` + `socat` on `ubuntu-latest`) for `L1-e2e`.
-- [ ] **T6** — pin every workflow action to a commit SHA with a version comment; enable Dependabot
-      for `github-actions`.
+- [x] **T6** — `c22a047` — 12 `uses:` pinned to SHAs, commitlint runs the devDependency, write
+      scopes per job, `persist-credentials: false`, Dependabot with a 7-day cooldown, CI grep guard.
+- [ ] **T7** — track `package-lock.json` and switch every workflow to `npm ci`; the publish job
+      currently resolves a fresh tree while holding `id-token: write`.
 
 ## Batch 8 — features (only after 0–7)
 
@@ -147,15 +150,15 @@ These are the "no functional diff" batch: every existing test must stay green **
 | Batch | Items | Done |
 | --- | --- | --- |
 | 0 foundations | 4 | 4 |
-| 1 quick hardening | 6 | 0 |
+| 1 quick hardening | 6 | 1 |
 | 2 one matcher + deny | 4 | 0 |
 | 3 fail-open | 4 | 0 |
 | 4 state/lifecycle | 6 | 0 |
 | 5 detection/logging | 5 | 0 |
 | 6 simplification | 8 | 0 |
-| 7 process | 3 | 0 |
+| 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **46** | **4** |
+| **total** | **47** | **6** |
 
 ## Landed so far
 
@@ -166,8 +169,14 @@ chore(git): skip the format commit in blame                        761cf76
 chore(node): declare the supported engine                          93e58a8
 chore(ci): gate on one aggregate check                             8fb091c
 test(security): pin the manifest case counts                       95dc6ab
+fix(security): keep SECURITY.md unmodified when only the date moves 06658fc
+chore(format): keep JSON, YAML and Markdown at two spaces          a9b8ba3
+chore(format): gate the whole repo, not just the sources           488ba1c
+fix(ci): pin every action and scope write access                   c22a047
+fix(sandbox): keep the bridge sockets owner-only                   b393fda
 ```
 
-Two findings were added while doing batch 0, both surfaced by the analyzer rather than by reading:
-**T6** (workflow actions pinned to mutable tags) and **C12** (mixed import specifiers, 10 files
-against 57). They are batched with the rest instead of expanding batch 0.
+Two findings were added while doing batches 0-1, both surfaced by tooling rather than by reading:
+**T6** (workflow actions pinned to mutable tags — fixed in `c22a047`) and **C12** (mixed import
+specifiers, 10 files against 57). **T7** (the publish job resolves a fresh dependency tree while
+holding `id-token: write`) came out of the T6 work and is batched rather than fixed.
