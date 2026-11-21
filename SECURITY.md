@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-14T06:19:10.751Z
+Generated: 2026-11-21T21:35:16.164Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-host-bridge`, `L1-outside-fence`, `L1-ask-commands`, `L1-bash-candidates`, `L1-find-query`, `L1-read-operands`, `L1-ask-read-preflight`, `L1-session-grants`, `L1-ghost-dotfiles`, `L1-network-ask`, `L1-L2-network-grants`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L2-exposure`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -30,21 +30,21 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 317 lines, mtime 2026-11-04
+- ✓ `extensions/sandbox.ts` — 312 lines, mtime 2026-11-21
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-04
 - ✓ `src/core/` — dir, mtime 2026-11-12
-- ✓ `src/shared/` — dir, mtime 2026-11-04
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 61 lines, mtime 2026-11-14
+- ✓ `src/shared/` — dir, mtime 2026-11-15
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-15
 
 **Tests**
 
-- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=59, FAIL=0
+- `L1-attribution` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-attribution.mjs` → expects PASS=64, FAIL=0
 - `L1-host-bridge` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/host-bridge.mjs` → expects PASS=26, FAIL=0
 - `L1-outside-fence` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs` → expects PASS=38, FAIL=0
 - `L1-ask-commands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-commands.mjs` → expects PASS=18, FAIL=0
 - `L1-bash-candidates` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/bash-candidates.mjs` → expects PASS=66, FAIL=0
-- `L1-find-query` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/find-query.mjs` → expects PASS=24, FAIL=0
-- `L1-read-operands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-operands.mjs` → expects PASS=22, FAIL=0
+- `L1-find-query` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/find-query.mjs` → expects PASS=38, FAIL=0
+- `L1-read-operands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-operands.mjs` → expects PASS=25, FAIL=0
 - `L1-ask-read-preflight` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-ask-read-preflight.mjs` → expects PASS=26, FAIL=0
 - `L1-session-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs` → expects PASS=43, FAIL=0
 - `L1-ghost-dotfiles` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ghost-dotfiles.mjs` → expects PASS=20, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)
@@ -74,12 +74,12 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 298 lines, mtime 2026-11-12
-- ✓ `extensions/permission-mode.ts` — 172 lines, mtime 2026-11-12
-- ✓ `src/l2-guard/` — dir, mtime 2026-11-04
+- ✓ `extensions/guard.ts` — 288 lines, mtime 2026-11-21
+- ✓ `extensions/permission-mode.ts` — 163 lines, mtime 2026-11-21
+- ✓ `src/l2-guard/` — dir, mtime 2026-11-15
 - ✓ `src/detect/` — dir, mtime 2026-11-04
 - ✓ `src/core/` — dir, mtime 2026-11-12
-- ✓ `src/shared/` — dir, mtime 2026-11-04
+- ✓ `src/shared/` — dir, mtime 2026-11-15
 
 **Tests**
 
@@ -95,14 +95,17 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=61, FAIL=0
-- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=39 FAIL=0
-- `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=19, FAIL=0
-- `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=26, FAIL=0
+- `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=65, FAIL=0
+- `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=25, FAIL=0
+- `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=33, FAIL=0
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
 - `L1-L2-permission-mode-sync` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode-yolo-sync.mjs` → expects PASS=4, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
-- `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=15, FAIL=0
-- `L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=14, FAIL=0
+- `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=23, FAIL=0
+- `L2-output-blocks` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-blocks.mjs` → expects PASS=9, FAIL=0
+- `L2-output-allow-notice` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs` → expects PASS=14, FAIL=0
+- `L2-program-id` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/program-id.mjs` → expects PASS=20, FAIL=0
+- `L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=17, FAIL=0
 - `L1-L2-read-write-posture` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-write-posture.mjs` → expects PASS=25, FAIL=0
 - `L1-L2-user-path` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-path.mjs` → expects PASS=18, FAIL=0
 
@@ -156,7 +159,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 61 lines, mtime 2026-11-14
+- Global: `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-15
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 
