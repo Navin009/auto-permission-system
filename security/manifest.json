@@ -185,6 +185,11 @@
           "expected": "PASS=17, FAIL=0"
         },
         {
+          "id": "L1-L2-policy-write",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-write.mjs",
+          "expected": "PASS=9, FAIL=0"
+        },
+        {
           "id": "L1-L2-override-store",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs",
           "expected": "PASS=18, FAIL=0"

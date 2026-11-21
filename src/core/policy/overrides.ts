@@ -1,6 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { readPolicyForUpdate } from "./policy-file.ts";
+import { readPolicyForUpdate, writePolicyFile } from "./policy-file.ts";
 import { recordProjectTrust } from "../trust.ts";
 
 export const OverrideKind = {
@@ -32,8 +30,7 @@ export function addOverride(policyFilePath: string, kind: OverrideKind, override
 	overrides[kind] = overrideList;
 	existingPolicy.overrides = overrides;
 
-	mkdirSync(dirname(policyFilePath), { recursive: true });
-	writeFileSync(policyFilePath, `${JSON.stringify(existingPolicy, null, 2)}\n`);
+	writePolicyFile(policyFilePath, existingPolicy);
 
 	return policyFilePath;
 }

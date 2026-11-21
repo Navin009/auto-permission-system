@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { normalizeMode, type PermissionMode } from "./mode.ts";
 
@@ -41,10 +41,18 @@ export function readPolicyForUpdate(policyFilePath: string): Record<string, unkn
 	}
 }
 
+/** Write through a sibling temp file and rename, so a reader never sees half a policy. */
+export function writePolicyFile(policyFilePath: string, policy: Record<string, unknown>): void {
+	mkdirSync(dirname(policyFilePath), { recursive: true });
+
+	const temporaryPath = `${policyFilePath}.tmp`;
+	writeFileSync(temporaryPath, `${JSON.stringify(policy, null, 2)}\n`);
+	renameSync(temporaryPath, policyFilePath);
+}
+
 export function setPolicyMode(policyFilePath: string, mode: PermissionMode): void {
 	const policy = readPolicyForUpdate(policyFilePath);
 	policy.mode = normalizeMode(mode);
 
-	mkdirSync(dirname(policyFilePath), { recursive: true });
-	writeFileSync(policyFilePath, `${JSON.stringify(policy, null, 2)}\n`);
+	writePolicyFile(policyFilePath, policy);
 }
