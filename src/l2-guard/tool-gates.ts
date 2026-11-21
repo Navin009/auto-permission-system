@@ -4,6 +4,8 @@ import { ReadExposure } from "../core/index.ts";
 import {
 	canonicalize,
 	expandHome,
+	hasPatternDenyReadMatch,
+	hasPatternDenyWriteMatch,
 	isAbsoluteDeny,
 	isAskRead,
 	isDeniedRead,
@@ -67,6 +69,22 @@ export async function checkReadAccess(
 		return { block: true as const, reason: denyMessage("allowRead", denialReason) };
 	}
 
+	const patternDenyReason = hasPatternDenyReadMatch(canonicalPath, context.cwd, policy);
+
+	if (patternDenyReason) {
+		audit({
+			layer: 2,
+			tool: toolName,
+			subject: canonicalPath,
+			reason: patternDenyReason,
+			decision: "no",
+			note: "deny-read-terminal",
+			cwd: context.cwd,
+		});
+
+		return { block: true as const, reason: denyMessage("allowRead", patternDenyReason) };
+	}
+
 	const expandedPath = expandHome(rawPath);
 	const spelledPath = isAbsolute(expandedPath) ? expandedPath : resolve(context.cwd, expandedPath);
 
@@ -103,6 +121,21 @@ export async function checkWriteAccess(
 	}
 
 	const canonicalPath = canonicalize(rawPath, context.cwd);
+	const patternDenyReason = hasPatternDenyWriteMatch(canonicalPath, context.cwd, policy);
+
+	if (patternDenyReason) {
+		audit({
+			layer: 2,
+			tool: toolName,
+			subject: canonicalPath,
+			reason: patternDenyReason,
+			decision: "no",
+			note: "deny-write-terminal",
+			cwd: context.cwd,
+		});
+
+		return { block: true as const, reason: denyMessage("allowWrite", patternDenyReason) };
+	}
 
 	const result = await askOrBlock(
 		/* SAFETY: pi's ctx carries cwd/UI at runtime. */

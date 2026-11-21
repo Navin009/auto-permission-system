@@ -130,6 +130,11 @@
           "expected": "PASS=32, FAIL=0"
         },
         {
+          "id": "L2-deny-terminal",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/deny-terminal.mjs",
+          "expected": "PASS=13, FAIL=0"
+        },
+        {
           "id": "L2-urls",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs",
           "expected": "PASS=8, FAIL=0"
