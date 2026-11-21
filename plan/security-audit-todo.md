@@ -41,8 +41,9 @@ verifiable. Each is an isolated commit.
 - [x] **S4** — `b393fda` — both bridges and the bash TMPDIR live in `<tmp>/pi-<uid>` (0700), the
       port socket is `0600`, and a symlinked or foreign scratch path throws instead of falling back.
       Test: `L1-bridge-perms` (17).
-- [ ] **S7** — `fileHash` returns `null` for a non-file; wrap the `loadConfig`/`loadPolicy` calls in
-      `session_start`. Test: `L1-L2-policy-dir`.
+- [x] **S7** — `6be8652` — `fileHash` requires a regular file; a present-but-unreadable policy path
+      is *untrusted* (the naive fix would have made it trusted); loaders skip non-files; both
+      `session_start` handlers fail closed. Test: `L1-L2-policy-dir` (17).
 - [ ] **S8** — `isAbsolute(printed) ? printed : join(searchRoot, printed)`. Test: extend
       `L2-grep-filter` with absolute paths.
 - [ ] **S14** — add `askWrite` to `ADDITIVE_DENY_KEYS`. Test: extend `L1-L2-project-trust`.
@@ -150,7 +151,7 @@ These are the "no functional diff" batch: every existing test must stay green **
 | Batch | Items | Done |
 | --- | --- | --- |
 | 0 foundations | 4 | 4 |
-| 1 quick hardening | 6 | 1 |
+| 1 quick hardening | 6 | 2 |
 | 2 one matcher + deny | 4 | 0 |
 | 3 fail-open | 4 | 0 |
 | 4 state/lifecycle | 6 | 0 |
@@ -158,7 +159,7 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 6 simplification | 8 | 0 |
 | 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **47** | **6** |
+| **total** | **47** | **7** |
 
 ## Landed so far
 
@@ -174,6 +175,7 @@ chore(format): keep JSON, YAML and Markdown at two spaces          a9b8ba3
 chore(format): gate the whole repo, not just the sources           488ba1c
 fix(ci): pin every action and scope write access                   c22a047
 fix(sandbox): keep the bridge sockets owner-only                   b393fda
+fix(trust): treat a policy path that is not a file as untrusted    6be8652
 ```
 
 Two findings were added while doing batches 0-1, both surfaced by tooling rather than by reading:

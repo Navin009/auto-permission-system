@@ -64,7 +64,7 @@ process.exit(fail ? 1 : 0);
 | S4 | med-high | host-port bridge socket is world-connectable |
 | S5 | med | a network prompt timing out counts as *allow once* |
 | S6 | med | `suppressGhostDotfiles()` silently disables runtime protections |
-| S7 | med | a directory named `.pi/sandbox.json` aborts `session_start` |
+| S7 | high | a directory named `.pi/sandbox.json` disarms both layers |
 | S8 | med | grep result filter misses absolute printed paths |
 | S9 | med | `userNamedOutside` auto-allows on a bare basename |
 | S10 | med | yolo kill switch and domain grants are unauthenticated events |
@@ -180,11 +180,18 @@ process.exit(fail ? 1 : 0);
   suppression report failure instead of swallowing it; the successful path still empties both
   arrays and keeps `.git`.
 
-### S7 — a directory named `.pi/sandbox.json` aborts `session_start`
+### S7 — a directory named `.pi/sandbox.json` disarms both layers
 
-- **Severity:** med — a repo can disable part of the guard setup on open.
-- **Where:** `src/core/trust.ts:14-20`, reached from `src/l1-sandbox/config.ts:113` and
-  `src/l2-guard/policy.ts:79`
+**Status:** ✅ fixed in `6be8652` — `fileHash` requires a regular file, `isProjectFileTrusted`
+answers *untrusted* for a path that exists but cannot be read (the naive fix would have answered
+*trusted*), the loaders skip a non-file via `isPolicyFile`, and both `session_start` handlers fail
+closed. `L1-L2-policy-dir` (17 cases) includes the contract assertion: after a real `session_start`
+on that project, a denied read is still blocked.
+
+- **Severity:** high (upgraded from med) — not a crash: a two-layer bypass.
+- **Where:** `src/core/trust.ts` (`fileHash`, `isProjectFileTrusted`), reached from
+  `extensions/guard.ts` `session_start` (before `isPolicyEnabled = true`) and
+  `extensions/sandbox.ts` `startSandbox` (before the `try` around `initSandbox`).
 - **Executed:**
 
   ```text
@@ -192,14 +199,17 @@ process.exit(fail ? 1 : 0);
   readFileSync throws: EISDIR
   ```
 
-- **Read:** `fileHash` tests `existsSync` then reads. `loadConfig` calls `projectTrusted()` outside
-  any `try`, and `extensions/sandbox.ts` calls `loadConfig(context.cwd)` *before* its own `try`.
-  `untrustedProjectChanges` has the same shape. The throw escapes `session_start`, so the grants
-  that follow (`clearSessionGrants`, `clearDetectionGrants`, `clearProgramIds`, …) never run.
-- **Fix:** in `fileHash`, `statSync(p).isFile()` → else `null`; treat a non-file as untrusted. Wrap
-  the `loadConfig`/`loadPolicy` calls in `session_start` so a hostile tree cannot skip cleanup.
-- **Test:** `L1-L2-policy-dir` — a `sandbox.json` **directory** yields `fileHash() === null`,
-  `projectTrusted() === false`, and `loadConfig()` returns the default policy without throwing.
+- **Read:** `fileHash` tested `existsSync` then read. `untrustedProjectChanges` runs before
+  `isPolicyEnabled = true`, so the throw left the guard inactive and every `tool_call` returned
+  early for the rest of the session. `loadConfig` sat outside the `try` in `startSandbox`, so the
+  sandbox never started and never reported why. The grants that follow
+  (`clearSessionGrants`, `clearDetectionGrants`, …) also never ran.
+- **Fix:** `fileHash` → `statSync().isFile()` else `null`; `isProjectFileTrusted` → `!existsSync(p)`
+  when the hash is null (present-but-unreadable is untrusted, absent is trusted); one shared
+  `isPolicyFile` so the loaders never read a directory; `session_start` in both extensions wrapped
+  so a throw leaves the layer armed (guard) or reports an init failure (sandbox), with `--yolo`
+  still honoured before the config is read.
+- **Test:** `L1-L2-policy-dir` — hash, trust answers, the three loaders, and the contract case.
 
 ### S8 — grep result filter misses absolute printed paths
 
