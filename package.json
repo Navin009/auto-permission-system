@@ -90,8 +90,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node security/tests/run.mjs",
     "check": "npm run typecheck && npm test && ./security/check.sh",
-    "format": "prettier --write extensions src",
-    "format:check": "prettier --check extensions src"
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.78"
