@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-21T22:17:56.127Z
+Generated: 2026-11-21T22:22:30.534Z
 
 ## At a glance
 
@@ -30,11 +30,11 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 337 lines, mtime 2026-11-21
+- ✓ `extensions/sandbox.ts` — 335 lines, mtime 2026-11-21
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-12
 - ✓ `src/shared/` — dir, mtime 2026-11-15
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-15
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-21
 
 **Tests**
 
@@ -75,7 +75,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 305 lines, mtime 2026-11-21
+- ✓ `extensions/guard.ts` — 302 lines, mtime 2026-11-21
 - ✓ `extensions/permission-mode.ts` — 163 lines, mtime 2026-11-21
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-15
 - ✓ `src/detect/` — dir, mtime 2026-11-04
@@ -92,7 +92,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-name-only` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l2-name-only.mjs` → expects PASS=10, FAIL=0
 - `L2-user-named` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/user-named.mjs` → expects PASS=16, FAIL=0
 - `L2-mcp-gate` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/mcp-gate.mjs` → expects PASS=39, FAIL=0
-- `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=57, FAIL=0
+- `L1-L2-project-trust` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs` → expects PASS=61, FAIL=0
 - `L1-L2-policy-dir` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-dir.mjs` → expects PASS=17, FAIL=0
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
@@ -161,7 +161,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-15
+- Global: `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-21
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 

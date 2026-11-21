@@ -95,5 +95,19 @@ check('says it raises the MCP threshold', d.includes('Raise the MCP risk score a
 check('deny-only file: nothing to describe', describeLoosening({ filesystem: { denyRead: ['x'] } }).length === 0);
 check('enabled: true is not a loosening', describeLoosening({ enabled: true }).length === 0);
 
+const askWriteApplied = applyUntrustedProject({ filesystem: { askWrite: ['has-base'] } }, { filesystem: { askWrite: ['from-project'] } });
+
+check(
+  'an untrusted askWrite rule is merged additively',
+  JSON.stringify(askWriteApplied.merged.filesystem.askWrite) === JSON.stringify(['has-base', 'from-project']),
+  JSON.stringify(askWriteApplied.merged.filesystem.askWrite),
+);
+check('askWrite is not reported as ignored', !askWriteApplied.ignored.includes('filesystem.askWrite'), JSON.stringify(askWriteApplied.ignored));
+
+const askWriteLoosening = describeLoosening({ filesystem: { askWrite: ['~/.bashrc'] } });
+
+check('an untrusted askWrite rule is not a loosening', askWriteLoosening.length === 0, JSON.stringify(askWriteLoosening));
+check('a real loosening is still reported', describeLoosening({ filesystem: { allowWrite: ['/'] } }).length > 0);
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

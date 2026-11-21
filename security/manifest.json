@@ -162,7 +162,7 @@
         {
           "id": "L1-L2-project-trust",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/project-trust.mjs",
-          "expected": "PASS=57, FAIL=0"
+          "expected": "PASS=61, FAIL=0"
         },
         {
           "id": "L1-L2-policy-dir",

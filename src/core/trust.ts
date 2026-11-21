@@ -151,7 +151,7 @@ function selectStricterTier(
 	return typeof currentTier === "string" ? currentTier : undefined;
 }
 
-const ADDITIVE_DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite", "askRead"] as const;
+const ADDITIVE_DENY_KEYS = ["denyRead", "modelDenyRead", "denyWrite", "askRead", "askWrite"] as const;
 
 export function applyUntrustedProject<T extends JsonObject>(
 	basePolicy: T,
