@@ -34,6 +34,11 @@
           "expected": "PASS=17, FAIL=0"
         },
         {
+          "id": "L1-fail-closed",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/fail-closed.mjs",
+          "expected": "PASS=5, FAIL=0"
+        },
+        {
           "id": "L1-outside-fence",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/outside-fence.mjs",
           "expected": "PASS=38, FAIL=0"

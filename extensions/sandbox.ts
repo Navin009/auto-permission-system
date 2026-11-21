@@ -65,6 +65,7 @@ export default function (pi: ExtensionAPI) {
 	let isSandboxEnabled = false;
 	let isSandboxInitialized = false;
 	let isRuntimeYolo = false;
+	let sandboxBlockReason: string | undefined;
 	let sandboxStartingPromise: Promise<void> | null = null;
 	let latestExtensionContext: ExtensionContext | undefined;
 	let latestBashCommand: string | undefined;
@@ -144,11 +145,13 @@ export default function (pi: ExtensionAPI) {
 
 		if (!config) {
 			isSandboxEnabled = false;
+			sandboxBlockReason = "the sandbox configuration could not be read";
 			return;
 		}
 
 		if (!config.enabled) {
 			isSandboxEnabled = false;
+			sandboxBlockReason = "the sandbox is disabled in sandbox.json";
 			context.ui.notify("Sandbox disabled via config", "info");
 			return;
 		}
@@ -157,6 +160,7 @@ export default function (pi: ExtensionAPI) {
 
 		if (platform !== "darwin" && platform !== "linux") {
 			isSandboxEnabled = false;
+			sandboxBlockReason = `the sandbox is not supported on ${platform}`;
 			context.ui.notify(`Sandbox not supported on ${platform}`, "warning");
 			return;
 		}
@@ -166,6 +170,7 @@ export default function (pi: ExtensionAPI) {
 
 			isSandboxEnabled = true;
 			isSandboxInitialized = true;
+			sandboxBlockReason = undefined;
 
 			const allowedDomainCount = config.network?.allowedDomains?.length ?? 0;
 			const allowedWritePathCount = config.filesystem?.allowWrite?.length ?? 0;
@@ -185,6 +190,7 @@ export default function (pi: ExtensionAPI) {
 		} catch (error) {
 			isSandboxEnabled = false;
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			sandboxBlockReason = `the sandbox failed to start (${errorMessage})`;
 			context.ui.notify(`Sandbox initialization failed: ${errorMessage}`, "error");
 		}
 	};
@@ -256,12 +262,21 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("tool_call", (event, _ctx) => {
-		if (event.toolName === "bash") {
-			const input = event.input as { command?: string };
+		if (event.toolName !== "bash") {
+			return;
+		}
 
-			if (typeof input.command === "string") {
-				latestBashCommand = input.command;
-			}
+		if (!isRuntimeYolo && sandboxBlockReason) {
+			return {
+				block: true,
+				reason: `[Security Policy Notice] bash was blocked because ${sandboxBlockReason}, and an unsandboxed shell would bypass every file and network rule. Nothing was run. Fix the sandbox config, or start pi with --yolo to run without one.`,
+			};
+		}
+
+		const input = event.input as { command?: string };
+
+		if (typeof input.command === "string") {
+			latestBashCommand = input.command;
 		}
 	});
 
