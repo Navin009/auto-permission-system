@@ -1,9 +1,4 @@
 // Layer 2 path matcher — exercises the shipped `matchPattern`, not a copy.
-//
-// Rows marked `xfail` state the behaviour S15 will bring (a credential glob
-// matches regardless of case). They count as passes while production still
-// disagrees, and a normal pass once it agrees, so the marker is removed when
-// S15 lands instead of being forgotten.
 import { homedir } from "node:os";
 import { matchPattern } from "../../../src/l2-guard/matching.ts";
 
@@ -24,34 +19,25 @@ const cases = [
 	["/etc/passwd", ".", false, ". does not cover /etc"],
 	["/private/tmp/pi-502/foo", "/private/tmp/pi-502", true, "allowWrite tmp dir"],
 	["/private/tmp/something-else", "/private/tmp/pi-502", false, "allowWrite tmp dir does not bleed"],
-	[`${home}/FILE.PEM`, "*.pem", true, "a credential glob ignores case (S15)", "xfail"],
-	[`${home}/.ENV.local`, ".env.*", true, "an env glob ignores case (S15)", "xfail"],
-	[`${home}/.SSH/id_rsa`, "~/.ssh", false, "a full absolute prefix stays case-sensitive", "strict"],
+	[`${home}/FILE.PEM`, "*.pem", true, "a credential glob ignores case"],
+	[`${home}/.ENV.local`, ".env.*", true, "an env glob ignores case"],
+	[`${home}/.SSH/id_rsa`, "~/.ssh", false, "a full absolute prefix stays case-sensitive"],
 ];
 
 let pass = 0;
 let fail = 0;
 
-for (const [path, pattern, expected, label, mode] of cases) {
+for (const [path, pattern, expected, label] of cases) {
 	const actual = matchPattern(path, pattern, cwd);
-	const matches = actual === expected;
-	const line = `${path} vs ${pattern} → ${actual}, exp ${expected}`;
 
-	if (matches) {
+	if (actual === expected) {
 		pass++;
-		console.log(`PASS: ${label}  (${line})`);
-		if (mode === "xfail") console.log(`      ${label}: expected-fail now passes — drop the xfail marker`);
-		continue;
-	}
-
-	if (mode === "xfail") {
-		pass++;
-		console.log(`XFAIL: ${label}  (${line})`);
+		console.log(`PASS: ${label}  (${path} vs ${pattern} → ${actual})`);
 		continue;
 	}
 
 	fail++;
-	console.log(`FAIL: ${label}  (${line})`);
+	console.log(`FAIL: ${label}  (${path} vs ${pattern} → ${actual}, exp ${expected})`);
 }
 
 console.log("---", `PASS=${pass}`, `FAIL=${fail}`);

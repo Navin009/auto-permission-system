@@ -298,9 +298,9 @@ export function matchExpandedPattern(absPath: string, pattern: string, home: str
 	}
 
 	const basename = absPath.slice(absPath.lastIndexOf("/") + 1);
-	if (expandedPattern.includes("*")) return matchesGlob(basename, expandedPattern, CASE_INSENSITIVE_PLATFORM);
+	if (expandedPattern.includes("*")) return matchesGlob(basename, expandedPattern, true);
 
-	return CASE_INSENSITIVE_PLATFORM ? basename.toLowerCase() === expandedPattern.toLowerCase() : basename === expandedPattern;
+	return basename.toLowerCase() === expandedPattern.toLowerCase();
 }
 
 export function matchesPolicyPattern(absPath: string, pattern: string, cwd: string, home: string): boolean {
