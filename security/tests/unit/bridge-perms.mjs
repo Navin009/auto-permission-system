@@ -1,9 +1,6 @@
-// Bridge socket permissions and the per-user scratch directory (S4).
-//
-// A socket in the world-writable `tmpdir()` can be connected to by any local
-// user, so both bridges live in `<tmp>/pi-<uid>` (0700) and the socket itself
-// is 0600. The scratch directory is also the one the bash tool hands to a
-// command as TMPDIR.
+// Bridge socket permissions and the per-user scratch directory: the sockets
+// live in `<tmp>/pi-<uid>` (0700) and are 0600, and the bash tool hands the same
+// directory to a command as TMPDIR.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -37,6 +34,7 @@ const throws = (call) => {
 const userIdentifier = process.getuid?.() ?? 0;
 const scratchPath = piScratchDirectory();
 const scratchStats = fs.statSync(scratchPath);
+const bridgePort = 3333;
 
 check("the scratch path is <tmp>/pi-<uid>", scratchPath.endsWith(`/pi-${userIdentifier}`), scratchPath);
 check("the scratch path is a directory", scratchStats.isDirectory());
@@ -64,8 +62,7 @@ fs.writeFileSync(path.join(fileRoot, `pi-${userIdentifier}`), "");
 
 check("a file in the scratch path is rejected", throws(() => piScratchDirectory(fileRoot)));
 
-// The port bridge is the one that used to skip the chmod.
-const portBridge = await startHostPortBridge(3333);
+const portBridge = await startHostPortBridge(bridgePort);
 const portSocketStats = fs.statSync(portBridge.sockPath);
 
 check("the port bridge socket lives in the scratch directory", path.dirname(portBridge.sockPath) === scratchPath);
@@ -75,7 +72,6 @@ check("the port bridge path is a socket", portSocketStats.isSocket());
 portBridge.close();
 check("the port bridge socket is removed on close", !fs.existsSync(portBridge.sockPath));
 
-// The daemon bridge kept its 0600; assert it now shares the directory too.
 const daemonBridge = await startHostSocketBridge("DOCKER_HOST", path.join(os.tmpdir(), "absent-target.sock"));
 const daemonSocketStats = fs.statSync(daemonBridge.sockPath);
 
@@ -85,9 +81,8 @@ check("the daemon bridge socket is owner-only", (daemonSocketStats.mode & 0o077)
 daemonBridge.close();
 check("the daemon bridge socket is removed on close", !fs.existsSync(daemonBridge.sockPath));
 
-// The bwrap injection must still see the real path, not a placeholder.
 const rawCommand = "bwrap --new-session --unshare-net --ro-bind / / -- /usr/bin/bash -c 'socat TCP-LISTEN:3128,fork,reuseaddr UNIX-CONNECT:/tmp/http.sock'";
-const injectedPorts = injectBridgesIntoBwrap(rawCommand, [{ port: 3333, sockPath: portBridge.sockPath, close: () => {} }]);
+const injectedPorts = injectBridgesIntoBwrap(rawCommand, [{ port: bridgePort, sockPath: portBridge.sockPath, close: () => {} }]);
 const injectedSockets = injectSocketBridgesIntoBwrap(rawCommand, [
 	{ envName: "DOCKER_HOST", targetPath: "/var/run/docker.sock", sockPath: daemonBridge.sockPath, close: () => {} },
 ]);

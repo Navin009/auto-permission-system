@@ -137,9 +137,6 @@ export default function (pi: ExtensionAPI) {
 		try {
 			initializeSession(context);
 		} catch (error) {
-			// Setup used to throw out of this handler, which left the guard inactive for
-			// the whole session: every unreadable policy path was a bypass. Stay on with
-			// the rules each tool call loads for itself, and say so.
 			isPolicyEnabled = true;
 			updateActiveState();
 			audit({ layer: 2, event: "session-start-failed", error: String(error), cwd: context.cwd });

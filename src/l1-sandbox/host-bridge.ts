@@ -19,6 +19,8 @@ import { join } from "node:path";
 import { commandHead, commandSegments, shellTokens } from "../core/index.ts";
 import { piScratchDirectory } from "./scratch.ts";
 
+const SOCKET_FILE_MODE = 0o600;
+
 export interface HostPortBridge {
 	port: number;
 	sockPath: string;
@@ -137,7 +139,7 @@ export async function startHostSocketBridge(envName: string, targetPath: string)
 		server.on("error", reject);
 	});
 
-	chmodSync(sockPath, 0o600);
+	chmodSync(sockPath, SOCKET_FILE_MODE);
 
 	return {
 		envName,
@@ -228,7 +230,7 @@ export async function startHostPortBridge(port: number): Promise<HostPortBridge>
 		server.on("error", reject);
 	});
 
-	chmodSync(sockPath, 0o600);
+	chmodSync(sockPath, SOCKET_FILE_MODE);
 
 	return {
 		port,

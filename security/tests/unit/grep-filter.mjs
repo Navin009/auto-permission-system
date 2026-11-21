@@ -47,10 +47,7 @@ let threw = false;
 try { readPolicyForUpdate(bad); } catch { threw = true; }
 check('readPolicyForUpdate: refuses to overwrite unparseable file', threw);
 
-// Integration: the guard builds the path it checks from what grep printed. An
-// absolute printed path must not be re-rooted under the search directory,
-// because `join('/root', '/abs/file')` is `/root/abs/file` -- a path that does
-// not exist, so the deny/ask check would pass the line through.
+// The guard checks the path grep printed, absolute or relative.
 process.env.PI_CODING_AGENT_DIR = join(dir, 'agent');
 const { filterGrepToolResult } = await import('../../../src/l2-guard/output-gates.ts');
 

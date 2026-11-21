@@ -20,13 +20,9 @@ function currentUserIdentifier(): number {
 }
 
 /**
- * Create (or adopt) `<root>/pi-<uid>` and return its path.
- *
- * Throws instead of falling back to the world-writable parent: a silent
- * fallback would put the bridge sockets back where any local user can reach
- * them. A pre-existing path that is a symlink, a file, or owned by someone
- * else is rejected for the same reason — `/tmp` is shared, so the name being
- * free is not the same as the name being ours.
+ * Create (or adopt) `<root>/pi-<uid>` and return its path. Throws when the path
+ * exists but is not a directory owned by this user, so a shared `/tmp` cannot
+ * hand over a name this process will then trust.
  */
 export function piScratchDirectory(rootDirectory: string = temporaryRoot()): string {
 	const directory = join(rootDirectory, `pi-${currentUserIdentifier()}`);

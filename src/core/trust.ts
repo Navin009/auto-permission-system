@@ -11,11 +11,7 @@ interface TrustStore {
 	declined: Record<string, string>;
 }
 
-/**
- * SHA-256 of a policy file, or `null` when it is missing or is not a regular
- * file. A directory named `.pi/sandbox.json` used to throw `EISDIR` here, and
- * the throw escaped `session_start` before either layer was armed.
- */
+/** SHA-256 of a regular policy file; `null` when the path is absent or is not a file. */
 export function fileHash(filePath: string): string | null {
 	try {
 		if (!statSync(filePath).isFile()) {
@@ -55,8 +51,6 @@ export function isProjectFileTrusted(projectPath: string, storePath: string): bo
 	const currentHash = fileHash(projectPath);
 
 	if (currentHash === null) {
-		// No file is nothing to distrust; something that exists but cannot be read
-		// as a file is not "nothing", so it stays untrusted.
 		return !existsSync(projectPath);
 	}
 

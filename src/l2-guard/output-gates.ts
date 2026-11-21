@@ -59,20 +59,13 @@ export function filterGrepToolResult(
 			return contentBlock;
 		}
 
-		const filterResult = filterGrepOutput(
-			contentBlock.text,
-			(printed) => {
-				// The filter reconstructs the file a line came from. A printed path is
-				// relative today, but `join` would keep the root for an absolute one and
-				// the deny/ask check would look at a path that does not exist.
-				const targetPath = isAbsolute(printed) ? printed : join(searchRoot, printed);
+		const filterResult = filterGrepOutput(contentBlock.text, (printed) => {
+			const targetPath = isAbsolute(printed) ? printed : join(searchRoot, printed);
 
-				return (
-					isDeniedRead(targetPath, context.cwd, policy) !== null ||
-					isAskRead(targetPath, context.cwd, policy) !== null
-				);
-			},
-		);
+			return (
+				isDeniedRead(targetPath, context.cwd, policy) !== null || isAskRead(targetPath, context.cwd, policy) !== null
+			);
+		});
 
 		removedLineCount += filterResult.removedLines;
 

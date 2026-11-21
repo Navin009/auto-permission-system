@@ -129,8 +129,6 @@ export default function (pi: ExtensionAPI) {
 		try {
 			return loadConfig(context.cwd);
 		} catch (error) {
-			// Reading the policy used to sit outside every try, so a broken policy path
-			// threw out of session_start and the sandbox silently never started.
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			context.ui.notify(`Sandbox initialization failed: ${errorMessage}`, "error");
 			return undefined;

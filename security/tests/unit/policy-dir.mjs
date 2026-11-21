@@ -1,10 +1,5 @@
-// A policy path that is not a file must not disarm a layer (S7).
-//
-// `fileHash` used `existsSync` + `readFileSync`, so a *directory* named
-// `.pi/sandbox.json` threw EISDIR. The throw escaped `session_start` before
-// either layer was armed: the guard stayed inactive for the whole session and
-// the bash sandbox never started. One `mkdir -p .pi/sandbox.json` in a cloned
-// repository was a two-layer bypass on the next open.
+// A policy path that is not a file must not disarm a layer: the loaders stay
+// safe and the guard stays armed.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -85,9 +80,7 @@ try {
 check("untrustedProjectChanges does not throw", changesThrew === "", changesThrew);
 check("a directory reports no loosening", Array.isArray(changes) && changes.length === 0, JSON.stringify(changes));
 
-// Contract: the guard itself must still be armed after a session_start on that
-// project. This is the assertion that fails without the fix -- the handler threw
-// before `isPolicyEnabled = true`, and every later tool_call returned early.
+// The guard must still be armed after a session_start on that project.
 const extension = await import("../../../extensions/guard.ts");
 
 const handlers = new Map();
@@ -133,8 +126,8 @@ const blockedRead = await handlers.get("tool_call")(
 check("the guard is still armed: a denied read is blocked", blockedRead?.block === true, JSON.stringify(blockedRead));
 check("the block carries a reason", typeof blockedRead?.reason === "string" && blockedRead.reason.length > 0);
 
-// And a normal read inside the project is still allowed (the guard is armed,
-// not stuck in deny-everything).
+// A normal read inside the project passes, so the guard is armed rather than
+// stuck in deny-everything.
 const allowedRead = await handlers.get("tool_call")(
 	{ toolName: "read", toolCallId: "call-2", input: { path: join(projectDirectory, "README.md") } },
 	context,
