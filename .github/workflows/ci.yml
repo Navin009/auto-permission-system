@@ -46,7 +46,9 @@ jobs:
 
   test:
     # Layer 2 unit tests assume POSIX paths and real symlink support, so
-    # they must run on Linux/macOS, not Windows.
+    # they must run on Linux/macOS, not Windows. `npm run check` is the same
+    # gate a maintainer runs locally: typecheck, every test file, then the
+    # manifest suite plus the SECURITY.md render.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -57,4 +59,4 @@ jobs:
 
       - run: npm install
 
-      - run: npm test
+      - run: npm run check
