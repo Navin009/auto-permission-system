@@ -72,7 +72,7 @@ check('domain screen1 Yes, all in group for this conversation → session', (awa
 		clock = realNow() + ASK_TIMEOUT_MS + 1;
 		return undefined;
 	};
-	check('domain screen1 countdown expiry → yes', (await askDecision(mkCtx([expire]).ctx, domainKind, null)) === 'yes');
+	check('domain screen1 countdown expiry → no', (await askDecision(mkCtx([expire]).ctx, domainKind, null)) === 'no');
 	check('file screen1 countdown expiry → no', (await askDecision(mkCtx([expire]).ctx, fileKind, null)) === 'no');
 	Date.now = realNow;
 }
