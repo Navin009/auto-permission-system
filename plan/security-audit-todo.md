@@ -24,21 +24,17 @@ anything is renamed or merged — each item is one commit with its test.
 
 ---
 
-## Batch 0 — foundations (no behaviour change)
+## Batch 0 — foundations (no behaviour change) — landed
 
 Do these first: the formatter makes every later diff readable, and the check script makes the rest
 verifiable. Each is an isolated commit.
 
-- [ ] **C2** — add a formatter (tabs, to match the 84 files), run it once as its own
-      `style:` commit, add `format`/`lint` scripts and a CI step. Expect ~25 files to change
-      whitespace only; no logic may move in this commit.
-- [ ] **T1** — `engines: { node: ">=22.19.0" }` (pi's own floor, verified in its package.json) + `.nvmrc` (`24`).
-- [ ] **T2** — `"check": "npm run typecheck && npm test && ./security/check.sh"`; use it in
-      `ci.yml` and `release-tag.yml`.
-- [ ] **T3** — decide and do: assert the manifest `expected` counts in `check.sh`, or drop the
-      field from the manifest + `render.mjs`. (Recommendation: assert — it turns `SECURITY.md`
-      into a contract.) Also warn about the 20 test files the manifest does not list (36 entries
-      vs 54 files, mostly the display-only `tool-view-*` suite).
+- [x] **C2** — `90d935d` — prettier, tabs, `printWidth: 120`, `format`/`format:check` scripts, CI
+      gate. 71 files, whitespace only apart from one already-unused import.
+- [x] **T1** — `93e58a8` — `engines.node >=22.19.0` (pi's own floor) + `.nvmrc` 24.
+- [x] **T2** — `8fb091c` — `npm run check`, used by `ci.yml` and `release-tag.yml`.
+- [x] **T3** — `95dc6ab` — `check.sh` asserts the pinned counts and warns about unlisted files; the
+      gate caught 8 stale pins and 3 missing L2 output-gate tests on its first run.
 
 ## Batch 1 — quick hardening (one-liners, no design risk)
 
@@ -123,6 +119,8 @@ These are the "no functional diff" batch: every existing test must stay green **
 - [ ] **C8** — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
 - [ ] **C9** — `src/shared/messages.ts` for the user-facing prefixes.
 - [ ] **C10** — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
+- [ ] **C12** — one import-specifier convention (`.ts`): codemod the 10 extensionless files in
+      `src/l2-guard/`, `src/l1-sandbox/` and `src/ui/ask-flow.ts`, then a lint rule.
 
 ## Batch 7 — process and validation
 
@@ -130,6 +128,8 @@ These are the "no functional diff" batch: every existing test must stay green **
       unknown-key report to the loaders (notify + audit, never throw). This catches the
       `strictAllowlst` class of support issue.
 - [ ] **T5** — scheduled e2e job (`bubblewrap` + `socat` on `ubuntu-latest`) for `L1-e2e`.
+- [ ] **T6** — pin every workflow action to a commit SHA with a version comment; enable Dependabot
+      for `github-actions`.
 
 ## Batch 8 — features (only after 0–7)
 
@@ -146,25 +146,28 @@ These are the "no functional diff" batch: every existing test must stay green **
 
 | Batch | Items | Done |
 | --- | --- | --- |
-| 0 foundations | 4 | 0 |
+| 0 foundations | 4 | 4 |
 | 1 quick hardening | 6 | 0 |
 | 2 one matcher + deny | 4 | 0 |
 | 3 fail-open | 4 | 0 |
 | 4 state/lifecycle | 6 | 0 |
 | 5 detection/logging | 5 | 0 |
-| 6 simplification | 7 | 0 |
-| 7 process | 2 | 0 |
+| 6 simplification | 8 | 0 |
+| 7 process | 3 | 0 |
 | 8 features | 6 | 0 |
-| **total** | **44** | **0** |
+| **total** | **46** | **4** |
 
-## Suggested commit sequence for the first session
+## Landed so far
 
 ```text
-style(format): one formatter, tabs everywhere, CI gate            # C2
-chore(npm): declare node >=20.11 and add an aggregate check       # T1, T2
-fix(sandbox): keep bridge sockets owner-only                      # S4
-fix(trust): treat a policy path that is not a file as untrusted    # S7
-fix(guard): filter grep lines that print an absolute path          # S8
-fix(trust): let an untrusted project add askWrite rules            # S14
-test(paths): import the shipped matcher instead of copying it      # C11
+docs(plan): record the audit findings and the working order        2767a56
+style(format): one formatter, tabs everywhere, CI gate             90d935d
+chore(git): skip the format commit in blame                        761cf76
+chore(node): declare the supported engine                          93e58a8
+chore(ci): gate on one aggregate check                             8fb091c
+test(security): pin the manifest case counts                       95dc6ab
 ```
+
+Two findings were added while doing batch 0, both surfaced by the analyzer rather than by reading:
+**T6** (workflow actions pinned to mutable tags) and **C12** (mixed import specifiers, 10 files
+against 57). They are batched with the rest instead of expanding batch 0.

@@ -1,11 +1,11 @@
 # Security and quality audit — findings
 
-**Status:** open. Nothing in here is fixed yet. The working order lives in
+**Status:** open — batch 0 landed (C2, T1, T2, T3). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
-**One line:** 15 security findings, 7 behaviour bugs and 11 quality items — 9 of them carrying a
-reproduced output — each with the missing test named, so a fix is never "trust me".
+**One line:** 15 security findings, 7 behaviour bugs, 12 quality and 6 tooling items — 9 of them
+carrying a reproduced output — each with the missing test named, so a fix is never "trust me".
 
 ---
 
@@ -447,6 +447,7 @@ process.exit(fail ? 1 : 0);
 | C9 | naming drift in user-facing strings |
 | C10 | dead exports and two unwired scripts |
 | C11 | `path-matcher.mjs` is a copy of the matcher, not a test of it |
+| C12 | mixed import specifiers: `.ts` in 57 files, extensionless in 10 |
 
 ### C1 — two glob matchers; L1 and L2 disagree on the same policy entry
 
@@ -474,6 +475,10 @@ process.exit(fail ? 1 : 0);
 - **Blocks:** S15 (semantics decided here).
 
 ### C2 — no formatter, no linter
+
+**Status:** ✅ fixed in `90d935d` — prettier owns `extensions/` and `src/`, tabs, `printWidth: 120`,
+`npm run format:check` in CI. `security/**/*.mjs`, `*.md` and the shipped policy JSON stay out
+until C11/C8 stop rewriting them (`.prettierignore` says so).
 
 - **Severity:** med (quality) — 15k lines, two indent conventions, nothing enforces either.
 - **Executed:** 25 of 109 `.ts` files start a top-level statement with two spaces (all of
@@ -589,11 +594,25 @@ process.exit(fail ? 1 : 0);
   is the point.
 - **Test:** the rewritten `path-matcher.mjs` is the test.
 
+### C12 — mixed import specifiers
+
+- **Where:** `src/l2-guard/` (6 files), `src/l1-sandbox/` (3), `src/ui/ask-flow.ts` (1)
+- **Executed:** 10 of the 67 files that import a relative module use an extensionless specifier
+  (`from "../core/index"`); the other 57 use `.ts` (`from "../core/index.ts"`). No file mixes both,
+  so this is a per-directory convention, not a per-file accident. Both resolve
+  (`moduleResolution: bundler` + `allowImportingTsExtensions`), so nothing enforces either — and a
+  reader moving between `src/core` and `src/l2-guard` sees two styles for the same thing.
+- **Fix:** pick one. `.ts` is the majority and is what `src/core` and `extensions/` already do; a
+  codemod on the 10 files plus a lint rule keeps it.
+- **Test:** n/a — the lint rule is the test.
+
 ---
 
 ## 4. Tooling and process
 
 ### T1 — no `engines`, no `.nvmrc`
+
+**Status:** ✅ fixed in `93e58a8` (`engines.node >=22.19.0`, `.nvmrc` 24).
 
 `package.json` has no `engines` field and CI pins Node 24. The floor is set by pi itself, not by
 this package: `@earendil-works/pi-coding-agent` declares `"node": ">=22.19.0"`, and an extension
@@ -603,11 +622,19 @@ today. Add `"engines": { "node": ">=22.19.0" }` and `.nvmrc` (`24`).
 
 ### T2 — no aggregate check script
 
+**Status:** ✅ fixed in `8fb091c` — `npm run check` is typecheck + every test + the manifest suite and
+render; `ci.yml` and `release-tag.yml` both call it.
+
 `npm test` does not typecheck, and `security/check.sh` is not on any npm script. Add
 `"check": "npm run typecheck && npm test && ./security/check.sh"` and use it in CI and at release
 time.
 
 ### T3 — manifest `expected` counts are unenforced
+
+**Status:** ✅ fixed in `95dc6ab` — `check.sh` compares the last reported `PASS=`/`FAIL=` against the
+pin and fails on a mismatch (a note-carrying entry is held to `FAIL=0`); the gate immediately caught
+8 stale pins and 3 missing L2 output-gate tests. The 17 `tool-view-*` files stay unlisted by design
+and are printed as a note.
 
 `security/manifest.json` stores `"expected": "PASS=59, FAIL=0"` per test, but
 `security/check.sh` only inspects the exit status and `npm test` ignores counts entirely — so
@@ -633,6 +660,17 @@ an unknown-key report to `loadPolicy`/`loadConfig` (one `notify` + audit entry, 
 `L1-e2e` is `expected: manual` (`APS_E2E=1`) because it needs `bwrap`/`socat`. Nothing runs it in
 CI, so runtime drift surfaces in users' sessions. Add a nightly `workflow_dispatch`/`schedule` job
 on `ubuntu-latest` that installs `bubblewrap` + `socat` and runs it.
+
+### T6 — workflow actions are pinned to mutable tags
+
+- **Where:** `.github/workflows/ci.yml`, `release-tag.yml`, `release.yml`, `commitlint.yml`
+  (`actions/checkout@v7`, `actions/setup-node@v7`)
+- **Read:** a tag is mutable — whoever controls the action repository can repoint `v7` at new code —
+  and `release-tag.yml` runs with `contents: write`. Pinning to a full commit SHA with the version in
+  a comment removes that trust, and a bot keeps the pins current.
+- **Fix:** `uses: actions/checkout@<40-hex> # v7.x.y` in every workflow, plus Dependabot for
+  `github-actions` so the pins do not rot.
+- **Test:** n/a — a CI grep (`uses: .*@v[0-9]` must not appear) is the test.
 
 ---
 
