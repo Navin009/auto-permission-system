@@ -16,10 +16,10 @@ name: Release Tag
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 permissions:
-  contents: write   # create the GitHub Release
+  contents: write # create the GitHub Release
 
 env:
   NODE_VERSION: 24
