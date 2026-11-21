@@ -1,5 +1,7 @@
 name: Commitlint
 
+# Runs the devDependency in `package.json` instead of a third-party action, so
+# the pull-request gate adds no action to trust and no tag to pin.
 on:
   pull_request:
 
@@ -10,8 +12,18 @@ jobs:
   commitlint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: wagoid/commitlint-github-action@v6
+      # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+
+      - run: npm install
+
+      # Compares every commit in the pull request against its merge base.
+      - run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to HEAD --verbose

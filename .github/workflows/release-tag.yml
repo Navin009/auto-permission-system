@@ -19,7 +19,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write # create the GitHub Release
+  contents: read # the release job lifts its own access
 
 env:
   NODE_VERSION: 24
@@ -32,13 +32,23 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # this job installs dependencies; it must not hold write
     steps:
-      - uses: actions/checkout@v7
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # No action caches anything here (setup-node is given no `cache:` input),
+      # so there is no cache to poison; the write permission lives in the
+      # release job below, which installs nothing.
+      # zizmor: ignore[cache-poisoning] read-only install job, no cache step
       - run: npm install
 
       - run: npm run check
@@ -46,10 +56,14 @@ jobs:
   release:
     needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
     steps:
-      - uses: actions/checkout@v7
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Warn-only on purpose: a mismatch must not block the Release, but it does
       # mean a later npm publish would not match the tag.
