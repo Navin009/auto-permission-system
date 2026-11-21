@@ -43,6 +43,8 @@ git push origin v6.2.0          # or: git push --tags
 | `plan/tool-rows-views.md` | how the `compact` / `full` tool view looks, frame by frame | Yes, hand-edit |
 | `plan/scrollable-script-plan.md` | scrollable script/transcript rendering plan | Yes, hand-edit |
 | `plan/read-group-plan.md` | combined view for file reads: one `└` line per file in a read run | Yes, hand-edit |
+| `plan/security-audit.md` | audit findings (S/B/C/T/F ids) with evidence, the fix, and the missing test — the reference, never deleted | Yes, hand-edit — mark fixed findings, do not remove them |
+| `plan/security-audit-todo.md` | working order for the audit: nine batches, one commit per item | Yes — tick items as they land |
 | `llms.txt` | assistants and crawlers: canonical facts, install, commands, terms, doc index | Yes, hand-edit — keep it factually identical to the README |
 | `assets/schema.jsonld` | Schema.org JSON-LD (`SoftwareApplication`, `Person`, `FAQPage`) for registries and landing pages | Yes, hand-edit — must stay valid JSON |
 | `changes.md` | discoverability strategy: pi.dev/npm/GitHub ranking, then GEO, AEO, E-E-A-T, semantic SEO and schema | Yes, hand-edit |
