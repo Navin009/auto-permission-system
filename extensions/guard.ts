@@ -223,6 +223,16 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			const targetUrls = extractUrlsFromInput(toolInput);
+
+			if (!targetUrls.length) {
+				audit({ layer: 2, tool: event.toolName, decision: "no", note: "url-unparsed", cwd: context.cwd });
+
+				return {
+					block: true,
+					reason: `[Security Policy Notice] ${event.toolName} was blocked because its target URL could not be read, so it cannot be checked against the allowlist. Nothing was fetched.`,
+				};
+			}
+
 			const networkResult = await checkNetworkAccess(targetUrls, event.toolName, context, policy, (domain) =>
 				emitDomainGrant(pi.events, domain),
 			);

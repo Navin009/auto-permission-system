@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-21T22:29:59.503Z
+Generated: 2026-11-21T22:30:48.099Z
 
 ## At a glance
 
@@ -75,7 +75,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 302 lines, mtime 2026-11-21
+- ✓ `extensions/guard.ts` — 312 lines, mtime 2026-11-21
 - ✓ `extensions/permission-mode.ts` — 163 lines, mtime 2026-11-21
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-15
 - ✓ `src/detect/` — dir, mtime 2026-11-04
@@ -88,7 +88,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-path-parity` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/path-parity.mjs` → expects PASS=32, FAIL=0
 - `L2-deny-terminal` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/deny-terminal.mjs` → expects PASS=13, FAIL=0
 - `L2-urls` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/url-allowlist.mjs` → expects PASS=8, FAIL=0
-- `L2-url-deny` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/url-gate.mjs` → expects PASS=12, FAIL=0
+- `L2-url-deny` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/url-gate.mjs` → expects PASS=17, FAIL=0
 - `L2-symlink` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/symlink-escape.mjs` → expects PASS=5, FAIL=0
 - `L2-grep-filter` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grep-filter.mjs` → expects PASS=21, FAIL=0
 - `L2-name-only` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l2-name-only.mjs` → expects PASS=10, FAIL=0

@@ -2,6 +2,7 @@
 // the hard-deny tier, kept separate from the ask-able "not in allowlist"
 // reason so the guard can refuse without a prompt. No pi, no fs.
 import { deniedUrlReason, isAllowedUrl } from '../../../src/l2-guard/url.ts';
+import { extractUrlsFromInput } from '../../../src/l2-guard/tool-gates.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -27,6 +28,12 @@ check(
 	'deny wins over an override',
 	deniedUrlReason('https://evil.com', { network: { allowedDomains: [], deniedDomains: ['evil.com'] }, overrides: { allowDomains: ['evil.com'] } }) === 'denied domain: evil.com',
 );
+
+check('a url field is collected', extractUrlsFromInput({ url: 'https://a.example' }).length === 1);
+check('a urls array is collected', extractUrlsFromInput({ urls: ['https://a.example', 'https://b.example'] }).length === 2);
+check('a non-string entry is ignored', extractUrlsFromInput({ urls: [{ url: 'https://a.example' }] }).length === 0);
+check('an unrecognised shape yields nothing', extractUrlsFromInput({ query: 'a.example' }).length === 0);
+check('no input yields nothing', extractUrlsFromInput(undefined).length === 0);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);
