@@ -200,6 +200,11 @@
           "expected": "PASS=33, FAIL=0"
         },
         {
+          "id": "L2-detect-size",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-size.mjs",
+          "expected": "PASS=12, FAIL=0"
+        },
+        {
           "id": "L1-L2-permission-mode",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs",
           "expected": "PASS=23, FAIL=0"

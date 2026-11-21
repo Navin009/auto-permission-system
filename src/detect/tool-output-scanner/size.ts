@@ -34,7 +34,7 @@ export function estimateSize(output: unknown, limit: number): SizeEstimate {
 		const current = stack.pop();
 
 		if (typeof current === "string") {
-			bytes += current.length + 2;
+			bytes += Buffer.byteLength(current, "utf8") + 2;
 		} else if (typeof current === "number") {
 			bytes += 8;
 		} else if (typeof current === "boolean") {
