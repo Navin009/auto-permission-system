@@ -118,5 +118,15 @@ for (const d of manifest.docs) out.push(`| \`${d.path}\` | ${d.role} |`);
 out.push("");
 
 const target = resolve(root, "SECURITY.md");
-writeFileSync(target, out.join("\n"));
-console.log(`Wrote ${target} (${out.length} lines)`);
+const rendered = out.join("\n");
+const existing = existsSync(target) ? readFileSync(target, "utf8") : "";
+
+/** The date is the one line that always moves; a run that only re-stamps it must not dirty the file. */
+const withoutGeneratedDate = (text) => text.replace(/^Generated: .*$/m, "Generated:");
+
+if (withoutGeneratedDate(existing) === withoutGeneratedDate(rendered)) {
+	console.log(`Unchanged ${target} (${out.length} lines)`);
+} else {
+	writeFileSync(target, rendered);
+	console.log(`Wrote ${target} (${out.length} lines)`);
+}
