@@ -41,6 +41,7 @@ export {
 };
 
 const DEFAULT_KILL_TIMEOUT_MILLISECONDS = 1000;
+const MAXIMUM_EXECUTION_ATTEMPTS = 4;
 
 export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOperations {
 	return {
@@ -101,7 +102,20 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 			const grantedWriteFolders = new Set<string>();
 			const grantedWriteFiles = new Set<string>();
 
-			const attemptExecution = async (writeOnce: string[]): Promise<{ exitCode: number | null }> => {
+			const attemptExecution = async (
+				writeOnce: string[],
+				attemptIndex = 1,
+			): Promise<{ exitCode: number | null }> => {
+				if (attemptIndex > MAXIMUM_EXECUTION_ATTEMPTS) {
+					onData(
+						Buffer.from(
+							`\n[Security Policy Notice] the sandbox blocked this command ${MAXIMUM_EXECUTION_ATTEMPTS} times; it was not retried again.\n`,
+						),
+					);
+
+					return { exitCode: 1 };
+				}
+
 				const sandboxConfig = loadConfig(workingDirectory);
 				const allowLocalhost = sandboxConfig.allowLocalhost ?? sandboxConfig.network?.allowLocalhost ?? true;
 
@@ -217,7 +231,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 							grantedWriteFolders,
 							grantedWriteFiles,
 							onData,
-							retryExecution: (additionalWriteGrants) => attemptExecution(additionalWriteGrants),
+							retryExecution: (additionalWriteGrants) => attemptExecution(additionalWriteGrants, attemptIndex + 1),
 						});
 
 						if (outcome.wasHandled && outcome.retryPromise) {
