@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0-4 landed, and batch 5 except S6 and C7 (30 of 49). The working order lives in
+**Status:** open — batches 0-5 and 7 landed; batch 6 is missing C4, C6 and C9 (40 of 49). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -175,6 +175,8 @@ process.exit(fail ? 1 : 0);
   returns `Once` only when the opt-in flag is set; an Esc still blocks either way.
 
 ### S6 — `suppressGhostDotfiles()` silently disables runtime protections
+
+**Status:** ✅ fixed in `899c543` — see the commit body for the reasoning.
 
 - **Severity:** med — a silent security-relevant mutation of another package's state.
 - **Where:** `src/l1-sandbox/manager.ts:25-42`
@@ -581,6 +583,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 
 ### C3 — the policy-layer wiring is duplicated in L1 and L2
 
+**Status:** ✅ fixed in `190206c` — see the commit body for the reasoning.
+
 - **Where:** `src/l1-sandbox/config.ts:61-77` and `src/l2-guard/policy.ts:56-73`
 - **Read:** both re-derive `DEFAULT_* = shippedPolicy()`, `TRUST_STORE = trustStorePath(getAgentDir())`,
   `createProjectTrust`, `setPiDeclinedTrust`, `projectTrusted`, and a near-identical `load*()` loop
@@ -621,6 +625,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 
 ### C7 — the policy is reloaded on every tool event
 
+**Status:** ✅ fixed in `bb46bab` — see the commit body for the reasoning.
+
 - **Where:** `extensions/guard.ts:145` (`tool_call`), `:216` and `:226` (two `tool_result`
   handlers), `src/l1-sandbox/bash-ops.ts:113` (per attempt)
 - **Read:** `loadPolicy` does `existsSync` + `readFileSync` + `JSON.parse` + `structuredClone` of
@@ -632,6 +638,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
   writer invalidates immediately.
 
 ### C8 — the largest files, and a retry path with no depth bound
+
+**Status:** ✅ fixed in `e719ded` — see the commit body for the reasoning.
 
 - **Where:** `bash-recovery.ts` (570), `ask.ts` (505), `ask-flow.ts` (498), `find-query.ts` (482),
   `row-group.ts` (451), `target-summary.ts` (425)
@@ -654,6 +662,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 - **Test:** `L2-output-blocks` / `L1-attribution` stay green.
 
 ### C10 — dead exports and two unwired scripts
+
+**Status:** ✅ fixed in `5c4ed49` — see the commit body for the reasoning.
 
 - **Executed:** `networkSessionGrantSummary()` and `programOutputSessionGrantSummary()` have no
   caller; `ASK_TIMEOUT_BY_ACTION` is imported nowhere; a crude cross-file scan found 89 exported
@@ -686,6 +696,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 - **Test:** the rewritten `path-matcher.mjs` is the test.
 
 ### C12 — mixed import specifiers
+
+**Status:** ✅ fixed in `79c2325` — see the commit body for the reasoning.
 
 - **Where:** `src/l2-guard/` (6 files), `src/l1-sandbox/` (3), `src/ui/ask-flow.ts` (1)
 - **Executed:** 10 of the 67 files that import a relative module use an extensionless specifier
@@ -741,12 +753,16 @@ counts is what makes the listed ones trustworthy.
 
 ### T4 — no JSON Schema for `sandbox.json`
 
+**Status:** ✅ fixed in `99d6c2a` — see the commit body for the reasoning.
+
 `assets/schema.jsonld` is SEO metadata, not validation. Unknown keys are silently ignored today
 (`strictAllowlst`, `allowReads`, a typo'd `outsideProject` key — all no-ops with no warning).
 Publish `sandbox.schema.json`, validate the shipped presets against it in the test suite, and add
 an unknown-key report to `loadPolicy`/`loadConfig` (one `notify` + audit entry, never a throw).
 
 ### T5 — the e2e suite never runs on a schedule
+
+**Status:** ✅ fixed in `a098664` — see the commit body for the reasoning.
 
 `L1-e2e` is `expected: manual` (`APS_E2E=1`) because it needs `bwrap`/`socat`. Nothing runs it in
 CI, so runtime drift surfaces in users' sessions. Add a nightly `workflow_dispatch`/`schedule` job
@@ -772,6 +788,8 @@ installs nothing. Revisit if the release path is ever split.
 - **Test:** n/a — a CI grep (`uses: .*@v[0-9]` must not appear) is the test.
 
 ### T7 — the publish job installs dependencies with no lockfile
+
+**Status:** ✅ fixed in `5244de6` — see the commit body for the reasoning.
 
 - **Where:** `.github/workflows/release.yml` (one job: `npm install` → typecheck/tests →
   semantic-release), `.gitignore` (`package-lock.json`)

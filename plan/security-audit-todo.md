@@ -98,7 +98,7 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 
 ## Batch 5 — detection and logging
 
-- [ ] **S6** — assert the runtime arrays before/after mutation; report failure once (`console.error`
+- [x] **S6** — `899c543` — assert the runtime arrays before/after mutation; report failure once (`console.error`
       + audit) instead of swallowing. Extend `L1-ghost-dotfiles`.
 - [x] **S9** — verified as not a finding: the basename form never applies to an outside-project
       read, and the absolute/`~` forms are the feature.
@@ -106,35 +106,35 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
       make yolo config/flag-authoritative, the event announcement-only. Test:
       `L1-L2-grant-channel`.
 - [x] **S12** — `f239705` — audit file `0600`, rotation, one-shot error report. Test: `L2-audit-log`.
-- [ ] **C7** — mtime-keyed policy cache; one `loadPolicy` per event shared by the two `tool_result`
+- [x] **C7** — `bb46bab` — mtime-keyed policy cache; one `loadPolicy` per event shared by the two `tool_result`
       handlers. Test: `L1-L2-policy-cache`.
 
 ## Batch 6 — simplification (behaviour must not change)
 
 These are the "no functional diff" batch: every existing test must stay green **unchanged**.
 
-- [ ] **C3** — one `src/shared/policy-layer.ts`; delete the L1/L2 copies.
+- [x] **C3** — `190206c` — one `src/shared/policy-layer.ts`; delete the L1/L2 copies.
 - [ ] **C4** — one `askNetworkGrant()` for both layers; one `pickOption()` for the three remember
       screens. Add one case asserting L1 and L2 print identical text for the same host.
-- [ ] **C5** — one core `commandHeadName()`; both call sites use it.
+- [x] **C5** — `commandNameOf` in core; both prompts use it (`e5c9a2f`-era commit).
 - [ ] **C6** — replace `export *` in `src/core/index.ts` with named re-exports.
-- [ ] **C8** — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
+- [x] **C8** — `e719ded` — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
 - [ ] **C9** — `src/shared/messages.ts` for the user-facing prefixes.
 - [x] **S16** — `823eb21` — read tiers are deny → allow → ask; a content read no rule allows asks.
 - [x] **S17** — `9a835b0` — corroborate a yolo emit against the flag/config before disabling both layers.
-- [ ] **C10** — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
-- [ ] **C12** — one import-specifier convention (`.ts`): codemod the 10 extensionless files in
+- [x] **C10** — `5c4ed49` — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
+- [x] **C12** — `79c2325` — one import-specifier convention (`.ts`): codemod the 10 extensionless files in
       `src/l2-guard/`, `src/l1-sandbox/` and `src/ui/ask-flow.ts`, then a lint rule.
 
 ## Batch 7 — process and validation
 
-- [ ] **T4** — `sandbox.schema.json`; validate the three shipped presets in the test suite; add an
+- [x] **T4** — `99d6c2a` — `sandbox.schema.json`; validate the three shipped presets in the test suite; add an
       unknown-key report to the loaders (notify + audit, never throw). This catches the
       `strictAllowlst` class of support issue.
-- [ ] **T5** — scheduled e2e job (`bubblewrap` + `socat` on `ubuntu-latest`) for `L1-e2e`.
+- [x] **T5** — `a098664` — scheduled e2e job (`bubblewrap` + `socat` on `ubuntu-latest`) for `L1-e2e`.
 - [x] **T6** — `c22a047` — 12 `uses:` pinned to SHAs, commitlint runs the devDependency, write
       scopes per job, `persist-credentials: false`, Dependabot with a 7-day cooldown, CI grep guard.
-- [ ] **T7** — track `package-lock.json` and switch every workflow to `npm ci`; the publish job
+- [x] **T7** — `5244de6` — track `package-lock.json` and switch every workflow to `npm ci`; the publish job
       currently resolves a fresh tree while holding `id-token: write`.
 
 ## Batch 8 — features (only after 0–7)
@@ -157,11 +157,11 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 2 one matcher + deny | 4 | 4 |
 | 3 fail-open | 4 | 4 |
 | 4 state/lifecycle | 6 | 6 |
-| 5 detection/logging | 7 | 5 |
-| 6 simplification | 8 | 0 |
-| 7 process | 4 | 1 |
+| 5 detection/logging | 7 | 7 |
+| 6 simplification | 8 | 5 |
+| 7 process | 4 | 4 |
 | 8 features | 6 | 0 |
-| **total** | **49** | **30** |
+| **total** | **49** | **40** |
 
 ## Landed so far
 
