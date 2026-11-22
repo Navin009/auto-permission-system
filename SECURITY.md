@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-22T08:55:22.550Z
+Generated: 2026-11-22T08:56:16.313Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-host-bridge`, `L1-bridge-perms`, `L1-fail-closed`, `L1-outside-fence`, `L1-ask-commands`, `L1-bash-candidates`, `L1-find-query`, `L1-read-operands`, `L1-ask-read-preflight`, `L1-session-grants`, `L1-ghost-dotfiles`, `L1-network-ask`, `L1-L2-network-grants`, `L1-grant-channel`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-read-tiers`, `L2-audit-log`, `L1-L2-path-parity`, `L2-deny-terminal`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-policy-dir`, `L1-L2-policy-write`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L2-detect-size`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L1-L2-yolo-gate`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-read-tiers`, `L2-audit-log`, `L1-L2-path-parity`, `L2-deny-terminal`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-policy-dir`, `L1-L2-policy-write`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-queue`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L2-detect-size`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L1-L2-yolo-gate`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -78,7 +78,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `extensions/guard.ts` — 321 lines, mtime 2026-11-22
-- ✓ `extensions/permission-mode.ts` — 164 lines, mtime 2026-11-21
+- ✓ `extensions/permission-mode.ts` — 197 lines, mtime 2026-11-22
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-15
 - ✓ `src/detect/` — dir, mtime 2026-11-04
 - ✓ `src/core/` — dir, mtime 2026-11-12
@@ -104,6 +104,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
 - `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=60, FAIL=0
+- `L1-L2-ask-queue` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-queue.mjs` → expects PASS=3, FAIL=0
 - `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=65, FAIL=0
 - `L1-L2-defaults` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/default-policy.mjs` → expects PASS=25, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=33, FAIL=0

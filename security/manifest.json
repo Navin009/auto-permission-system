@@ -220,6 +220,11 @@
           "expected": "PASS=60, FAIL=0"
         },
         {
+          "id": "L1-L2-ask-queue",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-queue.mjs",
+          "expected": "PASS=3, FAIL=0"
+        },
+        {
           "id": "L1-L2-ask-selector",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs",
           "expected": "PASS=65, FAIL=0"

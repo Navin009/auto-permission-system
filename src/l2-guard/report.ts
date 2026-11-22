@@ -10,6 +10,8 @@ import {
 } from "./policy.ts";
 import { forgetProjectTrust, recordProjectDeclined, recordProjectTrust } from "../core/index.ts";
 import { sessionGrantSummary } from "./prompts.ts";
+import { askQueued } from "../ui/ask-flow.ts";
+import type { AskCtx } from "../ui/ask.ts";
 import { audit, AUDIT_PATH } from "../shared/audit.ts";
 
 const TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS = 120_000;
@@ -48,9 +50,13 @@ export async function handleProjectTrustCommand(
 	const dialogOptions = ["No — ignore these changes (default)", "Yes — I wrote this file. Apply it."];
 	const dialogTitle = `Do you trust this file?\n${projectPolicy}\n\nIt will:\n${bullets(changes)}\n\nIf the file changes, auto-permission-system asks again.`;
 
-	const selectedOption = await context.ui.select(dialogTitle, dialogOptions, {
-		timeout: TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS,
-	});
+	const selectedOption = await askQueued(
+		/* SAFETY: pi's runtime ctx carries the selector; AskCtx names the member used. */
+		context as unknown as AskCtx,
+		dialogTitle,
+		dialogOptions,
+		TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS,
+	);
 
 	if (selectedOption !== dialogOptions[1]) {
 		recordProjectDeclined(projectPolicy, TRUST_STORE);

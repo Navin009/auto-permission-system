@@ -137,6 +137,16 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 	return queued;
 }
 
+/** Run a pi selector in the shared ask slot, so it cannot replace a queued ask. */
+export async function askQueued(
+	ctx: AskCtx,
+	title: string,
+	options: string[],
+	timeoutMs?: number,
+): Promise<string | undefined> {
+	return enqueue(() => ctx.ui.select(title, options, timeoutMs === undefined ? undefined : { timeout: timeoutMs }));
+}
+
 /**
  * One serialized ask. `expired` separates the countdown running out from an
  * early Esc: both resolve `undefined`, only the countdown is the prompt's

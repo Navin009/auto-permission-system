@@ -1,15 +1,18 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	menuOptionLine,
 	modeLabel,
 	normalizeMode,
+	projectPolicyPath,
 	SELECTION_TIMEOUT_MILLISECONDS,
 	setPolicyMode,
 	type PermissionMode,
 } from "../src/core/index.ts";
 import { loadConfig } from "../src/l1-sandbox/config.ts";
-import { loadPolicy } from "../src/l2-guard/policy.ts";
+import { loadPolicy, projectTrusted } from "../src/l2-guard/policy.ts";
+import { askQueued } from "../src/ui/ask-flow.ts";
 import { audit } from "../src/shared/audit.ts";
 import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo.ts";
 
@@ -42,6 +45,31 @@ const MODE_DEFINITIONS: ModeDefinition[] = [
 		description: "Turns off all file sandboxing and leak protections",
 	},
 ];
+
+/** A project file that pins `mode` wins over the global one; write it, or say so. */
+function setProjectMode(context: ExtensionContext, mode: PermissionMode): void {
+	const projectPath = projectPolicyPath(context.cwd);
+
+	if (!existsSync(projectPath)) return;
+
+	try {
+		const projectMode = JSON.parse(readFileSync(projectPath, "utf-8")).mode;
+
+		if (typeof projectMode !== "string" || normalizeMode(projectMode) === mode) return;
+
+		if (!projectTrusted(context.cwd)) {
+			context.ui.notify(
+				`This project pins mode "${projectMode}" in .pi/sandbox.json, so the change applies everywhere else. Run /security trust to change it here.`,
+				"warning",
+			);
+			return;
+		}
+
+		setPolicyMode(projectPath, mode);
+	} catch (error) {
+		context.ui.notify(`Could not update this project's mode: ${error}`, "warning");
+	}
+}
 
 function renderSandboxChip(context: ExtensionContext): void {
 	const config = loadConfig(context.cwd);
@@ -91,9 +119,13 @@ async function pickMode(pi: ExtensionAPI, context: ExtensionContext, yoloState: 
 
 	const options = MODE_DEFINITIONS.map((definition) => menuOptionLine(definition, definition.value === currentMode));
 
-	const pickedOption = await context.ui.select("Select permission mode:", options, {
-		timeout: SELECTION_TIMEOUT_MILLISECONDS,
-	});
+	const pickedOption = await askQueued(
+		/* SAFETY: pi's runtime ctx carries the selector; askQueued only uses ui.select. */
+		context as unknown as Parameters<typeof askQueued>[0],
+		"Select permission mode:",
+		options,
+		SELECTION_TIMEOUT_MILLISECONDS,
+	);
 
 	if (pickedOption === undefined) {
 		return;
@@ -126,6 +158,7 @@ async function pickMode(pi: ExtensionAPI, context: ExtensionContext, yoloState: 
 
 	try {
 		setPolicyMode(GLOBAL_POLICY_PATH, nextMode);
+		setProjectMode(context, nextMode);
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		context.ui.notify(`Could not save the permission mode: ${errorMessage}`, "error");
