@@ -437,8 +437,8 @@ left, is cut from the left at a token (or path-segment) boundary, and is dropped
 fits — the count, duration and `ctrl+o` hint are never truncated:
 
 ```text
-100 cols  ✓ Running 4 commands (sed -n 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
- 80 cols  ✓ Running 4 commands (… 660,700p plan/tool-rows-views.md) · 8s ctrl+o to expand
+100 cols  ✓ Running 4 commands (sed -n 660,700p src/ui/ask-selector.ts) · 8s ctrl+o to expand
+ 80 cols  ✓ Running 4 commands (… 660,700p src/ui/ask-selector.ts) · 8s ctrl+o to expand
  60 cols  ✓ Running 4 commands · 8s ctrl+o to expand
 ```
 
