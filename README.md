@@ -648,7 +648,7 @@ Why the claims on this page can be checked instead of taken on faith.
 - **Tests you can run yourself.** `npm run typecheck` checks the TypeScript entry points against Pi's own bundled types; `npm test` runs the unit and contract suites (51 files) covering path matching, URL allowlists, symlink escapes, ask flows, project trust and the tool view; an opt-in Layer 1 end-to-end test (`APS_E2E=1`) exercises real `bubblewrap`. All of it runs on every push to `main` before a release can be cut.
 - **Every decision is recorded.** Each allow, deny, ask and redaction is appended to `~/.pi/agent/audit.log` as JSONL with the layer, the subject and the reason, so a user can prove what happened in a run rather than trusting a summary.
 - **No hidden authority.** The policy is a plain JSON file you can read and edit; the package has one runtime dependency ([`@anthropic-ai/sandbox-runtime`](https://www.npmjs.com/package/@anthropic-ai/sandbox-runtime)) and downloads no binary at runtime. There is no account, no API key, no hosted service and no telemetry added by this package.
-- **Released in public.** Every release is tagged on GitHub and written to [`CHANGELOG.md`](./CHANGELOG.md) by semantic-release from the commit history; npm publishing is opt-in and gated as described in [`PUBLISHING.md`](./PUBLISHING.md).
+- **Released in public.** Every release is tagged on GitHub and written to [`CHANGELOG.md`](./CHANGELOG.md) by semantic-release from the commit history; npm publishing is opt-in and gated as described in [`CLAUDE.md`](./CLAUDE.md#releases).
 - **Stated limits.** Detection is AST plus pattern matching, not a proof of safety — a secret built at runtime, or a file no rule names, can still be read. Layer 1 needs `bubblewrap` + `socat` on Linux and `sandbox-exec` on macOS, and is not available on Windows; on Windows only Layers 2 and 3 apply. This page is written to be precise about that rather than to sound complete.
 
 Docs reviewed: **2026-11-15**.
@@ -723,7 +723,7 @@ Releases are fully automated with [semantic-release](https://semantic-release.gi
 - `feat: ...` → Minor release
 - `feat!: ...` or `BREAKING CHANGE:` → Major release
 
-Pull requests are verified via `commitlint`. Publishing to npm is triggered automatically when `NPM_PUBLISH` is `true`. See **[PUBLISHING.md](PUBLISHING.md)** for details.
+Pull requests are verified via `commitlint`. Publishing to npm is triggered automatically when `NPM_PUBLISH` is `true`. See **[CLAUDE.md → Releases](CLAUDE.md#releases)** for the tag and npm steps.
 
 ---
 

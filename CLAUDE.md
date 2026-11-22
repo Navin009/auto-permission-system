@@ -15,6 +15,8 @@ npm test               # security/tests/*.mjs (path-matcher, url-allowlist, syml
 ./security/check.sh    # tests + regenerate SECURITY.md (or: `tests`|`render` only)
 ```
 
+The harness lives under `security/tests/`: `unit/` for pure core logic, `contract/` for adapter logic driven by a scripted UI, `e2e/` for the real OS sandbox (`APS_E2E=1`, opt-in). A new test is a script that prints `PASS=<n>, FAIL=0` and exits non-zero on failure; register it in the matching `manifest.layers[].tests` entry as `node --import ./security/tests/ts-loader.mjs security/tests/unit/<file>.mjs` and `check.sh` picks it up. A new layer is one object in `manifest.layers[]` with `id`, `name`, `status`, `purpose`, `sourceFiles`, `tests`, `knownGaps`.
+
 ## Releases
 
 A pushed tag releases; nothing else does. `git tag` + `git push` creates the GitHub Release and commits nothing.
@@ -32,6 +34,8 @@ git push origin v6.2.0          # or: git push --tags
 - Re-tagging is only safe before the Release page exists: once it is created, the workflow skips instead of overwriting it.
 - `NPM_PUBLISH` (repository variable, default off) gates npm publishing and is read only by the manual `release.yml` path.
 - Verify after: `git pull --tags`, `gh release list --limit 3`, `gh release view <tag>`.
+
+npm is a second, independent path. The package is already published; later versions go out through `release.yml` with `NPM_PUBLISH=true`, and npm Trusted Publishing (OIDC, so provenance is attached and no token is stored) is configured for this repo. The [Pi package gallery](https://pi.dev/packages) lists whatever npm has — there is no separate upload, so a publish is all the discoverability that needs doing. Verify with `npm view auto-permission-system version`.
 
 ## Docs map — read the right one, don't duplicate across them
 
