@@ -7,7 +7,6 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	applyUntrustedProject,
-	createProjectTrust,
 	describeLoosening,
 	shippedPolicy,
 	overlayPolicy,
@@ -23,6 +22,7 @@ import {
 	type PermissionMode,
 } from "../core/index.ts";
 import type { McpPolicy } from "../detect/index.ts";
+import { projectTrusted } from "../shared/policy-trust.ts";
 
 export interface Policy {
 	enabled: boolean;
@@ -74,19 +74,9 @@ const DEFAULT_POLICY: Policy = shippedPolicy() as unknown as Policy;
 
 export const TRUST_STORE = trustStorePath(getAgentDir());
 
-const projectTrust = createProjectTrust(TRUST_STORE);
-
-/** Set at session_start: the user declined pi's own project-trust prompt. */
-export function setPiDeclinedTrust(declined: boolean): void {
-	projectTrust.setDeclined(declined);
-}
-
 export { projectPolicyPath };
 
-/** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
-export function projectTrusted(cwd: string): boolean {
-	return projectTrust.isTrusted(cwd);
-}
+export { projectTrusted, setPiDeclinedTrust } from "../shared/policy-trust.ts";
 
 /** What an untrusted project file tries to make weaker, in plain sentences. Empty when trusted or deny-only. */
 export function untrustedProjectChanges(cwd: string): string[] {

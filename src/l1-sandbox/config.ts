@@ -10,9 +10,9 @@
 
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { projectTrusted } from "../shared/policy-trust.ts";
 import {
 	applyUntrustedProject,
-	createProjectTrust,
 	shippedPolicy,
 	overlayPolicy,
 	normalizeMode,
@@ -22,7 +22,6 @@ import {
 	reportUnknownPolicyKeys,
 	globalPolicyPath,
 	projectPolicyPath,
-	trustStorePath,
 	type PermissionMode,
 } from "../core/index.ts";
 
@@ -75,19 +74,7 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem" |
 /* SAFETY: shippedPolicy() is parsed JSON plus the closed shape, which carries exactly the keys SandboxConfig reads. */
 const DEFAULT_CONFIG: SandboxConfig = shippedPolicy() as unknown as SandboxConfig;
 
-export const TRUST_STORE = trustStorePath(getAgentDir());
-
-const projectTrust = createProjectTrust(TRUST_STORE);
-
-/** Set at session_start: the user declined pi's own project-trust prompt. */
-export function setPiDeclinedTrust(declined: boolean): void {
-	projectTrust.setDeclined(declined);
-}
-
-/** A project sandbox.json applies in full only when its content was trusted (ADR-013). */
-export function projectTrusted(cwd: string): boolean {
-	return projectTrust.isTrusted(cwd);
-}
+export { projectTrusted, setPiDeclinedTrust, TRUST_STORE } from "../shared/policy-trust.ts";
 
 /**
  * Load the global config, then the project config on top.
