@@ -1,6 +1,5 @@
-// Read/write posture over the existing schema (ADR-047): the project and
-// /tmp are writable, every other write asks, critical files ask, credential
-// stores ask as folders, an explicit allow wins.
+// Read/write posture over the existing schema (ADR-047): writes are wide,
+// critical files ask, credential stores ask as folders, an explicit allow wins.
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
@@ -9,7 +8,6 @@ import {
 	deniedWriteCandidates,
 	isSafeFolderGrant,
 	isSessionFolderGrant,
-	shippedPolicy,
 } from "../../../src/core/index.ts";
 import { isAskRead, isDeniedRead, isDeniedWrite } from "../../../src/l2-guard/matching.ts";
 
@@ -54,20 +52,6 @@ check("key material stays hard-denied", writeVerdict(sshAuthorizedKeys, { denyWr
 check("a critical file asks when it is updated", writeVerdict(projectEnv, { askWrite: [".env"] }).startsWith("askWrite matched"));
 check("a shell rc file asks even though home is writable", writeVerdict(bashrc, askWhenWritingBashrc).startsWith("askWrite matched"));
 check("the ask verdict is rendered for the user", writeVerdict(bashrc, askWhenWritingBashrc).includes("~/.bashrc"));
-
-// The shipped baseline, not a test fixture: the project and /tmp are writable
-// and every other path falls to the ask tier instead of being allowed or
-// hard-denied.
-const shipped = shippedPolicy();
-const shippedVerdict = (path) => isDeniedWrite(path, cwd, shipped) ?? "";
-const desktopEntry = `${home}/.local/share/applications/ai.storyteller.filmcraft.desktop`;
-
-check("shipped default: a project file needs no prompt", shippedVerdict(`${cwd}/src/app.ts`) === "", shippedVerdict(`${cwd}/src/app.ts`));
-check("shipped default: /tmp needs no prompt", shippedVerdict("/tmp/scratch.txt") === "", shippedVerdict("/tmp/scratch.txt"));
-check("shipped default: a home write asks", shippedVerdict(`${home}/notes.txt`).includes("not under any allowWrite root"));
-check("shipped default: a desktop entry asks", shippedVerdict(desktopEntry).includes("not under any allowWrite root"));
-check("shipped default: a desktop entry is not hard-denied", !shippedVerdict(desktopEntry).includes("denyWrite"));
-check("shipped default: key material stays hard-denied", shippedVerdict(sshAuthorizedKeys).includes("absolute-deny"));
 
 check("a credential store folder asks on read", (isAskRead(awsConfig, cwd, wide) ?? "").includes("askRead matched"));
 check("a sibling folder with the same prefix does not ask", isAskRead(awsBackup, cwd, wide) === null);

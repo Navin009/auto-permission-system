@@ -86,7 +86,8 @@
     ],
     "allowWrite": [
       ".",
-      "/tmp"
+      "/tmp",
+      "~"
     ],
     "denyWrite": [
       "~/.ssh",

@@ -49,7 +49,7 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 ## Policy files
 
 Merged in order (later wins):
-1. `sandbox.default.json` — the only shipped preset, and the baseline every project inherits: key material hard-denied (`~/.ssh`, `~/.gnupg`, `~/.pi/agent/auth.json`, plus `*.pem`/`*.key` from the credential tier), credential stores asking on read as **folders** (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`), a write posture limited to the project and `/tmp` (every other path asks, on both layers), and `outsideProject.read: "allow"`
+1. `sandbox.default.json` — the only shipped preset, and the baseline every project inherits: key material hard-denied (`~/.ssh`, `~/.gnupg`, `~/.pi/agent/auth.json`, plus `*.pem`/`*.key` from the credential tier), credential stores asking on read as **folders** (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`), a wide write posture (`allowWrite` includes `~`) with critical files asking on write, and `outsideProject.read: "allow"`
 2. your project file — `.pi/sandbox.json` overrides the default additively; for unattended runs set `network.strictAllowlist: true` and `filesystem.outsideProject.read: "deny"`
 3. `~/.pi/agent/extensions/sandbox.json` — global user policy
 4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
@@ -73,7 +73,7 @@ A higher layer only states what it changes; absent keys keep the layer below. A 
     "askRead": [".env", "~/.aws"],  // Layer 1 + 2: ask before reading (ADR-019). A folder entry covers every file beneath it. One read at a time, never remembered (ADR-046)
     "allowRead": ["~/.aws/config"],  // explicit allow wins over an askRead folder, so a noisy store can be silenced without editing the ask list
     "modelDenyRead": ["~/.netrc"],    // Layer 2 only: model read blocked, subprocesses ok
-    "allowWrite": [".", "/tmp"],    // Layer 2: write only inside these. Any other path asks; a write does not leak a token, so the project stays writable
+    "allowWrite": [".", "/tmp", "~"],  // Layer 2: write only inside these. A write does not leak a token, so this stays wide
     "denyWrite": ["~/.ssh", "~/.gnupg"],  // Layer 1 + 2: always blocked. Key material only (the shipped list also has ~/.pi/agent/auth.json)
     "askWrite": [".env", "~/.bashrc"] // Layer 1 + 2: ask before writing, so a critical file never changes under you (ADR-045, ADR-047)
   },
@@ -208,7 +208,7 @@ tail -20 ~/.pi/agent/audit.log | python3 -m json.tool
 
 **Docker, Podman or any daemon client says `permission denied … docker.sock`** — on Linux the sandbox is bubblewrap with a mandatory `--unshare-user`, and a user namespace drops every supplementary group and refuses `setgroups`. When the user is in the `docker` group but the sandbox is not, `/var/run/docker.sock` (usually `root:docker 0660`) is unreachable and `sg docker -c …` cannot work either (`setgroups: Operation not permitted`, `setgid: Invalid argument`). No policy entry restores a group; the daemon socket is bridged from the host instead (ADR-052). `docker`, `docker-compose`, `podman`, `podman-compose`, `nerdctl`, `buildah` and `skopeo` commands get a user-owned socket on the host that forwards to the real one, bind-mounted in and selected through `DOCKER_HOST` / `CONTAINER_HOST`, so the client behaves exactly as it does in a normal shell. What the user's own group membership allows, the client can do — that authority is the same either way (see `knownGaps`). A bind mount still needs the path to exist on the host: `-v "$PWD:/w"` fails when the daemon cannot read the source, which is why a copied tree under `/tmp` works.
 
-**`npm install` fails with `E407 Proxy Authentication Required`** — sandbox-runtime puts the proxy credential inside `HTTPS_PROXY`, which curl and git use; npm parses that URL itself, drops the userinfo, and gets challenged. The proxy URL is therefore also handed to npm as `npm_config_proxy` / `npm_config_https_proxy`, which keep the credential (ADR-054). Nothing in `allowedDomains` needs to change when the registry is already listed — check the audit log for `network-ask` before assuming the host is blocked. `EROFS` under `~/.npm/_cacache` means `allowWrite` does not cover that path: the shipped default writes in the project and `/tmp` only, so answer the ask once or for the session, or add `~/.npm` to `allowWrite`.
+**`npm install` fails with `E407 Proxy Authentication Required`** — sandbox-runtime puts the proxy credential inside `HTTPS_PROXY`, which curl and git use; npm parses that URL itself, drops the userinfo, and gets challenged. The proxy URL is therefore also handed to npm as `npm_config_proxy` / `npm_config_https_proxy`, which keep the credential (ADR-054). Nothing in `allowedDomains` needs to change when the registry is already listed — check the audit log for `network-ask` before assuming the host is blocked. `EROFS` under `~/.npm/_cacache` means `allowWrite` does not cover `~`; the shipped default does.
 
 **`sudo` refuses to run inside the sandbox** — expected: bubblewrap sets `no_new_privs`, so `sudo: The "no new privileges" flag is set` is the sandbox working, not a bug. Run privileged work outside pi, or give the path an `allowWrite`/`allowRead` entry instead.
 
