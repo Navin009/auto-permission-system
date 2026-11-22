@@ -1,37 +1,3 @@
-/**
- * TUI ask selector (ADR-031). pi's `ui.select` can render a multi-line title
- * and a countdown, but it cannot do both at once *and* drop the "Default:"
- * line once the user starts choosing. This component can:
- *
- *   🌐  Let composio connect to us.i.posthog.com?
- *   Site     us.i.posthog.com
- *   Group    *.posthog.com   (every posthog.com site)
- *   Command  composio search "get google ads account" ...
- *   Why      this site isn't on your allowed list yet
- *
- *   Default: Yes, just this once (15s)      ← live; hidden on the first ↑/↓
- *
- *   → No
- *     Yes, just this once
- *     Yes, all in group for this conversation
- *     Yes, always…
- *
- * Keyboard only (ADR-036): ↑/↓ move the highlight, Enter selects, Esc cancels.
- * The countdown only applies to an untouched prompt: the first ↑/↓ cancels it, so
- * a user who is choosing is never auto-answered and Enter/Esc alone decide
- * (ADR-039). Mouse events are swallowed before they reach the list — pi's
- * SelectList picks the clicked row and moves the highlight on wheel, which
- * could approve a row the user never read. The wheel scrolls the body only.
- *
- * The body is a viewport measured in wrapped rows and sized to the terminal
- * (ADR-041).
- *
- * `askSelect` loads this module lazily and only in TUI mode
- * (`ctx.mode === "tui"`), so `src/ui/ask-flow.ts` and the contract tests stay
- * free of pi-tui imports. RPC keeps `ui.select`: RPC's `ui.custom` is a no-op
- * that resolves `undefined` immediately, which would silently deny.
- */
-
 import { Container, SelectList, Spacer, Text, type Component, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 export type AskTheme = {
@@ -66,33 +32,29 @@ function trimBlankEdges(lines: string[]): string[] {
 }
 
 export type AskSelectorOptions = {
-	/** Header + body lines; the footer is passed separately so it can be hidden. */
 	title: string;
-	/** The `Default: …` line, or null when the prompt has no default hint. */
+
 	footer: string | null;
 	options: string[];
-	/** The question above the choices. Fixed: it never scrolls with the body. */
+
 	question?: string | null;
-	/** One muted line under the question, also fixed. */
+
 	note?: string | null;
-	/** 0 disables the countdown (the prompt stays open until pick/Esc). */
+
 	timeoutMs: number;
 	tui: { requestRender(): void; terminal?: { rows: number; columns: number } };
 	theme: AskTheme;
 	keybindings: { matches(data: string, action: string): boolean };
-	/** Resolves the `ctx.ui.custom` promise; `undefined` means Esc/expiry. */
+
 	done: (result: string | undefined) => void;
-	/** Called when the countdown runs out, before `done(undefined)` — lets the
-	 * caller tell an unanswered prompt from an Esc (ADR-024). */
+
 	onExpire: () => void;
-	/** Countdown tick, default 1000 ms. Test seam. */
+
 	tickMs?: number;
-	/** Maximum body lines shown in viewport before scrolling engages. Default 12. */
+
 	maxBodyLines?: number;
 };
 
-/** A one-line horizontal rule, like pi's DynamicBorder but without the
- * internal import (`@earendil-works/pi-tui` does not export it). */
 class Border implements Component {
 	private readonly color: (text: string) => string;
 	constructor(color: (text: string) => string) {
@@ -133,7 +95,7 @@ export class AskSelector extends Container {
 	private readonly bodyComponent: Text | null = null;
 	private readonly indicatorComponent: Text | null = null;
 	private readonly helpComponent: Text;
-	/** Rows the fixed question and note take, when the prompt has them. */
+
 	private readonly extraChromeRows: number;
 	private bodyScrollOffset = 0;
 	private wrappedRows: string[] = [];
@@ -356,7 +318,6 @@ export class AskSelector extends Container {
 		this.finish(undefined);
 	}
 
-	/** The `Default: …` line, with the live `(Ns)` suffix while counting down. */
 	private footerValue(): string {
 		const text =
 			this.timeoutMs > 0 && this.footerBase ? `${this.footerBase} (${this.remaining}s)` : (this.footerBase ?? "");
@@ -376,9 +337,6 @@ export class AskSelector extends Container {
 		}, this.tickMs);
 	}
 
-	/** The first ↑/↓ ends the countdown: a user who has started choosing decides
-	 * with Enter/Esc, not a timer (ADR-039). The footer is gone, so nothing is
-	 * left that claims to be counting down. */
 	private onActivity(): void {
 		this.engaged = true;
 		if (this.footerVisible) this.hideFooter();

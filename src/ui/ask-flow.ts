@@ -1,25 +1,6 @@
-/**
- * Shared ask-tier UI primitives for both layers. Pure: no pi, no OS, no fs —
- * it only calls the caller's `ctx.ui.select`, so the contract tests can script it.
- *
- * Every prompt is a question. Answers are uniformly `No` / `Yes, just this once` /
- * `Yes, for this conversation` / `Yes, always…` so row 2 is always "once". Screen 2
- * collapses to "All in folder · in this project" / "Only <name> · in this project" /
- * "All in folder · in all projects" / "Only <name> · in all projects" — folder /
- * wildcard is preselected (the wider grant is the right answer almost every time).
- * Every screen ends with a footer that says plainly what Esc and no answer do
- * (ADR-024: network default is allow once).
- *
- * Every select is serialized: a second overlapping `ui.select` replaces the
- * first on screen, and the first one's countdown later disposes the newer
- * selector, whose promise never settles (ADR-024).
- */
-
 import { GrantScope } from "../core/index.ts";
 import { POLICY_NOTICE } from "../shared/messages.ts";
 
-/** Structural view of a pi-tui component (`ctx.ui.custom` result) — enough for
- * the ask selector. `render` must return lines that fit the given width. */
 export type AskComponent = {
 	render(width: number): string[];
 	handleInput?(data: string): void;
@@ -27,18 +8,15 @@ export type AskComponent = {
 	dispose?(): void;
 };
 
-/** The slice of pi's theme the selector styles with. */
 export type AskTheme = {
 	fg(color: string, text: string): string;
 	bold(text: string): string;
 };
 
-/** The slice of pi's KeybindingsManager the selector's list delegates to. */
 export type AskKeybindings = {
 	matches(data: string, action: string): boolean;
 };
 
-/** The slice of pi's TUI the selector needs (countdown repaint). */
 export type AskTui = {
 	requestRender(): void;
 };
@@ -54,14 +32,13 @@ export type AskCustomUi = (
 
 export type AskCtx = {
 	hasUI?: boolean;
-	/** pi's run mode. The custom selector is TUI-only: RPC's `ui.custom` is a
-	 * no-op that resolves `undefined` immediately, so RPC keeps `ui.select`. */
+
 	mode?: string;
 	ui: {
 		select: (t: string, o: string[], op?: { timeout?: number; signal?: AbortSignal }) => Promise<string | undefined>;
-		/** TUI-only custom component host. Absent in tests and RPC. */
+
 		custom?: AskCustomUi;
-		/** Optional — only present in interactive TUI mode. Tests/scripts use a stub. */
+
 		onTerminalInput?: (handler: (data: string) => void) => () => void;
 	};
 };
@@ -74,12 +51,8 @@ export const MainChoice = {
 } as const;
 export type MainChoice = (typeof MainChoice)[keyof typeof MainChoice];
 
-/** How long a pending permission prompt waits before it resolves to its default.
- * ADR-030: per-action overrides below — the user picks a wider scope (folder / wildcard) and
- * needs more time on screen 2 than on the fast yes/no of screen 1. */
 export const ASK_TIMEOUT_MS = 15_000;
 
-/** Icons per prompt type. Header takes the icon + title. */
 export const ICON = {
 	ask: "❓",
 	warn: "⚠",
@@ -89,18 +62,6 @@ export const ICON = {
 } as const;
 export type IconKey = keyof typeof ICON;
 
-/**
- * The tail of the FIFO prompt queue. pi's selector is a singleton: when a
- * second `ui.select` arrives it replaces the first on screen, and the first
- * one's countdown later disposes the second without ever resolving its
- * promise. The sandbox network proxy awaits that promise before deciding a
- * connection, so the bash command would hang until its own timeout. One
- * prompt at a time is the only way to avoid the race from this side.
- *
- * Kept on `globalThis`: pi loads each extension with its own jiti module
- * cache (`moduleCache: false`), so Layer 1 and Layer 2 do not share this
- * module's state — but they do share pi's one selector.
- */
 const ASK_CHAIN_GLOBAL = "__autoPermissionSystemAskChain__";
 type AskChainGlobal = typeof globalThis & { [ASK_CHAIN_GLOBAL]?: Promise<unknown> };
 
@@ -110,16 +71,8 @@ function queueTail(): Promise<unknown> {
 	return g[ASK_CHAIN_GLOBAL];
 }
 
-/**
- * True while a queued task is running in this module instance. Nested asks run
- * inline so they keep the slot instead of enqueuing behind themselves — the
- * basis of the atomic two-screen flow (ADR-034). Module-local on purpose: pi
- * gives each extension bundle its own copy, and the shared chain above already
- * serializes across bundles.
- */
 let holdingQueue = false;
 
-/** Run `fn` in the shared FIFO ask slot; a call made while a slot is held runs inline in that slot. */
 async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 	if (holdingQueue) return fn();
 	const run = async (): Promise<T> => {
@@ -147,26 +100,6 @@ export async function askQueued(
 	return enqueue(() => ctx.ui.select(title, options, timeoutMs === undefined ? undefined : { timeout: timeoutMs }));
 }
 
-/**
- * One serialized ask. `expired` separates the countdown running out from an
- * early Esc: both resolve `undefined`, only the countdown is the prompt's
- * default. Measured inside the lock, so time spent queued behind another
- * prompt never counts.
- *
- * Activity extension (v3.5.3): when the user presses ↑/↓/Tab/Home/End/PgUp/PgDn
- * while the prompt is open, the timeout is reset. They aren't being idle —
- * they're reading options and deciding. Setting `timeoutMs` to `0` disables
- * the countdown entirely (the prompt stays open until pick or Esc).
- *
- * v3.5.12 (ADR-031): in TUI mode the footer is rendered separately, with a
- * live countdown, and disappears on the first selection change. RPC and the
- * tests keep `ui.select` with the footer as the last title line.
- *
- * v3.6.0 (ADR-034): every select goes through the re-entrant `enqueue`; there
- * is no bypass. A select made while a slot is held (screen 2, a nested ask)
- * runs inline, so a two-screen ask never races the next queued ask for pi's
- * singleton selector.
- */
 export async function askSelect(
 	ctx: AskCtx,
 	title: string,
@@ -187,11 +120,6 @@ export async function askSelect(
 	});
 }
 
-/**
- * TUI path (ADR-031): a custom component owns the countdown, so `expired` is
- * exact — Esc can never be mistaken for the countdown running out. Loaded
- * lazily: the pi-tui imports only exist in this branch.
- */
 async function askWithCustom(
 	ctx: AskCtx,
 	title: string,
@@ -224,8 +152,6 @@ async function askWithCustom(
 	return { picked, expired };
 }
 
-/** Select fallback (RPC, print, tests): the footer is the last title line; the
- * timer records expiry exactly, so Esc is never mistaken for it (ADR-039). */
 async function askWithSelect(
 	ctx: AskCtx,
 	title: string,
@@ -235,7 +161,6 @@ async function askWithSelect(
 	question: string | null,
 	note: string | null,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
-	// Guard against terminal overflow in non-custom/RPC mode for long scripts
 	let boundedTitle = question ? `${title}\n\n${question}` : title;
 
 	if (note) boundedTitle = `${boundedTitle}\n\n${note}`;
@@ -256,16 +181,6 @@ async function askWithSelect(
 	return askSelectWithActivity(ctx, selectTitle, options, timeoutMs);
 }
 
-/**
- * `ui.select` with a countdown that ends at the first navigation. v3.5.10: pi's
- * "(Ns)" countdown is NOT passed to `ctx.ui.select` (the v3.5.6 attempt with
- * abort+reissue flickered because pi's SelectList resets selectedIndex on every
- * re-issue). The first navigation cancels the timer, so a user who is choosing
- * decides with Enter/Esc and is never auto-answered (ADR-039). Expiry is
- * recorded by the timer itself, not inferred from elapsed time. `timeoutMs === 0`
- * takes the no-countdown-no-auto-dismiss path (prompt stays open until pick or
- * Esc).
- */
 async function askSelectWithActivity(
 	ctx: AskCtx,
 	title: string,
@@ -315,37 +230,28 @@ async function askSelectWithActivity(
 	settled = true;
 	clearTimer();
 	offInput();
-	// Without an input hook navigation cannot be observed, so fall back to the
-	// elapsed-time split (ADR-024); with it, an engaged prompt never expires.
+
 	const expiredByElapsed = !engaged && picked === undefined && Date.now() - started >= timeoutMs;
 	return { picked, expired: expiredByElapsed };
 }
 
-/** Join `header` + optional `icon` (e.g. `🔑  Let pi read your key?`). The icon gets a double space. */
 function withIcon(icon: string | undefined, header: string): string {
 	return icon ? `${icon}  ${header}` : header;
 }
 
 export type MainOpts = {
-	/** Offer `Yes, just this once` (default on). */
 	once?: boolean;
-	/** Offer `Yes, for this conversation` (opt-in). */
+
 	session?: boolean;
-	/** Override the session label so the caller can name what the conversation grant covers
-	 * (`Yes, for this conversation` for files, `Yes, all in group for this conversation` for networks). */
+
 	sessionLabel?: string;
-	/** Offer `Yes, always…` (default on). */
+
 	remember?: boolean;
-	/**
-	 * Network asks only (ADR-024): `Yes, just this once` is the preselected option and an
-	 * unanswered countdown resolves to Allow once. File and credential asks keep `No`
-	 * preselected and an unanswered countdown blocks.
-	 */
-	/** Per-screen footer; defaults to the blocking answer. Pass `null` to suppress. */
+
 	footer?: string | null;
-	/** Prefix the title with an icon. */
+
 	icon?: IconKey;
-	/** Test seam; defaults to {@link ASK_TIMEOUT_MS}. */
+
 	timeoutMs?: number;
 };
 
@@ -369,18 +275,6 @@ export async function askMain(ctx: AskCtx, header: string, body: string, opts: M
 	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
 }
 
-/**
- * The two-screen ask as one queue slot (ADR-034). Screen 1 runs, and when the
- * user picks `Yes, always…` the caller's screen-2 continuation runs in the
- * same slot, before the next queued ask can start. The continuation returns
- * the grant it collected, or `null` when the user cancelled screen 2.
- *
- * This is the only safe shape for a two-screen ask: running screen 2 outside
- * the slot races the next queued ask for pi's singleton selector (the loser is
- * dropped unsent → the awaited promise hangs and its countdown later wipes the
- * visible prompt), and queuing it normally shows an unrelated prompt between
- * the two screens.
- */
 export async function askMainWithRemember<T>(
 	ctx: AskCtx,
 	header: string,
@@ -398,12 +292,6 @@ export async function askMainWithRemember<T>(
 
 export type ScopeChoice = { scope: GrantScope; folder: boolean };
 
-/**
- * Screen 2 options for a file: `All in folder / Only <name>` × `in this project
- * / in all projects`. Folder is preselected. The cwd rows are hidden when the
- * project isn't trusted, so the user cannot pick a grant that persistOverride
- * would reject.
- */
 export async function askRememberFile(
 	ctx: AskCtx,
 	title: string,
@@ -436,23 +324,14 @@ export async function askRememberFile(
 	return choices.find((c) => c.label === picked)?.value ?? null;
 }
 
-/** The screen 2 default \u2014 `pattern` is the actual pattern persisted into the allowlist.
- * For 3+ part hosts (`backend.composio.dev`) the default is the parent-domain wildcard
- * (`*.composio.dev`) so one click covers every subdomain; for 2-part hosts (`example.com`)
- * the only sensible pattern is the host. ADR-030. */
 export type HostGrant = { scope: GrantScope; pattern: string };
 
-/** `*.composio.dev` from `backend.composio.dev`; `example.com` from `example.com`. */
 export function parentDomainWildcard(host: string): string {
 	const parts = host.toLowerCase().split(".");
 	if (parts.length <= 2) return host;
 	return `*.${parts.slice(-2).join(".")}`;
 }
 
-/** Screen 2 for a domain subject. ADR-030: wildcard subdomain is offered FIRST when the host
- * has a useful parent domain, so the default grant covers siblings without re-prompting.
- * `pattern` is the actual pattern written to the allowlist. Atomic with screen 1 under
- * askMainWithRemember (ADR-034). */
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,
@@ -496,10 +375,6 @@ export const ExposureChoice = {
 } as const;
 export type ExposureChoice = (typeof ExposureChoice)[keyof typeof ExposureChoice];
 
-/** Advanced Secure output gate (ADR-018): show where it was found and ask before the output reaches the model.
- *  When `programId` is set, an extra option lets the user grant the rest of the
- *  conversation for that program — same pattern as path/host conversation grants, but for
- *  tool output (display, not access). */
 export async function askExposure(ctx: AskCtx, hits: string[], programId?: string): Promise<ExposureChoice> {
 	const choices: Array<{ label: string; value: ExposureChoice }> = [
 		{ label: "No, keep it hidden   (recommended)", value: ExposureChoice.Block },
@@ -522,11 +397,6 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 	return choices.find((c) => c.label === picked)?.value ?? ExposureChoice.Block;
 }
 
-/**
- * The model-facing notice when Advanced Secure withholds output. Never empty
- * and never phrased as a failure, so the model treats it as a deliberate block
- * by the user, not a broken tool or an empty result.
- */
 export function withheldNotice(subject: string): string {
 	return [
 		`${POLICY_NOTICE} Output from \`${subject}\` was hidden because it contains sensitive credentials.`,
