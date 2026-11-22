@@ -1,6 +1,3 @@
-// A live network grant may only add a host-shaped entry, and only one that is
-// not denied. The event channel is reachable by any loaded extension, so the
-// consumer validates instead of trusting the emitter.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

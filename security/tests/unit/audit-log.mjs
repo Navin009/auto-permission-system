@@ -1,5 +1,3 @@
-// The audit log is created owner-only and rotated, so it neither leaks to other
-// local users nor grows without bound.
 import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

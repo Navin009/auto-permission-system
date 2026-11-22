@@ -1,6 +1,3 @@
-// The loaders read the policy on every tool event, so the parse is cached by
-// mtime and size. A hit must return the same document, and a write must be
-// visible immediately rather than after the mtime granularity.
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

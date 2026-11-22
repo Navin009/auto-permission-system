@@ -33,11 +33,6 @@ import { createNetworkAsk, type NetworkAskDeps } from "./network-ask.ts";
  */
 const RETAINED_DANGEROUS_DIRECTORY = ".git";
 
-/**
- * Empty the runtime's bind lists so bubblewrap never creates the dotfiles it
- * mounts over in the project directory. Returns the reason when the lists are
- * not the shape this depends on, instead of failing silently.
- */
 export function suppressGhostDotfiles(): string | null {
 	try {
 		/* SAFETY: sandbox-runtime exports these as string arrays. */

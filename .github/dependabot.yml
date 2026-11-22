@@ -1,14 +1,9 @@
-# Every action is pinned to a commit SHA (.github/workflows), so something has
-# to move the pins when a maintained version ships. Dependabot understands a
-# pinned SHA and rewrites it in place.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-    # A freshly published action version can be malicious or yanked; waiting a
-    # week keeps this repository out of the first-consumers window.
     cooldown:
       default-days: 7
     commit-message:

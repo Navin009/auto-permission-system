@@ -1,6 +1,3 @@
-// Every selector goes through one slot. Two asks started together must run one
-// after the other, because pi's selector is a singleton: the second replaces the
-// first otherwise, and the first promise never settles.
 import { askQueued, askSelect } from "../../../src/ui/ask-flow.ts";
 
 let pass = 0;

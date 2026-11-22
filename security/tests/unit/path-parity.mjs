@@ -1,6 +1,3 @@
-// One pattern matcher for both layers: the same table through Layer 1's entry
-// point and Layer 2's must agree, including the `@` and `file://` spellings
-// that used to expand in only one of them.
 import { homedir } from "node:os";
 import { matchesPolicyPattern } from "../../../src/core/index.ts";
 import { matchPattern } from "../../../src/l2-guard/matching.ts";

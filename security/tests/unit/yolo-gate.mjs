@@ -1,6 +1,3 @@
-// The yolo event is an announcement, not an authority: enabling only takes
-// effect when the flag or the loaded config already says yolo, so a stray emit
-// from another extension cannot disarm a layer. Disabling is always accepted.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";

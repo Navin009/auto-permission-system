@@ -8,7 +8,6 @@ const AUDIT_LOG_FILE_MODE = 0o600;
 
 export const AUDIT_PATH = `${getAgentDir()}/${AUDIT_LOG_FILENAME}`;
 
-/** Keep the log bounded: the previous file is replaced, not appended to. */
 function rotateAuditLog(): void {
 	try {
 		if (statSync(AUDIT_PATH).size < AUDIT_LOG_MAXIMUM_BYTES) return;

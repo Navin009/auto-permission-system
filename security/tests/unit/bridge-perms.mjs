@@ -1,6 +1,3 @@
-// Bridge socket permissions and the per-user scratch directory: the sockets
-// live in `<tmp>/pi-<uid>` (0700) and are 0600, and the bash tool hands the same
-// directory to a command as TMPDIR.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

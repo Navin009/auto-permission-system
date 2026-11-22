@@ -52,7 +52,6 @@ jobs:
 
       - run: npm run format:check
 
-      # A moving tag can be repointed by whoever owns the action repository.
       - name: Check action pins
         run: |
           if grep -rnE 'uses: [^ ]+@v[0-9]' .github/workflows; then
@@ -60,7 +59,6 @@ jobs:
             exit 1
           fi
 
-      # One specifier style: a relative import names the .ts file it loads.
       - name: Check import specifiers
         run: |
           if grep -rnE 'from "\.\.?/[^"]*"' src extensions | grep -vE '\.ts";?$'; then

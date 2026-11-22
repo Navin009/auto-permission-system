@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSyn
 import { dirname } from "node:path";
 import { normalizeMode, type PermissionMode } from "./mode.ts";
 
-/** True when the path holds a policy file; a directory (or absent path) is not one. */
 export function isPolicyFile(policyFilePath: string): boolean {
 	try {
 		return statSync(policyFilePath).isFile();
@@ -27,7 +26,6 @@ function cacheKeyOf(policyFilePath: string): string {
 	}
 }
 
-/** Parsed policy, cached by mtime and size; null when the path is not a parseable file. */
 export function readPolicy(policyFilePath: string): Record<string, unknown> | null {
 	if (!isPolicyFile(policyFilePath)) {
 		return null;
@@ -80,7 +78,6 @@ export function readPolicyForUpdate(policyFilePath: string): Record<string, unkn
 	}
 }
 
-/** Write through a sibling temp file and rename, so a reader never sees half a policy. */
 export function writePolicyFile(policyFilePath: string, policy: Record<string, unknown>): void {
 	mkdirSync(dirname(policyFilePath), { recursive: true });
 

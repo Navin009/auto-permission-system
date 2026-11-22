@@ -1,5 +1,3 @@
-// Policy writes go through a temp file and a rename: a reader sees the old
-// policy or the new one, never half of either.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

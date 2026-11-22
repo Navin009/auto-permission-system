@@ -137,7 +137,6 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 	return queued;
 }
 
-/** Run a pi selector in the shared ask slot, so it cannot replace a queued ask. */
 export async function askQueued(
 	ctx: AskCtx,
 	title: string,
@@ -349,11 +348,6 @@ export type MainOpts = {
 	timeoutMs?: number;
 };
 
-/**
- * Compose header + icon + body + options for screen 1. Option order is always
- * No / Yes (just this once) / session / remember, and an unanswered prompt is
- * No: every gate in this extension fails closed.
- */
 export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
 	const sessionLabel = opts.sessionLabel ?? "Yes, for this conversation";
 	const choices: Array<{ label: string; value: MainChoice }> = [];

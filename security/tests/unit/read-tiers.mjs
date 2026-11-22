@@ -1,6 +1,3 @@
-// The read tiers, in order: deny blocks with no prompt, an allow entry permits,
-// an explicit ask entry asks, and a path no rule names asks as well. Only an
-// allow entry (or the project itself) permits a content read.
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

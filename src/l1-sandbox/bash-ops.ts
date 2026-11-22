@@ -102,10 +102,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 			const grantedWriteFolders = new Set<string>();
 			const grantedWriteFiles = new Set<string>();
 
-			const attemptExecution = async (
-				writeOnce: string[],
-				attemptIndex = 1,
-			): Promise<{ exitCode: number | null }> => {
+			const attemptExecution = async (writeOnce: string[], attemptIndex = 1): Promise<{ exitCode: number | null }> => {
 				if (attemptIndex > MAXIMUM_EXECUTION_ATTEMPTS) {
 					onData(
 						Buffer.from(

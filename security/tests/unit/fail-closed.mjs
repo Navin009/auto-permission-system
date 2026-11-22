@@ -1,6 +1,3 @@
-// bash is refused while no sandbox is running: an unsandboxed shell would
-// bypass every file and network rule, so "the sandbox did not start" must not
-// read as "run anyway". --yolo stays the only bypass.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

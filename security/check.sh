@@ -5,11 +5,6 @@
 #   ./security/check.sh tests  — run tests only
 #   ./security/check.sh render — regenerate SECURITY.md only
 #
-# Tests are derived from security/manifest.json. Each entry pins the case count
-# its test must report, so SECURITY.md cannot advertise a number nobody checks:
-# a mismatch fails the run like a red test. An entry whose expected text carries
-# a note (a host without the sandbox runtime runs fewer cases) is held to
-# FAIL=0 only, because the note already documents the host difference.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -33,22 +28,18 @@ drift=0
 skipped=0
 results=()
 
-# "pass/fail" from the last summary a test printed, or "?/?" when it printed none.
 counts_of_output() {
 	local counts
 	counts=$(grep -oE '(PASS|FAIL)=[0-9]+' "$1" | tail -2 | cut -d= -f2 | tr '\n' '/')
 	printf '%s' "${counts%/}"
 }
 
-# "pass/fail" from a manifest `expected` string. A trailing note in parentheses
-# is ignored: only the pins before it count.
 counts_of_expected() {
 	local counts
 	counts=$(grep -oE '(PASS|FAIL)=[0-9]+' <<<"$1" | head -2 | cut -d= -f2 | tr '\n' '/')
 	printf '%s' "${counts%/}"
 }
 
-# Empty when the run matches the manifest; otherwise why it does not.
 count_drift() {
 	local expected_text=$1 output_file=$2
 	local expected_pair reported_pair reported_failures
@@ -76,8 +67,6 @@ count_drift() {
 	fi
 }
 
-# Test files that `npm test` runs but the manifest does not list: SECURITY.md
-# reports the layers, so a missing entry is a coverage gap worth seeing once.
 report_unlisted_tests() {
 	local unlisted
 	unlisted=$(node -e "

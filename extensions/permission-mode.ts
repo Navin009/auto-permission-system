@@ -46,7 +46,6 @@ const MODE_DEFINITIONS: ModeDefinition[] = [
 	},
 ];
 
-/** A project file that pins `mode` wins over the global one; write it, or say so. */
 function setProjectMode(context: ExtensionContext, mode: PermissionMode): void {
 	const projectPath = projectPolicyPath(context.cwd);
 

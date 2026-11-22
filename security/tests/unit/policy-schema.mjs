@@ -1,6 +1,3 @@
-// The schema, the runtime key table and the shipped default must agree. An
-// unknown key is silently ignored by the readers, so an editor that flags it
-// (via `additionalProperties: false`) is the only place a typo is visible.
 import { readFileSync } from "node:fs";
 import { POLICY_KEYS, unknownPolicyKeys } from "../../../src/core/policy/policy-keys.ts";
 

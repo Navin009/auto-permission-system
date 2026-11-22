@@ -1,5 +1,3 @@
-// A policy path that is not a file must not disarm a layer: the loaders stay
-// safe and the guard stays armed.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";

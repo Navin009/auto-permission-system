@@ -121,7 +121,6 @@ const target = resolve(root, "SECURITY.md");
 const rendered = out.join("\n");
 const existing = existsSync(target) ? readFileSync(target, "utf8") : "";
 
-/** The date is the one line that always moves; a run that only re-stamps it must not dirty the file. */
 const withoutGeneratedDate = (text) => text.replace(/^Generated: .*$/m, "Generated:");
 
 if (withoutGeneratedDate(existing) === withoutGeneratedDate(rendered)) {

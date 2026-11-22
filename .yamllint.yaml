@@ -1,7 +1,3 @@
-# GitHub Actions syntax fights two yamllint defaults: `on:` reads as a boolean
-# key in YAML 1.1, and a pinned action is `owner/repo@<40-char sha>` followed by
-# a version comment, which cannot fit in 80 columns. Everything else stays at
-# the repo's 120-column convention (`.prettierrc.json`).
 extends: default
 
 rules:

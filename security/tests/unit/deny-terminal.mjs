@@ -1,6 +1,3 @@
-// A deny rule is terminal for a model tool: it blocks without offering a prompt.
-// The ask tiers (askRead, askWrite, outside-project) still ask, and a credential
-// (absolute-deny) keeps its one-read prompt.
 import { mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";

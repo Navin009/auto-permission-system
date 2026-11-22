@@ -1,4 +1,3 @@
-/** Every key the policy readers understand, by dotted path. The schema must agree. */
 export const POLICY_KEYS: Record<string, readonly string[]> = {
 	"": [
 		"$schema",
@@ -43,13 +42,8 @@ export const POLICY_KEYS: Record<string, readonly string[]> = {
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 	Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-/**
- * Keys the readers will ignore. A typo such as `allowWrites` or a top-level
- * `allowWrite` used to be silent, so the policy looked configured and was not.
- */
 const reportedPaths = new Set<string>();
 
-/** Warn once per file and key set, so a per-tool-call load cannot spam the console. */
 export function reportUnknownPolicyKeys(policyFilePath: string, policy: Record<string, unknown>): void {
 	const unknown = unknownPolicyKeys(policy);
 

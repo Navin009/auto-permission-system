@@ -21,12 +21,6 @@ export function expandHome(path: string): string {
 
 export { canonicalize } from "../shared/canonicalize.ts";
 
-/**
- * Match an absolute path against a policy pattern.
- *
- *   - `.` -> anything under the resolved cwd.
- *   - everything else -> `matchExpandedPattern`, the same matcher Layer 1 uses.
- */
 export function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
 	if (normalizeUserPath(pattern) === ".") {
 		const resolvedCwd = canonicalize(cwd, cwd);
@@ -67,7 +61,6 @@ export function isDeniedRead(rawPath: string, cwd: string, policy: Policy): stri
 	return null;
 }
 
-/** The read tiers a grant cannot un-den': absolute-deny, modelDenyRead and denyRead. */
 export function hasDenyReadMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
 	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
@@ -75,7 +68,6 @@ export function hasDenyReadMatch(absolute: string, cwd: string, policy: Policy):
 	return hasPatternDenyReadMatch(absolute, cwd, policy);
 }
 
-/** The read tiers that are terminal for a model tool: modelDenyRead and denyRead. */
 export function hasPatternDenyReadMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	for (const pattern of policy.filesystem.modelDenyRead ?? []) {
 		if (matchPattern(absolute, pattern, cwd)) return `modelDenyRead matched "${pattern}" → ${absolute}`;
@@ -116,7 +108,6 @@ export function isDeniedWrite(rawPath: string, cwd: string, policy: Policy): str
 	return null;
 }
 
-/** The write tiers a grant cannot un-den': absolute-deny and denyWrite. */
 export function hasDenyWriteMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	const absoluteDenyPattern = isAbsoluteDeny(absolute, cwd);
 	if (absoluteDenyPattern) return `absolute-deny matched "${absoluteDenyPattern}" → ${absolute}`;
@@ -124,7 +115,6 @@ export function hasDenyWriteMatch(absolute: string, cwd: string, policy: Policy)
 	return hasPatternDenyWriteMatch(absolute, cwd, policy);
 }
 
-/** The write tier that is terminal for a model tool: denyWrite. */
 export function hasPatternDenyWriteMatch(absolute: string, cwd: string, policy: Policy): string | null {
 	for (const pattern of policy.filesystem.denyWrite) {
 		if (matchPattern(absolute, pattern, cwd)) return `denyWrite matched "${pattern}" → ${absolute}`;
@@ -162,11 +152,6 @@ const ALLOW_READ_TIERS = (policy: Policy): string[] => [
 	...(policy.overrides?.allowRead ?? []),
 ];
 
-/**
- * The last read tier: not denied, not explicitly asked, not allowed -> ask.
- * Only an entry in an allow tier permits a read, so a path that no rule names
- * is a question rather than a silent yes.
- */
 export function notAllowedReadReason(absolute: string, cwd: string, policy: Policy): string | null {
 	if (ALLOW_READ_TIERS(policy).some((pattern) => matchPattern(absolute, pattern, cwd))) return null;
 

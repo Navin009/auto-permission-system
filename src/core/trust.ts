@@ -11,7 +11,6 @@ interface TrustStore {
 	declined: Record<string, string>;
 }
 
-/** SHA-256 of a regular policy file; `null` when the path is absent or is not a file. */
 export function fileHash(filePath: string): string | null {
 	try {
 		if (!statSync(filePath).isFile()) {
