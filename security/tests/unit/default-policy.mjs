@@ -22,7 +22,8 @@ check('default: session transcripts ask by folder path, not as a bare name', (fs
 check('default: a transcript file matches the sessions entry', matchesPolicyPattern(`${homedir()}/.pi/agent/sessions/--home-me-proj--/s.jsonl`, '~/.pi/agent/sessions', process.cwd(), homedir()));
 check('default: writing a transcript is asked', (fs.askWrite ?? []).includes('~/.pi/agent/sessions'));
 check('default: socket and localhost relaxations stay on (deliberate)', d?.network?.allowAllUnixSockets === true && d?.network?.allowLocalhost === true);
-check('default: allowWrite is project, /tmp and home', ['.', '/tmp', '~'].every((p) => (fs.allowWrite ?? []).includes(p)));
+check('default: allowWrite is the project and /tmp only', JSON.stringify(fs.allowWrite) === JSON.stringify(['.', '/tmp']));
+check('default: the home folder is not writable, so a home write asks', !(fs.allowWrite ?? []).some((p) => p === '~' || p === homedir()));
 check('default: network allowlist is non-empty', Array.isArray(d?.network?.allowedDomains) && d.network.allowedDomains.length > 0);
 
 const baseline = shippedPolicy();

@@ -349,7 +349,7 @@ Policy files are merged hierarchically:
     ],
     "allowRead": ["~/.aws/config"],    // Escape hatch: an explicit allow wins over an askRead folder
     "modelDenyRead": ["~/.netrc"],      // Hidden from LLM read tool; subprocesses can read
-    "allowWrite": [".", "/tmp", "~"],  // Writable roots for bash and edit/write tools (wide: a write is not a leak)
+    "allowWrite": [".", "/tmp"],    // Writable roots for bash and edit/write tools (the project and /tmp; any other path asks)
     "denyWrite": ["~/.ssh", "~/.gnupg"], // Key material only, plus *.pem / *.key from the credential tier
     "askWrite": [".env", "~/.bashrc"]  // Critical files: ask before a sudden update changes them
   },
@@ -582,7 +582,7 @@ Run `/security` to inspect active policy rules and the last 10 audit events. Che
 On Linux the layer is bubblewrap, and its mandatory `--unshare-user` drops every supplementary group and refuses `setgroups`. A `/var/run/docker.sock` owned by `root:docker` is therefore unreachable inside even when the same user reaches it from a normal shell, and `sg docker -c …` cannot help (`setgroups: Operation not permitted`). No policy entry restores a group, so a `docker`, `podman`, `nerdctl`, `buildah` or `skopeo` command gets its daemon socket bridged from the host: a user-owned socket forwards to the real one and is selected through `DOCKER_HOST` / `CONTAINER_HOST`. The client then behaves exactly as it does in your own shell, and every other rule still applies to it. `sudo` is separate and stays refused by design — bubblewrap sets `no_new_privs`.
 
 ### Why does `npm install` fail with `E407 Proxy Authentication Required`?
-The sandbox proxy authenticates every connection, and its credential travels inside `HTTPS_PROXY`. npm parses that variable itself, drops the userinfo and gets challenged, so the same URL is also handed to npm as `npm_config_proxy` / `npm_config_https_proxy`, which keep it. An `E407` for a host that is already in `allowedDomains` is this client-side drop, not a policy decision. `EROFS` under `~/.npm/_cacache` would mean `allowWrite` does not cover `~`, which the shipped default does.
+The sandbox proxy authenticates every connection, and its credential travels inside `HTTPS_PROXY`. npm parses that variable itself, drops the userinfo and gets challenged, so the same URL is also handed to npm as `npm_config_proxy` / `npm_config_https_proxy`, which keep it. An `E407` for a host that is already in `allowedDomains` is this client-side drop, not a policy decision. `EROFS` under `~/.npm/_cacache` means `allowWrite` does not cover that path: the shipped default writes in the project and `/tmp` only, so npm asks before using its cache (answer once or for the session, or add `~/.npm` to `allowWrite`).
 
 ### Where is the Claude tool view for Pi?
 Pi ships its own tool blocks. This package adds the **Claude Code style tool view** on top of them: run `/tool-view compact` (or pick it from `/tool-view`) and each run of shell commands, `read` calls and `codemode` collapses into one row — a mark, a count, one timer, and a `└` line per command or file — instead of a full block per call. `/tool-view full` puts Pi's own output back, and the choice is remembered in `~/.pi/agent/tool-view.json`.
