@@ -91,7 +91,8 @@
     "test": "node security/tests/run.mjs",
     "check": "npm run typecheck && npm test && ./security/check.sh",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "audit": "node security/audit-analyze.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "^0.0.78"
