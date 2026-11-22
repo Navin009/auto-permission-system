@@ -30,6 +30,7 @@ import {
 import { handleBlockedBashExecution } from "./bash-recovery.ts";
 import { runInNetworkCommand } from "./network-ask.ts";
 import { piScratchDirectory } from "./scratch.ts";
+import { POLICY_NOTICE } from "../shared/messages.ts";
 
 export {
 	cleanupWorkspaceArtifacts,
@@ -106,7 +107,7 @@ export function createSandboxedBashOps(options?: SandboxedBashOptions): BashOper
 				if (attemptIndex > MAXIMUM_EXECUTION_ATTEMPTS) {
 					onData(
 						Buffer.from(
-							`\n[Security Policy Notice] the sandbox blocked this command ${MAXIMUM_EXECUTION_ATTEMPTS} times; it was not retried again.\n`,
+							`\n${POLICY_NOTICE} the sandbox blocked this command ${MAXIMUM_EXECUTION_ATTEMPTS} times; it was not retried again.\n`,
 						),
 					);
 

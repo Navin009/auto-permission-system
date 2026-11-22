@@ -20,6 +20,7 @@ import { isEnvTemplateFile, scanTextContent } from "../detect/index.ts";
 import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
 import { displayWhy, getCredentialLabel } from "../ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
+import { BLOCK_NOTICE, POLICY_NOTICE, SANDBOX_NAME } from "../shared/messages.ts";
 
 const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offered";
 
@@ -50,7 +51,7 @@ export function formatBlockedLine(
 	reason: string,
 	outcome: "read" | "written" | "run",
 ): string {
-	return `[Security Policy Notice] ${action} blocked by policy: ${reason}. Nothing was ${outcome}. Inform the user; do not attempt workarounds.`;
+	return `${POLICY_NOTICE} ${action} blocked by policy: ${reason}. Nothing was ${outcome}. Inform the user; do not attempt workarounds.`;
 }
 
 export const auditLayer1Bash = (entry: Record<string, unknown>) => audit({ layer: 1, tool: "bash", ...entry });
@@ -96,7 +97,7 @@ function blockAutomated(
 			? `command execution was blocked (automated environment): ${subject}`
 			: `${action} access to ${subject} was blocked (automated environment)`;
 
-	onData(Buffer.from(`\n[Security Block] sandbox: ${blockedSubject}. Command was not executed.\n`));
+	onData(Buffer.from(`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: ${blockedSubject}. Command was not executed.\n`));
 
 	return { exitCode: 1 };
 }
@@ -224,7 +225,7 @@ export async function preflightSensitiveCommands(
 	auditLayer1Bash({ subject: targetSubject, decision: "no", note: "sensitive-command", cwd: workingDirectory });
 	onData(
 		Buffer.from(
-			`\n[Security Block] sandbox: command execution was denied by user: ${targetSubject}. Command was not executed.\n`,
+			`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: command execution was denied by user: ${targetSubject}. Command was not executed.\n`,
 		),
 	);
 
@@ -273,7 +274,7 @@ export async function preflightWriteAccess(
 			});
 			onData(
 				Buffer.from(
-					`\n[Security Block] sandbox: write access to ${absolutePath} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
+					`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: write access to ${absolutePath} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
 				),
 			);
 
@@ -360,7 +361,7 @@ export async function preflightAskReads(
 			});
 			onData(
 				Buffer.from(
-					`\n[Security Block] sandbox: read access to ${finding.path} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
+					`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: read access to ${finding.path} was refused earlier in this conversation, so it stays blocked. Command was not executed.\n`,
 				),
 			);
 
@@ -394,7 +395,7 @@ export async function preflightAskReads(
 		sessionAskReadDenials.push(finding.path);
 		onData(
 			Buffer.from(
-				`\n[Security Block] sandbox: read access to ${finding.path} was denied by user. Command was not executed.\n`,
+				`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: read access to ${finding.path} was denied by user. Command was not executed.\n`,
 			),
 		);
 

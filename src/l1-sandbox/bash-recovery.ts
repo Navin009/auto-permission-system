@@ -22,6 +22,7 @@ import {
 	sessionWriteGrants,
 	type SandboxedBashOptions,
 } from "./bash-preflight.ts";
+import { POLICY_NOTICE } from "../shared/messages.ts";
 
 function formatLinkRow(absolutePath: string, spelledPath: string | undefined): string[] {
 	if (spelledPath && spelledPath !== absolutePath) {
@@ -124,7 +125,7 @@ export async function handleBlockedBashExecution(
 			failureReason = "target is outside the project directory";
 		}
 
-		blockedNotice = `\n[Security Policy Notice] filesystem access blocked by sandbox policy: ${isWriteDenied ? "Write" : "Read"} access to ${offendingPath ?? "target"} is restricted.\nReason: ${failureReason}. Inform the user; do not attempt workarounds.\n`;
+		blockedNotice = `\n${POLICY_NOTICE} filesystem access blocked by sandbox policy: ${isWriteDenied ? "Write" : "Read"} access to ${offendingPath ?? "target"} is restricted.\nReason: ${failureReason}. Inform the user; do not attempt workarounds.\n`;
 	} else {
 		const loopbackResult = attributeLoopbackFailure({
 			code: exitCode,
@@ -154,7 +155,7 @@ export async function handleBlockedBashExecution(
 
 			options?.ctx?.ui?.notify?.(notificationMessage, "warning");
 
-			blockedNotice = `\n[Security Policy Notice] Connection to ${endpointString}${serviceName ? ` (${serviceName})` : ""} blocked by sandbox policy.\nReason: Local network connections are restricted. Inform the user; do not attempt workarounds.\n`;
+			blockedNotice = `\n${POLICY_NOTICE} Connection to ${endpointString}${serviceName ? ` (${serviceName})` : ""} blocked by sandbox policy.\nReason: Local network connections are restricted. Inform the user; do not attempt workarounds.\n`;
 		}
 	}
 

@@ -23,6 +23,7 @@ import {
 } from "../core/index.ts";
 import type { McpPolicy } from "../detect/index.ts";
 import { projectTrusted } from "../shared/policy-trust.ts";
+import { GUARD_NAME } from "../shared/messages.ts";
 
 export interface Policy {
 	enabled: boolean;
@@ -105,7 +106,7 @@ export function loadPolicy(cwd: string): Policy {
 		const parsed = readPolicy(path);
 
 		if (!parsed) {
-			console.error(`security-guard: failed to parse ${path}`);
+			console.error(`${GUARD_NAME}: failed to parse ${path}`);
 			continue;
 		}
 

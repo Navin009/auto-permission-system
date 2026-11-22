@@ -34,6 +34,7 @@ import {
 	recordProgramIdForCall,
 } from "../src/l2-guard/output-gates.ts";
 import { formatSecurityGuardReport, handleProjectTrustCommand } from "../src/l2-guard/report.ts";
+import { GUARD_NAME, POLICY_NOTICE } from "../src/shared/messages.ts";
 
 /** Tools that print names and never open the file they name. */
 const NAME_ONLY_SEARCH_TOOLS = new Set(["ls", "find"]);
@@ -93,7 +94,7 @@ export default function (pi: ExtensionAPI) {
 				cwd: context.cwd,
 			});
 
-			console.error(`security-guard: ${policyPath} does not parse (${parseError}); its rules are NOT applied`);
+			console.error(`${GUARD_NAME}: ${policyPath} does not parse (${parseError}); its rules are NOT applied`);
 
 			const isProject = policyPath === `${context.cwd}/.pi/sandbox.json`;
 			const errorMessage = isProject
@@ -150,7 +151,7 @@ export default function (pi: ExtensionAPI) {
 			updateActiveState();
 			audit({ layer: 2, event: "session-start-failed", error: String(error), cwd: context.cwd });
 			context.ui.notify(
-				`security-guard: session setup failed (${error}); the guard stays on with the default rules`,
+				`${GUARD_NAME}: session setup failed (${error}); the guard stays on with the default rules`,
 				"error",
 			);
 		}
@@ -238,7 +239,7 @@ export default function (pi: ExtensionAPI) {
 
 				return {
 					block: true,
-					reason: `[Security Policy Notice] ${event.toolName} was blocked because its target URL could not be read, so it cannot be checked against the allowlist. Nothing was fetched.`,
+					reason: `${POLICY_NOTICE} ${event.toolName} was blocked because its target URL could not be read, so it cannot be checked against the allowlist. Nothing was fetched.`,
 				};
 			}
 
@@ -306,8 +307,8 @@ export default function (pi: ExtensionAPI) {
 
 			if (!isGuardActive) {
 				const inactiveMessage = isRuntimeYolo
-					? "security-guard: inactive — YOLO is on (/permission-mode to turn it off)"
-					: "security-guard: inactive (yolo or disabled)";
+					? `${GUARD_NAME}: inactive — YOLO is on (/permission-mode to turn it off)`
+					: `${GUARD_NAME}: inactive (yolo or disabled)`;
 
 				context.ui.notify(inactiveMessage, "info");
 				return;

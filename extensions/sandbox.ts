@@ -18,6 +18,7 @@ import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } fr
 import { audit } from "../src/shared/audit.ts";
 import { onDomainGrant } from "../src/shared/network-grants.ts";
 import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo.ts";
+import { POLICY_NOTICE } from "../src/shared/messages.ts";
 
 async function reloadSandboxConfiguration(
 	context: ExtensionContext,
@@ -275,7 +276,7 @@ export default function (pi: ExtensionAPI) {
 		if (!isRuntimeYolo && sandboxBlockReason) {
 			return {
 				block: true,
-				reason: `[Security Policy Notice] bash was blocked because ${sandboxBlockReason}, and an unsandboxed shell would bypass every file and network rule. Nothing was run. Fix the sandbox config, or start pi with --yolo to run without one.`,
+				reason: `${POLICY_NOTICE} bash was blocked because ${sandboxBlockReason}, and an unsandboxed shell would bypass every file and network rule. Nothing was run. Fix the sandbox config, or start pi with --yolo to run without one.`,
 			};
 		}
 

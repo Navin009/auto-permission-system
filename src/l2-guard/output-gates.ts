@@ -11,6 +11,7 @@ import { canonicalize, isAskRead, isDeniedRead } from "./matching.ts";
 import { grantProgramOutputSession, isProgramOutputGranted } from "./program-grants.ts";
 import type { Policy } from "./policy.ts";
 import type { UICtx } from "./prompts.ts";
+import { GUARD_NAME } from "../shared/messages.ts";
 
 const programIdByCallId = new Map<string, string>();
 const shownAllowNotices = new Set<string>();
@@ -92,7 +93,7 @@ export function filterGrepToolResult(
 
 	contentBlocks.push({
 		type: "text" as const,
-		text: `\n[security-guard: removed ${removedLineCount} line(s) from ${removedFileNames.size} file(s) that match the read-deny policy]`,
+		text: `\n${GUARD_NAME}: removed ${removedLineCount} line(s) from ${removedFileNames.size} file(s) that match the read-deny policy]`,
 	});
 
 	return { content: contentBlocks as ToolResultEventResult["content"] };

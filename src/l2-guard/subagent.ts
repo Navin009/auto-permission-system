@@ -5,6 +5,7 @@
 
 import { SubagentNetwork } from "../core/index.ts";
 import type { Policy } from "./policy.ts";
+import { POLICY_NOTICE } from "../shared/messages.ts";
 
 const RESEARCH_AGENTS = new Set(["librarian", "scout", "researcher"]);
 
@@ -25,7 +26,7 @@ export function subagentNetworkBlock(
 	const mode = policy.subagent?.network ?? SubagentNetwork.Allow;
 	if (mode === SubagentNetwork.Allow) return null;
 	if (mode === SubagentNetwork.Deny)
-		return "[Security Policy Notice] Network access blocked: automated subagent network connections are restricted. Nothing was fetched. Inform the user; do not attempt workarounds.";
+		return `${POLICY_NOTICE} Network access blocked: automated subagent network connections are restricted. Nothing was fetched. Inform the user; do not attempt workarounds.`;
 	if (mode === SubagentNetwork.ResearchOnly) {
 		const sessionManager = ctx.sessionManager as
 			| { getBranch?: () => Array<{ type: string; text?: string }> }
@@ -37,7 +38,7 @@ export function subagentNetworkBlock(
 			.join(" ")
 			.toLowerCase();
 		for (const agent of RESEARCH_AGENTS) if (recentText.includes(agent)) return null;
-		return "[Security Policy Notice] Network access restricted: subagents may only connect to approved research domains. Nothing was fetched. Inform the user; do not attempt workarounds.";
+		return `${POLICY_NOTICE} Network access restricted: subagents may only connect to approved research domains. Nothing was fetched. Inform the user; do not attempt workarounds.`;
 	}
 	return null;
 }
