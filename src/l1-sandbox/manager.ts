@@ -19,6 +19,7 @@ import {
 	OverrideKind,
 } from "../core/index";
 import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config";
+import { audit } from "../shared/audit";
 import { createNetworkAsk, type NetworkAskDeps } from "./network-ask";
 
 /**
@@ -109,15 +110,36 @@ export async function reloadSandbox(cwd: string, deps?: NetworkAskDeps): Promise
  * the config the proxy reads per request; a `reset()`/`initialize()` here
  * would tear down the proxy that is serving the request being approved.
  */
+const GRANTABLE_HOST = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$|^\d{1,3}(\.\d{1,3}){3}$/;
+
+/** A host a live grant may add: an exact name, a `*.` group, or an IPv4 literal. */
+export function isGrantableHost(host: string): boolean {
+	return GRANTABLE_HOST.test(host.toLowerCase());
+}
+
 export function applyNetworkGrant(host: string): void {
+	const pattern = host.toLowerCase();
+	if (!isGrantableHost(pattern)) {
+		audit({ layer: 1, event: "network-grant-refused", host: pattern, note: "not-a-hostname" });
+		return;
+	}
+
 	const current = SandboxManager.getConfig();
 	if (!current) return;
-	const pattern = host.toLowerCase();
+
+	if (current.network.deniedDomains.some((denied) => denied.toLowerCase() === pattern)) {
+		audit({ layer: 1, event: "network-grant-refused", host: pattern, note: "denied-domain" });
+		return;
+	}
+
 	if (current.network.allowedDomains.some((allowed) => allowed.toLowerCase() === pattern)) return;
+
 	SandboxManager.updateConfig({
 		...current,
 		network: { ...current.network, allowedDomains: [...current.network.allowedDomains, pattern] },
 	});
+
+	audit({ layer: 1, event: "network-grant-live", host: pattern });
 }
 
 /**
