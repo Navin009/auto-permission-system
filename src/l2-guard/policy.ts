@@ -4,7 +4,6 @@
  * Adapter module: uses pi (`getAgentDir`) but no UI and no event wiring.
  */
 
-import { readFileSync } from "node:fs";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
 	applyUntrustedProject,
@@ -16,6 +15,7 @@ import {
 	ReadPosture,
 	SubagentNetwork,
 	isPolicyFile,
+	readPolicy,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -91,11 +91,10 @@ export function projectTrusted(cwd: string): boolean {
 export function untrustedProjectChanges(cwd: string): string[] {
 	const projectPath = projectPolicyPath(cwd);
 	if (!isPolicyFile(projectPath) || projectTrusted(cwd)) return [];
-	try {
-		return describeLoosening(JSON.parse(readFileSync(projectPath, "utf-8")));
-	} catch {
-		return [];
-	}
+
+	const parsed = readPolicy(projectPath);
+
+	return parsed ? describeLoosening(parsed) : [];
 }
 
 export const bullets = (changes: string[]): string => changes.map((change) => `  • ${change}`).join("\n");
@@ -111,21 +110,26 @@ export function loadPolicy(cwd: string): Policy {
 	let policy: Policy = structuredClone(DEFAULT_POLICY);
 	for (const path of policyPaths) {
 		if (!isPolicyFile(path)) continue;
-		try {
-			const parsed = JSON.parse(readFileSync(path, "utf-8"));
-			if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
-				const policyRecord =
-					/* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
-				policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(
-					policyRecord,
-					parsed,
-				).merged as unknown as Policy;
-				continue;
-			}
-			policy = overlayPolicy(policy, parsed as Partial<Policy>);
-		} catch (error) {
-			console.error(`security-guard: failed to parse ${path}: ${error}`);
+
+		const parsed = readPolicy(path);
+
+		if (!parsed) {
+			console.error(`security-guard: failed to parse ${path}`);
+			continue;
 		}
+
+		if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
+			const policyRecord =
+				/* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
+			policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(
+				policyRecord,
+				parsed,
+			).merged as unknown as Policy;
+			continue;
+		}
+
+		policy = overlayPolicy(policy, parsed as Partial<Policy>);
 	}
+
 	return { ...policy, mode: normalizeMode(policy.mode) };
 }

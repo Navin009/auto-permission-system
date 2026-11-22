@@ -11,6 +11,45 @@ export function isPolicyFile(policyFilePath: string): boolean {
 	}
 }
 
+interface PolicyCacheEntry {
+	key: string;
+	policy: Record<string, unknown>;
+}
+
+const policyCache = new Map<string, PolicyCacheEntry>();
+
+function cacheKeyOf(policyFilePath: string): string {
+	try {
+		const stats = statSync(policyFilePath);
+		return `${stats.mtimeMs}:${stats.size}`;
+	} catch {
+		return "absent";
+	}
+}
+
+/** Parsed policy, cached by mtime and size; null when the path is not a parseable file. */
+export function readPolicy(policyFilePath: string): Record<string, unknown> | null {
+	if (!isPolicyFile(policyFilePath)) {
+		return null;
+	}
+
+	const key = cacheKeyOf(policyFilePath);
+	const cached = policyCache.get(policyFilePath);
+
+	if (cached?.key === key) {
+		return cached.policy;
+	}
+
+	try {
+		const policy = JSON.parse(readFileSync(policyFilePath, "utf-8")) as Record<string, unknown>;
+		policyCache.set(policyFilePath, { key, policy });
+
+		return policy;
+	} catch {
+		return null;
+	}
+}
+
 export function policyFileError(policyFilePath: string): string | null {
 	if (!existsSync(policyFilePath)) {
 		return null;
@@ -48,6 +87,8 @@ export function writePolicyFile(policyFilePath: string, policy: Record<string, u
 	const temporaryPath = `${policyFilePath}.tmp`;
 	writeFileSync(temporaryPath, `${JSON.stringify(policy, null, 2)}\n`);
 	renameSync(temporaryPath, policyFilePath);
+
+	policyCache.set(policyFilePath, { key: cacheKeyOf(policyFilePath), policy });
 }
 
 export function setPolicyMode(policyFilePath: string, mode: PermissionMode): void {

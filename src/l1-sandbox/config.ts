@@ -8,7 +8,6 @@
  * share it.
  */
 
-import { readFileSync } from "node:fs";
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
@@ -19,6 +18,7 @@ import {
 	normalizeMode,
 	ReadPosture,
 	isPolicyFile,
+	readPolicy,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -101,22 +101,12 @@ export function loadConfig(cwd: string): SandboxConfig {
 	const projectConfigPath = projectPolicyPath(cwd);
 	const globalConfigPath = globalPolicyPath(getAgentDir());
 
-	let globalConfig: Partial<SandboxConfig> = {};
-	let projectConfig: Partial<SandboxConfig> = {};
+	const globalConfig = (readPolicy(globalConfigPath) ?? {}) as Partial<SandboxConfig>;
+	const projectConfig = (readPolicy(projectConfigPath) ?? {}) as Partial<SandboxConfig>;
 
-	if (isPolicyFile(globalConfigPath)) {
-		try {
-			globalConfig = JSON.parse(readFileSync(globalConfigPath, "utf-8"));
-		} catch (error) {
-			console.error(`Warning: Could not parse ${globalConfigPath}: ${error}`);
-		}
-	}
-
-	if (isPolicyFile(projectConfigPath)) {
-		try {
-			projectConfig = JSON.parse(readFileSync(projectConfigPath, "utf-8"));
-		} catch (error) {
-			console.error(`Warning: Could not parse ${projectConfigPath}: ${error}`);
+	for (const path of [globalConfigPath, projectConfigPath]) {
+		if (isPolicyFile(path) && !readPolicy(path)) {
+			console.error(`Warning: Could not parse ${path}`);
 		}
 	}
 
