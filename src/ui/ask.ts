@@ -2,6 +2,12 @@ import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { isSafeFolderGrant, SYSTEM_FOLDERS, GrantScope, type OverrideKind } from "../core/index.ts";
 import {
+	NETWORK_ALLOWLIST_WHY,
+	NETWORK_REMEMBER_TITLE,
+	networkGroupRow,
+	networkRememberBody,
+} from "./network-prompt.ts";
+import {
 	askMainWithRemember,
 	askRememberFile,
 	askRememberHost,
@@ -152,7 +158,7 @@ export function displayWhy(denialReason: string): string {
 
 export function networkWhy(denialReason: string): string {
 	if (denialReason.startsWith("domain not in allowlist")) {
-		return "this site isn't on your allowed list yet";
+		return NETWORK_ALLOWLIST_WHY;
 	}
 
 	return displayWhy(denialReason);
@@ -175,12 +181,10 @@ function buildDetailLines(askDetails: AskKind, action: AskAction, noteText?: str
 
 	if (action === AskAction.Network) {
 		const wildcardDomain = parentDomainWildcard(askDetails.overrideValue);
-		detailLines.push(`Site     ${askDetails.overrideValue}`);
+		const groupRow = networkGroupRow(askDetails.overrideValue, wildcardDomain);
 
-		if (wildcardDomain !== askDetails.overrideValue.toLowerCase()) {
-			const rootDomain = wildcardDomain.replace(/^\*\./, "");
-			detailLines.push(`Group    ${wildcardDomain}   (every ${rootDomain} site)`);
-		}
+		detailLines.push(`Site     ${askDetails.overrideValue}`);
+		if (groupRow) detailLines.push(groupRow);
 	} else {
 		const parentFolder = dirname(askDetails.subject);
 		detailLines.push(`File     ${askDetails.subject}`);
@@ -407,28 +411,17 @@ export async function askDecision(
 			buildDetailLines(askDetails, action),
 			mainDialogOptions,
 			() => {
-				const rememberLines: string[] = [];
-				rememberLines.push(`Site     ${targetHostname}`);
+				const rememberBody = networkRememberBody({
+					host: targetHostname,
+					wildcard: wildcardDomain,
+					commandName: extractBinaryOrSubject(askDetails.command ?? "this one"),
+					untrusted: isUntrustedProject,
+				});
 
-				if (wildcardDomain !== targetHostname.toLowerCase()) {
-					const rootDomain = wildcardDomain.replace(/^\*\./, "");
-					rememberLines.push(`Group    ${wildcardDomain}   (every ${rootDomain} site)`);
-				}
-
-				const commandName = extractBinaryOrSubject(askDetails.command ?? "this one");
-				rememberLines.push(`Note     the rule works for any command, not just ${commandName}`);
-
-				if (isUntrustedProject) {
-					rememberLines.push("Note     this project isn't trusted — run /security trust to save rules here");
-				}
-
-				return askRememberHost(
-					context,
-					"Always allow connecting — what, and where?",
-					rememberLines.join("\n"),
-					targetHostname,
-					{ icon: "save", untrusted: isUntrustedProject },
-				);
+				return askRememberHost(context, NETWORK_REMEMBER_TITLE, rememberBody, targetHostname, {
+					icon: "save",
+					untrusted: isUntrustedProject,
+				});
 			},
 		);
 

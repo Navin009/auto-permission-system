@@ -21,6 +21,14 @@
 
 import { commandNameOf, domainMatches, GrantScope } from "../core/index.ts";
 import {
+	NETWORK_ALLOWLIST_WHY,
+	NETWORK_REMEMBER_TITLE,
+	NETWORK_SESSION_LABEL,
+	networkPromptBody,
+	networkPromptHeader,
+	networkRememberBody,
+} from "../ui/network-prompt.ts";
+import {
 	askMainWithRemember,
 	askRememberHost,
 	ASK_TIMEOUT_MS,
@@ -118,40 +126,35 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 
 	const wildcard = parentDomainWildcard(host);
 	const verb = commandNameOf(deps.command) ?? "this command";
-	const header = `Let ${verb} connect to ${host}?`;
-	const bodyParts: string[] = [];
-	bodyParts.push(`Site     ${host}`);
-	if (wildcard !== host.toLowerCase()) {
-		const bare = wildcard.replace(/^\*\./, "");
-		bodyParts.push(`Group    ${wildcard}   (every ${bare} site)`);
-	}
-	if (deps.command) bodyParts.push(`Command  ${deps.command}`);
-	bodyParts.push(`Why      this site isn't on your allowed list yet`);
+	const header = networkPromptHeader(verb, host);
+	const body = networkPromptBody({
+		host,
+		wildcard,
+		command: deps.command,
+		why: NETWORK_ALLOWLIST_WHY,
+	});
 
 	let outcome: { choice: MainChoice; grant: HostGrant | null };
 	try {
 		outcome = await askMainWithRemember(
 			ctx,
 			header,
-			bodyParts.join("\n"),
+			body,
 			{
 				session: true,
-				sessionLabel: "Yes, all in group for this conversation",
+				sessionLabel: NETWORK_SESSION_LABEL,
 				icon: "net",
 				timeoutMs: ASK_TIMEOUT_MS,
 			},
 			() => {
-				const body: string[] = [];
-				body.push(`Site     ${host}`);
-				if (wildcard !== host.toLowerCase()) {
-					const bare = wildcard.replace(/^\*\./, "");
-					body.push(`Group    ${wildcard}   (every ${bare} site)`);
-				}
-				body.push(`Note     the rule works for any command, not just ${verb}`);
-				if (deps.projectTrusted === false) {
-					body.push(`Note     this project isn't trusted — run /security trust to save rules here`);
-				}
-				return askRememberHost(ctx, "Always allow connecting \u2014 what, and where?", body.join("\n"), host, {
+				const rememberBody = networkRememberBody({
+					host,
+					wildcard,
+					commandName: verb,
+					untrusted: deps.projectTrusted === false,
+				});
+
+				return askRememberHost(ctx, NETWORK_REMEMBER_TITLE, rememberBody, host, {
 					icon: "save",
 					untrusted: deps.projectTrusted === false,
 				});
