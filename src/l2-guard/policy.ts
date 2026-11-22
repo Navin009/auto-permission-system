@@ -16,6 +16,7 @@ import {
 	SubagentNetwork,
 	isPolicyFile,
 	readPolicy,
+	reportUnknownPolicyKeys,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -117,6 +118,8 @@ export function loadPolicy(cwd: string): Policy {
 			console.error(`security-guard: failed to parse ${path}`);
 			continue;
 		}
+
+		reportUnknownPolicyKeys(path, parsed);
 
 		if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
 			const policyRecord = /* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<

@@ -1,6 +1,7 @@
 export * from "./policy/domains.ts";
 export * from "./policy/default-file.ts";
 export * from "./policy/policy-file.ts";
+export * from "./policy/policy-keys.ts";
 export * from "./policy/merge.ts";
 export * from "./policy/mode.ts";
 export * from "./policy/overrides.ts";

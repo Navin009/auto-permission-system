@@ -19,6 +19,7 @@ import {
 	ReadPosture,
 	isPolicyFile,
 	readPolicy,
+	reportUnknownPolicyKeys,
 	globalPolicyPath,
 	projectPolicyPath,
 	trustStorePath,
@@ -105,9 +106,14 @@ export function loadConfig(cwd: string): SandboxConfig {
 	const projectConfig = (readPolicy(projectConfigPath) ?? {}) as Partial<SandboxConfig>;
 
 	for (const path of [globalConfigPath, projectConfigPath]) {
-		if (isPolicyFile(path) && !readPolicy(path)) {
+		const parsed = readPolicy(path);
+
+		if (isPolicyFile(path) && !parsed) {
 			console.error(`Warning: Could not parse ${path}`);
+			continue;
 		}
+
+		if (parsed) reportUnknownPolicyKeys(path, parsed);
 	}
 
 	const base = overlayPolicy(DEFAULT_CONFIG, globalConfig);

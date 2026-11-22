@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Navin009/auto-permission-system/main/sandbox.schema.json",
+  "title": "auto-permission-system policy",
+  "description": "The sandbox.json read by both layers. Copy it next to your settings, or point your editor at it with \"$schema\".",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": { "^_": {} },
+  "properties": {
+    "$schema": { "type": "string" },
+    "enabled": { "type": "boolean", "description": "false turns the layers off." },
+    "mode": { "enum": ["yolo", "default", "advanced-secure"] },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "allowedDomains": { "type": "array", "items": { "type": "string" } },
+        "deniedDomains": { "type": "array", "items": { "type": "string" } },
+        "allowLocalhost": { "type": "boolean" },
+        "allowAllUnixSockets": { "type": "boolean" },
+        "allowLocalBinding": { "type": "boolean" },
+        "bridgeHostPorts": { "type": "array", "items": { "type": "integer" } },
+        "strictAllowlist": { "type": "boolean", "description": "true denies an unknown host instead of asking." }
+      }
+    },
+    "filesystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "denyRead": { "type": "array", "items": { "type": "string" } },
+        "modelDenyRead": { "type": "array", "items": { "type": "string" } },
+        "askRead": { "type": "array", "items": { "type": "string" } },
+        "allowRead": { "type": "array", "items": { "type": "string" } },
+        "allowWrite": { "type": "array", "items": { "type": "string" } },
+        "denyWrite": { "type": "array", "items": { "type": "string" } },
+        "askWrite": { "type": "array", "items": { "type": "string" } },
+        "disabled": { "type": "boolean" },
+        "outsideProject": {
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": { "^_": {} },
+          "properties": {
+            "read": { "enum": ["allow", "ask", "deny"] },
+            "allowRead": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "allowTools": { "type": "array", "items": { "type": "string" } },
+        "allowPrefixes": { "type": "array", "items": { "type": "string" } },
+        "askTools": { "type": "array", "items": { "type": "string" } },
+        "trustAnnotations": { "type": "boolean" },
+        "allowSimpleUpdates": { "type": "boolean" },
+        "askThreshold": { "type": "number" }
+      }
+    },
+    "subagent": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": { "network": { "enum": ["allow", "research-only", "deny"] } }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": { "ask": { "type": "array", "items": { "type": "string" } } }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": { "^_": {} },
+      "properties": {
+        "allowRead": { "type": "array", "items": { "type": "string" } },
+        "allowWrite": { "type": "array", "items": { "type": "string" } },
+        "allowDomains": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ignoreViolations": { "type": "object" },
+    "enableWeakerNestedSandbox": { "type": "boolean" }
+  }
+}

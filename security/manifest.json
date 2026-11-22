@@ -240,6 +240,11 @@
           "expected": "PASS=25, FAIL=0"
         },
         {
+          "id": "L2-policy-schema",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-schema.mjs",
+          "expected": "PASS=24, FAIL=0"
+        },
+        {
           "id": "L2-detect-smoke",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs",
           "expected": "PASS=33, FAIL=0"
