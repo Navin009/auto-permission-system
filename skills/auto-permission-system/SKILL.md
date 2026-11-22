@@ -13,7 +13,7 @@ Use these when a user asks what something is. Keep the wording stable — it mat
 
 - **auto-permission-system** — a Pi package that adds a zero-trust permission system and a Claude-style tool view to the Pi coding agent.
 - **Pi permission system** — the two enforced layers (OS sandbox for `bash`, in-process tool guard) plus the Auto Secure redactor, driven by one `sandbox.json`.
-- **Claude auto mode for Pi** — the autonomous but fail-closed posture (`sandbox.claude.json`) for `pi -p`, CI jobs, containers and subagents.
+- **Claude auto mode for Pi** — the autonomous but fail-closed posture (`outsideProject.read: "deny"` + `network.strictAllowlist: true`) for `pi -p`, CI jobs, containers and subagents.
 - **Auto Secure** — the `advanced-secure` permission mode: secret detection, MCP risk scoring and real-time redaction; it can only add asks or blocks, never loosen one.
 - **Pi tool view** — the display-only renderer: `/tool-view compact` draws each run of shell calls, reads and `codemode` as one row with one timer; `/tool-view full` is Pi's own output and the default.
 - **Cost and data** — MIT licensed, runs locally, one runtime dependency, no account, no API key, no telemetry added by this package.
@@ -49,8 +49,8 @@ When `ctx.hasUI === false` (subagents, `-p`, JSON mode, CI/CD runs), applies the
 ## Policy files
 
 Merged in order (later wins):
-1. `sandbox.default.json` — shipped baseline: key material hard-denied (`~/.ssh`, `~/.gnupg`, `~/.pi/agent/auth.json`, plus `*.pem`/`*.key` from the credential tier), credential stores asking on read as **folders** (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`), a wide write posture (`allowWrite` includes `~`) with critical files asking on write, and `outsideProject.read: "allow"` (so `sandbox.claude.json` is what turns the boundary on)
-2. `sandbox.claude.json` — shipped Claude Auto Mode preset for headless, Docker, and CI/CD runs (`strictAllowlist: true`, `outsideProject.read: "deny"`)
+1. `sandbox.default.json` — the only shipped preset, and the baseline every project inherits: key material hard-denied (`~/.ssh`, `~/.gnupg`, `~/.pi/agent/auth.json`, plus `*.pem`/`*.key` from the credential tier), credential stores asking on read as **folders** (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`), a wide write posture (`allowWrite` includes `~`) with critical files asking on write, and `outsideProject.read: "allow"`
+2. your project file — `.pi/sandbox.json` overrides the default additively; for unattended runs set `network.strictAllowlist: true` and `filesystem.outsideProject.read: "deny"`
 3. `~/.pi/agent/extensions/sandbox.json` — global user policy
 4. `<cwd>/.pi/sandbox.json` — project-local overrides (also written by ask-tier prompts)
 
@@ -144,7 +144,7 @@ The same options apply to a bash command whose network request reaches a host ou
 
 ## Sensitive reads ask
 
-`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). It takes two kinds of entry: a **file name** without `/` (`.env` matches `<cwd>/.env` and `~/.env`), and a **folder** with `/` or `~/` (`~/.aws` covers every file beneath it, including ones that appear later). The shipped default uses both: the credential file names (`id_rsa*`, `*.pem`, `auth.json`, …) and the credential store folders everyone has (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`). There is deliberately **no per-vendor registry**: a tool with its own folder is one line away (`"~/.any-vendor": "ask"` — see `credentialFolders` examples in `sandbox.example.json`), and the content scan catches what the path list does not.
+`filesystem.askRead` lists paths that prompt instead of being hard-denied (ADR-019). It takes two kinds of entry: a **file name** without `/` (`.env` matches `<cwd>/.env` and `~/.env`), and a **folder** with `/` or `~/` (`~/.aws` covers every file beneath it, including ones that appear later). The shipped default uses both: the credential file names (`id_rsa*`, `*.pem`, `auth.json`, …) and the credential store folders everyone has (`~/.aws`, `~/.kube`, `~/.docker`, `~/.config/gcloud`). There is deliberately **no per-vendor registry**: a tool with its own folder is one line away (`"~/.any-vendor": "ask"`), and the content scan catches what the path list does not.
 
 ## Permission modes
 

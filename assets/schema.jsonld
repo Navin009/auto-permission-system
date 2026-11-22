@@ -78,7 +78,7 @@
         "Absolute-deny tier for ~/.ssh, ~/.gnupg, ~/.aws, *.pem, *.key and ~/.pi/agent/auth.json",
         "Project policy trust: an untrusted .pi/sandbox.json may only tighten the policy",
         "Permission modes: default, advanced-secure and YOLO via /permission-mode",
-        "Claude auto mode preset (sandbox.claude.json) for headless, fail-closed CI runs",
+        "Claude auto mode posture for headless, fail-closed CI runs",
         "Pi tool view: /tool-view compact draws tool runs as Claude-style rows with one timer",
         "JSONL audit log at ~/.pi/agent/audit.log"
       ]
@@ -119,7 +119,7 @@
           "name": "What is Claude auto mode for Pi?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "An autonomous but fail-closed posture for unattended Pi runs: pi -p, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. The shipped sandbox.claude.json preset enables it."
+            "text": "An autonomous but fail-closed posture for unattended Pi runs: pi -p, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. Setting `filesystem.outsideProject.read` to `deny` and `network.strictAllowlist` to `true` enables it."
           }
         },
         {

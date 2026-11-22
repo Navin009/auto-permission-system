@@ -92,7 +92,7 @@ def main():
 
     step("Scenario 5: Claude Auto Mode (Secure Autonomous Auto Mode for Pi)")
     print(f"{GREEN}$ pi -p \"Deploy release in headless auto mode\"{RESET}")
-    print(f"{CYAN}Mode: Claude Auto Mode (sandbox.claude.json){RESET}")
+    print(f"{CYAN}Mode: Claude Auto Mode (unattended posture){RESET}")
     print(f"{MUTED}Enforcement: Fail-Closed | Subagent Network: Deny | Content Scan: Active{RESET}")
     time.sleep(0.8)
     print(f"{GREEN}✓ Claude-style Auto Mode for Pi: autonomous execution with zero leaks and zero deadlocks.{RESET}")

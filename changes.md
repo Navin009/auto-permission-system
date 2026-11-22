@@ -229,7 +229,7 @@ To make the package uniquely differentiated and capture 100% of search traffic f
 
 ### Step 6: Release & Verification Workflow
 
-1. Update `package.json`, `README.md`, `sandbox.claude.json`, and `skills/auto-permission-system/SKILL.md`.
+1. Update `package.json`, `README.md`, `sandbox.default.json`, and `skills/auto-permission-system/SKILL.md`.
 2. Commit with conventional commit message:
    `feat(seo): enhance claude auto mode for Pi, security for Pi, and permission system for Pi keywords`
 3. Push to `main`.

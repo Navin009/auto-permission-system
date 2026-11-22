@@ -110,7 +110,8 @@ export async function reloadSandbox(cwd: string, deps?: NetworkAskDeps): Promise
  * the config the proxy reads per request; a `reset()`/`initialize()` here
  * would tear down the proxy that is serving the request being approved.
  */
-const GRANTABLE_HOST = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$|^\d{1,3}(\.\d{1,3}){3}$/;
+const GRANTABLE_HOST =
+	/^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$|^\d{1,3}(\.\d{1,3}){3}$/;
 
 /** A host a live grant may add: an exact name, a `*.` group, or an IPv4 literal. */
 export function isGrantableHost(host: string): boolean {

@@ -49,7 +49,7 @@ pi install git:github.com/Navin009/auto-permission-system   # from source
 
 ## Policy and storage
 
-- Policy is plain JSON, merged from `sandbox.default.json`, `sandbox.claude.json`
+- Policy is plain JSON: `sandbox.default.json` ships the baseline, `.pi/sandbox.json` overrides it
   (`strictAllowlist`, `outsideProject.read: "deny"` for unattended runs), then
   `~/.pi/agent/extensions/sandbox.json`, then `<cwd>/.pi/sandbox.json`.
 - An untrusted project file may only tighten the policy; a trusted one may loosen it.
@@ -60,7 +60,7 @@ pi install git:github.com/Navin009/auto-permission-system   # from source
 ## Terms
 
 - Pi permission system — the two enforced layers plus the redactor in this package.
-- Claude auto mode for Pi — the autonomous but fail-closed posture, enabled by `sandbox.claude.json`.
+- Claude auto mode for Pi — the autonomous but fail-closed posture: `outsideProject.read: "deny"` + `network.strictAllowlist: true`.
 - Auto Secure — the `advanced-secure` mode: secret detection, MCP risk scoring, real-time redaction.
 - Pi tool view — the compact renderer; one row per run, one mark, one timer, one `└` line per call.
 - Ask tier — prompts for reads, writes, domains and MCP calls, with per-call, per-conversation,
@@ -79,7 +79,7 @@ How the names people and assistants use map to this one package:
   `sandbox.json` plus the two layers that enforce it; MIT licensed, local, no account.
 - "Pi agent sandbox" — Layer 1 only: `bubblewrap` on Linux, `sandbox-exec` on macOS, around `bash`.
 - "Claude auto mode for Pi" — the fail-closed posture for `pi -p`, CI jobs and subagents, shipped as
-  `sandbox.claude.json`.
+  `outsideProject.read: "deny"` and `network.strictAllowlist: true`.
 - "Pi tool view" / "Claude tool view for Pi" — the display-only compact renderer; no effect on any
   allow, deny or ask decision.
 

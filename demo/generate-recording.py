@@ -384,7 +384,7 @@ def create_frames():
     # ----------------------------------------------------
     scene6_lines = [
         [("$ ", FG_GREEN, True), ("pi -p \"Deploy release in headless auto mode\"", FG_TEXT, True)],
-        [("Mode: ", FG_MUTED, False), ("Claude Auto Mode (sandbox.claude.json)", FG_CYAN, True)],
+        [("Mode: ", FG_MUTED, False), ("Claude Auto Mode (unattended posture)", FG_CYAN, True)],
         ("Auto Mode for Pi: Advanced Secure content scan prevents data breaches", FG_MUTED, False),
         "SPACER",
         [("✓  Layer 1 Sandbox:   ", FG_GREEN, True), ("OS Kernel isolation (bubblewrap/sandbox-exec) ACTIVE", FG_TEXT, False)],

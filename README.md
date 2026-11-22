@@ -35,7 +35,7 @@ each one is in the sections below.
 |---|---|
 | **What is auto-permission-system?** | A [Pi package](https://pi.dev/packages) (`npm:auto-permission-system`) that adds a zero-trust permission system and a Claude-style tool view to the [Pi coding agent](https://pi.dev). |
 | **What is the Pi permission system?** | A policy engine that is enforced in two layers — an OS sandbox for `bash` (`bubblewrap` on Linux, `sandbox-exec` on macOS) and an in-process tool guard for `read`, `grep`, `find`, `ls`, `write`, `edit`, `fetch_content`, `web_search` and MCP tools — plus a redactor that scans tool output before it reaches the model. |
-| **What is Claude auto mode for Pi?** | An autonomous but fail-closed posture: `pi -p`, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. The shipped `sandbox.claude.json` preset turns it on. |
+| **What is Claude auto mode for Pi?** | An autonomous but fail-closed posture: `pi -p`, CI jobs, containers and subagents keep working with no human at the keyboard, and anything unapproved is blocked with a reason instead of hanging. `filesystem.outsideProject.read: "deny"` plus `network.strictAllowlist: true` in `sandbox.json` turns it on. |
 | **What is the Pi tool view?** | A display-only renderer: `/tool-view compact` draws each run of shell calls, reads and `codemode` as one Claude-style row with a mark, a count and a **single** timer, while `/tool-view full` (the default) leaves Pi's own output untouched. |
 | **What is “auto secure”?** | The `advanced-secure` permission mode: secret and credential detection, MCP risk scoring and real-time redaction on top of the same policy file. Choose it with `/permission-mode`. |
 | **Does it protect PyPI credentials?** | Yes. `pypi-…` upload tokens are detected and redacted, `~/.pypirc` asks before a read or a write instead of being handed over, and `pypi.org` / `*.pypi.org` egress is governed like any other host. |
@@ -248,9 +248,14 @@ However, unconstrained auto mode is a significant data breach risk. If an autono
 ### Activating Claude Auto Mode in CI/CD:
 
 ```bash
-# 1. Copy the shipped Claude Auto Mode template to your repository:
+# 1. Write the unattended posture into your project policy:
 mkdir -p .pi
-cp node_modules/auto-permission-system/sandbox.claude.json .pi/sandbox.json
+cat > .pi/sandbox.json <<'JSON'
+{
+  "network": { "strictAllowlist": true },
+  "filesystem": { "outsideProject": { "read": "deny" } }
+}
+JSON
 
 # 2. Run Pi headlessly with complete automated protection:
 pi -p "Review pull request changes, verify dependencies, and execute test suite"
@@ -273,10 +278,10 @@ jobs:
         run: |
           npm install -g @earendil-works/pi-coding-agent
           pi install npm:auto-permission-system
-      - name: Activate Claude Auto Mode Preset
+      - name: Enable the unattended posture
         run: |
           mkdir -p .pi
-          cp node_modules/auto-permission-system/sandbox.claude.json .pi/sandbox.json
+          printf '{"network":{"strictAllowlist":true},"filesystem":{"outsideProject":{"read":"deny"}}}\n' > .pi/sandbox.json
       - name: Run Autonomous Review in Auto Mode
         run: |
           pi -p "Verify changes, run npm test, and flag security issues"
@@ -610,7 +615,7 @@ One spelling per thing, so a person and a model mean the same thing when they ta
 | **Auto Permission System** | This package | npm `auto-permission-system`, GitHub `Navin009/auto-permission-system` |
 | **Pi** | The coding agent this package extends | Pi coding agent, `@earendil-works/pi-coding-agent`, [pi.dev](https://pi.dev) |
 | **Pi permission system** | The two enforced layers plus the redactor in this package | “security for Pi”, “permissions for Pi”, “permission system for Pi” |
-| **Claude auto mode for Pi** | The autonomous, fail-closed posture and its `sandbox.claude.json` preset | “Claude auto mode”, “safe auto mode”, “Claude-style auto mode” |
+| **Claude auto mode for Pi** | The autonomous, fail-closed posture (`outsideProject.read: "deny"`, `strictAllowlist: true`) | “Claude auto mode”, “safe auto mode”, “Claude-style auto mode” |
 | **Auto Secure** | The `advanced-secure` permission mode | “auto secure”, “secure it”, `advanced-secure` |
 | **Pi tool view** | The compact tool-call renderer | “Claude tool view for Pi”, “Claude-style tool view”, `/tool-view` |
 | **Claude Code** | The AI coding tool whose auto mode and compact tool rows inspired these two features | Anthropic's CLI agent — inspiration, not a dependency |
