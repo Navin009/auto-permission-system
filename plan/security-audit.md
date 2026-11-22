@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0-3 landed, plus S11, B4 and B6 from batch 4 (21 of 47). The working order lives in
+**Status:** open — batches 0-3 landed, plus S11, B4, B6, S10, S12 and the read-tier change (S16). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -66,13 +66,15 @@ process.exit(fail ? 1 : 0);
 | S6 | med | `suppressGhostDotfiles()` silently disables runtime protections |
 | S7 | high | a directory named `.pi/sandbox.json` disarms both layers |
 | S8 | med | grep result filter misses absolute printed paths |
-| S9 | med | `userNamedOutside` auto-allows on a bare basename |
+| S9 | — | not a finding: the basename form only applies inside the project |
 | S10 | med | yolo kill switch and domain grants are unauthenticated events |
 | S11 | med | policy writes are non-atomic and two layers share one file |
 | S12 | low-med | audit log: default perms, no rotation, every error swallowed |
 | S13 | med | `fetch_content` with no parseable URL is unrestricted |
 | S14 | low | `askWrite` is not treated as a tightening by the untrusted merge |
 | S15 | low-med | credential basename globs are case-sensitive on Linux |
+| S16 | high | a content read that no rule allowed passed |
+| S17 | med | the yolo switch is still an unauthenticated event |
 
 ### S1 — `overrides.allowRead` / `allowWrite` defeat the deny tiers
 
@@ -242,6 +244,11 @@ on that project, a denied read is still blocked.
 
 ### S9 — `userNamedOutside` auto-allows on a bare basename
 
+**Status:** ✅ verified as not a finding — `userNamedFile` only adds the bare-basename form
+when the target is inside cwd, and `userNamedOutside` only runs for outside-project reads, so that
+form can never grant one. The absolute and `~`-spelled forms are the feature (the user named the
+file). No code change.
+
 - **Severity:** med — an outside-project read happens with no prompt.
 - **Where:** `src/core/user-named.ts:99-103`, `src/l2-guard/prompts.ts:138`
 - **Read:** any basename of ≥3 characters becomes a candidate form and is matched as a word token
@@ -254,6 +261,8 @@ on that project, a denied read is still blocked.
   still does; a `~`-spelled path still does; a basename mentioned with `./` still does.
 
 ### S10 — yolo kill switch and domain grants are unauthenticated events
+
+**Status:** ✅ fixed in `4e1297f` — the grant half is validated and audited; the yolo half is now S17.
 
 - **Severity:** med — any loaded extension can weaken or open the sandbox.
 - **Where:** `src/shared/yolo.ts:21-55`, `src/shared/network-grants.ts:8`,
@@ -286,6 +295,8 @@ on that project, a denied read is still blocked.
   clobber the file; a corrupt file is reported, not silently replaced.
 
 ### S12 — audit log: default perms, no rotation, every error swallowed
+
+**Status:** ✅ fixed in `f239705` — owner-only, rotated at 5 MiB, and the agent directory is created so the first entry is not lost.
 
 - **Severity:** low-med.
 - **Where:** `src/shared/audit.ts:8-20`
@@ -352,6 +363,34 @@ on that project, a denied read is still blocked.
   full-path deny entry stays case-sensitive on Linux; `domainMatches` is unaffected (already
   lowercases).
 - **Depends on:** C1 (decide the semantics in the one shared matcher).
+
+### S16 — a content read that no rule allowed passed
+
+- **Severity:** high — the read policy looked selective and was not.
+- **Where:** `src/l2-guard/tool-gates.ts` (the tier order), `src/l2-guard/matching.ts`
+- **Read:** reads ran deny -> askRead -> outside-project -> **allow**, so any path that no entry
+  named was readable. Writes already ended the other way ("not under any allowWrite root"), so the
+  two halves of one policy disagreed about what "no rule" means.
+- **Fix:** one ordered list for both: deny blocks with no prompt, an allow entry (the project,
+  `allowWrite`, `allowRead`, `overrides.allowRead`) permits, and everything else asks — an askRead
+  entry, an outside-project read, or a path no rule names. Only a content read reaches the fallback;
+  a name-only listing still never asks (ADR-049).
+- **Test:** `L2-read-tiers` (19) — the whole table with a counting selector.
+
+**Status:** ✅ fixed in `823eb21`.
+
+### S17 — the yolo switch is still an unauthenticated event
+
+- **Severity:** med — any loaded extension can disable every layer.
+- **Where:** `src/shared/yolo.ts`, `extensions/guard.ts`, `extensions/sandbox.ts`
+- **Read:** `emitYolo(bus, true)` from any extension puts both entries into yolo. The emit is
+  supposed to follow a config write (`/permission-mode` writes then emits) or the `--yolo` flag, but
+  the consumers trust the event alone.
+- **Fix:** corroborate before disabling: accept `enabled: true` only when `yoloFromFlags(pi)` or the
+  loaded config says `yolo`, and audit an ignored emit. Tightening (`enabled: false`) can stay
+  unconditional.
+- **Test:** `L1-L2-yolo-gate` — a bare `emitYolo(true)` with no flag and no config leaves both layers
+  armed; a config `mode: "yolo"` still disables them.
 
 ---
 

@@ -100,12 +100,12 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 
 - [ ] **S6** — assert the runtime arrays before/after mutation; report failure once (`console.error`
       + audit) instead of swallowing. Extend `L1-ghost-dotfiles`.
-- [ ] **S9** — require a path-shaped token for the silent outside-project grant. Extend
-      `L2-user-named`.
-- [ ] **S10** — validate and audit live domain grants (reject `*`, malformed, and `deniedDomains`);
+- [x] **S9** — verified as not a finding: the basename form never applies to an outside-project
+      read, and the absolute/`~` forms are the feature.
+- [x] **S10** — `4e1297f` — validate and audit live domain grants (reject `*`, malformed, and `deniedDomains`);
       make yolo config/flag-authoritative, the event announcement-only. Test:
       `L1-L2-grant-channel`.
-- [ ] **S12** — audit file `0600`, rotation, one-shot error report. Test: `L2-audit-log`.
+- [x] **S12** — `f239705` — audit file `0600`, rotation, one-shot error report. Test: `L2-audit-log`.
 - [ ] **C7** — mtime-keyed policy cache; one `loadPolicy` per event shared by the two `tool_result`
       handlers. Test: `L1-L2-policy-cache`.
 
@@ -120,6 +120,8 @@ These are the "no functional diff" batch: every existing test must stay green **
 - [ ] **C6** — replace `export *` in `src/core/index.ts` with named re-exports.
 - [ ] **C8** — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
 - [ ] **C9** — `src/shared/messages.ts` for the user-facing prefixes.
+- [x] **S16** — `823eb21` — read tiers are deny → allow → ask; a content read no rule allows asks.
+- [ ] **S17** — corroborate a yolo emit against the flag/config before disabling both layers.
 - [ ] **C10** — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
 - [ ] **C12** — one import-specifier convention (`.ts`): codemod the 10 extensionless files in
       `src/l2-guard/`, `src/l1-sandbox/` and `src/ui/ask-flow.ts`, then a lint rule.
@@ -155,11 +157,11 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 2 one matcher + deny | 4 | 4 |
 | 3 fail-open | 4 | 4 |
 | 4 state/lifecycle | 6 | 3 |
-| 5 detection/logging | 5 | 0 |
+| 5 detection/logging | 7 | 4 |
 | 6 simplification | 8 | 0 |
 | 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **47** | **21** |
+| **total** | **49** | **25** |
 
 ## Landed so far
 
