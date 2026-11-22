@@ -10,6 +10,7 @@ import {
 	isAskRead,
 	isDeniedRead,
 	isDeniedWrite,
+	notAllowedReadReason,
 	outsideProjectReason,
 } from "./matching.ts";
 import { deniedUrlReason, hostnameOf, isAllowedUrl } from "./url.ts";
@@ -49,6 +50,10 @@ export async function checkReadAccess(
 	if (!denialReason) {
 		denialReason = outsideProjectReason(canonicalPath, context.cwd, policy);
 		isOutsideProject = denialReason !== null;
+	}
+
+	if (!denialReason && exposure === ReadExposure.Content) {
+		denialReason = notAllowedReadReason(canonicalPath, context.cwd, policy);
 	}
 
 	if (!denialReason) {

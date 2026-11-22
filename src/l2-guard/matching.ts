@@ -156,6 +156,26 @@ export function piPackageRoot(): string | null {
 	return piRootCache;
 }
 
+const ALLOW_READ_TIERS = (policy: Policy): string[] => [
+	...policy.filesystem.allowWrite,
+	...(policy.filesystem.allowRead ?? []),
+	...(policy.overrides?.allowRead ?? []),
+];
+
+/**
+ * The last read tier: not denied, not explicitly asked, not allowed -> ask.
+ * Only an entry in an allow tier permits a read, so a path that no rule names
+ * is a question rather than a silent yes.
+ */
+export function notAllowedReadReason(absolute: string, cwd: string, policy: Policy): string | null {
+	if (ALLOW_READ_TIERS(policy).some((pattern) => matchPattern(absolute, pattern, cwd))) return null;
+
+	const projectRoot = canonicalize(cwd, cwd);
+	if (absolute === projectRoot || absolute.startsWith(`${projectRoot}/`)) return null;
+
+	return `not in any allow list → ${absolute}`;
+}
+
 export function outsideProjectReason(abs: string, cwd: string, policy: Policy): string | null {
 	const mode = policy.filesystem.outsideProject?.read ?? ReadPosture.Allow;
 	if (mode === ReadPosture.Allow) return null;
