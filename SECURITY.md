@@ -2,14 +2,14 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-22T08:22:17.280Z
+Generated: 2026-11-22T08:55:22.550Z
 
 ## At a glance
 
 | Layer | Status | Source files | Tests |
 |---|---|---|---|
 | **L1** Bash sandbox (sandbox-exec) | ✅ shipped | `extensions/sandbox.ts`<br>`src/l1-sandbox/`<br>`src/core/`<br>`src/shared/`<br>`~/.pi/agent/extensions/sandbox.json` | `L1-attribution`, `L1-host-bridge`, `L1-bridge-perms`, `L1-fail-closed`, `L1-outside-fence`, `L1-ask-commands`, `L1-bash-candidates`, `L1-find-query`, `L1-read-operands`, `L1-ask-read-preflight`, `L1-session-grants`, `L1-ghost-dotfiles`, `L1-network-ask`, `L1-L2-network-grants`, `L1-grant-channel`, `L1-e2e` |
-| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-read-tiers`, `L2-audit-log`, `L1-L2-path-parity`, `L2-deny-terminal`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-policy-dir`, `L1-L2-policy-write`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L2-detect-size`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
+| **L2** In-process tool guard | ✅ shipped | `extensions/guard.ts`<br>`extensions/permission-mode.ts`<br>`src/l2-guard/`<br>`src/detect/`<br>`src/core/`<br>`src/shared/` | `L2-paths`, `L2-read-tiers`, `L2-audit-log`, `L1-L2-path-parity`, `L2-deny-terminal`, `L2-urls`, `L2-url-deny`, `L2-symlink`, `L2-grep-filter`, `L2-name-only`, `L2-user-named`, `L2-mcp-gate`, `L1-L2-project-trust`, `L1-L2-policy-dir`, `L1-L2-policy-write`, `L1-L2-override-store`, `L2-ask-contract`, `L1-L2-ask-flow`, `L1-L2-ask-selector`, `L1-L2-defaults`, `L2-detect-smoke`, `L2-detect-size`, `L1-L2-permission-mode`, `L1-L2-permission-mode-sync`, `L1-L2-yolo-toggle`, `L1-L2-yolo-gate`, `L2-exposure`, `L2-output-blocks`, `L2-output-allow-notice`, `L2-program-id`, `L2-ask-read`, `L1-L2-read-write-posture`, `L1-L2-user-path` |
 | **L3** Subagent posture | 🟢 shipped-opt-in | ❌ `security-guard.ts` | `L3-manual` |
 | **L4** Browser gate (chrome_devtools_*) | ⬜ not-started | — | — |
 
@@ -30,7 +30,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 356 lines, mtime 2026-11-21
+- ✓ `extensions/sandbox.ts` — 363 lines, mtime 2026-11-22
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-12
 - ✓ `src/shared/` — dir, mtime 2026-11-15
@@ -77,7 +77,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 312 lines, mtime 2026-11-21
+- ✓ `extensions/guard.ts` — 321 lines, mtime 2026-11-22
 - ✓ `extensions/permission-mode.ts` — 164 lines, mtime 2026-11-21
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-15
 - ✓ `src/detect/` — dir, mtime 2026-11-04
@@ -111,6 +111,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
 - `L1-L2-permission-mode-sync` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode-yolo-sync.mjs` → expects PASS=4, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
+- `L1-L2-yolo-gate` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo-gate.mjs` → expects PASS=5, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=23, FAIL=0
 - `L2-output-blocks` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-blocks.mjs` → expects PASS=9, FAIL=0
 - `L2-output-allow-notice` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs` → expects PASS=14, FAIL=0

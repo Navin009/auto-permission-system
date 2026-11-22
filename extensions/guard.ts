@@ -18,7 +18,7 @@ import { programIdForToolCall } from "../src/l2-guard/program-id.ts";
 import { emitDomainGrant } from "../src/shared/network-grants.ts";
 import { clearGateNotes } from "../src/shared/gate-notes.ts";
 import { subagentNetworkBlock } from "../src/l2-guard/subagent.ts";
-import { onYolo } from "../src/shared/yolo.ts";
+import { onYolo, yoloFromFlags } from "../src/shared/yolo.ts";
 import { askDetectionConfirmation, clearDetectionGrants, detectMcpAsk } from "../src/l2-guard/detection.ts";
 import {
 	checkNetworkAccess,
@@ -57,12 +57,18 @@ export default function (pi: ExtensionAPI) {
 	let isGuardActive = false;
 	let isPolicyEnabled = false;
 	let isRuntimeYolo = false;
+	let currentWorkingDirectory = process.cwd();
 
 	const updateActiveState = () => {
 		isGuardActive = isPolicyEnabled && !isRuntimeYolo;
 	};
 
 	onYolo(pi.events, (enabled) => {
+		if (enabled && !yoloFromFlags(pi) && loadPolicy(currentWorkingDirectory).mode !== "yolo") {
+			audit({ layer: 2, event: "yolo-emit-ignored", cwd: currentWorkingDirectory });
+			return;
+		}
+
 		isRuntimeYolo = enabled;
 		updateActiveState();
 
@@ -134,6 +140,9 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	pi.on("session_start", (_event, context) => {
+		currentWorkingDirectory = context.cwd;
+		isRuntimeYolo = yoloFromFlags(pi) || loadPolicy(currentWorkingDirectory).mode === "yolo";
+
 		try {
 			initializeSession(context);
 		} catch (error) {

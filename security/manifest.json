@@ -255,6 +255,11 @@
           "expected": "PASS=16, FAIL=0"
         },
         {
+          "id": "L1-L2-yolo-gate",
+          "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo-gate.mjs",
+          "expected": "PASS=5, FAIL=0"
+        },
+        {
           "id": "L2-exposure",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs",
           "expected": "PASS=23, FAIL=0"

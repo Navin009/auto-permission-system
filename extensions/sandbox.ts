@@ -59,8 +59,8 @@ export default function (pi: ExtensionAPI) {
 
 	onDomainGrant(pi.events, applyNetworkGrant);
 
-	const initialWorkingDirectory = process.cwd();
-	const localBashTool = createBashTool(initialWorkingDirectory);
+	let currentWorkingDirectory = process.cwd();
+	const localBashTool = createBashTool(process.cwd());
 
 	let isSandboxEnabled = false;
 	let isSandboxInitialized = false;
@@ -99,20 +99,20 @@ export default function (pi: ExtensionAPI) {
 
 	const persistAndReloadWrite = (absolutePath: string, scope: "cwd" | "global") =>
 		persistLayer1Override(
-			initialWorkingDirectory,
+			currentWorkingDirectory,
 			"allowWrite",
 			absolutePath,
 			scope,
-			createNetworkDependencies(initialWorkingDirectory),
+			createNetworkDependencies(currentWorkingDirectory),
 		);
 
 	const persistAndReloadRead = (absolutePath: string, scope: "cwd" | "global") =>
 		persistLayer1Override(
-			initialWorkingDirectory,
+			currentWorkingDirectory,
 			"allowRead",
 			absolutePath,
 			scope,
-			createNetworkDependencies(initialWorkingDirectory),
+			createNetworkDependencies(currentWorkingDirectory),
 		);
 
 	const stopSandbox = async (): Promise<void> => {
@@ -200,8 +200,14 @@ export default function (pi: ExtensionAPI) {
 			return;
 		}
 
-		isRuntimeYolo = enabled;
 		const context = latestExtensionContext;
+
+		if (enabled && !yoloFromFlags(pi) && loadConfig(context?.cwd ?? currentWorkingDirectory).mode !== "yolo") {
+			audit({ layer: 1, event: "yolo-emit-ignored", cwd: context?.cwd });
+			return;
+		}
+
+		isRuntimeYolo = enabled;
 
 		if (!context) {
 			return;
@@ -231,7 +237,7 @@ export default function (pi: ExtensionAPI) {
 				return localBashTool.execute(id, params, signal, onUpdate);
 			}
 
-			const sandboxedBash = createBashTool(initialWorkingDirectory, {
+			const sandboxedBash = createBashTool(currentWorkingDirectory, {
 				operations: createSandboxedBashOps({
 					ctx: activeUiContext,
 					onAlways: persistAndReloadWrite,
@@ -288,6 +294,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, context) => {
 		latestExtensionContext = context;
+		currentWorkingDirectory = context.cwd;
 		activeUiContext =
 			/* SAFETY: pi's runtime ctx carries cwd/hasUI/ui; the local type only names the fields we use. */
 			context as unknown as typeof activeUiContext;
@@ -337,8 +344,8 @@ export default function (pi: ExtensionAPI) {
 
 				await reloadSandboxConfiguration(
 					context,
-					initialWorkingDirectory,
-					createNetworkDependencies(initialWorkingDirectory),
+					currentWorkingDirectory,
+					createNetworkDependencies(currentWorkingDirectory),
 				);
 				return;
 			}
