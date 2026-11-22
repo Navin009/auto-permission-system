@@ -114,12 +114,12 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 These are the "no functional diff" batch: every existing test must stay green **unchanged**.
 
 - [x] **C3** — `190206c` — one `src/shared/policy-layer.ts`; delete the L1/L2 copies.
-- [ ] **C4** — one `askNetworkGrant()` for both layers; one `pickOption()` for the three remember
+- [x] **C4** — `d90534d` — one `askNetworkGrant()` for both layers; one `pickOption()` for the three remember
       screens. Add one case asserting L1 and L2 print identical text for the same host.
 - [x] **C5** — `commandNameOf` in core; both prompts use it (`e5c9a2f`-era commit).
-- [ ] **C6** — replace `export *` in `src/core/index.ts` with named re-exports.
+- [x] **C6** — `9c05316` — replace `export *` in `src/core/index.ts` with named re-exports.
 - [x] **C8** — `e719ded` — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
-- [ ] **C9** — `src/shared/messages.ts` for the user-facing prefixes.
+- [x] **C9** — `2723f88` — `src/shared/messages.ts` for the user-facing prefixes.
 - [x] **S16** — `823eb21` — read tiers are deny → allow → ask; a content read no rule allows asks.
 - [x] **S17** — `9a835b0` — corroborate a yolo emit against the flag/config before disabling both layers.
 - [x] **C10** — `5c4ed49` — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
@@ -158,10 +158,10 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 3 fail-open | 4 | 4 |
 | 4 state/lifecycle | 6 | 6 |
 | 5 detection/logging | 7 | 7 |
-| 6 simplification | 8 | 5 |
+| 6 simplification | 8 | 8 |
 | 7 process | 4 | 4 |
 | 8 features | 6 | 0 |
-| **total** | **49** | **40** |
+| **total** | **49** | **43** |
 
 ## Landed so far
 

@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0-5 and 7 landed; batch 6 is missing C4, C6 and C9 (40 of 49). The working order lives in
+**Status:** open — batches 0-7 landed (43 of 49); only the feature list (F1-F6) remains. The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -596,6 +596,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 
 ### C4 — two ask stacks for the same flow
 
+**Status:** ✅ fixed in `d90534d` — see the commit body for the reasoning.
+
 - **Where:** `src/l1-sandbox/network-ask.ts:98-187` vs `src/ui/ask.ts:177-259`
 - **Read:** ~100 duplicated lines: the wildcard group label, the "Always allow connecting — what,
   and where?" screen, the untrusted-project note, the persist-failure fallback, the audit rows.
@@ -615,6 +617,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
   to the same head through all three former paths.
 
 ### C6 — `export *` on the core index hides the boundary
+
+**Status:** ✅ fixed in `9c05316` — see the commit body for the reasoning.
 
 - **Where:** `src/core/index.ts` (29 `export *`)
 - **Read:** the pure core and tool-view helpers share one namespace, so nothing stops a security
@@ -653,6 +657,8 @@ until C11/C8 stop rewriting them (`.prettierignore` says so).
 - **Test:** `L1-attribution` (extend) — the retry path stops after N attempts with a clear notice.
 
 ### C9 — naming drift in user-facing strings
+
+**Status:** ✅ fixed in `2723f88` — see the commit body for the reasoning.
 
 - **Where:** `extensions/guard.ts:94`, `src/l1-sandbox/bash-preflight.ts:41`, `:110`,
   `src/l2-guard/output-gates.ts:94`, `extensions/sandbox.ts:189`
