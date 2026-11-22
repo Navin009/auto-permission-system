@@ -23,7 +23,7 @@ import {
 	projectPolicyPath,
 	trustStorePath,
 	type PermissionMode,
-} from "../core/index";
+} from "../core/index.ts";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */

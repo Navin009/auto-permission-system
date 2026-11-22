@@ -4,8 +4,8 @@
  * the Layer 1 network ask, ADR-023).
  */
 
-import { domainMatches, hostnameOf } from "../core/policy/domains";
-import type { Policy } from "./policy";
+import { domainMatches, hostnameOf } from "../core/policy/domains.ts";
+import type { Policy } from "./policy.ts";
 
 export { domainMatches, hostnameOf };
 

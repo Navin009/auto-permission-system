@@ -3,8 +3,8 @@
  * (`ctx.hasUI === false`).
  */
 
-import { SubagentNetwork } from "../core/index";
-import type { Policy } from "./policy";
+import { SubagentNetwork } from "../core/index.ts";
+import type { Policy } from "./policy.ts";
 
 const RESEARCH_AGENTS = new Set(["librarian", "scout", "researcher"]);
 

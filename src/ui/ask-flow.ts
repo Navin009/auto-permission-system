@@ -15,7 +15,7 @@
  * selector, whose promise never settles (ADR-024).
  */
 
-import { GrantScope } from "../core/index";
+import { GrantScope } from "../core/index.ts";
 
 /** Structural view of a pi-tui component (`ctx.ui.custom` result) — enough for
  * the ask selector. `render` must return lines that fit the given width. */
@@ -201,7 +201,7 @@ async function askWithCustom(
 	question: string | null,
 	note: string | null,
 ): Promise<{ picked: string | undefined; expired: boolean }> {
-	const { AskSelector } = await import("./ask-selector");
+	const { AskSelector } = await import("./ask-selector.ts");
 	let expired = false;
 	const picked = await ctx.ui.custom!(
 		(tui, theme, keybindings, done) =>

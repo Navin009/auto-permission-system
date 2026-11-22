@@ -10,16 +10,16 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { matchExpandedPattern, ReadPosture } from "../core/index";
-import { normalizeUserPath } from "../core/policy/user-path";
-import { canonicalize } from "../shared/canonicalize";
-import type { Policy } from "./policy";
+import { matchExpandedPattern, ReadPosture } from "../core/index.ts";
+import { normalizeUserPath } from "../core/policy/user-path.ts";
+import { canonicalize } from "../shared/canonicalize.ts";
+import type { Policy } from "./policy.ts";
 
 export function expandHome(path: string): string {
 	return normalizeUserPath(path);
 }
 
-export { canonicalize } from "../shared/canonicalize";
+export { canonicalize } from "../shared/canonicalize.ts";
 
 /**
  * Match an absolute path against a policy pattern.

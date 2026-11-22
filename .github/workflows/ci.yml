@@ -60,6 +60,14 @@ jobs:
             exit 1
           fi
 
+      # One specifier style: a relative import names the .ts file it loads.
+      - name: Check import specifiers
+        run: |
+          if grep -rnE 'from "\.\.?/[^"]*"' src extensions | grep -vE '\.ts";?$'; then
+            echo "::error::a relative import must end in .ts"
+            exit 1
+          fi
+
   test:
     # Layer 2 unit tests assume POSIX paths and real symlink support, so
     # they must run on Linux/macOS, not Windows. `npm run check` is the same

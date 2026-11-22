@@ -17,10 +17,10 @@ import {
 	sandboxFilesystem,
 	GrantScope,
 	OverrideKind,
-} from "../core/index";
-import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config";
-import { audit } from "../shared/audit";
-import { createNetworkAsk, type NetworkAskDeps } from "./network-ask";
+} from "../core/index.ts";
+import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config.ts";
+import { audit } from "../shared/audit.ts";
+import { createNetworkAsk, type NetworkAskDeps } from "./network-ask.ts";
 
 /**
  * Shell startup dotfiles that sandbox-runtime hardcodes into DANGEROUS_FILES.

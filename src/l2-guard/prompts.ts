@@ -17,14 +17,14 @@ import {
 	userNamedFile,
 	GrantScope,
 	OverrideKind,
-} from "../core/index";
-import { audit } from "../shared/audit";
-import { canonicalize, matchPattern } from "./matching";
-import { projectTrusted, TRUST_STORE } from "./policy";
-import { domainMatches } from "./url";
-import { askDecision, denyMessage, Decision, type AskCtx, type AskKind } from "../ui/ask";
+} from "../core/index.ts";
+import { audit } from "../shared/audit.ts";
+import { canonicalize, matchPattern } from "./matching.ts";
+import { projectTrusted, TRUST_STORE } from "./policy.ts";
+import { domainMatches } from "./url.ts";
+import { askDecision, denyMessage, Decision, type AskCtx, type AskKind } from "../ui/ask.ts";
 
-export type { AskKind, Decision, OverrideKind } from "../ui/ask";
+export type { AskKind, Decision, OverrideKind } from "../ui/ask.ts";
 
 /**
  * Append a grant to the persisted `overrides` section.

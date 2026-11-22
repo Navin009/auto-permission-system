@@ -20,8 +20,8 @@ import {
 	projectPolicyPath,
 	trustStorePath,
 	type PermissionMode,
-} from "../core/index";
-import type { McpPolicy } from "../detect";
+} from "../core/index.ts";
+import type { McpPolicy } from "../detect/index.ts";
 
 export interface Policy {
 	enabled: boolean;
@@ -119,8 +119,10 @@ export function loadPolicy(cwd: string): Policy {
 		}
 
 		if (path === projectPolicyPath(cwd) && !projectTrusted(cwd)) {
-			const policyRecord =
-				/* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<string, unknown>;
+			const policyRecord = /* SAFETY: Policy is parsed JSON, readable as a plain record. */ policy as unknown as Record<
+				string,
+				unknown
+			>;
 			policy = /* SAFETY: applyUntrustedProject returns the same shape it was handed. */ applyUntrustedProject(
 				policyRecord,
 				parsed,
