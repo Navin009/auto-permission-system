@@ -16,6 +16,7 @@
  */
 
 import { GrantScope } from "../core/index.ts";
+import { POLICY_NOTICE } from "../shared/messages.ts";
 
 /** Structural view of a pi-tui component (`ctx.ui.custom` result) — enough for
  * the ask selector. `render` must return lines that fit the given width. */
@@ -528,7 +529,7 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
  */
 export function withheldNotice(subject: string): string {
 	return [
-		`[Security Policy Notice] Output from \`${subject}\` was hidden because it contains sensitive credentials.`,
+		`${POLICY_NOTICE} Output from \`${subject}\` was hidden because it contains sensitive credentials.`,
 		"",
 		"The tool completed successfully, but the output is unavailable.",
 		"Continue with the available information, or ask the user to allow access if the output is needed.",

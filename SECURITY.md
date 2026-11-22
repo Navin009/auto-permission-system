@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-22T13:57:57.463Z
+Generated: 2026-11-22T14:08:01.035Z
 
 ## At a glance
 
@@ -30,7 +30,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 363 lines, mtime 2026-11-22
+- ✓ `extensions/sandbox.ts` — 364 lines, mtime 2026-11-22
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-22
 - ✓ `src/shared/` — dir, mtime 2026-11-22
@@ -77,7 +77,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 321 lines, mtime 2026-11-22
+- ✓ `extensions/guard.ts` — 322 lines, mtime 2026-11-22
 - ✓ `extensions/permission-mode.ts` — 196 lines, mtime 2026-11-22
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-22
 - ✓ `src/detect/` — dir, mtime 2026-11-04
