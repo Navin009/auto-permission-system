@@ -83,15 +83,15 @@ a `feat!:` at minimum, and the README/SKILL.md deny tables must be re-read again
 
 ## Batch 4 — state and lifecycle
 
-- [ ] **B2** — `currentWorkingDirectory` from `context.cwd`, replacing `initialWorkingDirectory`
+- [x] **B2** — `9a835b0` — `currentWorkingDirectory` from `context.cwd`, replacing `initialWorkingDirectory`
       everywhere it is used. Test: `L1-cwd-source`.
 - [x] **S11** — `c6eb540` — atomic policy writes (temp + `fsync` + rename + re-parse) and one in-process lock
       shared by both layers. Test: `L1-L2-policy-write`.
-- [ ] **B3** — `/permission-mode` reports a project `mode` override and writes the project file
+- [x] **B3** — `8b1e2c4` — `/permission-mode` reports a project `mode` override and writes the project file
       when trusted. Test: extend `L1-L2-permission-mode`.
 - [x] **B4** — `520a893` — wire `ASK_TIMEOUT_BY_ACTION` or delete it; fix ADR-030 either way. Test: extend
       `L1-L2-ask-selector`.
-- [ ] **B5** — `askQueued()` exported from `ask-flow.ts`; use it for the trust dialog and the mode
+- [x] **B5** — `8b1e2c4` — `askQueued()` exported from `ask-flow.ts`; use it for the trust dialog and the mode
       picker. Test: `L1-L2-ask-queue`.
 - [x] **B6** — `a5701c3` — clear the status chip on disable/stop; clear `latestBashCommand` on `tool_result`;
       tail-read `audit.log` in `/security`. Test: `L1-L2-status-chip`.
@@ -121,7 +121,7 @@ These are the "no functional diff" batch: every existing test must stay green **
 - [ ] **C8** — `MAXIMUM_RETRIES` in `bash-recovery.ts`; table-driven tails in `target-summary.ts`.
 - [ ] **C9** — `src/shared/messages.ts` for the user-facing prefixes.
 - [x] **S16** — `823eb21` — read tiers are deny → allow → ask; a content read no rule allows asks.
-- [ ] **S17** — corroborate a yolo emit against the flag/config before disabling both layers.
+- [x] **S17** — `9a835b0` — corroborate a yolo emit against the flag/config before disabling both layers.
 - [ ] **C10** — `knip` pass, prune dead exports, wire `npm run audit` (or delete the two scripts).
 - [ ] **C12** — one import-specifier convention (`.ts`): codemod the 10 extensionless files in
       `src/l2-guard/`, `src/l1-sandbox/` and `src/ui/ask-flow.ts`, then a lint rule.
@@ -156,12 +156,12 @@ These are the "no functional diff" batch: every existing test must stay green **
 | 1 quick hardening | 6 | 6 |
 | 2 one matcher + deny | 4 | 4 |
 | 3 fail-open | 4 | 4 |
-| 4 state/lifecycle | 6 | 3 |
-| 5 detection/logging | 7 | 4 |
+| 4 state/lifecycle | 6 | 6 |
+| 5 detection/logging | 7 | 5 |
 | 6 simplification | 8 | 0 |
 | 7 process | 4 | 1 |
 | 8 features | 6 | 0 |
-| **total** | **49** | **25** |
+| **total** | **49** | **30** |
 
 ## Landed so far
 
@@ -197,6 +197,9 @@ test(guard): pin the fail-closed network timeout in the contract    <contract>
 fix(policy): write the policy file atomically                      c6eb540
 refactor(ui): drop the unused per-action timeout table             520a893
 fix(ui): clear the sandbox chip and the last command                a5701c3
+chore!: ship only the default policy preset                        44ddf2e
+fix(guard): corroborate a yolo emit, and follow the session cwd     9a835b0
+fix(ui): queue the two dialogs, and respect a project mode          8b1e2c4
 ```
 
 Two findings were added while doing batches 0-1, both surfaced by tooling rather than by reading:

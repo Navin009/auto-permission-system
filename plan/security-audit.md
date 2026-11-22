@@ -1,6 +1,6 @@
 # Security and quality audit — findings
 
-**Status:** open — batches 0-3 landed, plus S11, B4, B6, S10, S12 and the read-tier change (S16). The working order lives in
+**Status:** open — batches 0-4 landed, and batch 5 except S6 and C7 (30 of 49). The working order lives in
 `plan/security-audit-todo.md`; each fix lands with the test named here, and the test entry is added
 to `security/manifest.json` in the same commit so `SECURITY.md` regenerates with it.
 
@@ -381,6 +381,8 @@ file). No code change.
 
 ### S17 — the yolo switch is still an unauthenticated event
 
+**Status:** ✅ fixed in `9a835b0` — see the commit body for the reasoning.
+
 - **Severity:** med — any loaded extension can disable every layer.
 - **Where:** `src/shared/yolo.ts`, `extensions/guard.ts`, `extensions/sandbox.ts`
 - **Read:** `emitYolo(bus, true)` from any extension puts both entries into yolo. The emit is
@@ -429,6 +431,8 @@ file). No code change.
 
 ### B2 — `process.cwd()` is captured at module load
 
+**Status:** ✅ fixed in `9a835b0` — see the commit body for the reasoning.
+
 - **Severity:** med — grants land in, and config is loaded from, the wrong directory.
 - **Where:** `extensions/sandbox.ts:66` and its use at `:120`, `:129`
 - **Read:** `const initialWorkingDirectory = process.cwd()` feeds `createBashTool`,
@@ -441,6 +445,8 @@ file). No code change.
   session whose `context.cwd` differs from `process.cwd()` writes and reloads there.
 
 ### B3 — `/permission-mode` writes global only, but the project file wins
+
+**Status:** ✅ fixed in `8b1e2c4` — see the commit body for the reasoning.
 
 - **Severity:** med — a security downgrade the user believes they fixed (and the reverse).
 - **Where:** `extensions/permission-mode.ts:137`; precedence at `src/core/policy/merge.ts:5`
@@ -468,6 +474,8 @@ file). No code change.
   remember screen gets the longer budget.
 
 ### B5 — `/security trust` and `/permission-mode` bypass the ask queue
+
+**Status:** ✅ fixed in `8b1e2c4` — see the commit body for the reasoning.
 
 - **Severity:** med — the exact race the queue exists to prevent (ADR-034).
 - **Where:** `src/l2-guard/report.ts:51`, `extensions/permission-mode.ts:101`
