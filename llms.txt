@@ -89,7 +89,6 @@ How the names people and assistants use map to this one package:
 - [skills/auto-permission-system/SKILL.md](https://github.com/Navin009/auto-permission-system/blob/main/skills/auto-permission-system/SKILL.md): the policy reference Pi loads.
 - [SECURITY.md](https://github.com/Navin009/auto-permission-system/blob/main/SECURITY.md): generated layer status, source files and covering tests.
 - [CHANGELOG.md](https://github.com/Navin009/auto-permission-system/blob/main/CHANGELOG.md): releases generated from Conventional Commits.
-- [plan/tool-rows-views.md](https://github.com/Navin009/auto-permission-system/blob/main/plan/tool-rows-views.md): the compact/full tool view, frame by frame.
 - [assets/schema.jsonld](https://github.com/Navin009/auto-permission-system/blob/main/assets/schema.jsonld): Schema.org JSON-LD for this package.
 
 ## Cite
