@@ -83,5 +83,10 @@ try {
 	rmSync(testDir, { recursive: true, force: true });
 }
 
+check('suppression reports no problem', suppressGhostDotfiles() === null);
+check('suppression is idempotent', suppressGhostDotfiles() === null);
+check('no dangerous files remain', DANGEROUS_FILES.length === 0);
+check('only .git remains as a dangerous directory', DANGEROUS_DIRECTORIES.every((directory) => directory === '.git'));
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

@@ -31,24 +31,46 @@ import { createNetworkAsk, type NetworkAskDeps } from "./network-ask";
  * by policy denyWrite/askWrite and root read-only isolation), so filtering them out
  * in memory ensures bubblewrap never binds them and never creates them on disk.
  */
-export function suppressGhostDotfiles(): void {
+const RETAINED_DANGEROUS_DIRECTORY = ".git";
+
+/**
+ * Empty the runtime's bind lists so bubblewrap never creates the dotfiles it
+ * mounts over in the project directory. Returns the reason when the lists are
+ * not the shape this depends on, instead of failing silently.
+ */
+export function suppressGhostDotfiles(): string | null {
 	try {
-		/* SAFETY: DANGEROUS_FILES is an array of strings in sandbox-runtime. */
-		const files = DANGEROUS_FILES as unknown as string[];
+		/* SAFETY: sandbox-runtime exports these as string arrays. */
+		const files = DANGEROUS_FILES as unknown as string[] | undefined;
+
+		/* SAFETY: same list, same shape. */
+		const dirs = DANGEROUS_DIRECTORIES as unknown as string[] | undefined;
+
+		if (!Array.isArray(files) || !Array.isArray(dirs)) {
+			return "sandbox-runtime no longer exports DANGEROUS_FILES/DANGEROUS_DIRECTORIES as arrays";
+		}
+
 		files.length = 0;
 
-		/* SAFETY: DANGEROUS_DIRECTORIES is an array of strings in sandbox-runtime. */
-		const dirs = DANGEROUS_DIRECTORIES as unknown as string[];
-		const filteredDirs = dirs.filter((d) => d === ".git");
+		const retainedDirs = dirs.filter((directory) => directory === RETAINED_DANGEROUS_DIRECTORY);
 		dirs.length = 0;
-		dirs.push(...filteredDirs);
-	} catch {
-		// Safe fallback if runtime internals change
+		dirs.push(...retainedDirs);
+
+		if (files.length !== 0 || dirs.length !== retainedDirs.length) {
+			return "sandbox-runtime exposure lists could not be rewritten";
+		}
+
+		return null;
+	} catch (error) {
+		return `sandbox-runtime exposure lists are unavailable (${error})`;
 	}
 }
 
-// Suppress ghost dotfiles immediately upon module import
-suppressGhostDotfiles();
+const ghostDotfileProblem = suppressGhostDotfiles();
+
+if (ghostDotfileProblem) {
+	console.error(`auto-permission-system: ${ghostDotfileProblem}; dotfile mounts may create empty files in the project`);
+}
 
 /** The two override kinds Layer 1's filesystem asks can persist. */
 type Layer1FilesystemKind = typeof OverrideKind.AllowWrite | typeof OverrideKind.AllowRead;

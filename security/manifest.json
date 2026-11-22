@@ -76,7 +76,7 @@
         {
           "id": "L1-ghost-dotfiles",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ghost-dotfiles.mjs",
-          "expected": "PASS=20, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)"
+          "expected": "PASS=24, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)"
         },
         {
           "id": "L1-network-ask",

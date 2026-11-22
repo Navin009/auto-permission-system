@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-22T08:56:16.313Z
+Generated: 2026-11-22T09:04:12.054Z
 
 ## At a glance
 
@@ -49,7 +49,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - `L1-read-operands` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-operands.mjs` → expects PASS=25, FAIL=0
 - `L1-ask-read-preflight` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-ask-read-preflight.mjs` → expects PASS=26, FAIL=0
 - `L1-session-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs` → expects PASS=43, FAIL=0
-- `L1-ghost-dotfiles` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ghost-dotfiles.mjs` → expects PASS=20, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)
+- `L1-ghost-dotfiles` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ghost-dotfiles.mjs` → expects PASS=24, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)
 - `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=49, FAIL=0
 - `L1-L2-network-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs` → expects PASS=6, FAIL=0
 - `L1-grant-channel` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grant-channel.mjs` → expects PASS=9, FAIL=0
