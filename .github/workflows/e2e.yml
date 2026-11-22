@@ -1,0 +1,32 @@
+name: Sandbox e2e
+
+# The kernel-level suite needs bubblewrap and socat, so it does not run on every
+# pull request. Nightly is enough to catch a runtime or kernel change before a
+# user's session does.
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap socat
+
+      - run: npm ci
+
+      - run: APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs
