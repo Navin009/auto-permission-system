@@ -3,8 +3,6 @@
 .ref/
 node_modules/
 sandbox/node_modules/
-package-lock.json
-sandbox/package-lock.json
 *.bak.*
 .pi/sandbox.json
 .pi/audit.log

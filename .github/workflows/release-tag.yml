@@ -49,7 +49,7 @@ jobs:
       # so there is no cache to poison; the write permission lives in the
       # release job below, which installs nothing.
       # zizmor: ignore[cache-poisoning] read-only install job, no cache step
-      - run: npm install
+      - run: npm ci
 
       - run: npm run check
 
