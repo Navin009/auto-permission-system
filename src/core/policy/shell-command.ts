@@ -57,6 +57,15 @@ export function binaryName(token: string): string {
 	return token.split("/").pop() ?? token;
 }
 
+/** The program a command line runs, after wrappers and env assignments, for display. */
+export function commandNameOf(command: string | undefined): string | null {
+	if (!command) return null;
+
+	const { head } = commandHead(shellTokens(command));
+
+	return head || null;
+}
+
 export function isShellCommand(binary: string): boolean {
 	return SHELL_COMMANDS.has(binary);
 }

@@ -19,7 +19,7 @@
  * projects so the user can't quietly trust a widening file.
  */
 
-import { domainMatches, GrantScope } from "../core/index";
+import { commandNameOf, domainMatches, GrantScope } from "../core/index";
 import {
 	askMainWithRemember,
 	askRememberHost,
@@ -97,18 +97,6 @@ function subjectOf(host: string, port: number | undefined): string {
 	return port && port !== 443 && port !== 80 ? `${host}:${port}` : host;
 }
 
-/** First whitespace-separated word of a bash command — used to name the binary in the title. */
-function firstWord(command: string | undefined): string | null {
-	if (!command) return null;
-	const word = command.trim().split(/\s+/)[0] ?? "";
-	return (
-		word
-			.replace(/^sudo$/, "")
-			.replace(/^command$/, "")
-			.replace(/^\\\//, "") || null
-	);
-}
-
 /**
  * Screen 1 (once / session / remember) plus, for remember, screen 2 (scope and
  * pattern). A conversation grant uses the parent-domain wildcard when the host has
@@ -129,7 +117,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	}
 
 	const wildcard = parentDomainWildcard(host);
-	const verb = firstWord(deps.command) ?? "this command";
+	const verb = commandNameOf(deps.command) ?? "this command";
 	const header = `Let ${verb} connect to ${host}?`;
 	const bodyParts: string[] = [];
 	bodyParts.push(`Site     ${host}`);

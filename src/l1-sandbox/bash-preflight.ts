@@ -11,6 +11,7 @@ import {
 	outsideProjectMode,
 	outsideProjectReadCandidates,
 	ReadExposure,
+	commandNameOf,
 	type AskReadFinding,
 } from "../core/index.ts";
 import { audit } from "../shared/audit.ts";
@@ -41,7 +42,7 @@ export interface SandboxedBashOptions {
 export type SandboxedBashOpts = SandboxedBashOptions;
 
 export function extractBinaryName(command: string): string {
-	return command.trim().split(/\s+/)[0] ?? command;
+	return commandNameOf(command) ?? "this command";
 }
 
 export function formatBlockedLine(
