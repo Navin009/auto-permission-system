@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 Entries up to [6.1.1] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/); [6.1.2] and later are written by hand because releases are cut by pushing a tag — do not edit a released section by hand.
 
+## [7.0.0](https://github.com/Navin009/auto-permission-system/compare/v6.1.2...v7.0.0) (2026-11-24)
+
+### BREAKING CHANGES
+
+* **policy:** ship only `sandbox.default.json` (`sandbox.claude.json` and `sandbox.example.json` removed; consumers copying `sandbox.claude.json` should configure `network.strictAllowlist` and `filesystem.outsideProject.read` in `.pi/sandbox.json`) ([44ddf2e](https://github.com/Navin009/auto-permission-system/commit/44ddf2ea06d0f1fb42cf1d4a7b0183745633f24f))
+* **docs:** drop historical implementation plans and internal strategy notes ([57a939c](https://github.com/Navin009/auto-permission-system/commit/57a939c06fb7cc5366352ff691c9eda3ca79d2cb))
+
+### Features
+
+* **policy:** ship `sandbox.schema.json` and report unrecognized policy keys ([99d6c2a](https://github.com/Navin009/auto-permission-system/commit/99d6c2a))
+
+### Bug Fixes
+
+* **audit:** keep the audit log owner-only, bounded, and created safely ([f239705](https://github.com/Navin009/auto-permission-system/commit/f239705))
+* **detect:** measure output size in bytes at every depth ([6719c1c](https://github.com/Navin009/auto-permission-system/commit/6719c1c))
+* **guard:** enforce deny precedence over saved grants, block denied paths without prompting, block unreadable URL targets, corroborate YOLO emits, ask on unallowed reads, stop re-rooting absolute grep paths, and follow session cwd ([420798b](https://github.com/Navin009/auto-permission-system/commit/420798b), [a047b26](https://github.com/Navin009/auto-permission-system/commit/a047b26), [387eff8](https://github.com/Navin009/auto-permission-system/commit/387eff8), [823eb21](https://github.com/Navin009/auto-permission-system/commit/823eb21), [e80177e](https://github.com/Navin009/auto-permission-system/commit/e80177e), [9a835b0](https://github.com/Navin009/auto-permission-system/commit/9a835b0))
+* **paths:** match credential filenames regardless of case ([8c531bd](https://github.com/Navin009/auto-permission-system/commit/8c531bd))
+* **policy:** write policy files atomically ([c6eb540](https://github.com/Navin009/auto-permission-system/commit/c6eb540))
+* **sandbox:** keep bridge sockets owner-only, fail closed when no sandbox is running, scope "just this once" grants, validate live network grants, deny on network prompt timeout, report suppressed ghost dotfiles, and bound blocked-command retries ([b393fda](https://github.com/Navin009/auto-permission-system/commit/b393fda), [233840e](https://github.com/Navin009/auto-permission-system/commit/233840e), [0603181](https://github.com/Navin009/auto-permission-system/commit/0603181), [4e1297f](https://github.com/Navin009/auto-permission-system/commit/4e1297f), [489a398](https://github.com/Navin009/auto-permission-system/commit/489a398), [899c543](https://github.com/Navin009/auto-permission-system/commit/899c543), [e719ded](https://github.com/Navin009/auto-permission-system/commit/e719ded))
+* **trust:** treat non-file policy paths as untrusted and allow untrusted projects to add `askWrite` rules ([6be8652](https://github.com/Navin009/auto-permission-system/commit/6be8652), [7d1f9ea](https://github.com/Navin009/auto-permission-system/commit/7d1f9ea))
+* **ui:** clear the sandbox chip and last command on reset, queue concurrent dialogs, and respect project mode ([a5701c3](https://github.com/Navin009/auto-permission-system/commit/a5701c3), [b333793](https://github.com/Navin009/auto-permission-system/commit/b333793))
+
+### Performance
+
+* **policy:** cache parsed policy files by mtime and size ([bb46bab](https://github.com/Navin009/auto-permission-system/commit/bb46bab))
+
+### Continuous Integration
+
+* **e2e:** remove nightly sandbox e2e workflow ([fee50ec](https://github.com/Navin009/auto-permission-system/commit/fee50ec))
+
 ## [6.1.2](https://github.com/Navin009/auto-permission-system/compare/v6.1.1...v6.1.2) (2026-11-18)
 
 ### Continuous Integration
