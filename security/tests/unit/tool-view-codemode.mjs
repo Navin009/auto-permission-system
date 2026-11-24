@@ -74,11 +74,13 @@ const group = joinRowGroup({
 });
 
 const running = linesOf(group);
-check('the header reads codemode and its timer', lineText(running[0]) === '● codemode · 0ms');
-check('the row draws the script under the code row', lineText(running[1]) === '  └ await tools.searchTools("rank")');
-check('each nested call keeps its own line', lineText(running[2]) === '  └ ✓ mcp:dev-radius:search rank');
+check('the header reads codemode and its timer', lineText(running[0]) === '⠋ ▾ codemode · 0ms');
+check('the row draws the script under the code row', lineText(running[1]) === '  ├ await tools.searchTools("rank")');
+check('each nested call keeps its own line', lineText(running[2]) === '  ├ ✓ mcp:dev-radius:search rank');
 check('a nested call line carries no time', lineText(running[3]) === '  └ ✓ read src/config.ts');
 check('codemode never counts commands in the header', !running[0].text.includes('Running'));
+check('script preview uses dim italic span', running[1].spans?.[0]?.tone === 'dim' && running[1].spans?.[0]?.italic === true);
+check('nested call uses title and muted spans', running[2].spans?.[0]?.tone === 'title' && running[2].spans?.[1]?.tone === 'muted');
 
 now += 1_000;
 settleRowGroup({
@@ -92,13 +94,13 @@ settleRowGroup({
 });
 
 const settled = linesOf(group);
-check('a settled codemode row keeps its title', lineText(settled[0]) === '✓ codemode · 1.2s');
+check('a settled codemode row keeps its title', lineText(settled[0]) === '✓ ▾ codemode · 1.2s');
 check('the sub-lines survive the settle', settled.length === 4);
 
 closeRowGroup();
 
 const folded = linesOf(group);
-check('a folded codemode row names the script', lineText(folded[0]) === `✓ codemode (${target}) ctrl+o to expand · 1.2s`);
+check('a folded codemode row names the script', lineText(folded[0]) === `✓ ▸ codemode (${target}) ctrl+o to expand · 1.2s`);
 check('a folded codemode row hides its child lines', folded.length === 1);
 
 resetNestedCalls();

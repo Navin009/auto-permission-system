@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-22T14:08:01.035Z
+Generated: 2026-11-24T21:32:51.105Z
 
 ## At a glance
 
@@ -34,7 +34,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-22
 - ✓ `src/shared/` — dir, mtime 2026-11-22
-- ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-21
+- ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-22
 
 **Tests**
 
@@ -173,7 +173,7 @@ Per-session ctx.ui.confirm for mutating chrome_devtools_* tools (navigate_page, 
 
 ## Policy files
 
-- Global: `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-21
+- Global: `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-22
 - Project override: `<cwd>/.pi/sandbox.json` (per-cwd; merges over global)
 - Escape hatch: `--yolo (all layers off for this run) or /permission-mode → YOLO (all layers off; persisted as mode="yolo" in the global sandbox.json)`
 

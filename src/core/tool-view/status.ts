@@ -7,9 +7,11 @@ export const ToolStatus = {
 } as const;
 export type ToolStatus = (typeof ToolStatus)[keyof typeof ToolStatus];
 
-const RUNNING_MARK = "●";
+const SPINNER_FRAMES: readonly string[] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const OK_MARK = "✓";
 const FAILED_MARK = "✗";
+const BLOCKED_MARK = "⚠";
+const DENIED_MARK = "⊘";
 const BLOCKED_WORD = "blocked";
 const DENIED_WORD = "denied";
 const DENIED_BY_USER_PATTERN = /denied by user/i;
@@ -32,12 +34,26 @@ export function statusFromResult(isError: boolean, resultText: string): ToolStat
 	return ToolStatus.Failed;
 }
 
-export function statusMark(status: ToolStatus): string {
+export function statusMark(status: ToolStatus, spinnerFrame = 0): string {
 	if (status === ToolStatus.Running) {
-		return RUNNING_MARK;
+		const index = Math.abs(Math.floor(spinnerFrame)) % SPINNER_FRAMES.length;
+
+		return SPINNER_FRAMES[index];
 	}
 
-	return status === ToolStatus.Ok ? OK_MARK : FAILED_MARK;
+	if (status === ToolStatus.Ok) {
+		return OK_MARK;
+	}
+
+	if (status === ToolStatus.Blocked) {
+		return BLOCKED_MARK;
+	}
+
+	if (status === ToolStatus.Denied) {
+		return DENIED_MARK;
+	}
+
+	return FAILED_MARK;
 }
 
 export function statusWord(status: ToolStatus): string | undefined {

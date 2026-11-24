@@ -10,11 +10,12 @@ check('user denial wins over the block marker', statusFromResult(true, '[Securit
 check('a successful result is never a refusal', statusFromResult(false, 'the ResultContentBlock type') === ToolStatus.Ok);
 check('a failing result that mentions block is a failure', statusFromResult(true, 'the ResultContentBlock type') === ToolStatus.Failed);
 
-check('running draws the dot', statusMark(ToolStatus.Running) === '●');
+check('running draws the spinner', statusMark(ToolStatus.Running) === '⠋');
+check('spinner cycles across frames', statusMark(ToolStatus.Running, 1) === '⠙' && statusMark(ToolStatus.Running, 10) === '⠋');
 check('ok draws a tick', statusMark(ToolStatus.Ok) === '✓');
 check('failed draws a cross', statusMark(ToolStatus.Failed) === '✗');
-check('blocked draws the same cross', statusMark(ToolStatus.Blocked) === '✗');
-check('denied draws the same cross', statusMark(ToolStatus.Denied) === '✗');
+check('blocked draws a warning mark', statusMark(ToolStatus.Blocked) === '⚠');
+check('denied draws a circle slash', statusMark(ToolStatus.Denied) === '⊘');
 
 check('running needs no word', statusWord(ToolStatus.Running) === undefined);
 check('ok needs no word', statusWord(ToolStatus.Ok) === undefined);

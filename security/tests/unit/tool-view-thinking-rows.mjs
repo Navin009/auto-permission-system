@@ -46,9 +46,9 @@ now += 4_000;
 const thinking = group(running);
 check('a thought draws no line of its own inside the row', body(thinking).join('|') === '  └ $ npm test');
 check('no line ever says Thinking', thinking.every((line) => !lineText(line).includes('Thinking')));
-check('the bracket still rides the open row', lineText(thinking[0]) === '● Running 1 command (thinking 4s) · 4s');
+check('the bracket still rides the open row', lineText(thinking[0]) === '⠋ ▾ Running 1 command (thinking 4s) · 4s');
 endThinking();
-check('the bracket leaves when the thought completes', lineText(group(running)[0]) === '● Running 1 command · 4s');
+check('the bracket leaves when the thought completes', lineText(group(running)[0]) === '⠋ ▾ Running 1 command · 4s');
 
 const runningSecond = join('call-b', 'npm run build');
 check('a thought while a command runs never splits the row', runningSecond === running);
@@ -62,7 +62,7 @@ check('a thought between commands never splits the run', afterThought === runnin
 check('the run keeps one header', group(running).length === 4);
 check('every command lives in its own slot', memberIndexOf(afterThought, 'call-c') === 2);
 check('the run counts the command after the thought', groupSummary(afterThought, HINT).rows.length === 3);
-check('the member slot draws only its own command', linesFor(afterThought, 2).map(lineText).join('|') === '  └ … $ npm run lint');
+check('the member slot draws only its own command', linesFor(afterThought, 2).map(lineText).join('|') === '  └ ⠋ $ npm run lint');
 check('a thought is never counted as a row', groupSummary(afterThought, HINT).rows.length === 3);
 
 settle('call-c', 'npm run lint', ToolStatus.Ok, 500);
@@ -84,7 +84,7 @@ thoughtBetween(1);
 const readAfterThought = join('call-read-2', 'src/b.ts', RowKind.Read);
 check('a thought between reads never splits the run either', readAfterThought === read);
 check('the second read keeps its own slot', memberIndexOf(readAfterThought, 'call-read-2') === 1);
-check('the next read draws its own file line', linesFor(readAfterThought, 1).map(lineText).join('|') === '  └ … src/b.ts');
+check('the next read draws its own file line', linesFor(readAfterThought, 1).map(lineText).join('|') === '  └ ⠋ src/b.ts');
 
 resetRowGroups();
 resetThinking();

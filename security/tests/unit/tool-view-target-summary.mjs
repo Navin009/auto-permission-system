@@ -1,4 +1,4 @@
-import { displayShellCommand, fitCommand, fitTarget, programHint, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
+import { displayShellCommand, fitCommand, fitPathTarget, fitTarget, programHint, shortenHomePath, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -75,6 +75,10 @@ check('the tail carries exactly one ellipsis', fitCommand('awk \'length > 110 {p
 
 check('an inline script names no hint', programHint("python3 - <<'PY'\nimport json\nPY") === 'python3');
 check('a flag command still names its hint', programHint('git log --oneline -1') === 'git log');
+
+check('fitPathTarget uses a slash after the ellipsis', fitPathTarget('src/core/tool-view/row-group.ts', 26) === '…/tool-view/row-group.ts');
+check('shortenHomePath collapses the home directory to tilde', shortenHomePath('/home/alice/src/a.ts', '/home/alice') === '~/src/a.ts');
+check('shortenHomePath leaves non-home paths unchanged', shortenHomePath('/etc/hosts', '/home/alice') === '/etc/hosts');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

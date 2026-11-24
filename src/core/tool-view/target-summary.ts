@@ -7,7 +7,9 @@ const ESCAPE_CHARACTER = "\\";
 const SPACE = " ";
 const WHITESPACE_PATTERN = /\s+/g;
 const PATH_SEPARATOR = "/";
+const HOME_PREFIX = "~";
 const ELLIPSIS = "…";
+const PATH_ELLIPSIS_PREFIX = `${ELLIPSIS}${PATH_SEPARATOR}`;
 const MINIMUM_TAIL_LENGTH = 1;
 const SINGLE_TOKEN = 1;
 
@@ -92,6 +94,46 @@ export function fitTarget(label: string, budget: number): string | undefined {
 	const tail = tailWithin(label, tailBudget);
 
 	return tail ? `${ELLIPSIS}${SPACE}${tail}` : undefined;
+}
+
+export function fitPathTarget(path: string, budget: number): string | undefined {
+	if (path.length <= budget) {
+		return path;
+	}
+
+	const tailBudget = budget - PATH_ELLIPSIS_PREFIX.length;
+
+	if (tailBudget >= MINIMUM_TAIL_LENGTH && path.includes(PATH_SEPARATOR)) {
+		const tail = pathTail(path, tailBudget);
+
+		if (tail) {
+			return `${PATH_ELLIPSIS_PREFIX}${tail}`;
+		}
+	}
+
+	return fitTarget(path, budget);
+}
+
+export function shortenHomePath(path: string, homeDirectory: string | undefined): string {
+	if (!homeDirectory) {
+		return path;
+	}
+
+	const normalizedHome = homeDirectory.endsWith(PATH_SEPARATOR) ? homeDirectory.slice(0, -1) : homeDirectory;
+
+	if (!normalizedHome) {
+		return path;
+	}
+
+	if (path === normalizedHome) {
+		return HOME_PREFIX;
+	}
+
+	if (path.startsWith(`${normalizedHome}${PATH_SEPARATOR}`)) {
+		return `${HOME_PREFIX}${path.slice(normalizedHome.length)}`;
+	}
+
+	return path;
 }
 
 function collapseWhitespace(text: string): string {

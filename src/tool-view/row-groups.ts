@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { RowGroupSummary, RowSummary, SubLineSummary } from "../core/tool-view/row-group.ts";
 import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
 import { rowLabelOf, RowKind } from "../core/tool-view/row-kind.ts";
@@ -7,7 +8,8 @@ import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
 import { thoughtsVisibleInTranscript } from "./session.ts";
 import { gateNoteFor } from "../shared/gate-notes.ts";
 
-const TICK_INTERVAL_MILLISECONDS = 250;
+const TICK_INTERVAL_MILLISECONDS = 150;
+const GROUP_OPEN_HINT = "click for output";
 
 export interface RowMember {
 	toolCallId: string;
@@ -28,6 +30,7 @@ export interface RowGroup {
 	expansionLevel: ExpansionLevel;
 	lastActivityAt: number;
 	epochAtNewestMember: number;
+	spinnerFrame: number;
 }
 
 export interface RowCallInput {
@@ -183,6 +186,8 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 	const durationMilliseconds =
 		first && endMilliseconds !== undefined ? Math.max(0, endMilliseconds - first.startedAt) : undefined;
 
+	const isClosedGroupView = group !== currentGroup && group.expansionLevel === ExpansionLevel.Group;
+
 	return {
 		kind: group.kind,
 		rows: group.members.map((member) => rowSummary(group.kind, member)),
@@ -190,6 +195,9 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
 		thinking,
+		spinnerFrame: group.spinnerFrame,
+		homeDirectory: homedir(),
+		groupOpenHint: isClosedGroupView ? GROUP_OPEN_HINT : undefined,
 	};
 }
 
@@ -232,6 +240,7 @@ function createGroup(kind: RowKind): RowGroup {
 		expansionLevel: ExpansionLevel.Row,
 		lastActivityAt: Date.now(),
 		epochAtNewestMember: thinkingEpoch(),
+		spinnerFrame: 0,
 	};
 
 	openGroups.add(group);
@@ -317,6 +326,8 @@ function stopGroupTicker(group: RowGroup): void {
 }
 
 function tickGroup(group: RowGroup): void {
+	group.spinnerFrame += 1;
+
 	const drawer = frameMember(group);
 
 	if (drawer) {

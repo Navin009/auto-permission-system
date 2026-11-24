@@ -11,15 +11,33 @@ import {
 	type RowGroupSummary,
 	type RowLine,
 	type RowMark,
+	type RowSpan,
+	type SpanTone,
 } from "../core/tool-view/row-group.ts";
 import { ToolStatus } from "../core/tool-view/status.ts";
 
 const ELLIPSIS = "…";
 const SPACE = " ";
+const BLANK = "";
 const CLICK_TYPE = "click";
 const LEFT_BUTTON = "left";
+const TAIL_ALIGNMENT_MAX_COLUMN = 84;
+const MIN_HEAD_WIDTH = 1;
+const MIN_GAP_WIDTH = 1;
 
 type TextColor = Parameters<Theme["fg"]>[0];
+
+const COLOR_BY_TONE: Readonly<Record<SpanTone, TextColor | undefined>> = {
+	title: "toolTitle",
+	text: undefined,
+	muted: "muted",
+	dim: "dim",
+	thinking: "thinkingText",
+	accent: "accent",
+	success: "success",
+	warning: "warning",
+	error: "error",
+};
 
 export class RowGroupComponent implements Component {
 	private readonly summary: () => RowGroupSummary;
@@ -53,27 +71,33 @@ export class RowGroupComponent implements Component {
 	invalidate(): void {}
 
 	private lineText(line: RowLine, width: number): string {
+		const head = this.headText(line);
 		const tail = this.tailText(line);
 
 		if (!tail) {
-			return truncateToWidth(this.headText(line), width, ELLIPSIS);
+			return truncateToWidth(head, width, ELLIPSIS);
 		}
 
-		const tailSeparator = SPACE;
-		const headWidth = Math.max(1, width - visibleWidth(tail) - tailSeparator.length);
-		const head = truncateToWidth(this.headText(line), headWidth, ELLIPSIS);
+		const headWidth = Math.max(MIN_HEAD_WIDTH, width - visibleWidth(tail) - SPACE.length);
+		const fittedHead = truncateToWidth(head, headWidth, ELLIPSIS);
+		const targetColumn = Math.min(width, TAIL_ALIGNMENT_MAX_COLUMN);
+		const gapWidth = Math.max(MIN_GAP_WIDTH, targetColumn - visibleWidth(fittedHead) - visibleWidth(tail));
 
-		return `${head}${tailSeparator}${tail}`;
+		return `${fittedHead}${SPACE.repeat(gapWidth)}${tail}`;
 	}
 
 	private headText(line: RowLine): string {
-		const indent = line.indent ? this.theme.fg("dim", line.indent) : "";
-		const mark = line.mark ? this.markText(line.mark) : "";
+		const indent = line.indent ? this.theme.fg("dim", line.indent) : BLANK;
+		const mark = line.mark ? this.markText(line.mark) : BLANK;
 
 		return `${indent}${mark}${this.bodyText(line)}`;
 	}
 
 	private bodyText(line: RowLine): string {
+		if (line.spans) {
+			return line.spans.map((span) => this.renderSpan(span)).join(BLANK);
+		}
+
 		if (line.isWarning) {
 			return this.theme.fg("warning", line.text);
 		}
@@ -81,9 +105,21 @@ export class RowGroupComponent implements Component {
 		return line.isDim ? this.theme.fg("dim", line.text) : line.text;
 	}
 
+	private renderSpan(span: RowSpan): string {
+		const color = COLOR_BY_TONE[span.tone];
+		const colored = color ? this.theme.fg(color, span.text) : span.text;
+		const withWeight = span.bold && this.theme.bold ? this.theme.bold(colored) : colored;
+
+		return span.italic && this.theme.italic ? this.theme.italic(withWeight) : withWeight;
+	}
+
 	private tailText(line: RowLine): string {
-		const hint = line.hint ? `${this.theme.fg("dim", line.hint)}${SPACE}` : "";
-		const duration = line.duration ? this.theme.fg("dim", line.duration) : "";
+		const hint = line.hint ? this.theme.fg("dim", line.hint) : BLANK;
+		const duration = line.duration ? this.theme.fg("muted", line.duration) : BLANK;
+
+		if (hint && duration) {
+			return `${hint}${SPACE}${duration}`;
+		}
 
 		return `${hint}${duration}`;
 	}
@@ -98,5 +134,13 @@ function colorForStatus(status: ToolStatus): TextColor {
 		return "accent";
 	}
 
-	return status === ToolStatus.Ok ? "success" : "error";
+	if (status === ToolStatus.Ok) {
+		return "success";
+	}
+
+	if (status === ToolStatus.Blocked) {
+		return "warning";
+	}
+
+	return "error";
 }

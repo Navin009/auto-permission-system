@@ -80,7 +80,15 @@ export { rowTarget } from "./tool-view/arguments.ts";
 export { elapsedSeconds, thinkingPart } from "./tool-view/thinking.ts";
 export type { ThinkingState } from "./tool-view/thinking.ts";
 export { pluralize, rowGroupLines, rowGroupLinesForMember, rowGroupLinesForSegment } from "./tool-view/row-group.ts";
-export type { RowGroupSummary, RowLine, RowMark, RowSummary, SubLineSummary } from "./tool-view/row-group.ts";
+export type {
+	RowGroupSummary,
+	RowLine,
+	RowMark,
+	RowSpan,
+	RowSummary,
+	SpanTone,
+	SubLineSummary,
+} from "./tool-view/row-group.ts";
 export {
 	applyUntrustedProject,
 	createProjectTrust,

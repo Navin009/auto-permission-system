@@ -20,13 +20,15 @@ export function codemodeSubLines(
 	const script = scriptPreview(args);
 
 	if (script) {
-		lines.push({ text: script, status: undefined });
+		lines.push({ text: script, status: undefined, kind: "script" });
 	}
 
 	for (const call of nestedCallsFor(toolCallId)) {
 		lines.push({
 			text: nestedCallText(call),
 			status: STATUS_BY_NESTED_CALL[call.status],
+			kind: "call",
+			detail: call.detail || undefined,
 		});
 	}
 
