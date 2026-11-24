@@ -258,15 +258,20 @@ check('a read run reports the earlier calls', body(readGroup(manyReads))[0] === 
 
 const LONG_CHAINED_RUNNING =
 	'npm run format:check && npm run check && ! grep -rnE \'from "\\.\\.?/[^"]*"\' src extensions | grep -vE \'\\.ts";?$\' && echo "ALL CHECKS PASSED"';
-const runningChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Running })]));
+const runningChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Running })], {}, 120));
 check(
-	'a running 4+ stage chain uses Option C three-line layout',
+	'a running 4+ stage chain shows full middle stages text on line 2',
 	runningChain.join('\n') ===
 		[
 			'  └ $ npm run format:check',
-			'    ├ … (+3 stages: npm, ! grep, grep)',
+			'    ├ && npm run check && ! grep -rnE \'from "\\.\\.?/[^"]*"\' src extensions | grep -vE \'\\.ts";?$\'',
 			'    └ && echo "ALL CHECKS PASSED"',
 		].join('\n'),
+);
+const narrowRunningChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Running })], {}, 100));
+check(
+	'a running 4+ stage chain fits middle stages to column width on narrower terminals',
+	narrowRunningChain[1] === "    ├ && npm run check && ! grep -rnE … '\\.ts\";?$'",
 );
 
 const settledChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Ok })]));

@@ -118,9 +118,7 @@ const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
 const LINE_BREAK_PATTERN = /\r?\n/;
 const WHITESPACE_PATTERN = /\s+/g;
-const NEGATION_PREFIX = "!";
 const MAX_RUNNING_SUB_LINES = 3;
-const STAGE_NOUN = "stage";
 const LINE_NOUN = "line";
 const LINE_RANGE_PATTERN = /:\d+(?:-\d+)?$/;
 const BLANK = "";
@@ -640,14 +638,18 @@ function chainedRunningShellLines(
 		return [firstLine, ...tailLines];
 	}
 
-	const skipped = stages.slice(1, stages.length - 1);
+	const middleStages = stages.slice(1, stages.length - 1);
 	const lastStage = stages.at(-1);
 
 	if (!lastStage) {
 		return [firstLine];
 	}
 
-	return [firstLine, chainSkippedSubLine(skipped, placement), chainStageSubLine(lastStage, placement, SUB_BRANCH_LAST)];
+	return [
+		firstLine,
+		chainMiddleStagesSubLine(middleStages, placement),
+		chainStageSubLine(lastStage, placement, SUB_BRANCH_LAST),
+	];
 }
 
 function chainStageSubLine(stage: ChainStage, placement: ChildLinePlacement, connector: string): RowLine {
@@ -676,49 +678,41 @@ function chainStageSubLine(stage: ChainStage, placement: ChildLinePlacement, con
 	};
 }
 
-function chainSkippedSubLine(skipped: readonly ChainStage[], placement: ChildLinePlacement): RowLine {
+function chainMiddleStagesSubLine(middleStages: readonly ChainStage[], placement: ChildLinePlacement): RowLine {
 	const indent = subBranchIndent(placement, SUB_BRANCH_MIDDLE);
-	const budget = Math.max(1, placement.childColumn - indent.length);
-	const base = `${ELLIPSIS} (+${skipped.length} ${pluralize(STAGE_NOUN, skipped.length)}`;
-	const names = skipped.map((stage) => stageProgramLabel(stage.command));
-	const withNames = `${base}: ${names.join(NAME_SEPARATOR)})`;
-	const text = withNames.length <= budget ? withNames : fitStageSkipText(base, names, budget);
+	const leadingOperator = middleStages[0]?.operator;
+	const operatorPrefix = leadingOperator ? `${leadingOperator}${SPACE}` : BLANK;
+	const combinedCommand = middleStages
+		.map((stage, index) => (index > 0 && stage.operator ? `${stage.operator}${SPACE}${stage.command}` : stage.command))
+		.join(SPACE);
+	const budget = Math.max(1, placement.childColumn - indent.length - operatorPrefix.length);
+	const fitted = fitCommand(combinedCommand, budget);
+	const spans: RowSpan[] = [];
+
+	if (operatorPrefix) {
+		spans.push({ text: operatorPrefix, tone: "dim" });
+	}
+
+	const truncatedPrefix = `${ELLIPSIS}${SPACE}`;
+
+	if (fitted.startsWith(truncatedPrefix)) {
+		spans.push({ text: truncatedPrefix, tone: "dim" });
+		appendShellCommandSpans(spans, fitted.slice(truncatedPrefix.length), false);
+	} else {
+		appendShellCommandSpans(spans, fitted, true);
+	}
 
 	return {
 		indent,
 		mark: undefined,
-		text,
-		spans: [{ text, tone: "dim" }],
+		text: `${operatorPrefix}${fitted}`,
+		spans,
 		duration: undefined,
 		hint: undefined,
 		isDim: true,
 		memberIndex: placement.memberIndex,
 		segmentIndex: placement.segmentIndex,
 	};
-}
-
-function fitStageSkipText(base: string, names: readonly string[], budget: number): string {
-	for (let count = names.length - 1; count >= 1; count -= 1) {
-		const candidate = `${base}: ${names.slice(0, count).join(NAME_SEPARATOR)}, ${ELLIPSIS})`;
-
-		if (candidate.length <= budget) {
-			return candidate;
-		}
-	}
-
-	const compact = `${base})`;
-
-	return compact.length <= budget ? compact : fitPlainLine(compact, budget);
-}
-
-function stageProgramLabel(command: string): string {
-	const tokens = command.trim().split(WHITESPACE_PATTERN);
-
-	if (tokens[0] === NEGATION_PREFIX && tokens[1]) {
-		return `${NEGATION_PREFIX}${SPACE}${tokens[1]}`;
-	}
-
-	return tokens[0] ?? BLANK;
 }
 
 function subBranchIndent(placement: ChildLinePlacement, connector: string): string {
