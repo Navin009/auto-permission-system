@@ -20,6 +20,11 @@ const BODY_RESERVED_ROWS = SCROLL_INDICATOR_ROWS + HEADROOM_ROWS;
 
 const HELP_KEYS = "↑↓ navigate   Enter select   Esc cancel";
 const HELP_KEYS_WITH_SCROLL = "↑↓ navigate   Enter select   Esc cancel   PgUp/PgDn scroll";
+const FINDING_LINE_PATTERN = /^(Finding(?:\s+\d+)?:\s*)(.*)$/;
+const METADATA_LINE_PATTERN = /^([A-Za-z][A-Za-z ]{1,12}\s{2,})(.+)$/;
+const WARNING_VALUE_LABELS = new Set(["Why", "Risk"]);
+const DIM_VALUE_LABELS = new Set(["Folder"]);
+const MUTED_VALUE_LABELS = new Set(["Note"]);
 
 function trimBlankEdges(lines: string[]): string[] {
 	let start = 0;
@@ -237,13 +242,49 @@ export class AskSelector extends Container {
 
 		for (const line of this.bodyLines) {
 			const normalizedLine = line.replaceAll("\t", "   ");
-			const styled = this.theme.fg("accent", this.theme.bold(normalizedLine));
+			const styled = this.formatBodyLine(normalizedLine);
 
 			for (const row of wrapTextWithAnsi(styled, contentWidth)) rows.push(row);
 		}
 
 		this.wrappedRows = rows;
 		this.wrappedRowsWidth = width;
+	}
+
+	private formatBodyLine(line: string): string {
+		const findingMatch = FINDING_LINE_PATTERN.exec(line);
+
+		if (findingMatch) {
+			const [, prefix, rest] = findingMatch;
+
+			return `${this.theme.fg("warning", this.theme.bold(prefix))}${rest}`;
+		}
+
+		const metadataMatch = METADATA_LINE_PATTERN.exec(line);
+
+		if (metadataMatch) {
+			const [, label, value] = metadataMatch;
+
+			return `${this.theme.fg("muted", label)}${this.formatMetadataValue(label.trim(), value)}`;
+		}
+
+		return line;
+	}
+
+	private formatMetadataValue(label: string, value: string): string {
+		if (WARNING_VALUE_LABELS.has(label)) {
+			return this.theme.fg("warning", value);
+		}
+
+		if (DIM_VALUE_LABELS.has(label)) {
+			return this.theme.fg("dim", value);
+		}
+
+		if (MUTED_VALUE_LABELS.has(label)) {
+			return this.theme.fg("muted", value);
+		}
+
+		return value;
 	}
 
 	private bodyBudget(): number {
@@ -321,7 +362,7 @@ export class AskSelector extends Container {
 	private footerValue(): string {
 		const text =
 			this.timeoutMs > 0 && this.footerBase ? `${this.footerBase} (${this.remaining}s)` : (this.footerBase ?? "");
-		return this.theme.fg("accent", this.theme.bold(text));
+		return this.theme.fg("warning", this.theme.bold(text));
 	}
 
 	private startCountdown(): void {

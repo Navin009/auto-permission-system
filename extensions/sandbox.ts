@@ -17,6 +17,7 @@ import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } fr
 import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } from "../src/l1-sandbox/config.ts";
 import { audit } from "../src/shared/audit.ts";
 import { onDomainGrant } from "../src/shared/network-grants.ts";
+import { sandboxStatusChip } from "../src/shared/sandbox-status.ts";
 import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo.ts";
 import { POLICY_NOTICE } from "../src/shared/messages.ts";
 
@@ -173,19 +174,9 @@ export default function (pi: ExtensionAPI) {
 			isSandboxInitialized = true;
 			sandboxBlockReason = undefined;
 
-			const allowedDomainCount = config.network?.allowedDomains?.length ?? 0;
-			const allowedWritePathCount = config.filesystem?.allowWrite?.length ?? 0;
-			const isAdvancedSecureMode = config.mode === "advanced-secure";
-			const modeIcon = isAdvancedSecureMode ? "🧠" : "🔒";
-			const statusThemeColor = isAdvancedSecureMode ? "success" : "accent";
+			const chip = sandboxStatusChip(config);
 
-			context.ui.setStatus(
-				"sandbox",
-				context.ui.theme.fg(
-					statusThemeColor,
-					`Sandbox: ${modeIcon}  ${allowedDomainCount} domains, ${allowedWritePathCount} paths`,
-				),
-			);
+			context.ui.setStatus("sandbox", context.ui.theme.fg(chip.color, chip.text));
 
 			context.ui.notify("Sandbox initialized", "info");
 		} catch (error) {

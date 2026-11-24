@@ -14,6 +14,7 @@ import { loadConfig } from "../src/l1-sandbox/config.ts";
 import { loadPolicy, projectTrusted } from "../src/l2-guard/policy.ts";
 import { askQueued } from "../src/ui/ask-flow.ts";
 import { audit } from "../src/shared/audit.ts";
+import { sandboxStatusChip } from "../src/shared/sandbox-status.ts";
 import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo.ts";
 
 const GLOBAL_POLICY_PATH = `${getAgentDir()}/extensions/sandbox.json`;
@@ -83,13 +84,9 @@ function renderSandboxChip(context: ExtensionContext): void {
 		return;
 	}
 
-	const isSecureMode = config.mode === "advanced-secure";
-	const allowedDomainCount = config.network?.allowedDomains?.length ?? 0;
-	const allowedPathCount = config.filesystem?.allowWrite?.length ?? 0;
-	const modeIcon = isSecureMode ? "🧠" : "🔒";
-	const chipText = `Sandbox: ${modeIcon}  ${allowedDomainCount} domains, ${allowedPathCount} paths`;
+	const chip = sandboxStatusChip(config);
 
-	context.ui.setStatus("sandbox", context.ui.theme.fg(isSecureMode ? "success" : "accent", chipText));
+	context.ui.setStatus("sandbox", context.ui.theme.fg(chip.color, chip.text));
 }
 
 function modeNotice(mode: PermissionMode): { text: string; level: "info" | "warning" } {

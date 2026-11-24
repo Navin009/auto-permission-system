@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { normalizeMode, modeLabel, DEFAULT_MODE, applyUntrustedProject, describeLoosening, setPolicyMode } from '../../../src/core/index.ts';
+import { sandboxStatusChip } from '../../../src/shared/sandbox-status.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };
@@ -48,6 +49,22 @@ setPolicyMode(file, 'yolo');
 const yoloFile = JSON.parse(readFileSync(file, 'utf-8'));
 check('setPolicyMode persists YOLO like the other modes', yoloFile.mode === 'yolo');
 check('persisting YOLO keeps the other fields', yoloFile.network.allowedDomains[0] === 'example.com');
+
+check(
+	'sandboxStatusChip describes empty allowedDomains without strictAllowlist as all domains',
+	sandboxStatusChip({ mode: 'advanced-secure', network: { allowedDomains: [], strictAllowlist: false }, filesystem: { allowWrite: ['.', '/tmp'] } }).text ===
+		'Sandbox: 🧠  all domains, 2 paths',
+);
+check(
+	'sandboxStatusChip marks strict empty allowlist as strict',
+	sandboxStatusChip({ mode: 'default', network: { allowedDomains: [], strictAllowlist: true }, filesystem: { allowWrite: ['.'] } }).text ===
+		'Sandbox: 🔒  0 domains (strict), 1 path',
+);
+check(
+	'sandboxStatusChip counts explicit domains',
+	sandboxStatusChip({ mode: 'default', network: { allowedDomains: ['github.com'] }, filesystem: { allowWrite: ['.'] } }).text ===
+		'Sandbox: 🔒  1 domain, 1 path',
+);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

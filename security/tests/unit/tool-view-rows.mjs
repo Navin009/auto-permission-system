@@ -208,6 +208,27 @@ check(
 	homeRead[1].spans?.map((span) => `${span.tone}:${span.text}`).join('|') === 'dim:~/project/src/|text:app.ts|accent::10-20',
 );
 
+const cwdRead = readGroup(
+	[row({ target: '/home/alice/project/src/app.ts:10-20' })],
+	{ cwd: '/home/alice/project', homeDirectory: '/home/alice' },
+	100,
+);
+check('a read line prefers cwd-relative paths inside the project', body(cwdRead)[0] === '  └ src/app.ts:10-20');
+
+const chainedShell = group([row({ target: 'npm run typecheck && npm test | tail -20' })], {}, 100);
+check(
+	'a chained shell command dims operators and highlights each stage program',
+	chainedShell[1].spans?.map((span) => `${span.tone}:${span.text}`).join('|') ===
+		'dim:$ |text:npm|muted: run typecheck |dim:&&|muted: |text:npm|muted: test |dim:||muted: |text:tail|muted: -20',
+);
+
+const foldedOverflowHeader = group(ladderRows, { folded: true, durationMilliseconds: 55_000 }, 100)[0];
+check('folded multi-command overflow formats with comma and more', /,\s\+\d+\smore\)$/.test(foldedOverflowHeader.text));
+check(
+	'folded multi-command overflow dims the hidden count',
+	foldedOverflowHeader.spans?.some((span) => span.tone === 'dim' && /^, \+\d+ more$/.test(span.text)),
+);
+
 const notedGroup = group([row({ target: 'cat .env', status: ToolStatus.Blocked, note: 'Blocked by policy' }), row({ target: 'git status' })]);
 check('a middle row gate note uses a vertical branch anchor', lineText(notedGroup[2]) === '  │   ↳ Blocked by policy');
 

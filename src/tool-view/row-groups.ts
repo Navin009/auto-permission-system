@@ -31,6 +31,7 @@ export interface RowGroup {
 	lastActivityAt: number;
 	epochAtNewestMember: number;
 	spinnerFrame: number;
+	cwd: string | undefined;
 }
 
 export interface RowCallInput {
@@ -38,6 +39,7 @@ export interface RowCallInput {
 	kind: RowKind;
 	target: string;
 	invalidate: (() => void) | undefined;
+	cwd?: string;
 	subLines?: readonly SubLineSummary[];
 }
 
@@ -117,7 +119,17 @@ export function advanceGroupExpansion(group: RowGroup): void {
 }
 
 export function repaintCurrentRow(): void {
-	const head = currentGroup ? frameMember(currentGroup) : undefined;
+	const group = currentGroup;
+
+	if (!group) {
+		return;
+	}
+
+	if (!group.ticker && thinkingState() !== undefined) {
+		group.spinnerFrame += 1;
+	}
+
+	const head = frameMember(group);
 
 	if (head) {
 		safelyInvalidate(head);
@@ -196,6 +208,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		hint,
 		thinking,
 		spinnerFrame: group.spinnerFrame,
+		cwd: group.cwd,
 		homeDirectory: homedir(),
 		groupOpenHint: isClosedGroupView ? GROUP_OPEN_HINT : undefined,
 	};
@@ -221,17 +234,25 @@ function groupForCall(input: RowCallInput): RowGroup {
 	const existingGroup = rowGroupOfCall(input.toolCallId);
 
 	if (existingGroup) {
+		if (input.cwd && !existingGroup.cwd) {
+			existingGroup.cwd = input.cwd;
+		}
+
 		return existingGroup;
 	}
 
 	if (currentGroup?.kind === input.kind) {
+		if (input.cwd && !currentGroup.cwd) {
+			currentGroup.cwd = input.cwd;
+		}
+
 		return currentGroup;
 	}
 
-	return createGroup(input.kind);
+	return createGroup(input.kind, input.cwd);
 }
 
-function createGroup(kind: RowKind): RowGroup {
+function createGroup(kind: RowKind, cwd: string | undefined): RowGroup {
 	const previousGroup = currentGroup;
 	const group: RowGroup = {
 		kind,
@@ -241,6 +262,7 @@ function createGroup(kind: RowKind): RowGroup {
 		lastActivityAt: Date.now(),
 		epochAtNewestMember: thinkingEpoch(),
 		spinnerFrame: 0,
+		cwd,
 	};
 
 	openGroups.add(group);

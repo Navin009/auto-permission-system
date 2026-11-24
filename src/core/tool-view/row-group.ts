@@ -6,7 +6,7 @@ import {
 	fitCommand,
 	fitPathTarget,
 	fitTarget,
-	shortenHomePath,
+	shortenDisplayPath,
 	summarizeShellCommand,
 } from "./target-summary.ts";
 import { thinkingPart, type ThinkingState } from "./thinking.ts";
@@ -44,6 +44,7 @@ export interface RowGroupSummary {
 	hint: string | undefined;
 	thinking: ThinkingState | undefined;
 	spinnerFrame?: number;
+	cwd?: string;
 	homeDirectory?: string;
 	groupOpenHint?: string;
 }
@@ -115,6 +116,12 @@ const MINIMUM_TARGET_WIDTH = 4;
 const NAME_LIMITS: readonly number[] = [4, 3, 2, 1];
 const NAME_SEPARATOR = ", ";
 const OVERFLOW_PREFIX = "+";
+const MORE_SUFFIX = " more";
+const OVERFLOW_TRAILING_PATTERN = /(, \+\d+ more)\)$/;
+const PAIR_CHAIN_OPERATORS: readonly string[] = ["&&", "||"];
+const SINGLE_CHAIN_OPERATORS: readonly string[] = ["|", ";"];
+const QUOTE_CHARACTERS: readonly string[] = ["'", '"'];
+const ESCAPE_CHARACTER = "\\";
 const COMMAND_COLUMN_PERCENT = 70;
 const WIDE_COLUMN_PERCENT = 85;
 const WIDE_WIDTH_THRESHOLD = 100;
@@ -213,7 +220,9 @@ function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: b
 	}
 
 	if (targetPart) {
-		spans.push({ text: targetPart, tone: "muted" });
+		for (const span of targetPartSpans(targetPart)) {
+			spans.push(span);
+		}
 	}
 
 	if (thoughtPart) {
@@ -302,23 +311,34 @@ function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: n
 		return BLANK;
 	}
 
-	const fitted = fitFoldedTarget(summary.kind, target, budget, summary.homeDirectory);
+	const fitted = fitFoldedTarget(summary, target, budget);
 
 	return fitted ? `${SPACE}(${fitted})` : BLANK;
 }
 
-function fitFoldedTarget(
-	kind: RowKind,
-	target: string,
-	budget: number,
-	homeDirectory: string | undefined,
-): string | undefined {
-	if (kind === RowKind.Shell) {
+function targetPartSpans(targetPart: string): RowSpan[] {
+	const match = OVERFLOW_TRAILING_PATTERN.exec(targetPart);
+
+	if (!match || match.index === undefined) {
+		return [{ text: targetPart, tone: "muted" }];
+	}
+
+	const prefix = targetPart.slice(0, match.index);
+
+	return [
+		{ text: prefix, tone: "muted" },
+		{ text: match[1], tone: "dim" },
+		{ text: ")", tone: "muted" },
+	];
+}
+
+function fitFoldedTarget(summary: RowGroupSummary, target: string, budget: number): string | undefined {
+	if (summary.kind === RowKind.Shell) {
 		return fitTarget(summarizeShellCommand(target), budget);
 	}
 
-	if (kind === RowKind.Read) {
-		const normalized = shortenHomePath(toSingleLine(target), homeDirectory);
+	if (summary.kind === RowKind.Read) {
+		const normalized = shortenDisplayPath(toSingleLine(target), summary.cwd, summary.homeDirectory);
 
 		return fitPathTarget(normalized, budget);
 	}
@@ -341,9 +361,15 @@ function namesText(summary: RowGroupSummary, budget: number): string {
 		}
 	}
 
-	const overflow = overflowText(summary.rows.length).trim();
+	const fullOverflow = `${OVERFLOW_PREFIX}${summary.rows.length}${MORE_SUFFIX}`;
 
-	return overflow.length <= budget ? `${SPACE}(${overflow})` : BLANK;
+	if (fullOverflow.length <= budget) {
+		return `${SPACE}(${fullOverflow})`;
+	}
+
+	const compactOverflow = `${OVERFLOW_PREFIX}${summary.rows.length}`;
+
+	return compactOverflow.length <= budget ? `${SPACE}(${compactOverflow})` : BLANK;
 }
 
 function namesCandidate(summary: RowGroupSummary, withHints: boolean, limit: number): string | undefined {
@@ -366,7 +392,7 @@ function namesCandidate(summary: RowGroupSummary, withHints: boolean, limit: num
 }
 
 function overflowText(hiddenCount: number): string {
-	return `${SPACE}${OVERFLOW_PREFIX}${hiddenCount}`;
+	return `${NAME_SEPARATOR}${OVERFLOW_PREFIX}${hiddenCount}${MORE_SUFFIX}`;
 }
 
 function headerDuration(durationMilliseconds: number | undefined): string | undefined {
@@ -579,7 +605,7 @@ function childLine(summary: RowGroupSummary, row: RowSummary, placement: ChildLi
 		: { glyph: statusMark(row.status, summary.spinnerFrame), status: row.status };
 	const wordPart = placement.isSingle ? BLANK : wordText(row.status, true);
 	const budget = placement.childColumn - indent.length - markColumnWidth(mark) - wordPart.length;
-	const styled = childLineText(summary.kind, row, budget, wordPart, summary.homeDirectory);
+	const styled = childLineText(summary, row, budget, wordPart);
 
 	return {
 		indent,
@@ -594,18 +620,12 @@ function childLine(summary: RowGroupSummary, row: RowSummary, placement: ChildLi
 	};
 }
 
-function childLineText(
-	kind: RowKind,
-	row: RowSummary,
-	budget: number,
-	wordPart: string,
-	homeDirectory: string | undefined,
-): StyledText {
-	if (kind === RowKind.Shell) {
+function childLineText(summary: RowGroupSummary, row: RowSummary, budget: number, wordPart: string): StyledText {
+	if (summary.kind === RowKind.Shell) {
 		return shellLineStyled(row.target, budget, wordPart, row.status);
 	}
 
-	return readLineStyled(row.target, budget, wordPart, row.status, homeDirectory);
+	return readLineStyled(summary, row, budget, wordPart);
 }
 
 function shellLineStyled(command: string, budget: number, wordPart: string, status: ToolStatus): StyledText {
@@ -616,16 +636,9 @@ function shellLineStyled(command: string, budget: number, wordPart: string, stat
 
 	if (commandPart.startsWith(truncatedPrefix)) {
 		spans.push({ text: truncatedPrefix, tone: "dim" });
-		spans.push({ text: commandPart.slice(truncatedPrefix.length), tone: "muted" });
+		appendShellCommandSpans(spans, commandPart.slice(truncatedPrefix.length), false);
 	} else {
-		const spaceIndex = commandPart.indexOf(SPACE);
-
-		if (spaceIndex > 0) {
-			spans.push({ text: commandPart.slice(0, spaceIndex), tone: "text" });
-			spans.push({ text: commandPart.slice(spaceIndex), tone: "muted" });
-		} else {
-			spans.push({ text: commandPart, tone: "text" });
-		}
+		appendShellCommandSpans(spans, commandPart, true);
 	}
 
 	if (wordPart) {
@@ -638,14 +651,111 @@ function shellLineStyled(command: string, budget: number, wordPart: string, stat
 	};
 }
 
-function readLineStyled(
-	target: string,
-	budget: number,
-	wordPart: string,
-	status: ToolStatus,
-	homeDirectory: string | undefined,
-): StyledText {
-	const normalized = shortenHomePath(toSingleLine(target), homeDirectory);
+function appendShellCommandSpans(spans: RowSpan[], commandText: string, startsAtProgram: boolean): void {
+	const segments = splitShellOperatorSegments(commandText);
+
+	segments.forEach((segment, index) => {
+		if (segment.isOperator) {
+			spans.push({ text: segment.text, tone: "dim" });
+			return;
+		}
+
+		const isProgramSegment = index > 0 || startsAtProgram;
+
+		appendSegmentCommandSpans(spans, segment.text, isProgramSegment);
+	});
+}
+
+function appendSegmentCommandSpans(spans: RowSpan[], segmentText: string, isProgramSegment: boolean): void {
+	if (!isProgramSegment) {
+		spans.push({ text: segmentText, tone: "muted" });
+		return;
+	}
+
+	const leadingSpaces = segmentText.length - segmentText.trimStart().length;
+
+	if (leadingSpaces > 0) {
+		spans.push({ text: segmentText.slice(0, leadingSpaces), tone: "muted" });
+	}
+
+	const trimmed = segmentText.slice(leadingSpaces);
+	const firstSpace = trimmed.indexOf(SPACE);
+
+	if (firstSpace > 0) {
+		spans.push({ text: trimmed.slice(0, firstSpace), tone: "text" });
+		spans.push({ text: trimmed.slice(firstSpace), tone: "muted" });
+		return;
+	}
+
+	if (trimmed) {
+		spans.push({ text: trimmed, tone: "text" });
+	}
+}
+
+function splitShellOperatorSegments(text: string): Array<{ text: string; isOperator: boolean }> {
+	const segments: Array<{ text: string; isOperator: boolean }> = [];
+	let currentStart = 0;
+	let openQuote = "";
+	let index = 0;
+
+	while (index < text.length) {
+		const character = text[index];
+
+		if (openQuote) {
+			if (character === ESCAPE_CHARACTER) {
+				index += 2;
+				continue;
+			}
+
+			if (character === openQuote) {
+				openQuote = "";
+			}
+
+			index += 1;
+			continue;
+		}
+
+		if (QUOTE_CHARACTERS.includes(character)) {
+			openQuote = character;
+			index += 1;
+			continue;
+		}
+
+		const operatorLength = chainOperatorLengthAt(text, index);
+
+		if (operatorLength === 0) {
+			index += 1;
+			continue;
+		}
+
+		if (index > currentStart) {
+			segments.push({ text: text.slice(currentStart, index), isOperator: false });
+		}
+
+		segments.push({ text: text.slice(index, index + operatorLength), isOperator: true });
+		index += operatorLength;
+		currentStart = index;
+	}
+
+	if (currentStart < text.length) {
+		segments.push({ text: text.slice(currentStart), isOperator: false });
+	}
+
+	return segments;
+}
+
+function chainOperatorLengthAt(text: string, index: number): number {
+	const pair = text.slice(index, index + 2);
+
+	if (PAIR_CHAIN_OPERATORS.includes(pair)) {
+		return pair.length;
+	}
+
+	return SINGLE_CHAIN_OPERATORS.includes(text[index]) ? 1 : 0;
+}
+
+function readLineStyled(summary: RowGroupSummary, row: RowSummary, budget: number, wordPart: string): StyledText {
+	const normalized = shortenDisplayPath(toSingleLine(row.target), summary.cwd, summary.homeDirectory);
 	const pathPart = fitPathTarget(normalized, budget) ?? ELLIPSIS;
 	const rangeMatch = LINE_RANGE_PATTERN.exec(pathPart);
 	const rangeSuffix = rangeMatch?.[0] ?? BLANK;
@@ -665,7 +775,7 @@ function readLineStyled(
 	}
 
 	if (wordPart) {
-		spans.push({ text: wordPart, tone: wordTone(status) });
+		spans.push({ text: wordPart, tone: wordTone(row.status) });
 	}
 
 	return {

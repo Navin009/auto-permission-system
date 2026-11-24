@@ -1,4 +1,4 @@
-import { displayShellCommand, fitCommand, fitPathTarget, fitTarget, programHint, shortenHomePath, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
+import { displayShellCommand, fitCommand, fitPathTarget, fitTarget, programHint, shortenDisplayPath, shortenHomePath, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -79,6 +79,14 @@ check('a flag command still names its hint', programHint('git log --oneline -1')
 check('fitPathTarget uses a slash after the ellipsis', fitPathTarget('src/core/tool-view/row-group.ts', 26) === '…/tool-view/row-group.ts');
 check('shortenHomePath collapses the home directory to tilde', shortenHomePath('/home/alice/src/a.ts', '/home/alice') === '~/src/a.ts');
 check('shortenHomePath leaves non-home paths unchanged', shortenHomePath('/etc/hosts', '/home/alice') === '/etc/hosts');
+check(
+	'shortenDisplayPath prefers project-relative paths over tilde',
+	shortenDisplayPath('/home/alice/work/app/src/a.ts', '/home/alice/work/app', '/home/alice') === 'src/a.ts',
+);
+check(
+	'shortenDisplayPath falls back to tilde outside the project',
+	shortenDisplayPath('/home/alice/.pi/agent/sandbox.json', '/home/alice/work/app', '/home/alice') === '~/.pi/agent/sandbox.json',
+);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

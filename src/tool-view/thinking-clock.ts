@@ -1,6 +1,6 @@
 import type { ThinkingState } from "../core/tool-view/thinking.ts";
 
-const TICK_INTERVAL_MILLISECONDS = 1000;
+const TICK_INTERVAL_MILLISECONDS = 150;
 
 let startedAt: number | undefined;
 let thoughtEpoch = 0;

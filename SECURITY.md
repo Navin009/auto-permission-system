@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-24T21:32:51.105Z
+Generated: 2026-11-24T22:06:05.157Z
 
 ## At a glance
 
@@ -30,10 +30,10 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 
 **Source files**
 
-- ✓ `extensions/sandbox.ts` — 364 lines, mtime 2026-11-22
+- ✓ `extensions/sandbox.ts` — 355 lines, mtime 2026-11-24
 - ✓ `src/l1-sandbox/` — dir, mtime 2026-11-21
 - ✓ `src/core/` — dir, mtime 2026-11-22
-- ✓ `src/shared/` — dir, mtime 2026-11-22
+- ✓ `src/shared/` — dir, mtime 2026-11-24
 - ✓ `~/.pi/agent/extensions/sandbox.json` — 63 lines, mtime 2026-11-22
 
 **Tests**
@@ -78,11 +78,11 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 **Source files**
 
 - ✓ `extensions/guard.ts` — 322 lines, mtime 2026-11-22
-- ✓ `extensions/permission-mode.ts` — 196 lines, mtime 2026-11-22
+- ✓ `extensions/permission-mode.ts` — 193 lines, mtime 2026-11-24
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-22
 - ✓ `src/detect/` — dir, mtime 2026-11-04
 - ✓ `src/core/` — dir, mtime 2026-11-22
-- ✓ `src/shared/` — dir, mtime 2026-11-22
+- ✓ `src/shared/` — dir, mtime 2026-11-24
 
 **Tests**
 
@@ -111,7 +111,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L2-policy-schema` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-schema.mjs` → expects PASS=24, FAIL=0
 - `L2-detect-smoke` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-smoke.mjs` → expects PASS=33, FAIL=0
 - `L2-detect-size` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/detect-size.mjs` → expects PASS=12, FAIL=0
-- `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=23, FAIL=0
+- `L1-L2-permission-mode` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode.mjs` → expects PASS=26, FAIL=0
 - `L1-L2-permission-mode-sync` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/permission-mode-yolo-sync.mjs` → expects PASS=4, FAIL=0
 - `L1-L2-yolo-toggle` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo.mjs` → expects PASS=16, FAIL=0
 - `L1-L2-yolo-gate` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo-gate.mjs` → expects PASS=5, FAIL=0

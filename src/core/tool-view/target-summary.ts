@@ -114,6 +114,18 @@ export function fitPathTarget(path: string, budget: number): string | undefined 
 	return fitTarget(path, budget);
 }
 
+export function shortenDisplayPath(path: string, cwd: string | undefined, homeDirectory: string | undefined): string {
+	if (cwd) {
+		const normalizedCwd = cwd.endsWith(PATH_SEPARATOR) ? cwd.slice(0, -1) : cwd;
+
+		if (normalizedCwd && path.startsWith(`${normalizedCwd}${PATH_SEPARATOR}`)) {
+			return path.slice(normalizedCwd.length + 1);
+		}
+	}
+
+	return shortenHomePath(path, homeDirectory);
+}
+
 export function shortenHomePath(path: string, homeDirectory: string | undefined): string {
 	if (!homeDirectory) {
 		return path;

@@ -97,6 +97,7 @@ function renderRowCall(toolName: string, fallback: RendererFallback, parameters:
 			kind,
 			target,
 			invalidate: context.invalidate,
+			cwd: context.cwd,
 			subLines: subLinesFor(toolName, context.toolCallId, args as ToolCallArguments),
 		});
 
@@ -137,6 +138,7 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 		status: statusFromResult(context.isError, resultText(result)),
 		durationMilliseconds: context.durationMs,
 		invalidate: context.invalidate,
+		cwd: context.cwd,
 		subLines: subLinesFor(toolName, context.toolCallId, context.args as ToolCallArguments),
 	});
 

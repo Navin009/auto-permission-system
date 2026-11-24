@@ -5,6 +5,7 @@ import {
 	groupSummary,
 	joinRowGroup,
 	memberIndexOf,
+	repaintCurrentRow,
 	resetRowGroups,
 	settleRowGroup,
 } from '../../../src/tool-view/row-groups.ts';
@@ -79,12 +80,17 @@ now += 1_000;
 const readRow = group(read);
 check('a read row takes the bracket too', lineText(readRow[0]).includes('Reading 1 file') && lineText(readRow[0]).includes('(thinking 1s)'));
 check('a read row draws no thought line either', body(readRow).join('|') === '  └ src/a.ts');
+const beforeTickFrame = readRow[0].mark?.glyph;
+repaintCurrentRow();
+const afterTickFrame = group(read)[0].mark?.glyph;
+check('thinking repaints advance the spinner on a settled row', beforeTickFrame === '⠋' && afterTickFrame === '⠙');
 endThinking();
+check('ending the thought settles the settled row mark back to ok', group(read)[0].mark?.glyph === '✓');
 thoughtBetween(1);
 const readAfterThought = join('call-read-2', 'src/b.ts', RowKind.Read);
 check('a thought between reads never splits the run either', readAfterThought === read);
 check('the second read keeps its own slot', memberIndexOf(readAfterThought, 'call-read-2') === 1);
-check('the next read draws its own file line', linesFor(readAfterThought, 1).map(lineText).join('|') === '  └ ⠋ src/b.ts');
+check('the next read draws its own file line', linesFor(readAfterThought, 1).map(lineText).join('|') === '  └ ⠙ src/b.ts');
 
 resetRowGroups();
 resetThinking();
