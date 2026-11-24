@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 Entries up to [6.1.1] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/); [6.1.2] and later are written by hand because releases are cut by pushing a tag — do not edit a released section by hand.
 
+## [7.1.0](https://github.com/Navin009/auto-permission-system/compare/v7.0.0...v7.1.0) (2026-11-25)
+
+### Features
+
+* **tool-view,ui:** add 3-line running view, subpath imports, and UI/security polish ([79bd8e3](https://github.com/Navin009/auto-permission-system/commit/79bd8e3b8b01d991dd873b97bee9ae25e39e0646))
+* **tool-view:** refine compact row typography, status glyphs, and tree styling ([0a7c21c](https://github.com/Navin009/auto-permission-system/commit/0a7c21c9f8a544f4b06c2ea798319280de47013a))
+* **tool-view:** show full middle stages in running 3-line shell view ([f86ac58](https://github.com/Navin009/auto-permission-system/commit/f86ac58ec07b76f77435ef905851e7c3294b026c))
+
+### Bug Fixes
+
+* **tool-view,ui:** animate thinking spinner and refine view contrast and chips ([5a1d399](https://github.com/Navin009/auto-permission-system/commit/5a1d399924e4c3f0cd93cc0a019ab214711fa34d))
+* **tool-view:** keep row duration inline and add spacing before expand hint ([b3afc5c](https://github.com/Navin009/auto-permission-system/commit/b3afc5c52c7429cad7b158e84ad70a9fa9d70b2e))
+
+### Continuous Integration
+
+* **tags:** generate Conventional Commit notes from previous tag ([4f19754](https://github.com/Navin009/auto-permission-system/commit/4f19754dbffeb58e4c8a594883c448fbd1288e25))
+
 ## [7.0.0](https://github.com/Navin009/auto-permission-system/compare/v6.1.2...v7.0.0) (2026-11-24)
 
 ### BREAKING CHANGES
