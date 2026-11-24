@@ -7,6 +7,7 @@ import {
 	type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import {
+	HINT_SEPARATOR,
 	rowGroupLinesForSegment,
 	type RowGroupSummary,
 	type RowLine,
@@ -21,9 +22,7 @@ const SPACE = " ";
 const BLANK = "";
 const CLICK_TYPE = "click";
 const LEFT_BUTTON = "left";
-const TAIL_ALIGNMENT_MAX_COLUMN = 84;
 const MIN_HEAD_WIDTH = 1;
-const MIN_GAP_WIDTH = 1;
 
 type TextColor = Parameters<Theme["fg"]>[0];
 
@@ -78,12 +77,11 @@ export class RowGroupComponent implements Component {
 			return truncateToWidth(head, width, ELLIPSIS);
 		}
 
-		const headWidth = Math.max(MIN_HEAD_WIDTH, width - visibleWidth(tail) - SPACE.length);
+		const separator = line.hint ? HINT_SEPARATOR : SPACE;
+		const headWidth = Math.max(MIN_HEAD_WIDTH, width - visibleWidth(tail) - separator.length);
 		const fittedHead = truncateToWidth(head, headWidth, ELLIPSIS);
-		const targetColumn = Math.min(width, TAIL_ALIGNMENT_MAX_COLUMN);
-		const gapWidth = Math.max(MIN_GAP_WIDTH, targetColumn - visibleWidth(fittedHead) - visibleWidth(tail));
 
-		return `${fittedHead}${SPACE.repeat(gapWidth)}${tail}`;
+		return `${fittedHead}${separator}${tail}`;
 	}
 
 	private headText(line: RowLine): string {

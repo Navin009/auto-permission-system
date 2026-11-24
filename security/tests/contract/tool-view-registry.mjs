@@ -236,7 +236,14 @@ endThinking();
 check('styled header uses toolTitle and bold', paintedTokens.includes('fg:toolTitle') && paintedTokens.includes('bold'));
 check('styled thinking uses thinkingText and italic', paintedTokens.includes('fg:thinkingText') && paintedTokens.includes('italic'));
 check('styled duration uses muted', paintedTokens.includes('fg:muted'));
-check('styled header right-aligns duration at the capped column', visibleWidth(styledLines[0]) === 84);
+check('styled header keeps duration inline right after text', visibleWidth(styledLines[0]) < 60);
+
+closeRowGroup();
+const foldedStyledLines = styledCall.render(100);
+check(
+	'folded header puts extra space before expand hint without pushing to the right edge',
+	foldedStyledLines[0].includes(')   ctrl+o to expand · ') && visibleWidth(foldedStyledLines[0]) < 80,
+);
 
 resetRowGroups();
 setActiveViewMode('full');

@@ -101,6 +101,7 @@ const OVERFLOW_MARK = "...";
 const ELLIPSIS = "…";
 const PATH_SEPARATOR = "/";
 const SPACE = " ";
+export const HINT_SEPARATOR = "   ";
 const HEADER_DURATION_SEPARATOR = "· ";
 const ISSUE_SEPARATOR = " · ";
 const PLURAL_ENDING = "s";
@@ -377,13 +378,19 @@ function headerDuration(durationMilliseconds: number | undefined): string | unde
 }
 
 function tailWidth(hint: string | undefined, duration: string | undefined): number {
-	if (!hint || !duration) {
-		const onlyPart = hint ?? duration;
-
-		return onlyPart ? onlyPart.length + SPACE.length : 0;
+	if (!hint && !duration) {
+		return 0;
 	}
 
-	return hint.length + duration.length + SPACE.length * 2;
+	if (hint && duration) {
+		return HINT_SEPARATOR.length + hint.length + SPACE.length + duration.length;
+	}
+
+	if (hint) {
+		return HINT_SEPARATOR.length + hint.length;
+	}
+
+	return SPACE.length + (duration?.length ?? 0);
 }
 
 function wordText(status: ToolStatus, isShown: boolean): string {

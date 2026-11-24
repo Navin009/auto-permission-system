@@ -188,8 +188,8 @@ const LONG_COMMAND = "cd /home/navinkumar/workspace/auto-permission-system && se
 const foldedAt = (width) => header(group([row({ target: LONG_COMMAND })], { folded: true }, width));
 
 check('a folded compound command names its last segment', foldedAt(100) === '✓ ▸ Running 1 command (sed -n 660,700p plan/tool-rows-views.md) ctrl+o to expand · 5s');
-check('a long target keeps its tail at 80 columns', foldedAt(80) === '✓ ▸ Running 1 command (… 660,700p plan/tool-rows-views.md) ctrl+o to expand · 5s');
-check('a long target drops whole tokens at 72 columns', foldedAt(72) === '✓ ▸ Running 1 command (… plan/tool-rows-views.md) ctrl+o to expand · 5s');
+check('a long target keeps its tail at 80 columns', foldedAt(80) === '✓ ▸ Running 1 command (… plan/tool-rows-views.md) ctrl+o to expand · 5s');
+check('a long target drops whole tokens at 72 columns', foldedAt(72) === '✓ ▸ Running 1 command (… tool-rows-views.md) ctrl+o to expand · 5s');
 check('a target with no room is dropped', foldedAt(60) === '✓ ▸ Running 1 command ctrl+o to expand · 5s');
 check('a dropped target keeps the duration and the hint', foldedAt(60).endsWith('ctrl+o to expand · 5s'));
 check('a short target is never cut', foldedAt(200).includes('(sed -n 660,700p plan/tool-rows-views.md)'));
