@@ -19,7 +19,7 @@
  * projects so the user can't quietly trust a widening file.
  */
 
-import { commandNameOf, domainMatches, GrantScope } from "../core/index.ts";
+import { commandNameOf, domainMatches, GrantScope } from "#core/index.ts";
 import {
 	NETWORK_ALLOWLIST_WHY,
 	NETWORK_REMEMBER_TITLE,
@@ -27,7 +27,7 @@ import {
 	networkPromptBody,
 	networkPromptHeader,
 	networkRememberBody,
-} from "../ui/network-prompt.ts";
+} from "#ui/network-prompt.ts";
 import {
 	askMainWithRemember,
 	askRememberHost,
@@ -36,7 +36,7 @@ import {
 	parentDomainWildcard,
 	type AskCtx,
 	type HostGrant,
-} from "../ui/ask-flow.ts";
+} from "#ui/ask-flow.ts";
 
 /** In-memory conversation grants ("Yes, for this conversation"). Cleared at session_start. */
 const sessionGrants: string[] = [];

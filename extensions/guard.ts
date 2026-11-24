@@ -1,40 +1,35 @@
 import { statSync } from "node:fs";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { policyFileError, isProjectFileDeclined, ReadExposure } from "../src/core/index.ts";
-import { classifyFilename } from "../src/detect/index.ts";
+import { policyFileError, isProjectFileDeclined, ReadExposure } from "#core/index.ts";
+import { classifyFilename } from "#detect/index.ts";
 import {
 	loadPolicy,
 	projectPolicyPath,
 	setPiDeclinedTrust,
 	untrustedProjectChanges,
 	TRUST_STORE,
-} from "../src/l2-guard/policy.ts";
-import { canonicalize } from "../src/l2-guard/matching.ts";
-import { audit } from "../src/shared/audit.ts";
-import { clearSessionGrants, type UICtx } from "../src/l2-guard/prompts.ts";
-import { clearProgramOutputSessionGrants } from "../src/l2-guard/program-grants.ts";
-import { programIdForToolCall } from "../src/l2-guard/program-id.ts";
-import { emitDomainGrant } from "../src/shared/network-grants.ts";
-import { clearGateNotes } from "../src/shared/gate-notes.ts";
-import { subagentNetworkBlock } from "../src/l2-guard/subagent.ts";
-import { onYolo, yoloFromFlags } from "../src/shared/yolo.ts";
-import { askDetectionConfirmation, clearDetectionGrants, detectMcpAsk } from "../src/l2-guard/detection.ts";
-import {
-	checkNetworkAccess,
-	checkReadAccess,
-	checkWriteAccess,
-	extractUrlsFromInput,
-} from "../src/l2-guard/tool-gates.ts";
+} from "#l2-guard/policy.ts";
+import { canonicalize } from "#l2-guard/matching.ts";
+import { audit } from "#shared/audit.ts";
+import { clearSessionGrants, type UICtx } from "#l2-guard/prompts.ts";
+import { clearProgramOutputSessionGrants } from "#l2-guard/program-grants.ts";
+import { programIdForToolCall } from "#l2-guard/program-id.ts";
+import { emitDomainGrant } from "#shared/network-grants.ts";
+import { clearGateNotes } from "#shared/gate-notes.ts";
+import { subagentNetworkBlock } from "#l2-guard/subagent.ts";
+import { onYolo, yoloFromFlags } from "#shared/yolo.ts";
+import { askDetectionConfirmation, clearDetectionGrants, detectMcpAsk } from "#l2-guard/detection.ts";
+import { checkNetworkAccess, checkReadAccess, checkWriteAccess, extractUrlsFromInput } from "#l2-guard/tool-gates.ts";
 import {
 	clearAllowNotices,
 	clearProgramIds,
 	filterGrepToolResult,
 	gateSensitiveToolOutput,
 	recordProgramIdForCall,
-} from "../src/l2-guard/output-gates.ts";
-import { formatSecurityGuardReport, handleProjectTrustCommand } from "../src/l2-guard/report.ts";
-import { GUARD_NAME, POLICY_NOTICE } from "../src/shared/messages.ts";
+} from "#l2-guard/output-gates.ts";
+import { formatSecurityGuardReport, handleProjectTrustCommand } from "#l2-guard/report.ts";
+import { GUARD_NAME, POLICY_NOTICE } from "#shared/messages.ts";
 
 /** Tools that print names and never open the file they name. */
 const NAME_ONLY_SEARCH_TOOLS = new Set(["ls", "find"]);
@@ -97,9 +92,8 @@ export default function (pi: ExtensionAPI) {
 			console.error(`${GUARD_NAME}: ${policyPath} does not parse (${parseError}); its rules are NOT applied`);
 
 			const isProject = policyPath === `${context.cwd}/.pi/sandbox.json`;
-			const errorMessage = isProject
-				? "⚠️  Syntax error in settings file — project configuration not loaded."
-				: "⚠️  Syntax error in settings file — global configuration not loaded.";
+			const fileLabel = isProject ? ".pi/sandbox.json" : "~/.pi/agent/extensions/sandbox.json";
+			const errorMessage = `⚠️  Syntax error in ${fileLabel} (${parseError}) — rules not loaded.`;
 
 			context.ui.notify(errorMessage, "error");
 		}

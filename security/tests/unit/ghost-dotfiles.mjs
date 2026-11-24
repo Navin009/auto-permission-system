@@ -1,6 +1,6 @@
 // Verify suppression of ghost dotfiles in memory (src/l1-sandbox/manager.ts).
-import { suppressGhostDotfiles } from '../../../src/l1-sandbox/manager.ts';
-import { stripNonExistentWorkspaceMounts, cleanupWorkspaceArtifacts } from '../../../src/l1-sandbox/bash-ops.ts';
+import { suppressGhostDotfiles } from '#l1-sandbox/manager.ts';
+import { stripNonExistentWorkspaceMounts, cleanupWorkspaceArtifacts } from '#l1-sandbox/bash-ops.ts';
 import { DANGEROUS_FILES, DANGEROUS_DIRECTORIES } from '@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-utils.js';
 import { SandboxManager } from '@anthropic-ai/sandbox-runtime';
 import { mkdirSync, existsSync, rmSync } from 'node:fs';

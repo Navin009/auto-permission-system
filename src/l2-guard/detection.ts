@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { evaluateMcpCall, type JsonSchemaLike, type McpPolicy, type McpToolAnnotations } from "../detect/index.ts";
-import { askMain } from "../ui/ask-flow.ts";
-import { audit } from "../shared/audit.ts";
+import { evaluateMcpCall, type JsonSchemaLike, type McpPolicy, type McpToolAnnotations } from "#detect/index.ts";
+import { askMain } from "#ui/ask-flow.ts";
+import { audit } from "#shared/audit.ts";
 import { type UICtx } from "./prompts.ts";
 
 const detectionGrants = new Set<string>();

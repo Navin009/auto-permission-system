@@ -4,7 +4,7 @@ import {
 	clearFilesystemSessionGrants,
 	createSandboxedBashOps,
 	filesystemSessionGrantSummary,
-} from "../src/l1-sandbox/bash-ops.ts";
+} from "#l1-sandbox/bash-ops.ts";
 import {
 	applyNetworkGrant,
 	initSandbox,
@@ -12,14 +12,14 @@ import {
 	reloadSandbox,
 	resetSandbox,
 	writeNetworkOverride,
-} from "../src/l1-sandbox/manager.ts";
-import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "../src/l1-sandbox/network-ask.ts";
-import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } from "../src/l1-sandbox/config.ts";
-import { audit } from "../src/shared/audit.ts";
-import { onDomainGrant } from "../src/shared/network-grants.ts";
-import { sandboxStatusChip } from "../src/shared/sandbox-status.ts";
-import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "../src/shared/yolo.ts";
-import { POLICY_NOTICE } from "../src/shared/messages.ts";
+} from "#l1-sandbox/manager.ts";
+import { clearNetworkSessionGrants, type NetworkAskCtx, type NetworkAskDeps } from "#l1-sandbox/network-ask.ts";
+import { loadConfig, projectTrusted, setPiDeclinedTrust, type SandboxConfig } from "#l1-sandbox/config.ts";
+import { audit } from "#shared/audit.ts";
+import { onDomainGrant } from "#shared/network-grants.ts";
+import { sandboxStatusChip } from "#shared/sandbox-status.ts";
+import { emitYolo, onYolo, registerYoloFlags, yoloFromFlags, YOLO_STATUS } from "#shared/yolo.ts";
+import { POLICY_NOTICE } from "#shared/messages.ts";
 
 async function reloadSandboxConfiguration(
 	context: ExtensionContext,
@@ -305,7 +305,7 @@ export default function (pi: ExtensionAPI) {
 		if (isRuntimeYolo) {
 			await stopSandbox();
 			context.ui.setStatus("sandbox", context.ui.theme.fg("error", YOLO_STATUS));
-			context.ui.notify(context.ui.theme.fg("error", "🚨  YOLO mode — all pi security layers disabled."), "info");
+			context.ui.notify("🚨  YOLO mode — all pi security layers disabled.", "warning");
 			return;
 		}
 

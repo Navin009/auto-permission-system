@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { SandboxManager } from "@anthropic-ai/sandbox-runtime";
-import { extractBlockedPath, isBlockedAccessError, isWriteBlockError } from "../../../src/core/index.ts";
+import { extractBlockedPath, isBlockedAccessError, isWriteBlockError } from "#core/index.ts";
 
 const TIMEOUT_MS = 90_000;
 

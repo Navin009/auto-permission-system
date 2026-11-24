@@ -1,4 +1,4 @@
-import { askReadFindings, findReadCandidates, parseFindQueries, parseFindQuery, ReadExposure } from "../../../src/core/index.ts";
+import { askReadFindings, findReadCandidates, parseFindQueries, parseFindQuery, ReadExposure } from "#core/index.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { SandboxManager, type SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { type BashOperations } from "@earendil-works/pi-coding-agent";
-import { sandboxFilesystem } from "../core/index.ts";
+import { sandboxFilesystem } from "#core/index.ts";
 import { loadConfig } from "./config.ts";
 import { injectBridgesIntoBwrap, startHostPortBridges, type HostPortBridge } from "./host-bridge.ts";
 import {
@@ -30,7 +30,7 @@ import {
 import { handleBlockedBashExecution } from "./bash-recovery.ts";
 import { runInNetworkCommand } from "./network-ask.ts";
 import { piScratchDirectory } from "./scratch.ts";
-import { POLICY_NOTICE } from "../shared/messages.ts";
+import { POLICY_NOTICE } from "#shared/messages.ts";
 
 export {
 	cleanupWorkspaceArtifacts,

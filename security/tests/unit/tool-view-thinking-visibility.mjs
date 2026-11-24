@@ -1,8 +1,8 @@
-import { ViewMode } from '../../../src/core/tool-view/view-mode.ts';
+import { ViewMode } from '#core/tool-view/view-mode.ts';
 import {
 	applyThinkingVisibility,
 	resetThinkingVisibility,
-} from '../../../src/tool-view/thinking-visibility.ts';
+} from '#tool-view/thinking-visibility.ts';
 
 let pass = 0;
 let fail = 0;

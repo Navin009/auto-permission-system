@@ -10,9 +10,9 @@ import {
 	matchesPolicyPattern,
 	outsideProjectMode,
 	outsideProjectReadDenied,
-} from "../core/index.ts";
-import { canonicalize } from "../shared/canonicalize.ts";
-import { askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
+} from "#core/index.ts";
+import { canonicalize } from "#shared/canonicalize.ts";
+import { askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "#ui/ask-flow.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 import {
 	auditLayer1Bash,
@@ -22,7 +22,7 @@ import {
 	sessionWriteGrants,
 	type SandboxedBashOptions,
 } from "./bash-preflight.ts";
-import { POLICY_NOTICE } from "../shared/messages.ts";
+import { POLICY_NOTICE } from "#shared/messages.ts";
 
 function formatLinkRow(absolutePath: string, spelledPath: string | undefined): string[] {
 	if (spelledPath && spelledPath !== absolutePath) {

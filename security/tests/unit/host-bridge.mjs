@@ -11,7 +11,7 @@ import {
 	injectSocketBridgesIntoBwrap,
 	startHostPortBridge,
 	startHostSocketBridge,
-} from '../../../src/l1-sandbox/host-bridge.ts';
+} from '#l1-sandbox/host-bridge.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

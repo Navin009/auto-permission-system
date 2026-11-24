@@ -10,9 +10,9 @@ import {
 	sandboxFilesystem,
 	GrantScope,
 	OverrideKind,
-} from "../core/index.ts";
+} from "#core/index.ts";
 import { loadConfig, projectTrusted, TRUST_STORE, type SandboxConfig } from "./config.ts";
-import { audit } from "../shared/audit.ts";
+import { audit } from "#shared/audit.ts";
 import { createNetworkAsk, type NetworkAskDeps } from "./network-ask.ts";
 
 const RETAINED_DANGEROUS_DIRECTORY = ".git";

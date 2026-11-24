@@ -17,14 +17,14 @@ import {
 	userNamedFile,
 	GrantScope,
 	OverrideKind,
-} from "../core/index.ts";
-import { audit } from "../shared/audit.ts";
+} from "#core/index.ts";
+import { audit } from "#shared/audit.ts";
 import { canonicalize, matchPattern } from "./matching.ts";
 import { projectTrusted, TRUST_STORE } from "./policy.ts";
 import { domainMatches } from "./url.ts";
-import { askDecision, denyMessage, Decision, type AskCtx, type AskKind } from "../ui/ask.ts";
+import { askDecision, denyMessage, Decision, type AskCtx, type AskKind } from "#ui/ask.ts";
 
-export type { AskKind, Decision, OverrideKind } from "../ui/ask.ts";
+export type { AskKind, Decision, OverrideKind } from "#ui/ask.ts";
 
 /**
  * Append a grant to the persisted `overrides` section.
@@ -54,6 +54,10 @@ export function clearSessionGrants(): void {
 
 export function sessionGrantSummary(): string {
 	return sessionGrants.map((grant) => `${grant.kind}:${grant.value}`).join(", ");
+}
+
+export function sessionGrantCount(): number {
+	return sessionGrants.length;
 }
 
 function sessionGranted(ask: AskKind, cwd: string): string | null {

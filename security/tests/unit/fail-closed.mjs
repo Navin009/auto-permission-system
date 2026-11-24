@@ -9,7 +9,7 @@ mkdirSync(join(agentDirectory, "extensions"), { recursive: true });
 writeFileSync(join(agentDirectory, "extensions", "sandbox.json"), JSON.stringify({ enabled: false }));
 process.env.PI_CODING_AGENT_DIR = agentDirectory;
 
-const { default: sandboxExtension } = await import("../../../extensions/sandbox.ts");
+const { default: sandboxExtension } = await import("#extensions/sandbox.ts");
 
 let pass = 0;
 let fail = 0;

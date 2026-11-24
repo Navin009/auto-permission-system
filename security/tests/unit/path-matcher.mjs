@@ -1,6 +1,6 @@
 // Layer 2 path matcher — exercises the shipped `matchPattern`, not a copy.
 import { homedir } from "node:os";
-import { matchPattern } from "../../../src/l2-guard/matching.ts";
+import { matchPattern } from "#l2-guard/matching.ts";
 
 const home = homedir();
 const cwd = `${home}/.pi/playground`;

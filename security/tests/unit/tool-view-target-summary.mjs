@@ -1,4 +1,4 @@
-import { displayShellCommand, fitCommand, fitPathTarget, fitTarget, programHint, shortenDisplayPath, shortenHomePath, summarizeShellCommand } from '../../../src/core/tool-view/target-summary.ts';
+import { displayShellCommand, fitCommand, fitPathTarget, fitTarget, programHint, shortenDisplayPath, shortenHomePath, summarizeShellCommand } from '#core/tool-view/target-summary.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

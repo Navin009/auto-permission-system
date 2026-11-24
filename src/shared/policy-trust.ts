@@ -1,5 +1,5 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { createProjectTrust, trustStorePath } from "../core/index.ts";
+import { createProjectTrust, trustStorePath } from "#core/index.ts";
 
 export const TRUST_STORE = trustStorePath(getAgentDir());
 

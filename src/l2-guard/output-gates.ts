@@ -1,17 +1,17 @@
 import { statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import type { ExtensionContext, ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
-import { filterGrepOutput } from "../core/index.ts";
-import { redactText } from "../detect/index.ts";
+import { filterGrepOutput } from "#core/index.ts";
+import { redactText } from "#detect/index.ts";
 import { collectExposure } from "./exposure.ts";
-import { askExposure, withheldNotice } from "../ui/ask-flow.ts";
-import { audit } from "../shared/audit.ts";
-import { rememberGateNote } from "../shared/gate-notes.ts";
+import { askExposure, withheldNotice } from "#ui/ask-flow.ts";
+import { audit } from "#shared/audit.ts";
+import { rememberGateNote } from "#shared/gate-notes.ts";
 import { canonicalize, isAskRead, isDeniedRead } from "./matching.ts";
 import { grantProgramOutputSession, isProgramOutputGranted } from "./program-grants.ts";
 import type { Policy } from "./policy.ts";
 import type { UICtx } from "./prompts.ts";
-import { GUARD_NAME } from "../shared/messages.ts";
+import { GUARD_NAME } from "#shared/messages.ts";
 
 const programIdByCallId = new Map<string, string>();
 const shownAllowNotices = new Set<string>();
@@ -91,9 +91,17 @@ export function filterGrepToolResult(
 		cwd: context.cwd,
 	});
 
+	const redactionNotice = `${GUARD_NAME}: removed ${removedLineCount} line(s) from ${removedFileNames.size} file(s) that match the read-deny policy`;
+
+	rememberGateNote(event.parentToolCallId ?? event.toolCallId, redactionNotice);
+	(context.ui as { notify?: (message: string, level?: string) => void } | undefined)?.notify?.(
+		redactionNotice,
+		"warning",
+	);
+
 	contentBlocks.push({
 		type: "text" as const,
-		text: `\n${GUARD_NAME}: removed ${removedLineCount} line(s) from ${removedFileNames.size} file(s) that match the read-deny policy]`,
+		text: `\n[${redactionNotice}]`,
 	});
 
 	return { content: contentBlocks as ToolResultEventResult["content"] };
@@ -156,7 +164,7 @@ export async function gateSensitiveToolOutput(
 		/* SAFETY: pi's ctx carries cwd/UI at runtime; the local type only names the members used. */
 		context as unknown as UICtx;
 
-	const userChoice = uiContext.hasUI !== false ? await askExposure(uiContext, hits, programId) : "block";
+	const userChoice = uiContext.hasUI === false ? "block" : await askExposure(uiContext, hits, programId);
 	const noteCallId = event.parentToolCallId ?? event.toolCallId;
 
 	if (userChoice === "allow" || userChoice === "program-session") {

@@ -1,7 +1,7 @@
 import { Container, Text, visibleWidth } from '@earendil-works/pi-tui';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetRowGroups } from '../../../src/tool-view/row-groups.ts';
-import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
+import { setActiveViewMode } from '#tool-view/session.ts';
+import { resetRowGroups } from '#tool-view/row-groups.ts';
+import { toolViewRenderers } from '#tool-view/renderers.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

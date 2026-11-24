@@ -1,8 +1,8 @@
 import {
 	TOOL_OUTPUT_DEFAULT_MAX_BYTES,
 	TOOL_OUTPUT_HARD_MAX_BYTES,
-} from "../../../src/detect/tool-output-scanner/constants.ts";
-import { clampLimit, estimateSize } from "../../../src/detect/tool-output-scanner/size.ts";
+} from "#detect/tool-output-scanner/constants.ts";
+import { clampLimit, estimateSize } from "#detect/tool-output-scanner/size.ts";
 
 let pass = 0;
 let fail = 0;

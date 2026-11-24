@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { evaluateMcpCall } from '../../../src/detect/index.ts';
+import { evaluateMcpCall } from '#detect/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

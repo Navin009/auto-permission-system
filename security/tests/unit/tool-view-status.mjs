@@ -1,4 +1,4 @@
-import { statusFromResult, statusMark, statusWord, ToolStatus } from '../../../src/core/tool-view/status.ts';
+import { shortBlockReason, statusFromResult, statusMark, statusWord, ToolStatus } from '#core/tool-view/status.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -22,6 +22,18 @@ check('ok needs no word', statusWord(ToolStatus.Ok) === undefined);
 check('failed needs no word', statusWord(ToolStatus.Failed) === undefined);
 check('blocked says so', statusWord(ToolStatus.Blocked) === 'blocked');
 check('denied says so', statusWord(ToolStatus.Denied) === 'denied');
+
+check(
+	'shortBlockReason strips boilerplate and prefixes',
+	shortBlockReason(
+		ToolStatus.Blocked,
+		'Read blocked by policy: .env files usually hold passwords and API keys. Nothing was read — ask the user.',
+	) === '.env files usually hold passwords and API keys',
+);
+check(
+	'shortBlockReason ignores ok/failed rows',
+	shortBlockReason(ToolStatus.Failed, 'boom') === undefined && shortBlockReason(ToolStatus.Ok, 'ok') === undefined,
+);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

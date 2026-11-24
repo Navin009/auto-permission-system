@@ -18,10 +18,10 @@ const check = (name, condition, extra = "") => {
 	}
 };
 
-const { fileHash, isProjectFileTrusted, createProjectTrust } = await import("../../../src/core/trust.ts");
-const { policyFileError, projectPolicyPath } = await import("../../../src/core/index.ts");
-const { loadConfig } = await import("../../../src/l1-sandbox/config.ts");
-const { loadPolicy, untrustedProjectChanges, TRUST_STORE } = await import("../../../src/l2-guard/policy.ts");
+const { fileHash, isProjectFileTrusted, createProjectTrust } = await import("#core/trust.ts");
+const { policyFileError, projectPolicyPath } = await import("#core/index.ts");
+const { loadConfig } = await import("#l1-sandbox/config.ts");
+const { loadPolicy, untrustedProjectChanges, TRUST_STORE } = await import("#l2-guard/policy.ts");
 
 const projectDirectory = mkdtempSync(join(scratchDirectory, "project-"));
 
@@ -79,7 +79,7 @@ check("untrustedProjectChanges does not throw", changesThrew === "", changesThre
 check("a directory reports no loosening", Array.isArray(changes) && changes.length === 0, JSON.stringify(changes));
 
 // The guard must still be armed after a session_start on that project.
-const extension = await import("../../../extensions/guard.ts");
+const extension = await import("#extensions/guard.ts");
 
 const handlers = new Map();
 const pi = {

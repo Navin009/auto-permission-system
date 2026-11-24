@@ -9,7 +9,7 @@
  * Every result reports `limitBytes`, `scannedBytes`, and `totalBytes`.
  */
 
-import { redactText } from "../sensitive-file-scanner/index.ts";
+import { redactText } from "#detect/sensitive-file-scanner/index.ts";
 import { TOOL_OUTPUT_DEFAULT_ASK_THRESHOLD } from "./constants.ts";
 import { addFinding, aggregateScore, scanLeaf, walk } from "./scan.ts";
 import { clampLimit, estimateSize } from "./size.ts";

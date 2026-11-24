@@ -1,20 +1,20 @@
 import { Text } from '@earendil-works/pi-tui';
-import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
-import { ToolStatus } from '../../../src/core/tool-view/status.ts';
-import { nativeThoughtForCall, resetNativeThoughts } from '../../../src/tool-view/native-thought.ts';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
+import { RowKind } from '#core/tool-view/row-kind.ts';
+import { ToolStatus } from '#core/tool-view/status.ts';
+import { nativeThoughtForCall, resetNativeThoughts } from '#tool-view/native-thought.ts';
+import { setActiveViewMode } from '#tool-view/session.ts';
 import {
 	advanceGroupExpansion,
 	joinRowGroup,
 	resetRowGroups,
 	settleRowGroup,
-} from '../../../src/tool-view/row-groups.ts';
-import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
+} from '#tool-view/row-groups.ts';
+import { toolViewRenderers } from '#tool-view/renderers.ts';
 import {
 	rememberAssistantMessage,
 	resetThoughts,
 	thoughtForCall,
-} from '../../../src/tool-view/thought-store.ts';
+} from '#tool-view/thought-store.ts';
 
 let pass = 0;
 let fail = 0;

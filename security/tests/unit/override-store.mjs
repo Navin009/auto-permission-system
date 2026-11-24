@@ -6,8 +6,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const { addOverride, addProjectOverride } = await import("../../../src/core/policy/overrides.ts");
-const { createProjectTrust, isProjectFileTrusted } = await import("../../../src/core/trust.ts");
+const { addOverride, addProjectOverride } = await import("#core/policy/overrides.ts");
+const { createProjectTrust, isProjectFileTrusted } = await import("#core/trust.ts");
 
 let pass = 0;
 let fail = 0;

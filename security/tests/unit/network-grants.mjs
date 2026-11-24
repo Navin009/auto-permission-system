@@ -1,6 +1,6 @@
 // Cross-layer domain grant channel (ADR-023): Layer 2's persisted "remember"
 // reaches Layer 1's live proxy config through pi's event bus. No pi, no fs.
-import { DOMAIN_GRANT_CHANNEL, emitDomainGrant, onDomainGrant } from '../../../src/shared/network-grants.ts';
+import { DOMAIN_GRANT_CHANNEL, emitDomainGrant, onDomainGrant } from '#shared/network-grants.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

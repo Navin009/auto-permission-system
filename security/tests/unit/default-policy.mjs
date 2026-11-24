@@ -1,6 +1,6 @@
 // Shipped baseline (sandbox.default.json) + shared policy overlaying. The JSON is the only place default lists live.
 import { homedir } from 'node:os';
-import { loadDefaultPolicy, matchesPolicyPattern, overlayPolicy, shippedPolicy } from '../../../src/core/index.ts';
+import { loadDefaultPolicy, matchesPolicyPattern, overlayPolicy, shippedPolicy } from '#core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

@@ -9,13 +9,14 @@ import {
 	SELECTION_TIMEOUT_MILLISECONDS,
 	setPolicyMode,
 	type PermissionMode,
-} from "../src/core/index.ts";
-import { loadConfig } from "../src/l1-sandbox/config.ts";
-import { loadPolicy, projectTrusted } from "../src/l2-guard/policy.ts";
-import { askQueued } from "../src/ui/ask-flow.ts";
-import { audit } from "../src/shared/audit.ts";
-import { sandboxStatusChip } from "../src/shared/sandbox-status.ts";
-import { emitYolo, onYolo, YOLO_STATUS } from "../src/shared/yolo.ts";
+} from "#core/index.ts";
+import { loadConfig } from "#l1-sandbox/config.ts";
+import { loadPolicy, projectTrusted } from "#l2-guard/policy.ts";
+import { sessionGrantCount } from "#l2-guard/prompts.ts";
+import { askQueued } from "#ui/ask-flow.ts";
+import { audit } from "#shared/audit.ts";
+import { sandboxStatusChip } from "#shared/sandbox-status.ts";
+import { emitYolo, onYolo, YOLO_STATUS } from "#shared/yolo.ts";
 
 const GLOBAL_POLICY_PATH = `${getAgentDir()}/extensions/sandbox.json`;
 
@@ -84,7 +85,7 @@ function renderSandboxChip(context: ExtensionContext): void {
 		return;
 	}
 
-	const chip = sandboxStatusChip(config);
+	const chip = sandboxStatusChip({ ...config, sessionGrantCount: sessionGrantCount() });
 
 	context.ui.setStatus("sandbox", context.ui.theme.fg(chip.color, chip.text));
 }

@@ -2,8 +2,8 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { normalizeMode, modeLabel, DEFAULT_MODE, applyUntrustedProject, describeLoosening, setPolicyMode } from '../../../src/core/index.ts';
-import { sandboxStatusChip } from '../../../src/shared/sandbox-status.ts';
+import { normalizeMode, modeLabel, DEFAULT_MODE, applyUntrustedProject, describeLoosening, setPolicyMode } from '#core/index.ts';
+import { sandboxStatusChip } from '#shared/sandbox-status.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

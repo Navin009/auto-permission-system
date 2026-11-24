@@ -20,16 +20,16 @@ import {
 	projectPolicyPath,
 	trustStorePath,
 	type PermissionMode,
-} from "../core/index.ts";
-import type { McpPolicy } from "../detect/index.ts";
-import { projectTrusted } from "../shared/policy-trust.ts";
-import { GUARD_NAME } from "../shared/messages.ts";
+} from "#core/index.ts";
+import type { McpPolicy } from "#detect/index.ts";
+import { projectTrusted } from "#shared/policy-trust.ts";
+import { GUARD_NAME } from "#shared/messages.ts";
 
 export interface Policy {
 	enabled: boolean;
 	/** `default` = rules only; `advanced-secure` adds secret/credential detection (ADR-018). */
 	mode?: PermissionMode;
-	network: { allowedDomains: string[]; deniedDomains: string[] };
+	network: { allowedDomains: string[]; deniedDomains: string[]; strictAllowlist?: boolean };
 	filesystem: {
 		denyRead: string[];
 		/** Layer 2 ONLY. Files the model's read tool may not access, but subprocesses can (so tools like gh keep working). */
@@ -77,7 +77,7 @@ export const TRUST_STORE = trustStorePath(getAgentDir());
 
 export { projectPolicyPath };
 
-export { projectTrusted, setPiDeclinedTrust } from "../shared/policy-trust.ts";
+export { projectTrusted, setPiDeclinedTrust } from "#shared/policy-trust.ts";
 
 /** What an untrusted project file tries to make weaker, in plain sentences. Empty when trusted or deny-only. */
 export function untrustedProjectChanges(cwd: string): string[] {

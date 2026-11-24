@@ -1,12 +1,12 @@
 import { homedir } from "node:os";
-import type { RowGroupSummary, RowSummary, SubLineSummary } from "../core/tool-view/row-group.ts";
-import { ExpansionLevel, nextExpansionLevel } from "../core/tool-view/expansion-level.ts";
-import { rowLabelOf, RowKind } from "../core/tool-view/row-kind.ts";
-import { programHint } from "../core/tool-view/target-summary.ts";
-import { ToolStatus } from "../core/tool-view/status.ts";
+import type { RowGroupSummary, RowSummary, SubLineSummary } from "#core/tool-view/row-group.ts";
+import { ExpansionLevel, nextExpansionLevel } from "#core/tool-view/expansion-level.ts";
+import { rowLabelOf, RowKind } from "#core/tool-view/row-kind.ts";
+import { programHint } from "#core/tool-view/target-summary.ts";
+import { ToolStatus } from "#core/tool-view/status.ts";
 import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
 import { thoughtsVisibleInTranscript } from "./session.ts";
-import { gateNoteFor } from "../shared/gate-notes.ts";
+import { gateNoteFor } from "#shared/gate-notes.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 150;
 const GROUP_OPEN_HINT = "click for output";
@@ -21,6 +21,7 @@ export interface RowMember {
 	invalidate: (() => void) | undefined;
 	segmentIndex: number;
 	subLines: readonly SubLineSummary[];
+	blockReason?: string;
 }
 
 export interface RowGroup {
@@ -46,6 +47,7 @@ export interface RowCallInput {
 export interface RowSettleInput extends RowCallInput {
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
+	blockReason?: string;
 }
 
 const openGroups = new Set<RowGroup>();
@@ -82,6 +84,7 @@ export function settleRowGroup(input: RowSettleInput): RowGroup {
 	}
 
 	member.status = input.status;
+	member.blockReason = input.blockReason;
 	member.settledAt = member.settledAt ?? Date.now();
 
 	if (input.durationMilliseconds !== undefined) {
@@ -316,7 +319,7 @@ function rowSummary(kind: RowKind, member: RowMember): RowSummary {
 		status: member.status,
 		segmentIndex: member.segmentIndex,
 		subLines: member.subLines.length > 0 ? member.subLines : undefined,
-		note: gateNoteFor(member.toolCallId),
+		note: gateNoteFor(member.toolCallId) ?? member.blockReason,
 	};
 }
 

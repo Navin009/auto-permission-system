@@ -1,13 +1,13 @@
-import { rowGroupLines } from '../../../src/core/tool-view/row-group.ts';
-import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
-import { ToolStatus } from '../../../src/core/tool-view/status.ts';
+import { rowGroupLines } from '#core/tool-view/row-group.ts';
+import { RowKind } from '#core/tool-view/row-kind.ts';
+import { ToolStatus } from '#core/tool-view/status.ts';
 import {
 	groupSummary,
 	joinRowGroup,
 	resetRowGroups,
 	settleRowGroup,
-} from '../../../src/tool-view/row-groups.ts';
-import { beginThinking, endThinking, resetThinking } from '../../../src/tool-view/thinking-clock.ts';
+} from '#tool-view/row-groups.ts';
+import { beginThinking, endThinking, resetThinking } from '#tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

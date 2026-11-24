@@ -1,8 +1,8 @@
 // Layer 2 URL gate contract (src/l2-guard/url.ts, ADR-023): deniedDomains is
 // the hard-deny tier, kept separate from the ask-able "not in allowlist"
 // reason so the guard can refuse without a prompt. No pi, no fs.
-import { deniedUrlReason, isAllowedUrl } from '../../../src/l2-guard/url.ts';
-import { extractUrlsFromInput } from '../../../src/l2-guard/tool-gates.ts';
+import { deniedUrlReason, isAllowedUrl } from '#l2-guard/url.ts';
+import { extractUrlsFromInput } from '#l2-guard/tool-gates.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

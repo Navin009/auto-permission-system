@@ -1,6 +1,6 @@
 // Advanced Secure output gate: any tool output (bash `cat`, read, grep, MCP) is
 // scanned before the model sees it.
-import { collectExposure } from '../../../src/l2-guard/exposure.ts';
+import { collectExposure } from '#l2-guard/exposure.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

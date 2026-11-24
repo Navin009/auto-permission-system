@@ -1,7 +1,7 @@
-import { rowGroupLines, pluralize } from '../../../src/core/tool-view/row-group.ts';
-import { formatCommandDuration } from '../../../src/core/tool-view/duration.ts';
-import { RowKind } from '../../../src/core/tool-view/row-kind.ts';
-import { ToolStatus } from '../../../src/core/tool-view/status.ts';
+import { rowGroupLines, pluralize } from '#core/tool-view/row-group.ts';
+import { formatCommandDuration } from '#core/tool-view/duration.ts';
+import { RowKind } from '#core/tool-view/row-kind.ts';
+import { ToolStatus } from '#core/tool-view/status.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -255,6 +255,63 @@ check('a child line drops the leading cd', cdChild.text === '$ npm test');
 const manyReads = Array.from({ length: 10 }, (_, index) => row({ target: `src/file-${index}.ts` }));
 check('a read run shows the newest eight lines', body(readGroup(manyReads)).at(-1) === '  └ ✓ src/file-9.ts');
 check('a read run reports the earlier calls', body(readGroup(manyReads))[0] === '  ├ ... (2 earlier calls)');
+
+const LONG_CHAINED_RUNNING =
+	'npm run format:check && npm run check && ! grep -rnE \'from "\\.\\.?/[^"]*"\' src extensions | grep -vE \'\\.ts";?$\' && echo "ALL CHECKS PASSED"';
+const runningChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Running })]));
+check(
+	'a running 4+ stage chain uses Option C three-line layout',
+	runningChain.join('\n') ===
+		[
+			'  └ $ npm run format:check',
+			'    ├ … (+3 stages: npm, ! grep, grep)',
+			'    └ && echo "ALL CHECKS PASSED"',
+		].join('\n'),
+);
+
+const settledChain = body(group([row({ target: LONG_CHAINED_RUNNING, status: ToolStatus.Ok })]));
+check('a settled chained command returns to one line', settledChain.length === 1);
+
+const runningThreeStage = body(group([row({ target: 'npm run typecheck && npm test | tail -20', status: ToolStatus.Running })]));
+check(
+	'a running 3-stage chain shows all three stages',
+	runningThreeStage.join('\n') ===
+		[
+			'  └ $ npm run typecheck',
+			'    ├ && npm test',
+			'    └ | tail -20',
+		].join('\n'),
+);
+
+const MULTILINE_SCRIPT = [
+	"node -e '",
+	'import { readdirSync, readFileSync } from "node:fs";',
+	'const files = readdirSync("src");',
+	'console.log(files.length);',
+	"'",
+].join('\n');
+const runningScript = body(group([row({ target: MULTILINE_SCRIPT, status: ToolStatus.Running })]));
+check(
+	'a running multi-line script shows the first three lines plus hidden line count',
+	runningScript.join('\n') ===
+		[
+			"  └ $ node -e '",
+			'    │ import { readdirSync, readFileSync } from "node:fs";',
+			'    └ const files = readdirSync("src");   (+2 lines)',
+		].join('\n'),
+);
+check('a settled multi-line script returns to one line', body(group([row({ target: MULTILINE_SCRIPT, status: ToolStatus.Ok })])).length === 1);
+
+const middleRunning = body(
+	group([
+		row({ target: 'npm run typecheck && npm test', status: ToolStatus.Running }),
+		row({ target: 'git status', status: ToolStatus.Running }),
+	]),
+);
+check(
+	'a running multi-line command in the middle keeps the vertical branch to the next command',
+	middleRunning.slice(0, 2).join('\n') === ['  ├ ⠋ $ npm run typecheck', '  │   └ && npm test'].join('\n'),
+);
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

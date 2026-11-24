@@ -1,5 +1,5 @@
-import { GrantScope } from "../core/index.ts";
-import { POLICY_NOTICE } from "../shared/messages.ts";
+import { GrantScope } from "#core/index.ts";
+import { POLICY_NOTICE } from "#shared/messages.ts";
 
 export type AskComponent = {
 	render(width: number): string[];
@@ -38,6 +38,8 @@ export type AskCtx = {
 		select: (t: string, o: string[], op?: { timeout?: number; signal?: AbortSignal }) => Promise<string | undefined>;
 
 		custom?: AskCustomUi;
+
+		notify?: (message: string, level?: string) => void;
 
 		onTerminalInput?: (handler: (data: string) => void) => () => void;
 	};
@@ -112,11 +114,18 @@ export async function askSelect(
 	const note = opts.note ?? null;
 
 	return enqueue(async () => {
-		if (ctx.mode === "tui" && typeof ctx.ui.custom === "function") {
-			return askWithCustom(ctx, title, options, timeoutMs, footer, question, note);
+		const outcome =
+			ctx.mode === "tui" && typeof ctx.ui.custom === "function"
+				? await askWithCustom(ctx, title, options, timeoutMs, footer, question, note)
+				: await askWithSelect(ctx, title, options, timeoutMs, footer, question, note);
+
+		if (outcome.expired) {
+			const seconds = Math.max(1, Math.round(timeoutMs / 1000));
+
+			ctx.ui.notify?.(`⏱️ Security prompt timed out after ${seconds}s — blocked by default.`, "warning");
 		}
 
-		return askWithSelect(ctx, title, options, timeoutMs, footer, question, note);
+		return outcome;
 	});
 }
 

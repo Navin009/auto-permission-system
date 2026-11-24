@@ -19,10 +19,10 @@ const scratchAgentDir = mkdtempSync(join(tmpdir(), 'allow-notice-'));
 process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 
 const { clearAllowNotices, clearProgramIds, gateSensitiveToolOutput } = await import(
-	'../../../src/l2-guard/output-gates.ts'
+	'#l2-guard/output-gates.ts'
 );
 const { clearGateNotes, gateNoteFor, rememberGateNote, setGateNoteRepaint } = await import(
-	'../../../src/shared/gate-notes.ts'
+	'#shared/gate-notes.ts'
 );
 
 const AUDIT_PATH = join(scratchAgentDir, 'audit.log');

@@ -1,4 +1,4 @@
-import { DEFAULT_VIEW_MODE, type ViewMode } from "../core/tool-view/view-mode.ts";
+import { DEFAULT_VIEW_MODE, type ViewMode } from "#core/tool-view/view-mode.ts";
 
 let activeViewMode: ViewMode = DEFAULT_VIEW_MODE;
 let thoughtsVisibleLookup: (() => boolean) | undefined;

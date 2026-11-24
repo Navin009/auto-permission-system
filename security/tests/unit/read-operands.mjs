@@ -1,7 +1,7 @@
 // Read operand grammar and hidden-file exposure (ADR-050): a grep/rg PATTERN is
 // data, not a path, and a search tool that skips dotfiles never opens `.env`.
-import { askReadFindings, ReadExposure, readTargetTokens } from "../../../src/core/index.ts";
-import { embeddedPathTokens } from "../../../src/core/policy/path-tokens.ts";
+import { askReadFindings, ReadExposure, readTargetTokens } from "#core/index.ts";
+import { embeddedPathTokens } from "#core/policy/path-tokens.ts";
 
 let pass = 0;
 let fail = 0;

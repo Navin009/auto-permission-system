@@ -2,9 +2,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Text } from '@earendil-works/pi-tui';
-import { setActiveViewMode, setThoughtsVisibleLookup } from '../../../src/tool-view/session.ts';
-import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
-import { resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
+import { setActiveViewMode, setThoughtsVisibleLookup } from '#tool-view/session.ts';
+import { closeRowGroup, resetRowGroups } from '#tool-view/row-groups.ts';
+import { resetThinking, thinkingState } from '#tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -13,7 +13,7 @@ const scratchAgentDir = mkdtempSync(join(tmpdir(), 'tool-view-agent-'));
 process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 
 const settingsFilePath = join(scratchAgentDir, 'tool-view.json');
-const extension = await import('../../../extensions/tool-view.ts');
+const extension = await import('#extensions/tool-view.ts');
 
 const registered = { resolvers: [], commands: [], handlers: [], events: [], eventHandlers: new Map(), transformers: [] };
 const pi = {

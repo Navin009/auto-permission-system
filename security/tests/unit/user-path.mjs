@@ -3,9 +3,9 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalizeUserPath } from "../../../src/core/index.ts";
-import { canonicalize } from "../../../src/shared/canonicalize.ts";
-import { isDeniedRead, isDeniedWrite } from "../../../src/l2-guard/matching.ts";
+import { normalizeUserPath } from "#core/index.ts";
+import { canonicalize } from "#shared/canonicalize.ts";
+import { isDeniedRead, isDeniedWrite } from "#l2-guard/matching.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };

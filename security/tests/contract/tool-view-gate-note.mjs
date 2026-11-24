@@ -1,9 +1,9 @@
 import { Text } from '@earendil-works/pi-tui';
-import { clearGateNotes, rememberGateNote } from '../../../src/shared/gate-notes.ts';
-import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
-import { resetRowGroups } from '../../../src/tool-view/row-groups.ts';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetThinking } from '../../../src/tool-view/thinking-clock.ts';
+import { clearGateNotes, rememberGateNote } from '#shared/gate-notes.ts';
+import { toolViewRenderers } from '#tool-view/renderers.ts';
+import { resetRowGroups } from '#tool-view/row-groups.ts';
+import { setActiveViewMode } from '#tool-view/session.ts';
+import { resetThinking } from '#tool-view/thinking-clock.ts';
 
 let pass = 0;
 let fail = 0;
@@ -134,6 +134,7 @@ const foldedLines = bashBlock.render(WIDTH).filter((line) => line.trim());
 
 check('a new kind of call folds the command row away', foldedLines.length === 1);
 check('the folded row drops its warning', !foldedLines.join(' ').includes(BASH_HIDDEN_NOTE));
+check('the folded row keeps a compact notice badge', foldedLines[0].includes('[notice]'));
 
 resetRowGroups();
 clearGateNotes();

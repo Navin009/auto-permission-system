@@ -1,5 +1,5 @@
 import { readPolicyForUpdate, writePolicyFile } from "./policy-file.ts";
-import { recordProjectTrust } from "../trust.ts";
+import { recordProjectTrust } from "#core/trust.ts";
 
 export const OverrideKind = {
 	AllowRead: "allowRead",

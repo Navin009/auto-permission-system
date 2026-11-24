@@ -10,7 +10,7 @@
 
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { projectTrusted } from "../shared/policy-trust.ts";
+import { projectTrusted } from "#shared/policy-trust.ts";
 import {
 	applyUntrustedProject,
 	shippedPolicy,
@@ -23,7 +23,7 @@ import {
 	globalPolicyPath,
 	projectPolicyPath,
 	type PermissionMode,
-} from "../core/index.ts";
+} from "#core/index.ts";
 
 export interface SandboxFilesystem extends NonNullable<SandboxRuntimeConfig["filesystem"]> {
 	/** Layer 2 ONLY (model tools); kept here so both layers share one config shape. */
@@ -74,7 +74,7 @@ export interface SandboxConfig extends Omit<SandboxRuntimeConfig, "filesystem" |
 /* SAFETY: shippedPolicy() is parsed JSON plus the closed shape, which carries exactly the keys SandboxConfig reads. */
 const DEFAULT_CONFIG: SandboxConfig = shippedPolicy() as unknown as SandboxConfig;
 
-export { projectTrusted, setPiDeclinedTrust, TRUST_STORE } from "../shared/policy-trust.ts";
+export { projectTrusted, setPiDeclinedTrust, TRUST_STORE } from "#shared/policy-trust.ts";
 
 /**
  * Load the global config, then the project config on top.

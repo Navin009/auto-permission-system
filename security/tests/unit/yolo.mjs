@@ -1,6 +1,6 @@
 // YOLO (ADR-020): per-extension flag registration and the shared runtime
 // event channel that lets `/permission-mode` toggle the layers mid-session.
-import { registerYoloFlags, yoloFromFlags, emitYolo, onYolo, YOLO_CHANNEL, YOLO_STATUS } from '../../../src/shared/yolo.ts';
+import { registerYoloFlags, yoloFromFlags, emitYolo, onYolo, YOLO_CHANNEL, YOLO_STATUS } from '#shared/yolo.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

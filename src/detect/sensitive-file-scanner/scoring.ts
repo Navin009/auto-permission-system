@@ -3,7 +3,7 @@
  * and the file gate.
  */
 
-import type { NameVerdict } from "../filename-gate/index.ts";
+import type { NameVerdict } from "#detect/filename-gate/index.ts";
 import { BASE_SCORES } from "./constants.ts";
 import type { Finding, ReadDecision, ScanResult } from "./types.ts";
 

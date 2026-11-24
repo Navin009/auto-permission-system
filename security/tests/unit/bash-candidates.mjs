@@ -8,7 +8,7 @@ import {
 	commandMentionsPath,
 	commandSegments,
 	deniedWriteCandidates,
-} from "../../../src/core/index.ts";
+} from "#core/index.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };

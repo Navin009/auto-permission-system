@@ -1,21 +1,21 @@
-import { rowTarget } from '../../../src/core/tool-view/arguments.ts';
-import { rowGroupLines } from '../../../src/core/tool-view/row-group.ts';
-import { RowKind, rowKindOf, rowLabelOf } from '../../../src/core/tool-view/row-kind.ts';
-import { ToolStatus } from '../../../src/core/tool-view/status.ts';
-import { codemodeSubLines } from '../../../src/tool-view/codemode-lines.ts';
+import { rowTarget } from '#core/tool-view/arguments.ts';
+import { rowGroupLines } from '#core/tool-view/row-group.ts';
+import { RowKind, rowKindOf, rowLabelOf } from '#core/tool-view/row-kind.ts';
+import { ToolStatus } from '#core/tool-view/status.ts';
+import { codemodeSubLines } from '#tool-view/codemode-lines.ts';
 import {
 	rememberNestedEnd,
 	rememberNestedStart,
 	resetNestedCalls,
-} from '../../../src/tool-view/nested-calls.ts';
+} from '#tool-view/nested-calls.ts';
 import {
 	closeRowGroup,
 	groupSummary,
 	joinRowGroup,
 	resetRowGroups,
 	settleRowGroup,
-} from '../../../src/tool-view/row-groups.ts';
-import { resetThinking } from '../../../src/tool-view/thinking-clock.ts';
+} from '#tool-view/row-groups.ts';
+import { resetThinking } from '#tool-view/thinking-clock.ts';
 
 let pass = 0;
 let fail = 0;
@@ -105,6 +105,23 @@ check('a folded codemode row hides its child lines', folded.length === 1);
 
 resetNestedCalls();
 check('a reset forgets the nested calls', codemodeSubLines('call-code', undefined).length === 0);
+
+resetRowGroups();
+const manyCalls = [...Array(12).keys()].map((index) => ({
+	text: `read src/file-${index}.ts`,
+	status: ToolStatus.Ok,
+	kind: 'call',
+}));
+const cappedGroup = joinRowGroup({
+	toolCallId: 'call-many',
+	kind: RowKind.Codemode,
+	target: 'await run()',
+	invalidate: () => {},
+	subLines: [{ text: 'await run()', status: undefined, kind: 'script' }, ...manyCalls],
+});
+const cappedLines = linesOf(cappedGroup);
+check('codemode caps visible inner calls and adds an overflow line', cappedLines.length === 10);
+check('codemode overflow reports hidden inner calls', lineText(cappedLines[2]) === '  ├ ... (5 earlier inner calls)');
 
 resetRowGroups();
 resetThinking();

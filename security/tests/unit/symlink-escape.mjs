@@ -1,6 +1,6 @@
 import { symlinkSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { canonicalize } from '../../../src/shared/canonicalize.ts';
+import { canonicalize } from '#shared/canonicalize.ts';
 
 function expandHome(p){ if(p==='~') return homedir(); if(p.startsWith('~/')) return homedir()+'/'+p.slice(2); return p; }
 function matchPrefix(absPath, pattern){

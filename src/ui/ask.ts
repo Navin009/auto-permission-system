@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
 import { homedir } from "node:os";
-import { isSafeFolderGrant, SYSTEM_FOLDERS, GrantScope, type OverrideKind } from "../core/index.ts";
+import { isSafeFolderGrant, SYSTEM_FOLDERS, GrantScope, type OverrideKind } from "#core/index.ts";
 import {
 	NETWORK_ALLOWLIST_WHY,
 	NETWORK_REMEMBER_TITLE,
@@ -394,6 +394,7 @@ export async function askDecision(
 	const sessionLabel =
 		action === AskAction.Network ? "Yes, all in group for this conversation" : "Yes, for this conversation";
 	const isUntrustedProject = askDetails.projectTrusted === false;
+	const untrustedNote = isUntrustedProject ? 'project is untrusted — "Yes, always" saves globally only' : undefined;
 
 	const mainDialogOptions = {
 		session: true,
@@ -408,7 +409,7 @@ export async function askDecision(
 		const { choice, grant } = await askMainWithRemember(
 			context,
 			promptHeader,
-			buildDetailLines(askDetails, action),
+			buildDetailLines(askDetails, action, untrustedNote),
 			mainDialogOptions,
 			() => {
 				const rememberBody = networkRememberBody({
@@ -449,7 +450,7 @@ export async function askDecision(
 	const { choice, grant } = await askMainWithRemember(
 		context,
 		promptHeader,
-		buildDetailLines(askDetails, action),
+		buildDetailLines(askDetails, action, untrustedNote),
 		mainDialogOptions,
 		() => {
 			const rememberLines: string[] = [];

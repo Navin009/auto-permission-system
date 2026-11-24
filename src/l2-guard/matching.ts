@@ -10,16 +10,16 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { matchExpandedPattern, ReadPosture } from "../core/index.ts";
-import { normalizeUserPath } from "../core/policy/user-path.ts";
-import { canonicalize } from "../shared/canonicalize.ts";
+import { matchExpandedPattern, ReadPosture } from "#core/index.ts";
+import { normalizeUserPath } from "#core/policy/user-path.ts";
+import { canonicalize } from "#shared/canonicalize.ts";
 import type { Policy } from "./policy.ts";
 
 export function expandHome(path: string): string {
 	return normalizeUserPath(path);
 }
 
-export { canonicalize } from "../shared/canonicalize.ts";
+export { canonicalize } from "#shared/canonicalize.ts";
 
 export function matchPattern(absPath: string, pattern: string, cwd: string): boolean {
 	if (normalizeUserPath(pattern) === ".") {

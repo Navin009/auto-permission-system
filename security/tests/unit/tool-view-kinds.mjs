@@ -1,5 +1,5 @@
-import { rowTarget } from '../../../src/core/tool-view/arguments.ts';
-import { RowKind, rowKindOf, rowLabelOf } from '../../../src/core/tool-view/row-kind.ts';
+import { rowTarget } from '#core/tool-view/arguments.ts';
+import { RowKind, rowKindOf, rowLabelOf } from '#core/tool-view/row-kind.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

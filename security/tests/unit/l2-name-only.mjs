@@ -9,9 +9,9 @@ import { join } from "node:path";
 const agentDir = mkdtempSync(join(tmpdir(), "aps-name-only-agent-"));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 
-const { ReadExposure } = await import("../../../src/core/index.ts");
-const { checkReadAccess } = await import("../../../src/l2-guard/tool-gates.ts");
-const { clearSessionGrants } = await import("../../../src/l2-guard/prompts.ts");
+const { ReadExposure } = await import("#core/index.ts");
+const { checkReadAccess } = await import("#l2-guard/tool-gates.ts");
+const { clearSessionGrants } = await import("#l2-guard/prompts.ts");
 
 let pass = 0;
 let fail = 0;

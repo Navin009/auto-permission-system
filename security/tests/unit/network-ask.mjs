@@ -2,8 +2,8 @@
 // unknown hosts through the shared ask-tier (once / session / remember),
 // single-flights overlapping connections, and scopes "once" to one command.
 // Pure: drives createNetworkAsk with a scripted ctx.ui.select and stub deps.
-import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand, runInNetworkCommand } from '../../../src/l1-sandbox/network-ask.ts';
-import { ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
+import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand, runInNetworkCommand } from '#l1-sandbox/network-ask.ts';
+import { ASK_TIMEOUT_MS } from '#ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

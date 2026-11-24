@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { filterGrepOutput, policyFileError, readPolicyForUpdate } from '../../../src/core/index.ts';
+import { filterGrepOutput, policyFileError, readPolicyForUpdate } from '#core/index.ts';
 
 let pass = 0, fail = 0;
 function check(name, cond) { if (cond) pass++; else { fail++; console.log('FAIL:', name); } }
@@ -49,7 +49,7 @@ check('readPolicyForUpdate: refuses to overwrite unparseable file', threw);
 
 // The guard checks the path grep printed, absolute or relative.
 process.env.PI_CODING_AGENT_DIR = join(dir, 'agent');
-const { filterGrepToolResult } = await import('../../../src/l2-guard/output-gates.ts');
+const { filterGrepToolResult } = await import('#l2-guard/output-gates.ts');
 
 const deniedDirectory = join(dir, 'denied');
 const askedDirectory = join(dir, 'asked');

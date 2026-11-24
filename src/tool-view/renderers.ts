@@ -1,11 +1,11 @@
 import type { Theme, ToolRenderers } from "@earendil-works/pi-coding-agent";
 import { Box, Container, MouseRegion, Spacer, Text, type Component, type TuiMouseEvent } from "@earendil-works/pi-tui";
-import { rowTarget } from "../core/tool-view/arguments.ts";
-import type { SubLineSummary } from "../core/tool-view/row-group.ts";
-import { ExpansionLevel, resolvedExpansionLevel } from "../core/tool-view/expansion-level.ts";
-import { rowKindOf } from "../core/tool-view/row-kind.ts";
-import { statusFromResult } from "../core/tool-view/status.ts";
-import { ViewMode } from "../core/tool-view/view-mode.ts";
+import { rowTarget } from "#core/tool-view/arguments.ts";
+import type { SubLineSummary } from "#core/tool-view/row-group.ts";
+import { ExpansionLevel, resolvedExpansionLevel } from "#core/tool-view/expansion-level.ts";
+import { rowKindOf } from "#core/tool-view/row-kind.ts";
+import { shortBlockReason, statusFromResult } from "#core/tool-view/status.ts";
+import { ViewMode } from "#core/tool-view/view-mode.ts";
 import { nativeThoughtForCall } from "./native-thought.ts";
 import { RowGroupComponent } from "./row-group-component.ts";
 import {
@@ -20,7 +20,7 @@ import {
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
 import { codemodeSubLines } from "./codemode-lines.ts";
-import { gateNoteFor } from "../shared/gate-notes.ts";
+import { gateNoteFor } from "#shared/gate-notes.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type ResultRenderer = NonNullable<ToolRenderers["renderResult"]>;
@@ -131,12 +131,16 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 
 	context.state[SETTLED_STATE_KEY] = true;
 
+	const text = resultText(result);
+	const status = statusFromResult(context.isError, text);
+
 	const settled = settleRowGroup({
 		toolCallId: context.toolCallId,
 		kind,
 		target,
-		status: statusFromResult(context.isError, resultText(result)),
+		status,
 		durationMilliseconds: context.durationMs,
+		blockReason: shortBlockReason(status, text),
 		invalidate: context.invalidate,
 		cwd: context.cwd,
 		subLines: subLinesFor(toolName, context.toolCallId, context.args as ToolCallArguments),

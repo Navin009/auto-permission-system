@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { clearFilesystemSessionGrants, preflightAskReads } from "../../../src/l1-sandbox/bash-preflight.ts";
+import { clearFilesystemSessionGrants, preflightAskReads } from "#l1-sandbox/bash-preflight.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };

@@ -3,6 +3,17 @@
   "version": "7.0.0",
   "description": "Security for the Pi coding agent: zero-trust permission system, OS sandbox, tool guard, secret scanning and a Claude-style tool view. Pi permissions, Claude auto mode.",
   "type": "module",
+  "imports": {
+    "#extensions/*": "./extensions/*",
+    "#core/*": "./src/core/*",
+    "#detect/*": "./src/detect/*",
+    "#l1-sandbox/*": "./src/l1-sandbox/*",
+    "#l2-guard/*": "./src/l2-guard/*",
+    "#shared/*": "./src/shared/*",
+    "#tool-view/*": "./src/tool-view/*",
+    "#ui/*": "./src/ui/*",
+    "#src/*": "./src/*"
+  },
   "author": "Navin Kumar",
   "keywords": [
     "pi-package",

@@ -5,8 +5,8 @@ import { join } from "node:path";
 const scratchDirectory = mkdtempSync(join(tmpdir(), "pi-read-tiers-"));
 process.env.PI_CODING_AGENT_DIR = join(scratchDirectory, "agent");
 
-const { checkReadAccess } = await import("../../../src/l2-guard/tool-gates.ts");
-const { ReadExposure } = await import("../../../src/core/index.ts");
+const { checkReadAccess } = await import("#l2-guard/tool-gates.ts");
+const { ReadExposure } = await import("#core/index.ts");
 
 let pass = 0;
 let fail = 0;

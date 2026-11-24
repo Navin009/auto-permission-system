@@ -1,9 +1,9 @@
 import { Text, visibleWidth } from '@earendil-works/pi-tui';
-import { RowKind, rowKindOf } from '../../../src/core/tool-view/row-kind.ts';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { closeRowGroup, resetRowGroups } from '../../../src/tool-view/row-groups.ts';
-import { beginThinking, endThinking } from '../../../src/tool-view/thinking-clock.ts';
-import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
+import { RowKind, rowKindOf } from '#core/tool-view/row-kind.ts';
+import { setActiveViewMode } from '#tool-view/session.ts';
+import { closeRowGroup, resetRowGroups } from '#tool-view/row-groups.ts';
+import { beginThinking, endThinking } from '#tool-view/thinking-clock.ts';
+import { toolViewRenderers } from '#tool-view/renderers.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

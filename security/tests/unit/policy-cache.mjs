@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readPolicy, writePolicyFile } from "../../../src/core/policy/policy-file.ts";
+import { readPolicy, writePolicyFile } from "#core/policy/policy-file.ts";
 
 let pass = 0;
 let fail = 0;

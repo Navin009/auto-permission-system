@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
-import { matchesPolicyPattern } from "../../../src/core/index.ts";
-import { matchPattern } from "../../../src/l2-guard/matching.ts";
+import { matchesPolicyPattern } from "#core/index.ts";
+import { matchPattern } from "#l2-guard/matching.ts";
 
 let pass = 0;
 let fail = 0;

@@ -1,5 +1,5 @@
 // Output gate: a data block is reported as unscannable instead of forwarded (ADR-018, ADR-042).
-import { collectExposure } from '../../../src/l2-guard/exposure.ts';
+import { collectExposure } from '#l2-guard/exposure.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };

@@ -1,6 +1,6 @@
 // Outside-project fence for Layer 1 (ADR-014) and the shipped default deny list.
 // Imports the real lib (Node strips the types), like the other newer tests.
-import { loadDefaultPolicy, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from '../../../src/core/index.ts';
+import { loadDefaultPolicy, outsideProjectMode, outsideProjectReadCandidates, outsideProjectReadDenied, sandboxFilesystem } from '#core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

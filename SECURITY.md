@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-24T22:06:05.157Z
+Generated: 2026-11-24T22:27:36.543Z
 
 ## At a glance
 
@@ -77,8 +77,8 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 
 **Source files**
 
-- ✓ `extensions/guard.ts` — 322 lines, mtime 2026-11-22
-- ✓ `extensions/permission-mode.ts` — 193 lines, mtime 2026-11-24
+- ✓ `extensions/guard.ts` — 316 lines, mtime 2026-11-24
+- ✓ `extensions/permission-mode.ts` — 194 lines, mtime 2026-11-24
 - ✓ `src/l2-guard/` — dir, mtime 2026-11-22
 - ✓ `src/detect/` — dir, mtime 2026-11-04
 - ✓ `src/core/` — dir, mtime 2026-11-22

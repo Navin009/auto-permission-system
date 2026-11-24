@@ -4,7 +4,7 @@
 // Expiry is exact (Esc is never mistaken for the countdown).
 // Keyboard only (ADR-036): mouse events are inert, only Enter picks a row.
 import { getKeybindings } from '@earendil-works/pi-tui';
-import { AskSelector } from '../../../src/ui/ask-selector.ts';
+import { AskSelector } from '#ui/ask-selector.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

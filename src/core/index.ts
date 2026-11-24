@@ -73,7 +73,7 @@ export {
 } from "./tool-view/settings.ts";
 export type { ToolViewSettings } from "./tool-view/settings.ts";
 export { formatCommandDuration, formatDuration } from "./tool-view/duration.ts";
-export { ToolStatus, statusFromResult, statusMark, statusWord } from "./tool-view/status.ts";
+export { ToolStatus, shortBlockReason, statusFromResult, statusMark, statusWord } from "./tool-view/status.ts";
 export { RowKind, rowKindOf, rowLabelOf } from "./tool-view/row-kind.ts";
 export type { RowKindLabel } from "./tool-view/row-kind.ts";
 export { rowTarget } from "./tool-view/arguments.ts";

@@ -25,7 +25,7 @@
 
 import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
-import { classifyFilename } from "../filename-gate/index.ts";
+import { classifyFilename } from "#detect/filename-gate/index.ts";
 import { allowsUnquotedAssignment } from "./assignment.ts";
 import { DEFAULT_ASK_THRESHOLD, IGNORED_EXTENSIONS, MAX_FILE_SIZE_BYTES } from "./constants.ts";
 import { scanTextContent } from "./content-scan.ts";

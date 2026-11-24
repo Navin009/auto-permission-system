@@ -1,5 +1,5 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { ViewMode } from "../core/tool-view/view-mode.ts";
+import { ViewMode } from "#core/tool-view/view-mode.ts";
 
 const HIDDEN_LABEL_IN_COMPACT = "";
 const RESTORED_LABEL = undefined;

@@ -1,7 +1,7 @@
 // Layer 2 ask-tier decision contract (ADR-009 / ADR-010 / ADR-030).
 // Drives `askDecision` with a scripted `ctx.ui.select` — no pi, no fs, no audit.
-import { ASK_TIMEOUT_MS } from '../../../src/ui/ask-flow.ts';
-import { askDecision, denyMessage, displayWhy } from '../../../src/ui/ask.ts';
+import { ASK_TIMEOUT_MS } from '#ui/ask-flow.ts';
+import { askDecision, denyMessage, displayWhy } from '#ui/ask.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

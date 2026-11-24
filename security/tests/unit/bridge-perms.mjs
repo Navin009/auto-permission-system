@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { piScratchDirectory } from "../../../src/l1-sandbox/scratch.ts";
+import { piScratchDirectory } from "#l1-sandbox/scratch.ts";
 import {
 	injectBridgesIntoBwrap,
 	injectSocketBridgesIntoBwrap,
 	startHostPortBridge,
 	startHostSocketBridge,
-} from "../../../src/l1-sandbox/host-bridge.ts";
+} from "#l1-sandbox/host-bridge.ts";
 
 let pass = 0;
 let fail = 0;

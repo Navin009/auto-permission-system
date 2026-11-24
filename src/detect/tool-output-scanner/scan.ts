@@ -8,8 +8,8 @@
  * detection.
  */
 
-import { isPlaceholder, isSensitiveKey, normalizeKey, scanTextContent } from "../sensitive-file-scanner/index.ts";
-import type { Finding } from "../sensitive-file-scanner/index.ts";
+import { isPlaceholder, isSensitiveKey, normalizeKey, scanTextContent } from "#detect/sensitive-file-scanner/index.ts";
+import type { Finding } from "#detect/sensitive-file-scanner/index.ts";
 import {
 	BASE64_BLOB_REGEX,
 	MAX_BASE64_DECODED,

@@ -1,4 +1,4 @@
-import { AskSelector } from '../../../src/ui/ask-selector.ts';
+import { AskSelector } from '#ui/ask-selector.ts';
 
 let pass = 0;
 let fail = 0;
@@ -64,6 +64,62 @@ check(
 check(
 	'countdown footer uses warning color',
 	painted.some((entry) => entry.color === 'warning' && entry.text.startsWith('Default: No (')),
+);
+
+const { askSelect } = await import('#ui/ask-flow.ts');
+const { formatSecurityGuardReport } = await import('#l2-guard/report.ts');
+const { sandboxStatusChip } = await import('#shared/sandbox-status.ts');
+
+const notifications = [];
+const selectPrompts = [];
+await askSelect(
+	{
+		hasUI: true,
+		mode: 'rpc',
+		ui: {
+			select: (title, items, options) => {
+				selectPrompts.push({ title, items });
+
+				return new Promise((resolve) => {
+					if (options?.signal?.aborted) {
+						resolve(undefined);
+						return;
+					}
+
+					options?.signal?.addEventListener('abort', () => resolve(undefined), { once: true });
+				});
+			},
+			notify: (message, level) => notifications.push({ message, level }),
+		},
+	},
+	'Timeout test',
+	['No', 'Yes'],
+	10,
+);
+check(
+	'timed-out askSelect notifies with warning',
+	selectPrompts.length === 1 && notifications.some((entry) => entry.level === 'warning' && entry.message.includes('timed out')),
+);
+
+const report = formatSecurityGuardReport(
+	{
+		enabled: true,
+		mode: 'default',
+		network: { allowedDomains: [], deniedDomains: [], strictAllowlist: false },
+		filesystem: { denyRead: [], allowWrite: ['.'], denyWrite: [] },
+	},
+	{ cwd: process.cwd() },
+);
+check('security report labels empty non-strict allowlist accurately', report.includes('all (no allowlist)'));
+
+check(
+	'sandboxStatusChip displays active session grant count',
+	sandboxStatusChip({
+		mode: 'advanced-secure',
+		network: { allowedDomains: [], strictAllowlist: false },
+		filesystem: { allowWrite: ['.'] },
+		sessionGrantCount: 2,
+	}).text === 'Sandbox: 🧠  all domains, 1 path · 2 session grants',
 );
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

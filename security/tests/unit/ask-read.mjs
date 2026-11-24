@@ -1,5 +1,5 @@
 // askRead (ADR-019): sensitive paths ASK instead of being hard-denied.
-import { askReadCandidates, askReadFindings, ReadExposure, sandboxFilesystem, loadDefaultPolicy } from '../../../src/core/index.ts';
+import { askReadCandidates, askReadFindings, ReadExposure, sandboxFilesystem, loadDefaultPolicy } from '#core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

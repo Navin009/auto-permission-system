@@ -1,6 +1,6 @@
 // Program-id detection for the Advanced Secure output gate. Drives
 // bashBinary, mcpServer, programIdForToolCall directly \u2014 no pi, no fs.
-import { bashBinary, programIdForToolCall } from '../../../src/l2-guard/program-id.ts';
+import { bashBinary, programIdForToolCall } from '#l2-guard/program-id.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

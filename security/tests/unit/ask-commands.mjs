@@ -1,5 +1,5 @@
 // Sensitive-command detection (src/core/policy/commands.ts).
-import { matchedAskCommands } from '../../../src/core/index.ts';
+import { matchedAskCommands } from '#core/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

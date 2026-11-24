@@ -1,6 +1,6 @@
 // Shared ask-flow contract (src/ui/ask-flow.ts) — the reusable two-screen UI.
 // Drives each helper with a scripted ctx.ui.select; no pi, no fs.
-import { askMain, askMainWithRemember, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS, ICON } from '../../../src/ui/ask-flow.ts';
+import { askMain, askMainWithRemember, askRememberFile, askRememberHost, askExposure, withheldNotice, ASK_TIMEOUT_MS, ICON } from '#ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

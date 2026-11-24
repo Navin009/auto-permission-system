@@ -8,6 +8,8 @@ const DOMAIN_SINGULAR = "domain";
 const DOMAIN_PLURAL = "domains";
 const PATH_SINGULAR = "path";
 const PATH_PLURAL = "paths";
+const SESSION_SINGULAR = "session grant";
+const SESSION_PLURAL = "session grants";
 
 export interface SandboxChipConfig {
 	mode?: unknown;
@@ -18,6 +20,7 @@ export interface SandboxChipConfig {
 	filesystem?: {
 		allowWrite?: readonly unknown[];
 	};
+	sessionGrantCount?: number;
 }
 
 export interface SandboxChip {
@@ -34,10 +37,11 @@ export function sandboxStatusChip(config: SandboxChipConfig): SandboxChip {
 		config.network?.strictAllowlist === true,
 	);
 	const paths = formatPathCount(config.filesystem?.allowWrite?.length ?? 0);
+	const grants = formatSessionGrants(config.sessionGrantCount ?? 0);
 
 	return {
 		color,
-		text: `${CHIP_PREFIX} ${modeIcon}  ${domains}, ${paths}`,
+		text: `${CHIP_PREFIX} ${modeIcon}  ${domains}, ${paths}${grants}`,
 	};
 }
 
@@ -51,4 +55,12 @@ function formatDomainCount(count: number, strictAllowlist: boolean): string {
 
 function formatPathCount(count: number): string {
 	return `${count} ${count === 1 ? PATH_SINGULAR : PATH_PLURAL}`;
+}
+
+function formatSessionGrants(count: number): string {
+	if (count <= 0) {
+		return "";
+	}
+
+	return ` · ${count} ${count === 1 ? SESSION_SINGULAR : SESSION_PLURAL}`;
 }

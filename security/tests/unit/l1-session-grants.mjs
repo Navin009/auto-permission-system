@@ -13,7 +13,7 @@ const agentDir = mkdtempSync(join(tmpdir(), "aps-session-agent-"));
 process.env.PI_CODING_AGENT_DIR = agentDir;
 
 const { SandboxManager } = await import("@anthropic-ai/sandbox-runtime");
-const { clearFilesystemSessionGrants, createSandboxedBashOps, filesystemSessionGrantSummary } = await import("../../../src/l1-sandbox/bash-ops.ts");
+const { clearFilesystemSessionGrants, createSandboxedBashOps, filesystemSessionGrantSummary } = await import("#l1-sandbox/bash-ops.ts");
 
 let pass = 0;
 let fail = 0;

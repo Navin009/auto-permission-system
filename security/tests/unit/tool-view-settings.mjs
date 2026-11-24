@@ -6,7 +6,7 @@ import {
 	normalizeToolViewSettings,
 	readToolViewSettings,
 	writeToolViewMode,
-} from '../../../src/core/tool-view/settings.ts';
+} from '#core/tool-view/settings.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

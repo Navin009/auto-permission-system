@@ -1,6 +1,6 @@
-import type { SubLineSummary } from "../core/tool-view/row-group.ts";
-import { scriptLine } from "../core/tool-view/script-line.ts";
-import { ToolStatus } from "../core/tool-view/status.ts";
+import type { SubLineSummary } from "#core/tool-view/row-group.ts";
+import { scriptLine } from "#core/tool-view/script-line.ts";
+import { ToolStatus } from "#core/tool-view/status.ts";
 import { nestedCallsFor, type NestedCall } from "./nested-calls.ts";
 
 const SCRIPT_ARGUMENT = "code";

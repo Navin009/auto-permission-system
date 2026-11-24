@@ -5,7 +5,7 @@ import { join } from "node:path";
 const scratchDirectory = mkdtempSync(join(tmpdir(), "pi-audit-log-"));
 process.env.PI_CODING_AGENT_DIR = join(scratchDirectory, "agent");
 
-const { AUDIT_PATH, audit } = await import("../../../src/shared/audit.ts");
+const { AUDIT_PATH, audit } = await import("#shared/audit.ts");
 
 let pass = 0;
 let fail = 0;

@@ -8,14 +8,27 @@ import {
 	TRUST_STORE,
 	type Policy,
 } from "./policy.ts";
-import { forgetProjectTrust, recordProjectDeclined, recordProjectTrust } from "../core/index.ts";
+import { forgetProjectTrust, recordProjectDeclined, recordProjectTrust } from "#core/index.ts";
 import { sessionGrantSummary } from "./prompts.ts";
-import { askQueued } from "../ui/ask-flow.ts";
-import type { AskCtx } from "../ui/ask.ts";
-import { audit, AUDIT_PATH } from "../shared/audit.ts";
+import { askSelect } from "#ui/ask-flow.ts";
+import type { AskCtx } from "#ui/ask.ts";
+import { audit, AUDIT_PATH } from "#shared/audit.ts";
 
 const TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS = 120_000;
 const RECENT_AUDIT_LOG_LINE_COUNT = 10;
+const TIME_SLICE_START = 11;
+const TIME_SLICE_END = 19;
+const ALLOW_DECISIONS = new Set([
+	"yes",
+	"session",
+	"session-grant",
+	"user-named",
+	"always-cwd",
+	"always-global",
+	"always-cwd-folder",
+	"always-global-folder",
+]);
+const DENY_DECISIONS = new Set(["no", "denied"]);
 
 export async function handleProjectTrustCommand(
 	context: ExtensionContext,
@@ -48,14 +61,18 @@ export async function handleProjectTrustCommand(
 	}
 
 	const dialogOptions = ["No — ignore these changes (default)", "Yes — I wrote this file. Apply it."];
-	const dialogTitle = `Do you trust this file?\n${projectPolicy}\n\nIt will:\n${bullets(changes)}\n\nIf the file changes, auto-permission-system asks again.`;
+	const dialogTitle = `Do you trust this project's .pi/sandbox.json?\nFile     ${projectPolicy}\n\n${bullets(changes)}\n\nNote     If the file changes, auto-permission-system asks again.`;
 
-	const selectedOption = await askQueued(
+	const { picked: selectedOption } = await askSelect(
 		/* SAFETY: pi's runtime ctx carries the selector; AskCtx names the member used. */
 		context as unknown as AskCtx,
 		dialogTitle,
 		dialogOptions,
 		TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS,
+		{
+			footer: "Default: No",
+			question: "Apply these project settings?",
+		},
 	);
 
 	if (selectedOption !== dialogOptions[1]) {
@@ -122,7 +139,7 @@ export function formatSecurityGuardReport(policy: Policy, context: ExtensionCont
 		`  denyWrite:   ${policy.filesystem.denyWrite.join(", ") || "(none)"}`,
 		"",
 		"Network (URL tools):",
-		`  allowed:     ${policy.network.allowedDomains.join(", ") || "(none)"}`,
+		`  allowed:     ${formatAllowedDomains(policy.network)}`,
 		`  denied:      ${policy.network.deniedDomains.join(", ") || "(none)"}`,
 		"",
 		"Project-local overrides (<cwd>/.pi/sandbox.json `overrides`):",
@@ -153,7 +170,7 @@ export function formatSecurityGuardReport(policy: Policy, context: ExtensionCont
 			reportLines.push("", `Recent audit (last ${RECENT_AUDIT_LOG_LINE_COUNT}):`);
 
 			for (const line of auditTail) {
-				reportLines.push(`  ${line}`);
+				reportLines.push(`  ${formatAuditLine(line)}`);
 			}
 		}
 	} catch {
@@ -161,4 +178,44 @@ export function formatSecurityGuardReport(policy: Policy, context: ExtensionCont
 	}
 
 	return reportLines.join("\n");
+}
+
+function formatAllowedDomains(network: Policy["network"]): string {
+	if (network.allowedDomains.length > 0) {
+		return network.allowedDomains.join(", ");
+	}
+
+	return network.strictAllowlist ? "(none — strict allowlist)" : "all (no allowlist)";
+}
+
+function formatAuditLine(rawLine: string): string {
+	try {
+		const entry = JSON.parse(rawLine) as {
+			ts?: string;
+			layer?: number;
+			tool?: string;
+			event?: string;
+			subject?: string;
+			file?: string;
+			decision?: string;
+		};
+		const timestamp = typeof entry.ts === "string" ? entry.ts.slice(TIME_SLICE_START, TIME_SLICE_END) : "--------";
+		const layer = entry.layer === undefined ? "L?" : `L${entry.layer}`;
+		const decision = entry.decision ?? entry.event ?? "event";
+		const mark = auditMark(decision);
+		const action = entry.tool ?? entry.event ?? "";
+		const target = entry.subject ?? entry.file ?? "";
+
+		return [timestamp, layer, `${mark} ${decision}`, action, target].filter(Boolean).join("  ");
+	} catch {
+		return rawLine;
+	}
+}
+
+function auditMark(decision: string): string {
+	if (ALLOW_DECISIONS.has(decision)) {
+		return "✓";
+	}
+
+	return DENY_DECISIONS.has(decision) ? "⊘" : "⚠";
 }

@@ -1,4 +1,4 @@
-import { askQueued, askSelect } from "../../../src/ui/ask-flow.ts";
+import { askQueued, askSelect } from "#ui/ask-flow.ts";
 
 let pass = 0;
 let fail = 0;

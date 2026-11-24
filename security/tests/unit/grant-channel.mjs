@@ -5,7 +5,7 @@ import { join } from "node:path";
 const scratchDirectory = mkdtempSync(join(tmpdir(), "pi-grant-channel-"));
 process.env.PI_CODING_AGENT_DIR = join(scratchDirectory, "agent");
 
-const { applyNetworkGrant, isGrantableHost } = await import("../../../src/l1-sandbox/manager.ts");
+const { applyNetworkGrant, isGrantableHost } = await import("#l1-sandbox/manager.ts");
 
 let pass = 0;
 let fail = 0;

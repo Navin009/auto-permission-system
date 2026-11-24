@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, statSync, unlinkSync } from "node:fs";
 import net from "node:net";
 import { join } from "node:path";
-import { commandHead, commandSegments, shellTokens } from "../core/index.ts";
+import { commandHead, commandSegments, shellTokens } from "#core/index.ts";
 import { piScratchDirectory } from "./scratch.ts";
 
 const SOCKET_FILE_MODE = 0o600;

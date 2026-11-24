@@ -12,8 +12,8 @@ const cwd = mkdtempSync(join(tmpdir(), "aps-mode-sync-cwd-"));
 mkdirSync(join(agentDir, "extensions"), { recursive: true });
 writeFileSync(join(agentDir, "extensions", "sandbox.json"), JSON.stringify({ enabled: true, mode: "yolo" }));
 
-const { default: register } = await import("../../../extensions/permission-mode.ts");
-const { YOLO_CHANNEL } = await import("../../../src/shared/yolo.ts");
+const { default: register } = await import("#extensions/permission-mode.ts");
+const { YOLO_CHANNEL } = await import("#shared/yolo.ts");
 
 let pass = 0;
 let fail = 0;

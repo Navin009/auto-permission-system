@@ -86,10 +86,19 @@ interface ChildLinePlacement {
 }
 
 const NEWEST_ROW_LIMIT = 8;
+const SUB_LINE_LIMIT = 8;
 const SINGLE_ROW_COUNT = 1;
 const EARLIER_CALL_NOUN = "call";
+const EARLIER_INNER_CALL_NOUN = "inner call";
+const FOLDED_NOTE_BADGE = "[notice]";
 const MIDDLE_LINE_INDENT = "  ├ ";
 const LAST_LINE_INDENT = "  └ ";
+const MIDDLE_ROW_SPACER = "  │ ";
+const LAST_ROW_SPACER = "    ";
+const MARK_SPACER = "  ";
+const SUB_BRANCH_MIDDLE = "├ ";
+const SUB_BRANCH_PIPE = "│ ";
+const SUB_BRANCH_LAST = "└ ";
 const MIDDLE_NOTE_FIRST_INDENT = "  │   ";
 const MIDDLE_NOTE_CONTINUATION_INDENT = "  │     ";
 const LAST_NOTE_FIRST_INDENT = "      ";
@@ -107,7 +116,12 @@ const HEADER_DURATION_SEPARATOR = "· ";
 const ISSUE_SEPARATOR = " · ";
 const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
+const LINE_BREAK_PATTERN = /\r?\n/;
 const WHITESPACE_PATTERN = /\s+/g;
+const NEGATION_PREFIX = "!";
+const MAX_RUNNING_SUB_LINES = 3;
+const STAGE_NOUN = "stage";
+const LINE_NOUN = "line";
 const LINE_RANGE_PATTERN = /:\d+(?:-\d+)?$/;
 const BLANK = "";
 const MARK_COLUMN_WIDTH = 2;
@@ -207,8 +221,16 @@ function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: b
 	const issuePart = issues ? `${SPACE}(${issues.label})` : BLANK;
 	const thoughtPart = summary.thinking ? `${SPACE}${thinkingPart(summary.thinking)}` : BLANK;
 	const wordPart = wordText(status, hintsFolded || summary.rows.length === SINGLE_ROW_COUNT);
+	const hasFoldedNotice = summary.folded && summary.rows.some((row) => Boolean(row.note));
+	const noticePart = hasFoldedNotice ? `${SPACE}${FOLDED_NOTE_BADGE}` : BLANK;
 	const fixedWidth =
-		MARK_COLUMN_WIDTH + chevron.length + countPart.length + issuePart.length + thoughtPart.length + wordPart.length;
+		MARK_COLUMN_WIDTH +
+		chevron.length +
+		countPart.length +
+		issuePart.length +
+		thoughtPart.length +
+		wordPart.length +
+		noticePart.length;
 	const targetPart = targetText(summary, summary.folded, width - fixedWidth);
 	const spans: RowSpan[] = [
 		{ text: chevron, tone: "dim" },
@@ -233,8 +255,12 @@ function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: b
 		spans.push({ text: wordPart, tone: wordTone(status) });
 	}
 
+	if (noticePart) {
+		spans.push({ text: noticePart, tone: "warning" });
+	}
+
 	return {
-		text: `${chevron}${countPart}${issuePart}${targetPart}${thoughtPart}${wordPart}`,
+		text: `${chevron}${countPart}${issuePart}${targetPart}${thoughtPart}${wordPart}${noticePart}`,
 		spans,
 	};
 }
@@ -480,16 +506,337 @@ function memberChildLines(
 ): RowLine[] {
 	const subLines = row.subLines;
 	const rowLines = subLines
-		? subLines.map((subLine, index) =>
-				subLineLine(
-					subLine,
-					{ ...placement, isLastLine: placement.isLastLine && index === subLines.length - 1 },
-					summary.spinnerFrame,
-				),
-			)
-		: [childLine(summary, row, placement)];
+		? buildSubLines(subLines, placement, summary.spinnerFrame)
+		: buildMemberRowLines(summary, row, placement);
 
 	return [...rowLines, ...noteLines(row, placement, width)];
+}
+
+function buildMemberRowLines(summary: RowGroupSummary, row: RowSummary, placement: ChildLinePlacement): RowLine[] {
+	if (summary.kind === RowKind.Shell && row.status === ToolStatus.Running) {
+		return runningShellLines(summary, row, placement);
+	}
+
+	return [childLine(summary, row, placement)];
+}
+
+function runningShellLines(summary: RowGroupSummary, row: RowSummary, placement: ChildLinePlacement): RowLine[] {
+	const rawLines = nonEmptyLines(row.target);
+
+	if (rawLines.length > 1) {
+		return multilineRunningShellLines(summary, row, placement, rawLines);
+	}
+
+	const cleaned = displayShellCommand(row.target);
+	const stages = extractChainStages(cleaned);
+
+	if (stages.length <= 1) {
+		return [childLine(summary, row, placement)];
+	}
+
+	return chainedRunningShellLines(summary, row, placement, stages);
+}
+
+function nonEmptyLines(text: string): string[] {
+	return text
+		.split(LINE_BREAK_PATTERN)
+		.map((line) => line.replace(WHITESPACE_PATTERN, SPACE).trim())
+		.filter(Boolean);
+}
+
+function multilineRunningShellLines(
+	summary: RowGroupSummary,
+	row: RowSummary,
+	placement: ChildLinePlacement,
+	rawLines: readonly string[],
+): RowLine[] {
+	const shown = rawLines.slice(0, MAX_RUNNING_SUB_LINES);
+	const hiddenCount = rawLines.length - shown.length;
+	const firstLine = childLineWithCommand({ summary, row, placement, commandText: shown[0], asProgramLine: true });
+	const lines: RowLine[] = [firstLine];
+
+	shown.slice(1).forEach((lineText, offset) => {
+		const isFinalLine = offset === shown.length - 2;
+		const connector = isFinalLine ? SUB_BRANCH_LAST : SUB_BRANCH_PIPE;
+		const indent = subBranchIndent(placement, connector);
+		const suffix =
+			isFinalLine && hiddenCount > 0
+				? `${HINT_SEPARATOR}(+${hiddenCount} ${pluralize(LINE_NOUN, hiddenCount)})`
+				: BLANK;
+		const budget = Math.max(1, placement.childColumn - indent.length - suffix.length);
+		const fitted = fitPlainLine(lineText, budget);
+		const spans: RowSpan[] = [{ text: fitted, tone: "muted" }];
+
+		if (suffix) {
+			spans.push({ text: suffix, tone: "dim" });
+		}
+
+		lines.push({
+			indent,
+			mark: undefined,
+			text: `${fitted}${suffix}`,
+			spans,
+			duration: undefined,
+			hint: undefined,
+			isDim: true,
+			memberIndex: placement.memberIndex,
+			segmentIndex: placement.segmentIndex,
+		});
+	});
+
+	return lines;
+}
+
+interface ChainStage {
+	operator: string | undefined;
+	command: string;
+}
+
+function extractChainStages(commandText: string): ChainStage[] {
+	const rawSegments = splitShellOperatorSegments(commandText);
+	const stages: ChainStage[] = [];
+	let pendingOperator: string | undefined;
+
+	for (const segment of rawSegments) {
+		if (segment.isOperator) {
+			pendingOperator = segment.text;
+			continue;
+		}
+
+		const trimmed = segment.text.trim();
+
+		if (!trimmed) {
+			continue;
+		}
+
+		stages.push({ operator: pendingOperator, command: trimmed });
+		pendingOperator = undefined;
+	}
+
+	return stages;
+}
+
+function chainedRunningShellLines(
+	summary: RowGroupSummary,
+	row: RowSummary,
+	placement: ChildLinePlacement,
+	stages: readonly ChainStage[],
+): RowLine[] {
+	const firstLine = childLineWithCommand({
+		summary,
+		row,
+		placement,
+		commandText: stages[0].command,
+		asProgramLine: true,
+	});
+
+	if (stages.length <= MAX_RUNNING_SUB_LINES) {
+		const tailLines = stages.slice(1).map((stage, offset) => {
+			const isFinal = offset === stages.length - 2;
+
+			return chainStageSubLine(stage, placement, isFinal ? SUB_BRANCH_LAST : SUB_BRANCH_MIDDLE);
+		});
+
+		return [firstLine, ...tailLines];
+	}
+
+	const skipped = stages.slice(1, stages.length - 1);
+	const lastStage = stages.at(-1);
+
+	if (!lastStage) {
+		return [firstLine];
+	}
+
+	return [firstLine, chainSkippedSubLine(skipped, placement), chainStageSubLine(lastStage, placement, SUB_BRANCH_LAST)];
+}
+
+function chainStageSubLine(stage: ChainStage, placement: ChildLinePlacement, connector: string): RowLine {
+	const indent = subBranchIndent(placement, connector);
+	const operatorPrefix = stage.operator ? `${stage.operator}${SPACE}` : BLANK;
+	const budget = Math.max(1, placement.childColumn - indent.length - operatorPrefix.length);
+	const fitted = fitCommand(stage.command, budget);
+	const spans: RowSpan[] = [];
+
+	if (operatorPrefix) {
+		spans.push({ text: operatorPrefix, tone: "dim" });
+	}
+
+	appendSegmentCommandSpans(spans, fitted, !fitted.startsWith(`${ELLIPSIS}${SPACE}`));
+
+	return {
+		indent,
+		mark: undefined,
+		text: `${operatorPrefix}${fitted}`,
+		spans,
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+		memberIndex: placement.memberIndex,
+		segmentIndex: placement.segmentIndex,
+	};
+}
+
+function chainSkippedSubLine(skipped: readonly ChainStage[], placement: ChildLinePlacement): RowLine {
+	const indent = subBranchIndent(placement, SUB_BRANCH_MIDDLE);
+	const budget = Math.max(1, placement.childColumn - indent.length);
+	const base = `${ELLIPSIS} (+${skipped.length} ${pluralize(STAGE_NOUN, skipped.length)}`;
+	const names = skipped.map((stage) => stageProgramLabel(stage.command));
+	const withNames = `${base}: ${names.join(NAME_SEPARATOR)})`;
+	const text = withNames.length <= budget ? withNames : fitStageSkipText(base, names, budget);
+
+	return {
+		indent,
+		mark: undefined,
+		text,
+		spans: [{ text, tone: "dim" }],
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+		memberIndex: placement.memberIndex,
+		segmentIndex: placement.segmentIndex,
+	};
+}
+
+function fitStageSkipText(base: string, names: readonly string[], budget: number): string {
+	for (let count = names.length - 1; count >= 1; count -= 1) {
+		const candidate = `${base}: ${names.slice(0, count).join(NAME_SEPARATOR)}, ${ELLIPSIS})`;
+
+		if (candidate.length <= budget) {
+			return candidate;
+		}
+	}
+
+	const compact = `${base})`;
+
+	return compact.length <= budget ? compact : fitPlainLine(compact, budget);
+}
+
+function stageProgramLabel(command: string): string {
+	const tokens = command.trim().split(WHITESPACE_PATTERN);
+
+	if (tokens[0] === NEGATION_PREFIX && tokens[1]) {
+		return `${NEGATION_PREFIX}${SPACE}${tokens[1]}`;
+	}
+
+	return tokens[0] ?? BLANK;
+}
+
+function subBranchIndent(placement: ChildLinePlacement, connector: string): string {
+	const rowSpacer = placement.isLastLine ? LAST_ROW_SPACER : MIDDLE_ROW_SPACER;
+	const markSpacer = placement.isSingle ? BLANK : MARK_SPACER;
+
+	return `${rowSpacer}${markSpacer}${connector}`;
+}
+
+function fitPlainLine(text: string, budget: number): string {
+	if (text.length <= budget) {
+		return text;
+	}
+
+	if (budget <= 1) {
+		return ELLIPSIS;
+	}
+
+	return `${text.slice(0, budget - 1)}${ELLIPSIS}`;
+}
+
+interface ChildCommandLineInput {
+	summary: RowGroupSummary;
+	row: RowSummary;
+	placement: ChildLinePlacement;
+	commandText: string;
+	asProgramLine: boolean;
+}
+
+function childLineWithCommand(input: ChildCommandLineInput): RowLine {
+	const { summary, row, placement, commandText, asProgramLine } = input;
+	const indent = placement.isLastLine ? LAST_LINE_INDENT : MIDDLE_LINE_INDENT;
+	const mark = placement.isSingle
+		? undefined
+		: { glyph: statusMark(row.status, summary.spinnerFrame), status: row.status };
+	const wordPart = placement.isSingle ? BLANK : wordText(row.status, true);
+	const budget = placement.childColumn - indent.length - markColumnWidth(mark) - wordPart.length;
+	const promptPart = `${SHELL_PROMPT}${SPACE}`;
+	const commandBudget = Math.max(1, budget - promptPart.length);
+	const fitted = asProgramLine ? fitCommand(commandText, commandBudget) : fitPlainLine(commandText, commandBudget);
+	const spans: RowSpan[] = [{ text: promptPart, tone: "dim" }];
+
+	if (fitted.startsWith(`${ELLIPSIS}${SPACE}`) || !asProgramLine) {
+		appendShellCommandSpans(spans, fitted, asProgramLine && !fitted.startsWith(`${ELLIPSIS}${SPACE}`));
+	} else {
+		appendSegmentCommandSpans(spans, fitted, true);
+	}
+
+	if (wordPart) {
+		spans.push({ text: wordPart, tone: wordTone(row.status) });
+	}
+
+	return {
+		indent,
+		mark,
+		text: `${promptPart}${fitted}${wordPart}`,
+		spans,
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+		memberIndex: placement.memberIndex,
+		segmentIndex: placement.segmentIndex,
+	};
+}
+
+function buildSubLines(
+	subLines: readonly SubLineSummary[],
+	placement: ChildLinePlacement,
+	spinnerFrame: number | undefined,
+): RowLine[] {
+	if (subLines.length <= SUB_LINE_LIMIT) {
+		return subLines.map((subLine, index) =>
+			subLineLine(
+				subLine,
+				{ ...placement, isLastLine: placement.isLastLine && index === subLines.length - 1 },
+				spinnerFrame,
+			),
+		);
+	}
+
+	const hasLeadingScript = subLines[0]?.kind === "script";
+	const callEntries = hasLeadingScript ? subLines.slice(1) : subLines;
+	const callKeepLimit = hasLeadingScript ? SUB_LINE_LIMIT - 1 : SUB_LINE_LIMIT;
+	const visibleCalls = callEntries.slice(callEntries.length - callKeepLimit);
+	const hiddenCount = callEntries.length - visibleCalls.length;
+	const lines: RowLine[] = [];
+
+	if (hasLeadingScript) {
+		lines.push(subLineLine(subLines[0], { ...placement, isLastLine: false }, spinnerFrame));
+	}
+
+	if (hiddenCount > 0) {
+		lines.push(subLineOverflowLine(hiddenCount, placement));
+	}
+
+	visibleCalls.forEach((subLine, index) => {
+		const isLastLine = placement.isLastLine && index === visibleCalls.length - 1;
+
+		lines.push(subLineLine(subLine, { ...placement, isLastLine }, spinnerFrame));
+	});
+
+	return lines;
+}
+
+function subLineOverflowLine(hiddenCount: number, placement: ChildLinePlacement): RowLine {
+	const text = `${OVERFLOW_MARK} (${hiddenCount} earlier ${pluralize(EARLIER_INNER_CALL_NOUN, hiddenCount)})`;
+
+	return {
+		indent: MIDDLE_LINE_INDENT,
+		mark: undefined,
+		text,
+		spans: [{ text, tone: "dim" }],
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+		memberIndex: placement.memberIndex,
+		segmentIndex: placement.segmentIndex,
+	};
 }
 
 function noteLines(row: RowSummary, placement: ChildLinePlacement, width: number): RowLine[] {

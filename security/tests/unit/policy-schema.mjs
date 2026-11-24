@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { POLICY_KEYS, unknownPolicyKeys } from "../../../src/core/policy/policy-keys.ts";
+import { POLICY_KEYS, unknownPolicyKeys } from "#core/policy/policy-keys.ts";
 
 let pass = 0;
 let fail = 0;

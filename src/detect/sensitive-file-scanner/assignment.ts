@@ -11,7 +11,7 @@
  *     <value>
  */
 
-import { isSourceExtension } from "../filename-gate/index.ts";
+import { isSourceExtension } from "#detect/filename-gate/index.ts";
 import { isSensitiveKey, normalizeKey } from "./keys.ts";
 
 interface Operator {

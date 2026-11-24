@@ -8,8 +8,8 @@ const agentDirectory = join(scratchDirectory, "agent");
 mkdirSync(join(agentDirectory, "extensions"), { recursive: true });
 process.env.PI_CODING_AGENT_DIR = agentDirectory;
 
-const { default: guardExtension } = await import("../../../extensions/guard.ts");
-const { YOLO_CHANNEL } = await import("../../../src/shared/yolo.ts");
+const { default: guardExtension } = await import("#extensions/guard.ts");
+const { YOLO_CHANNEL } = await import("#shared/yolo.ts");
 
 let pass = 0;
 let fail = 0;

@@ -1,6 +1,6 @@
-import { carriesStreamingThought, carriesVisibleText } from '../../../src/core/tool-view/message-text.ts';
-import { elapsedSeconds, thinkingPart } from '../../../src/core/tool-view/thinking.ts';
-import { beginThinking, endThinking, resetThinking, thinkingState } from '../../../src/tool-view/thinking-clock.ts';
+import { carriesStreamingThought, carriesVisibleText } from '#core/tool-view/message-text.ts';
+import { elapsedSeconds, thinkingPart } from '#core/tool-view/thinking.ts';
+import { beginThinking, endThinking, resetThinking, thinkingState } from '#tool-view/thinking-clock.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

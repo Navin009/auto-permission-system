@@ -14,8 +14,8 @@ import {
 	type RowMark,
 	type RowSpan,
 	type SpanTone,
-} from "../core/tool-view/row-group.ts";
-import { ToolStatus } from "../core/tool-view/status.ts";
+} from "#core/tool-view/row-group.ts";
+import { ToolStatus } from "#core/tool-view/status.ts";
 
 const ELLIPSIS = "…";
 const SPACE = " ";

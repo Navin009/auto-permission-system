@@ -1,6 +1,6 @@
 /** Advanced Secure output gate (ADR-018, ADR-042). Pure: no pi, no fs. */
 
-import { scanToolOutput } from "../detect/index.ts";
+import { scanToolOutput } from "#detect/index.ts";
 
 export interface Exposure {
 	/** Finding types, e.g. ["SECRET_ASSIGNMENT"]. Empty means clean. */

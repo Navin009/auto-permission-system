@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { ReadExposure } from "../core/index.ts";
+import { ReadExposure } from "#core/index.ts";
 import {
 	canonicalize,
 	expandHome,
@@ -14,9 +14,9 @@ import {
 	outsideProjectReason,
 } from "./matching.ts";
 import { deniedUrlReason, hostnameOf, isAllowedUrl } from "./url.ts";
-import { audit } from "../shared/audit.ts";
+import { audit } from "#shared/audit.ts";
 import { askOrBlock, type UICtx } from "./prompts.ts";
-import { denyMessage } from "../ui/ask.ts";
+import { denyMessage } from "#ui/ask.ts";
 import type { Policy } from "./policy.ts";
 
 /**

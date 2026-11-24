@@ -1,8 +1,8 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addOverride } from "../../../src/core/policy/overrides.ts";
-import { readPolicyForUpdate, setPolicyMode, writePolicyFile } from "../../../src/core/policy/policy-file.ts";
+import { addOverride } from "#core/policy/overrides.ts";
+import { readPolicyForUpdate, setPolicyMode, writePolicyFile } from "#core/policy/policy-file.ts";
 
 let pass = 0;
 let fail = 0;

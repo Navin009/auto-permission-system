@@ -1,9 +1,9 @@
 import { Container, Text } from '@earendil-works/pi-tui';
-import { ExpansionLevel, nextExpansionLevel, resolvedExpansionLevel } from '../../../src/core/tool-view/expansion-level.ts';
-import { setActiveViewMode } from '../../../src/tool-view/session.ts';
-import { resetRowGroups, closeRowGroup } from '../../../src/tool-view/row-groups.ts';
-import { toolViewRenderers } from '../../../src/tool-view/renderers.ts';
-import { RowGroupComponent } from '../../../src/tool-view/row-group-component.ts';
+import { ExpansionLevel, nextExpansionLevel, resolvedExpansionLevel } from '#core/tool-view/expansion-level.ts';
+import { setActiveViewMode } from '#tool-view/session.ts';
+import { resetRowGroups, closeRowGroup } from '#tool-view/row-groups.ts';
+import { toolViewRenderers } from '#tool-view/renderers.ts';
+import { RowGroupComponent } from '#tool-view/row-group-component.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };

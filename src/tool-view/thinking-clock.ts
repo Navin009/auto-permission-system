@@ -1,4 +1,4 @@
-import type { ThinkingState } from "../core/tool-view/thinking.ts";
+import type { ThinkingState } from "#core/tool-view/thinking.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 150;
 

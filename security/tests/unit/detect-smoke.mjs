@@ -1,5 +1,5 @@
 // Vendored detection cores: filename gate, content scanner, MCP gate, output gate.
-import { classifyFilename, scanTextContent, evaluateMcpCall, scanToolOutput } from '../../../src/detect/index.ts';
+import { classifyFilename, scanTextContent, evaluateMcpCall, scanToolOutput } from '#detect/index.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name); } };

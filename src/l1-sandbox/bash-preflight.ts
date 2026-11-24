@@ -13,14 +13,14 @@ import {
 	ReadExposure,
 	commandNameOf,
 	type AskReadFinding,
-} from "../core/index.ts";
-import { audit } from "../shared/audit.ts";
-import { canonicalize } from "../shared/canonicalize.ts";
-import { isEnvTemplateFile, scanTextContent } from "../detect/index.ts";
-import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "../ui/ask-flow.ts";
-import { displayWhy, getCredentialLabel } from "../ui/ask.ts";
+} from "#core/index.ts";
+import { audit } from "#shared/audit.ts";
+import { canonicalize } from "#shared/canonicalize.ts";
+import { isEnvTemplateFile, scanTextContent } from "#detect/index.ts";
+import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "#ui/ask-flow.ts";
+import { displayWhy, getCredentialLabel } from "#ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
-import { BLOCK_NOTICE, POLICY_NOTICE, SANDBOX_NAME } from "../shared/messages.ts";
+import { BLOCK_NOTICE, POLICY_NOTICE, SANDBOX_NAME } from "#shared/messages.ts";
 
 const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offered";
 

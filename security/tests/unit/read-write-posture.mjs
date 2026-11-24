@@ -8,8 +8,8 @@ import {
 	deniedWriteCandidates,
 	isSafeFolderGrant,
 	isSessionFolderGrant,
-} from "../../../src/core/index.ts";
-import { isAskRead, isDeniedRead, isDeniedWrite } from "../../../src/l2-guard/matching.ts";
+} from "#core/index.ts";
+import { isAskRead, isDeniedRead, isDeniedWrite } from "#l2-guard/matching.ts";
 
 let pass = 0, fail = 0;
 const check = (name, cond, extra = "") => { if (cond) pass++; else { fail++; console.log("FAIL:", name, "→", extra); } };
