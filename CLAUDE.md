@@ -27,7 +27,7 @@ git push origin v6.2.0          # or: git push --tags
 ```
 
 - `.github/workflows/release-tag.yml` runs on `push: tags: v*`: typecheck + tests, then `gh release create <tag> --generate-notes`. No release commit, no `CHANGELOG.md` edit, no `package.json` bump — the tag is the version of record.
-- The notes are GitHub's auto-generated notes for `previous tag → tag`, so the grouping is GitHub's default rather than semantic-release's Conventional Commit sections.
+- The notes are generated for `previous tag → tag` via `.github/scripts/release-notes.mjs` using `@semantic-release/release-notes-generator` and `.releaserc.cjs`, grouping every commit (not just merged PRs) into Conventional Commit sections.
 - Bump `package.json` → `version` and `CHANGELOG.md` yourself before tagging when you want the files in step with the tag; the workflow only warns on a mismatch, it never edits them.
 - A tag whose typecheck or tests fail produces no Release page. `ci.yml` runs on pull requests only, so this tag run is the release gate.
 - `release.yml` (semantic-release: version bump commit + `CHANGELOG.md` commit + tag + npm publish) is `workflow_dispatch` only now — start it by hand (`gh workflow run release.yml`) when you want that fully automated path instead.

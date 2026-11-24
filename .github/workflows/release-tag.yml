@@ -2,8 +2,9 @@ name: Release Tag
 
 # Releases are created from a tag you push from your own machine. Nothing is
 # computed, committed or bumped here: the tag you pushed IS the release, and the
-# notes are GitHub's auto-generated notes for it (commits since the previous
-# tag). No release commit, no CHANGELOG edit, no package.json version bump.
+# notes are generated from every commit since the previous tag via
+# @semantic-release/release-notes-generator (using .releaserc.cjs). No release
+# commit, no CHANGELOG edit, no package.json version bump.
 #
 #   git tag -a v6.2.0 -m "fix(guard): handle X"
 #   git push origin v6.2.0        # or: git push --tags
@@ -34,10 +35,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read # this job installs dependencies; it must not hold write
+    outputs:
+      notes_b64: ${{ steps.notes.outputs.notes_b64 }}
     steps:
       # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       # v7.1.0
@@ -50,6 +54,14 @@ jobs:
 
       - run: npm run check
 
+      - id: notes
+        name: Generate release notes
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node .github/scripts/release-notes.mjs "$TAG" /tmp/release-notes.md
+          echo "notes_b64=$(base64 -w0 /tmp/release-notes.md)" >> "$GITHUB_OUTPUT"
+
   release:
     needs: verify
     runs-on: ubuntu-latest
@@ -59,7 +71,6 @@ jobs:
       # v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       # Warn-only on purpose: a mismatch must not block the Release, but it does
@@ -74,13 +85,16 @@ jobs:
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES_B64: ${{ needs.verify.outputs.notes_b64 }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists — nothing to do."
             exit 0
           fi
 
+          printf '%s' "$NOTES_B64" | base64 -d > /tmp/release-notes.md
+
           gh release create "$TAG" \
             --verify-tag \
             --title "$TAG" \
-            --generate-notes
+            --notes-file /tmp/release-notes.md
