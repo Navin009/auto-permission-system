@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 Entries up to [6.1.1] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/); [6.1.2] and later are written by hand because releases are cut by pushing a tag — do not edit a released section by hand.
 
+## [7.2.0](https://github.com/Navin009/auto-permission-system/compare/v7.1.0...v7.2.0) (2026-11-26)
+
+### Features
+
+* **tool-view:** batch consecutive shell and read groups and uncap codemode ([8f578ed](https://github.com/Navin009/auto-permission-system/commit/8f578ed74ae60569421f44f5465eea627baf711f))
+* **tool-view:** expand commands in mixed batches and keep native edit shell ([56b31f3](https://github.com/Navin009/auto-permission-system/commit/56b31f330c5a88c7e7b7cd8b4db1ed60102c90f8))
+* **tool-view:** nest codemode calls under sequential script rows ([3a41480](https://github.com/Navin009/auto-permission-system/commit/3a414803d51369e0f955bc390d89fea26ab94942))
+* **tool-view:** summarize codemode rows by tool names and script counts ([a08025e](https://github.com/Navin009/auto-permission-system/commit/a08025eada68d1fd1e7ea9ad426df9d45177b96a))
+* **ui,tool-view:** attach native gate notes and simplify prompt specs ([3ea1d2e](https://github.com/Navin009/auto-permission-system/commit/3ea1d2e8d074d2ab5b6ab0226dc2e42599b595cd))
+
+### Bug Fixes
+
+* **tool-view:** cap codemode inner calls at 8 and stream live updates ([e944745](https://github.com/Navin009/auto-permission-system/commit/e944745b35f51d962059b41bdaa642f4d0c393ce))
+
 ## [7.1.0](https://github.com/Navin009/auto-permission-system/compare/v7.0.0...v7.1.0) (2026-11-25)
 
 ### Features
