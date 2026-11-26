@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 Entries up to [6.1.1] are generated automatically by [semantic-release](https://semantic-release.gitbook.io/) from [Conventional Commits](https://www.conventionalcommits.org/); [6.1.2] and later are written by hand because releases are cut by pushing a tag — do not edit a released section by hand.
 
+## [7.2.1](https://github.com/Navin009/auto-permission-system/compare/v7.2.0...v7.2.1) (2026-11-26)
+
+### Bug Fixes
+
+* **ui,guard,sandbox:** report prompt timeouts inline like allow and deny ([1c7f095](https://github.com/Navin009/auto-permission-system/commit/1c7f095ecdadd2b5a21c0b3e1056254310d52ad4))
+
 ## [7.2.0](https://github.com/Navin009/auto-permission-system/compare/v7.1.0...v7.2.0) (2026-11-26)
 
 ### Features

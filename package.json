@@ -1,6 +1,6 @@
 {
   "name": "auto-permission-system",
-  "version": "7.2.0",
+  "version": "7.2.1",
   "description": "Security for the Pi coding agent: zero-trust permission system, OS sandbox, tool guard, secret scanning and a Claude-style tool view. Pi permissions, Claude auto mode.",
   "type": "module",
   "imports": {
