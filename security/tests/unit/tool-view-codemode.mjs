@@ -119,9 +119,18 @@ const cappedGroup = joinRowGroup({
 	invalidate: () => {},
 	subLines: [{ text: 'await run()', status: undefined, kind: 'script' }, ...manyCalls],
 });
-const cappedLines = linesOf(cappedGroup);
-check('codemode caps visible inner calls and adds an overflow line', cappedLines.length === 10);
-check('codemode overflow reports hidden inner calls', lineText(cappedLines[2]) === '  ├ ... (5 earlier inner calls)');
+const unCappedLines = linesOf(cappedGroup);
+check('codemode shows all inner calls without dropping earlier ones', unCappedLines.length === 14);
+check('codemode keeps the first inner call after the script', lineText(unCappedLines[2]) === '  ├ ✓ read src/file-0.ts');
+check('codemode keeps the last inner call at the bottom', lineText(unCappedLines[13]) === '  └ ✓ read src/file-11.ts');
+
+const afterShellGroup = joinRowGroup({
+	toolCallId: 'call-after-code',
+	kind: RowKind.Shell,
+	target: 'npm test',
+	invalidate: () => {},
+});
+check('a shell call after codemode starts a separate group', afterShellGroup !== cappedGroup);
 
 resetRowGroups();
 resetThinking();

@@ -1,6 +1,6 @@
 import { buildChildLines } from "./child-lines.ts";
 import { buildHeaderLine, headerStatus } from "./header-lines.ts";
-import type { RowGroupSummary, RowLine } from "./row-group-types.ts";
+import { isMixedBatch, type RowGroupSummary, type RowLine } from "./row-group-types.ts";
 import { rowLabelOf } from "./row-kind.ts";
 
 export {
@@ -18,7 +18,7 @@ export {
 const DRAWING_MEMBER_INDEX = 0;
 
 export function rowGroupLines(summary: RowGroupSummary, width: number): RowLine[] {
-	const showsChildLines = rowLabelOf(summary.kind).showsChildLines;
+	const showsChildLines = isMixedBatch(summary) || rowLabelOf(summary.kind).showsChildLines;
 	const foldedHint = summary.folded || !showsChildLines;
 	const status = headerStatus(summary);
 	const header = buildHeaderLine(summary, status, foldedHint, width);

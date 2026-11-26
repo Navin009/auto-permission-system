@@ -104,9 +104,11 @@ const [afterProseTurn] = renderCommands([['call-prose', 'git status']]);
 check('an assistant reply with text closes the group', afterProseTurn.join(' ').includes('Running 1 command'));
 
 const readRow = renderRead('call-read', 'src/a.ts');
-check('a read opens its own row', readRow.join(' ').includes('Reading 1 file'));
+check('a read after bash joins the mixed batch silently', readRow.length === 0);
 const [afterRead] = renderCommands([['call-c', 'git status']]);
-check('a read ends the shell group', afterRead.join(' ').includes('Running 1 command'));
+check('a subsequent shell command stays in the same mixed batch', afterRead.length === 0);
+const [mixedBatchLines] = renderCommands([['call-prose', 'git status']]);
+check('the batch owner renders the combined action summary', mixedBatchLines.join(' ').includes('3 actions (2 commands, 1 file)'));
 
 resolver('write', () => fallbackRenderers);
 const [afterWrite] = renderCommands([['call-d', 'git log']]);

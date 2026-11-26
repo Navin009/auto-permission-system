@@ -88,6 +88,7 @@ check('the command row marks the running group', headerShape(lines(bashCall)[0])
 check('the newest row has no expand hint', !lines(bashCall)[0].includes('ctrl+o'));
 check('the command row shows the command line', lines(bashCall)[1] === '  └ $ npm test');
 
+closeRowGroup();
 const readCall = callOf('read', { path: 'src/a.ts' }, { toolCallId: 'call-read' });
 check('a read call renders two lines', lines(readCall).length === 2);
 check('a read row starts running', headerShape(lines(readCall)[0]).startsWith('⠋ ▾ Reading 1 file'));

@@ -1,7 +1,7 @@
 import { Text } from '@earendil-works/pi-tui';
 import { clearGateNotes, rememberGateNote, rememberNativeNote } from '#shared/gate-notes.ts';
 import { nativeGateNoteRenderers, toolViewRenderers } from '#tool-view/renderers.ts';
-import { resetRowGroups } from '#tool-view/row-groups.ts';
+import { closeRowGroup, resetRowGroups } from '#tool-view/row-groups.ts';
 import { setActiveViewMode } from '#tool-view/session.ts';
 import { resetThinking } from '#tool-view/thinking-clock.ts';
 
@@ -130,11 +130,17 @@ const readAtRow = { toolCallId: 'row-2', args: readArgs, expanded: false, durati
 readRenderers.renderCall(readArgs, theme, readContext(readAtRow));
 readRenderers.renderResult(result, options, theme, readContext(readAtRow));
 
+const batchLines = bashBlock.render(WIDTH).filter((line) => line.trim());
+
+check('a read joins the command batch and summarizes both', batchLines.length === 3 && batchLines[0].includes('2 actions (1 command, 1 file)'));
+check('the settled command sub-group drops its warning and keeps the notice badge', !batchLines.join(' ').includes(BASH_HIDDEN_NOTE) && batchLines[1].includes('[notice]'));
+
+closeRowGroup();
 const foldedLines = bashBlock.render(WIDTH).filter((line) => line.trim());
 
-check('a new kind of call folds the command row away', foldedLines.length === 1);
-check('the folded row drops its warning', !foldedLines.join(' ').includes(BASH_HIDDEN_NOTE));
-check('the folded row keeps a compact notice badge', foldedLines[0].includes('[notice]'));
+check('closing the mixed batch folds it to one line', foldedLines.length === 1);
+check('the folded batch drops its warning', !foldedLines.join(' ').includes(BASH_HIDDEN_NOTE));
+check('the folded batch keeps a compact notice badge', foldedLines[0].includes('[notice]'));
 
 resetRowGroups();
 clearGateNotes();

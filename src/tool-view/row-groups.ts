@@ -14,6 +14,7 @@ const HOME_DIRECTORY = homedir();
 
 export interface RowMember {
 	toolCallId: string;
+	kind: RowKind;
 	target: string;
 	status: ToolStatus;
 	durationMilliseconds: number | undefined;
@@ -206,7 +207,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 
 	return {
 		kind: group.kind,
-		rows: group.members.map((member) => rowSummary(group.kind, member)),
+		rows: group.members.map((member) => rowSummary(member)),
 		durationMilliseconds,
 		folded: group !== currentGroup && group.expansionLevel === ExpansionLevel.Row,
 		hint,
@@ -223,7 +224,11 @@ function frameMember(group: RowGroup): RowMember | undefined {
 }
 
 function hasGroupStep(group: RowGroup): boolean {
-	return group !== currentGroup && rowLabelOf(group.kind).showsChildLines;
+	if (group === currentGroup) {
+		return false;
+	}
+
+	return group.members.some((member) => member.kind !== group.kind || rowLabelOf(member.kind).showsChildLines);
 }
 
 function liveEndMilliseconds(group: RowGroup, isLive: boolean): number | undefined {
@@ -245,7 +250,7 @@ function groupForCall(input: RowCallInput): RowGroup {
 		return existingGroup;
 	}
 
-	if (currentGroup?.kind === input.kind) {
+	if (currentGroup && canShareGroup(currentGroup.kind, input.kind)) {
 		if (input.cwd && !currentGroup.cwd) {
 			currentGroup.cwd = input.cwd;
 		}
@@ -254,6 +259,18 @@ function groupForCall(input: RowCallInput): RowGroup {
 	}
 
 	return createGroup(input.kind, input.cwd);
+}
+
+function canShareGroup(groupKind: RowKind, incomingKind: RowKind): boolean {
+	if (groupKind === incomingKind) {
+		return true;
+	}
+
+	return isBatchableKind(groupKind) && isBatchableKind(incomingKind);
+}
+
+function isBatchableKind(kind: RowKind): boolean {
+	return kind === RowKind.Shell || kind === RowKind.Read;
 }
 
 function createGroup(kind: RowKind, cwd: string | undefined): RowGroup {
@@ -296,6 +313,7 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 
 	const member: RowMember = {
 		toolCallId: input.toolCallId,
+		kind: input.kind,
 		target: input.target,
 		status: ToolStatus.Running,
 		durationMilliseconds: undefined,
@@ -313,10 +331,11 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 	return member;
 }
 
-function rowSummary(kind: RowKind, member: RowMember): RowSummary {
+function rowSummary(member: RowMember): RowSummary {
 	return {
+		kind: member.kind,
 		target: member.target,
-		hint: kind === RowKind.Shell ? programHint(member.target) : undefined,
+		hint: member.kind === RowKind.Shell ? programHint(member.target) : undefined,
 		status: member.status,
 		segmentIndex: member.segmentIndex,
 		subLines: member.subLines.length > 0 ? member.subLines : undefined,

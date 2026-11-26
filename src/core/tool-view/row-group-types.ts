@@ -19,12 +19,19 @@ export interface SubLineSummary {
 }
 
 export interface RowSummary {
+	kind?: RowKind;
 	target: string;
 	status: ToolStatus;
 	segmentIndex: number;
 	hint?: string;
 	subLines?: readonly SubLineSummary[];
 	note?: string;
+}
+
+export interface SubGroup {
+	kind: RowKind;
+	rows: readonly RowSummary[];
+	startMemberIndex: number;
 }
 
 export interface RowGroupSummary {
@@ -69,12 +76,14 @@ export interface IssueSummary {
 }
 
 export const HINT_SEPARATOR = "   ";
+export const FOLDED_NOTE_BADGE = "[notice]";
 export const SPACE = " ";
 export const BLANK = "";
 export const ELLIPSIS = "…";
 export const PATH_SEPARATOR = "/";
 export const MARK_COLUMN_WIDTH = 2;
 export const SINGLE_ROW_COUNT = 1;
+export const DRAWING_MEMBER_INDEX = 0;
 const PLURAL_ENDING = "s";
 const PLURAL_Y_ENDING = "ies";
 const WHITESPACE_PATTERN = /\s+/g;
@@ -141,6 +150,47 @@ export function summarizeIssues(rows: readonly RowSummary[]): IssueSummary | und
 	return { label: `${total} ${pluralize("issue", total)}`, tone: "error" };
 }
 
+export function activeIssueSummary(rows: readonly RowSummary[], status: ToolStatus): IssueSummary | undefined {
+	if (status !== ToolStatus.Ok && status !== ToolStatus.Running) {
+		return undefined;
+	}
+
+	return summarizeIssues(rows);
+}
+
+export function hasAnyNote(rows: readonly RowSummary[]): boolean {
+	return rows.some((row) => Boolean(row.note));
+}
+
 export function toSingleLine(text: string): string {
 	return text.replace(WHITESPACE_PATTERN, SPACE).trim();
+}
+
+export function rowEffectiveKind(summary: RowGroupSummary, row: RowSummary): RowKind {
+	return row.kind ?? summary.kind;
+}
+
+export function splitSubGroups(summary: RowGroupSummary): SubGroup[] {
+	const groups: SubGroup[] = [];
+
+	summary.rows.forEach((row, index) => {
+		const kind = rowEffectiveKind(summary, row);
+		const last = groups.at(-1);
+
+		if (last && last.kind === kind) {
+			(last.rows as RowSummary[]).push(row);
+			return;
+		}
+
+		groups.push({ kind, rows: [row], startMemberIndex: index });
+	});
+
+	return groups;
+}
+
+export function isMixedBatch(summary: RowGroupSummary): boolean {
+	const firstRow = summary.rows[0];
+	const firstKind = firstRow ? rowEffectiveKind(summary, firstRow) : summary.kind;
+
+	return summary.rows.some((row) => rowEffectiveKind(summary, row) !== firstKind);
 }

@@ -98,8 +98,11 @@ resetThinking();
 const firstKind = join('call-shell', 'npm test', RowKind.Shell);
 thoughtBetween(2);
 const otherKind = join('call-other', 'src/a.ts', RowKind.Read);
-check('a thought before a different kind starts its own row', otherKind !== firstKind);
-check('the row above keeps its own header', lineText(group(firstKind)[0]).includes('Running 1 command'));
+check('a read after a shell command joins the same mixed batch', otherKind === firstKind);
+check('the mixed batch header counts both kinds', lineText(group(firstKind)[0]).includes('2 actions (1 command, 1 file)'));
+
+const codeKind = join('call-code', 'await tools.x()', RowKind.Codemode);
+check('codemode still starts its own separate row', codeKind !== firstKind);
 
 Date.now = realNow;
 resetRowGroups();

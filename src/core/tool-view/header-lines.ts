@@ -1,13 +1,17 @@
 import { formatCommandDuration } from "./duration.ts";
 import { RowKind, rowLabelOf } from "./row-kind.ts";
 import {
+	activeIssueSummary,
 	BLANK,
+	FOLDED_NOTE_BADGE,
+	hasAnyNote,
 	HINT_SEPARATOR,
+	isMixedBatch,
 	MARK_COLUMN_WIDTH,
 	pluralize,
+	rowEffectiveKind,
 	SINGLE_ROW_COUNT,
 	SPACE,
-	summarizeIssues,
 	toSingleLine,
 	wordText,
 	wordTone,
@@ -15,14 +19,12 @@ import {
 	type RowGroupSummary,
 	type RowLine,
 	type RowSpan,
-	type RowSummary,
 	type StyledText,
 } from "./row-group-types.ts";
 import { statusMark, ToolStatus } from "./status.ts";
 import { fitPathTarget, fitTarget, shortenDisplayPath, summarizeShellCommand } from "./target-summary.ts";
 import { thinkingPart } from "./thinking.ts";
 
-const FOLDED_NOTE_BADGE = "[notice]";
 const FOLDED_CHEVRON = "▸ ";
 const OPEN_CHEVRON = "▾ ";
 const HEADER_DURATION_SEPARATOR = "· ";
@@ -33,11 +35,15 @@ const NAME_SEPARATOR = ", ";
 const OVERFLOW_PREFIX = "+";
 const MORE_SUFFIX = " more";
 const OVERFLOW_TRAILING_PATTERN = /(, \+\d+ more)\)$/;
+const ACTION_NOUN = "action";
+const COMMAND_NOUN = "command";
+const FILE_NOUN = "file";
 
 export function headerStatus(summary: RowGroupSummary): ToolStatus {
+	const hasRunning = summary.rows.some((row) => row.status === ToolStatus.Running);
 	const lastStatus = summary.rows.at(-1)?.status ?? ToolStatus.Running;
 
-	if (summary.thinking && lastStatus === ToolStatus.Ok) {
+	if (hasRunning || (summary.thinking && lastStatus === ToolStatus.Ok)) {
 		return ToolStatus.Running;
 	}
 
@@ -80,13 +86,12 @@ function headerHint(summary: RowGroupSummary, hintsFolded: boolean): string | un
 
 function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: boolean, width: number): StyledText {
 	const chevron = summary.folded ? FOLDED_CHEVRON : OPEN_CHEVRON;
-	const countPart = countText(summary);
-	const issues = headerIssueSummary(summary.rows, status);
+	const countPart = countText(summary, status);
+	const issues = activeIssueSummary(summary.rows, status);
 	const issuePart = issues ? `${SPACE}(${issues.label})` : BLANK;
 	const thoughtPart = summary.thinking ? `${SPACE}${thinkingPart(summary.thinking)}` : BLANK;
 	const wordPart = wordText(status, hintsFolded || summary.rows.length === SINGLE_ROW_COUNT);
-	const hasFoldedNotice = summary.folded && summary.rows.some((row) => Boolean(row.note));
-	const noticePart = hasFoldedNotice ? `${SPACE}${FOLDED_NOTE_BADGE}` : BLANK;
+	const noticePart = summary.folded && hasAnyNote(summary.rows) ? `${SPACE}${FOLDED_NOTE_BADGE}` : BLANK;
 	const fixedWidth =
 		MARK_COLUMN_WIDTH +
 		chevron.length +
@@ -101,27 +106,7 @@ function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: b
 		{ text: countPart, tone: "title", bold: true },
 	];
 
-	if (issues) {
-		spans.push({ text: issuePart, tone: issues.tone });
-	}
-
-	if (targetPart) {
-		for (const span of targetPartSpans(targetPart)) {
-			spans.push(span);
-		}
-	}
-
-	if (thoughtPart) {
-		spans.push({ text: thoughtPart, tone: "thinking", italic: true });
-	}
-
-	if (wordPart) {
-		spans.push({ text: wordPart, tone: wordTone(status) });
-	}
-
-	if (noticePart) {
-		spans.push({ text: noticePart, tone: "warning" });
-	}
+	appendSummaryTailSpans(spans, { issues, issuePart, targetPart, thoughtPart, wordPart, status, noticePart });
 
 	return {
 		text: `${chevron}${countPart}${issuePart}${targetPart}${thoughtPart}${wordPart}${noticePart}`,
@@ -129,15 +114,46 @@ function headerText(summary: RowGroupSummary, status: ToolStatus, hintsFolded: b
 	};
 }
 
-function headerIssueSummary(rows: readonly RowSummary[], status: ToolStatus): IssueSummary | undefined {
-	if (status !== ToolStatus.Ok && status !== ToolStatus.Running) {
-		return undefined;
+export function appendSummaryTailSpans(
+	spans: RowSpan[],
+	parts: {
+		issues: IssueSummary | undefined;
+		issuePart: string;
+		targetPart: string;
+		thoughtPart?: string;
+		wordPart: string;
+		status: ToolStatus;
+		noticePart: string;
+	},
+): void {
+	if (parts.issues) {
+		spans.push({ text: parts.issuePart, tone: parts.issues.tone });
 	}
 
-	return summarizeIssues(rows);
+	if (parts.targetPart) {
+		for (const span of targetPartSpans(parts.targetPart)) {
+			spans.push(span);
+		}
+	}
+
+	if (parts.thoughtPart) {
+		spans.push({ text: parts.thoughtPart, tone: "thinking", italic: true });
+	}
+
+	if (parts.wordPart) {
+		spans.push({ text: parts.wordPart, tone: wordTone(parts.status) });
+	}
+
+	if (parts.noticePart) {
+		spans.push({ text: parts.noticePart, tone: "warning" });
+	}
 }
 
-function countText(summary: RowGroupSummary): string {
+function countText(summary: RowGroupSummary, status: ToolStatus): string {
+	if (isMixedBatch(summary)) {
+		return mixedCountText(summary, status);
+	}
+
 	const label = rowLabelOf(summary.kind);
 	const count = summary.rows.length;
 
@@ -148,10 +164,59 @@ function countText(summary: RowGroupSummary): string {
 	return `${label.verb} ${count} ${pluralize(label.noun, count)}`;
 }
 
+function mixedCountText(summary: RowGroupSummary, status: ToolStatus): string {
+	const counts = kindCounts(summary);
+
+	if (summary.folded) {
+		const isRunning = status === ToolStatus.Running;
+		const phrases = counts.map(([kind, count]) => mixedFoldedPhrase(kind, count, isRunning));
+
+		return capitalizeFirst(phrases.join(NAME_SEPARATOR));
+	}
+
+	const nounParts = counts.map(([kind, count]) => mixedNounCount(kind, count));
+
+	return `${summary.rows.length} ${pluralize(ACTION_NOUN, summary.rows.length)} (${nounParts.join(NAME_SEPARATOR)})`;
+}
+
+function kindCounts(summary: RowGroupSummary): Array<[RowKind, number]> {
+	const counts = new Map<RowKind, number>();
+
+	for (const row of summary.rows) {
+		const kind = rowEffectiveKind(summary, row);
+
+		counts.set(kind, (counts.get(kind) ?? 0) + 1);
+	}
+
+	return [...counts.entries()];
+}
+
+function mixedFoldedPhrase(kind: RowKind, count: number, isRunning: boolean): string {
+	if (kind === RowKind.Shell) {
+		return `${isRunning ? "running" : "ran"} ${count} ${pluralize(COMMAND_NOUN, count)}`;
+	}
+
+	return `${isRunning ? "reading" : "read"} ${count} ${pluralize(FILE_NOUN, count)}`;
+}
+
+function mixedNounCount(kind: RowKind, count: number): string {
+	const noun = kind === RowKind.Shell ? COMMAND_NOUN : FILE_NOUN;
+
+	return `${count} ${pluralize(noun, count)}`;
+}
+
+function capitalizeFirst(text: string): string {
+	return text ? `${text[0].toUpperCase()}${text.slice(1)}` : text;
+}
+
+export function subGroupTargetText(summary: RowGroupSummary, availableWidth: number): string {
+	return targetText(summary, true, availableWidth);
+}
+
 function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: number): string {
 	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
 
-	if (!folded || budget < MINIMUM_TARGET_WIDTH) {
+	if (!folded || isMixedBatch(summary) || budget < MINIMUM_TARGET_WIDTH) {
 		return BLANK;
 	}
 
@@ -170,7 +235,7 @@ function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: n
 	return fitted ? `${SPACE}(${fitted})` : BLANK;
 }
 
-function targetPartSpans(targetPart: string): RowSpan[] {
+export function targetPartSpans(targetPart: string): RowSpan[] {
 	const match = OVERFLOW_TRAILING_PATTERN.exec(targetPart);
 
 	if (!match || match.index === undefined) {
@@ -201,7 +266,7 @@ function fitFoldedTarget(summary: RowGroupSummary, target: string, budget: numbe
 }
 
 function showsCommandNames(summary: RowGroupSummary): boolean {
-	return summary.folded && summary.kind === RowKind.Shell && summary.rows.length > 1;
+	return summary.folded && !isMixedBatch(summary) && summary.kind === RowKind.Shell && summary.rows.length > 1;
 }
 
 function namesText(summary: RowGroupSummary, budget: number): string {

@@ -2,6 +2,7 @@ import { rowGroupLines } from '#core/tool-view/row-group.ts';
 import { RowKind } from '#core/tool-view/row-kind.ts';
 import { ToolStatus } from '#core/tool-view/status.ts';
 import {
+	closeRowGroup,
 	groupSummary,
 	joinRowGroup,
 	resetRowGroups,
@@ -57,6 +58,12 @@ check('the run keeps one header for both commands', header(running) === '⠋ ▾
 settle('call-b', 'npm run build', ToolStatus.Ok, 1_000);
 check('the run settles on its newest command', header(running) === '✓ ▾ Running 2 commands · 8s');
 
+const mixedRead = join('call-mixed-read', 'src/a.ts', RowKind.Read);
+now += 1_000;
+check('a read right after commands shares the mixed batch', mixedRead === running);
+check('a live mixed batch shows total actions and counts', header(running) === '⠋ ▾ 3 actions (2 commands, 1 file) · 9s');
+
+closeRowGroup();
 const read = join('call-read', 'src/a.ts', RowKind.Read);
 now += 1_500;
 check('a running read counts up', header(read) === '⠋ ▾ Reading 1 file · 1.5s');
