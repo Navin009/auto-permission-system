@@ -293,7 +293,7 @@ function memberChildLines(input: {
 	const { summary, row, placement, width, expandSubLines } = input;
 	const subLines = expandSubLines ? row.subLines : undefined;
 	const rowLines = subLines
-		? buildSubLines(subLines, placement, summary.spinnerFrame)
+		? buildSubLines(summary, row, subLines, placement)
 		: buildMemberRowLines(summary, row, placement);
 
 	return [...rowLines, ...noteLines(row, placement, width)];
@@ -559,39 +559,31 @@ function childLineWithCommand(input: ChildCommandLineInput): RowLine {
 }
 
 function buildSubLines(
+	summary: RowGroupSummary,
+	row: RowSummary,
 	subLines: readonly SubLineSummary[],
 	placement: ChildLinePlacement,
-	spinnerFrame: number | undefined,
 ): RowLine[] {
-	if (subLines.length <= SUB_LINE_LIMIT) {
-		return subLines.map((subLine, index) =>
-			subLineLine(
-				subLine,
-				{ ...placement, isLastLine: placement.isLastLine && index === subLines.length - 1 },
-				spinnerFrame,
-			),
-		);
+	const parentLine = childLine(summary, row, placement);
+	const callEntries = subLines.filter((entry) => entry.kind !== "script");
+
+	if (callEntries.length === 0) {
+		return [parentLine];
 	}
 
-	const hasLeadingScript = subLines[0]?.kind === "script";
-	const callEntries = hasLeadingScript ? subLines.slice(1) : subLines;
-	const callKeepLimit = hasLeadingScript ? SUB_LINE_LIMIT - 1 : SUB_LINE_LIMIT;
-	const visibleCalls = callEntries.slice(callEntries.length - callKeepLimit);
+	const visibleCalls =
+		callEntries.length <= SUB_LINE_LIMIT ? callEntries : callEntries.slice(callEntries.length - SUB_LINE_LIMIT);
 	const hiddenCount = callEntries.length - visibleCalls.length;
-	const lines: RowLine[] = [];
-
-	if (hasLeadingScript) {
-		lines.push(subLineLine(subLines[0], { ...placement, isLastLine: false }, spinnerFrame));
-	}
+	const lines: RowLine[] = [parentLine];
 
 	if (hiddenCount > 0) {
 		lines.push(subLineOverflowLine(hiddenCount, placement));
 	}
 
 	visibleCalls.forEach((subLine, index) => {
-		const isLastLine = placement.isLastLine && index === visibleCalls.length - 1;
+		const connector = index === visibleCalls.length - 1 ? SUB_BRANCH_LAST : SUB_BRANCH_MIDDLE;
 
-		lines.push(subLineLine(subLine, { ...placement, isLastLine }, spinnerFrame));
+		lines.push(subLineLine(subLine, placement, summary.spinnerFrame, connector));
 	});
 
 	return lines;
@@ -601,7 +593,7 @@ function subLineOverflowLine(hiddenCount: number, placement: ChildLinePlacement)
 	const text = `${OVERFLOW_MARK} (${hiddenCount} earlier ${pluralize(EARLIER_INNER_CALL_NOUN, hiddenCount)})`;
 
 	return {
-		indent: `${placement.branchPrefix}${MIDDLE_LINE_INDENT}`,
+		indent: subBranchIndent(placement, SUB_BRANCH_MIDDLE),
 		mark: undefined,
 		text,
 		spans: [{ text, tone: "dim" }],
@@ -668,8 +660,9 @@ function subLineLine(
 	subLine: SubLineSummary,
 	placement: ChildLinePlacement,
 	spinnerFrame: number | undefined,
+	connector: string,
 ): RowLine {
-	const indent = rowLineIndent(placement);
+	const indent = subBranchIndent(placement, connector);
 	const mark = subLine.status ? { glyph: statusMark(subLine.status, spinnerFrame), status: subLine.status } : undefined;
 	const budget = placement.childColumn - indent.length - markColumnWidth(mark);
 	const fitted = fitTarget(subLine.text, budget) ?? ELLIPSIS;

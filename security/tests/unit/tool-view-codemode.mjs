@@ -75,9 +75,9 @@ const group = joinRowGroup({
 
 const running = linesOf(group);
 check('the header reads codemode and its timer', lineText(running[0]) === '⠋ ▾ codemode · 0ms');
-check('the row draws the script under the code row', lineText(running[1]) === '  ├ await tools.searchTools("rank")');
-check('each nested call keeps its own line', lineText(running[2]) === '  ├ ✓ mcp:dev-radius:search rank');
-check('a nested call line carries no time', lineText(running[3]) === '  └ ✓ read src/config.ts');
+check('the row draws the script as the parent call line', lineText(running[1]) === '  └ await tools.searchTools("rank")');
+check('each nested call nests under the script line', lineText(running[2]) === '    ├ ✓ mcp:dev-radius:search rank');
+check('the final nested call closes the inner branch', lineText(running[3]) === '    └ ✓ read src/config.ts');
 check('codemode never counts commands in the header', !running[0].text.includes('Running'));
 check('script preview uses dim italic span', running[1].spans?.[0]?.tone === 'dim' && running[1].spans?.[0]?.italic === true);
 check('nested call uses title and muted spans', running[2].spans?.[0]?.tone === 'title' && running[2].spans?.[1]?.tone === 'muted');
@@ -120,9 +120,9 @@ const cappedGroup = joinRowGroup({
 	subLines: [{ text: 'await run()', status: undefined, kind: 'script' }, ...manyCalls],
 });
 const cappedLines = linesOf(cappedGroup);
-check('codemode caps visible inner calls and adds an overflow line', cappedLines.length === 10);
-check('codemode overflow reports hidden inner calls', lineText(cappedLines[2]) === '  ├ ... (5 earlier inner calls)');
-check('codemode keeps the newest inner call at the bottom', lineText(cappedLines[9]) === '  └ ✓ read src/file-11.ts');
+check('codemode caps visible inner calls at 8 plus header, script, and overflow', cappedLines.length === 11);
+check('codemode overflow reports hidden inner calls under the script', lineText(cappedLines[2]) === '    ├ ... (4 earlier inner calls)');
+check('codemode keeps the newest inner call at the bottom', lineText(cappedLines[10]) === '    └ ✓ read src/file-11.ts');
 
 resetNestedCalls();
 resetRowGroups();
@@ -138,8 +138,8 @@ for (let index = 0; index < 30; index += 1) {
 	rememberNestedEnd('call-live', `call-live/${index}`, false);
 }
 const liveCapped = linesOf(liveGroup);
-check('live codemode with 30 inner calls caps at 8 visible sub-lines plus header and overflow', liveCapped.length === 10);
-check('live codemode reports 23 hidden earlier inner calls', lineText(liveCapped[2]) === '  ├ ... (23 earlier inner calls)');
+check('live codemode with 30 inner calls keeps the newest 8 calls plus header, script, and overflow', liveCapped.length === 11);
+check('live codemode reports 22 hidden earlier inner calls', lineText(liveCapped[2]) === '    ├ ... (22 earlier inner calls)');
 
 settleRowGroup({
 	toolCallId: 'call-live',
@@ -162,7 +162,8 @@ const secondCodeGroup = joinRowGroup({
 check('a consecutive codemode call joins the same codemode group', secondCodeGroup === liveGroup);
 const multiCodeLines = linesOf(liveGroup);
 check('earlier settled codemode calls collapse to one line when a newer one runs', lineText(multiCodeLines[1]) === '  ├ ✓ await runBatch()');
-check('the active codemode call keeps its sub-lines expanded', multiCodeLines.some((line) => line.text === 'read src/next.ts'));
+check('the active codemode call renders as the next sequence row', lineText(multiCodeLines[2]) === '  └ ⠋ await secondRun()');
+check('the active codemode call nests its inner calls underneath its script', lineText(multiCodeLines[3]) === '      └ ⠋ read src/next.ts');
 
 const afterShellGroup = joinRowGroup({
 	toolCallId: 'call-after-code',
