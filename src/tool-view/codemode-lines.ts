@@ -16,23 +16,33 @@ export function codemodeSubLines(
 	toolCallId: string,
 	args: Record<string, unknown> | undefined,
 ): readonly SubLineSummary[] {
-	const lines: SubLineSummary[] = [];
 	const script = scriptPreview(args);
+	const leading: SubLineSummary[] = script ? [{ text: script, status: undefined, kind: "script" }] : [];
 
-	if (script) {
-		lines.push({ text: script, status: undefined, kind: "script" });
+	return mergeNestedSubLines(toolCallId, leading);
+}
+
+export function mergeNestedSubLines(
+	toolCallId: string,
+	existingSubLines: readonly SubLineSummary[],
+): readonly SubLineSummary[] {
+	const calls = nestedCallsFor(toolCallId);
+
+	if (calls.length === 0) {
+		return existingSubLines;
 	}
 
-	for (const call of nestedCallsFor(toolCallId)) {
-		lines.push({
+	const leadingScript = existingSubLines[0]?.kind === "script" ? [existingSubLines[0]] : [];
+
+	return [
+		...leadingScript,
+		...calls.map((call) => ({
 			text: nestedCallText(call),
 			status: STATUS_BY_NESTED_CALL[call.status],
-			kind: "call",
+			kind: "call" as const,
 			detail: call.detail || undefined,
-		});
-	}
-
-	return lines;
+		})),
+	];
 }
 
 function scriptPreview(args: Record<string, unknown> | undefined): string {

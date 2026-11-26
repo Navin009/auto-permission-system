@@ -7,6 +7,7 @@ import { ToolStatus } from "#core/tool-view/status.ts";
 import { thinkingState, thinkingEpoch } from "./thinking-clock.ts";
 import { thoughtsVisibleInTranscript } from "./session.ts";
 import { gateNoteFor } from "#shared/gate-notes.ts";
+import { mergeNestedSubLines } from "./codemode-lines.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 150;
 const GROUP_OPEN_HINT = "click for output";
@@ -332,13 +333,16 @@ function ensureMember(group: RowGroup, input: RowCallInput): RowMember {
 }
 
 function rowSummary(member: RowMember): RowSummary {
+	const subLines =
+		member.kind === RowKind.Codemode ? mergeNestedSubLines(member.toolCallId, member.subLines) : member.subLines;
+
 	return {
 		kind: member.kind,
 		target: member.target,
 		hint: member.kind === RowKind.Shell ? programHint(member.target) : undefined,
 		status: member.status,
 		segmentIndex: member.segmentIndex,
-		subLines: member.subLines.length > 0 ? member.subLines : undefined,
+		subLines: subLines.length > 0 ? subLines : undefined,
 		note: gateNoteFor(member.toolCallId) ?? member.blockReason,
 	};
 }

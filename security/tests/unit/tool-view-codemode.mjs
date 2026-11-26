@@ -119,10 +119,50 @@ const cappedGroup = joinRowGroup({
 	invalidate: () => {},
 	subLines: [{ text: 'await run()', status: undefined, kind: 'script' }, ...manyCalls],
 });
-const unCappedLines = linesOf(cappedGroup);
-check('codemode shows all inner calls without dropping earlier ones', unCappedLines.length === 14);
-check('codemode keeps the first inner call after the script', lineText(unCappedLines[2]) === '  ├ ✓ read src/file-0.ts');
-check('codemode keeps the last inner call at the bottom', lineText(unCappedLines[13]) === '  └ ✓ read src/file-11.ts');
+const cappedLines = linesOf(cappedGroup);
+check('codemode caps visible inner calls and adds an overflow line', cappedLines.length === 10);
+check('codemode overflow reports hidden inner calls', lineText(cappedLines[2]) === '  ├ ... (5 earlier inner calls)');
+check('codemode keeps the newest inner call at the bottom', lineText(cappedLines[9]) === '  └ ✓ read src/file-11.ts');
+
+resetNestedCalls();
+resetRowGroups();
+const liveGroup = joinRowGroup({
+	toolCallId: 'call-live',
+	kind: RowKind.Codemode,
+	target: 'await runBatch()',
+	invalidate: () => {},
+	subLines: codemodeSubLines('call-live', { code: 'await runBatch()' }),
+});
+for (let index = 0; index < 30; index += 1) {
+	rememberNestedStart('call-live', `call-live/${index}`, 'read', { path: `src/item-${index}.ts` });
+	rememberNestedEnd('call-live', `call-live/${index}`, false);
+}
+const liveCapped = linesOf(liveGroup);
+check('live codemode with 30 inner calls caps at 8 visible sub-lines plus header and overflow', liveCapped.length === 10);
+check('live codemode reports 23 hidden earlier inner calls', lineText(liveCapped[2]) === '  ├ ... (23 earlier inner calls)');
+
+settleRowGroup({
+	toolCallId: 'call-live',
+	kind: RowKind.Codemode,
+	target: 'await runBatch()',
+	status: ToolStatus.Ok,
+	durationMilliseconds: 900,
+	invalidate: () => {},
+});
+const secondCodeGroup = joinRowGroup({
+	toolCallId: 'call-live-2',
+	kind: RowKind.Codemode,
+	target: 'await secondRun()',
+	invalidate: () => {},
+	subLines: [
+		{ text: 'await secondRun()', status: undefined, kind: 'script' },
+		{ text: 'read src/next.ts', status: ToolStatus.Running, kind: 'call' },
+	],
+});
+check('a consecutive codemode call joins the same codemode group', secondCodeGroup === liveGroup);
+const multiCodeLines = linesOf(liveGroup);
+check('earlier settled codemode calls collapse to one line when a newer one runs', lineText(multiCodeLines[1]) === '  ├ ✓ await runBatch()');
+check('the active codemode call keeps its sub-lines expanded', multiCodeLines.some((line) => line.text === 'read src/next.ts'));
 
 const afterShellGroup = joinRowGroup({
 	toolCallId: 'call-after-code',
@@ -130,7 +170,7 @@ const afterShellGroup = joinRowGroup({
 	target: 'npm test',
 	invalidate: () => {},
 });
-check('a shell call after codemode starts a separate group', afterShellGroup !== cappedGroup);
+check('a shell call after codemode starts a separate group', afterShellGroup !== liveGroup);
 
 resetRowGroups();
 resetThinking();
