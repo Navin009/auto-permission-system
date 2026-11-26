@@ -1,8 +1,9 @@
-import { appendSummaryTailSpans, fittedNamesList } from "./header-lines.ts";
+import { appendSummaryTailSpans, fitCommaList, fittedNamesList } from "./header-lines.ts";
 import { RowKind } from "./row-kind.ts";
 import {
 	activeIssueSummary,
 	BLANK,
+	codemodeCallEntries,
 	DRAWING_MEMBER_INDEX,
 	ELLIPSIS,
 	FOLDED_NOTE_BADGE,
@@ -57,13 +58,15 @@ type MixedEntry =
 	| { kind: "read-run"; rows: readonly RowSummary[]; startMemberIndex: number };
 
 const NEWEST_ROW_LIMIT = 8;
-const SUB_LINE_LIMIT = 8;
+const CODEMODE_ROW_LIMIT = 12;
+const SUB_LINE_LIMIT = 12;
 const EARLIER_CALL_NOUN = "call";
 const EARLIER_ACTION_NOUN = "action";
 const EARLIER_INNER_CALL_NOUN = "inner call";
 const READ_PREFIX = "read ";
 const READ_FILE_NOUN = "file";
 const READ_BATCH_NAME_LIMITS: readonly number[] = [3, 2, 1];
+const CODEMODE_TOOL_LIMITS: readonly number[] = [3, 2, 1];
 const MIDDLE_LINE_INDENT = "  ├ ";
 const LAST_LINE_INDENT = "  └ ";
 const MIDDLE_ROW_SPACER = "  │ ";
@@ -101,6 +104,8 @@ export function buildChildLines(summary: RowGroupSummary, width: number, showsCh
 
 	const lines: RowLine[] = [];
 
+	const limit = summary.kind === RowKind.Codemode ? CODEMODE_ROW_LIMIT : NEWEST_ROW_LIMIT;
+
 	appendGroupRows({
 		lines,
 		summary,
@@ -109,6 +114,7 @@ export function buildChildLines(summary: RowGroupSummary, width: number, showsCh
 		branchPrefix: BLANK,
 		childColumn: childColumnWidth(width),
 		width,
+		limit,
 	});
 
 	return lines;
@@ -273,10 +279,11 @@ function appendGroupRows(input: {
 	branchPrefix: string;
 	childColumn: number;
 	width: number;
+	limit?: number;
 }): void {
-	const { lines, summary, rows, startMemberIndex, branchPrefix, childColumn, width } = input;
+	const { lines, summary, rows, startMemberIndex, branchPrefix, childColumn, width, limit } = input;
 	const isSingle = rows.length === SINGLE_ROW_COUNT;
-	const visibleRows = newestItems(rows);
+	const visibleRows = newestItems(rows, limit);
 	const hiddenCount = rows.length - visibleRows.length;
 	const hiddenRows = rows.slice(0, hiddenCount);
 
@@ -294,7 +301,7 @@ function appendGroupRows(input: {
 			segmentIndex: row.segmentIndex,
 			branchPrefix,
 		};
-		const expandSubLines = shouldExpandRowSubLines(summary, rows, row, isLastRow);
+		const expandSubLines = shouldExpandRowSubLines(summary, row);
 
 		for (const line of memberChildLines({ summary, row, placement, width, expandSubLines })) {
 			lines.push(line);
@@ -302,32 +309,24 @@ function appendGroupRows(input: {
 	});
 }
 
-function shouldExpandRowSubLines(
-	summary: RowGroupSummary,
-	rows: readonly RowSummary[],
-	row: RowSummary,
-	isLastRow: boolean,
-): boolean {
+function shouldExpandRowSubLines(summary: RowGroupSummary, row: RowSummary): boolean {
 	if (!row.subLines) {
 		return false;
 	}
 
-	if (rowEffectiveKind(summary, row) !== RowKind.Codemode || rows.length <= SINGLE_ROW_COUNT) {
+	if (rowEffectiveKind(summary, row) !== RowKind.Codemode) {
 		return true;
 	}
 
-	return (
-		row.status === ToolStatus.Running ||
-		(isLastRow && !rows.some((candidate) => candidate.status === ToolStatus.Running))
-	);
+	return row.status === ToolStatus.Running && codemodeCallEntries(row.subLines).length > 0;
 }
 
-function newestItems<T>(items: readonly T[]): readonly T[] {
-	if (items.length <= NEWEST_ROW_LIMIT) {
+function newestItems<T>(items: readonly T[], limit = NEWEST_ROW_LIMIT): readonly T[] {
+	if (items.length <= limit) {
 		return items;
 	}
 
-	return items.slice(items.length - NEWEST_ROW_LIMIT);
+	return items.slice(items.length - limit);
 }
 
 function memberChildLines(input: {
@@ -612,14 +611,13 @@ function buildSubLines(
 	placement: ChildLinePlacement,
 ): RowLine[] {
 	const parentLine = childLine(summary, row, placement);
-	const callEntries = subLines.filter((entry) => entry.kind !== "script");
+	const callEntries = codemodeCallEntries(subLines);
 
 	if (callEntries.length === 0) {
 		return [parentLine];
 	}
 
-	const visibleCalls =
-		callEntries.length <= SUB_LINE_LIMIT ? callEntries : callEntries.slice(callEntries.length - SUB_LINE_LIMIT);
+	const visibleCalls = newestItems(callEntries, SUB_LINE_LIMIT);
 	const hiddenCount = callEntries.length - visibleCalls.length;
 	const lines: RowLine[] = [parentLine];
 
@@ -789,24 +787,75 @@ function childLineText(summary: RowGroupSummary, row: RowSummary, budget: number
 	}
 
 	if (kind === RowKind.Codemode) {
-		return codemodeLineStyled(row.target, budget, wordPart, row.status);
+		return codemodeLineStyled(row, budget, wordPart);
 	}
 
 	return readLineStyled(summary, row, budget, wordPart);
 }
 
-function codemodeLineStyled(script: string, budget: number, wordPart: string, status: ToolStatus): StyledText {
-	const fitted = fitTarget(toSingleLine(script), budget) ?? ELLIPSIS;
-	const spans: RowSpan[] = [{ text: fitted, tone: "dim", italic: true }];
+function codemodeLineStyled(row: RowSummary, budget: number, wordPart: string): StyledText {
+	const callEntries = codemodeCallEntries(row.subLines);
+
+	if (callEntries.length === 0) {
+		const fitted = fitTarget(toSingleLine(row.target), budget) ?? ELLIPSIS;
+		const spans: RowSpan[] = [{ text: fitted, tone: "dim", italic: true }];
+
+		if (wordPart) {
+			spans.push({ text: wordPart, tone: wordTone(row.status) });
+		}
+
+		return {
+			text: `${fitted}${wordPart}`,
+			spans,
+		};
+	}
+
+	const uniqueTools = uniqueCodemodeTools(callEntries);
+	const countSuffix = `${SPACE}(${callEntries.length} ${pluralize(EARLIER_CALL_NOUN, callEntries.length)})`;
+	const toolsBudget = Math.max(1, budget - countSuffix.length);
+	const fittedTools =
+		fitCommaList(uniqueTools, toolsBudget, CODEMODE_TOOL_LIMITS) ?? fitPlainLine(uniqueTools[0], toolsBudget);
+	const spans: RowSpan[] = [
+		{ text: fittedTools, tone: "text" },
+		{ text: countSuffix, tone: "muted" },
+	];
 
 	if (wordPart) {
-		spans.push({ text: wordPart, tone: wordTone(status) });
+		spans.push({ text: wordPart, tone: wordTone(row.status) });
 	}
 
 	return {
-		text: `${fitted}${wordPart}`,
+		text: `${fittedTools}${countSuffix}${wordPart}`,
 		spans,
 	};
+}
+
+function uniqueCodemodeTools(callEntries: readonly SubLineSummary[]): string[] {
+	const seen = new Set<string>();
+
+	for (const entry of callEntries) {
+		const name = codemodeEntryToolName(entry);
+
+		if (name) {
+			seen.add(name);
+		}
+	}
+
+	return [...seen];
+}
+
+function codemodeEntryToolName(entry: SubLineSummary): string {
+	if (entry.toolName) {
+		return entry.toolName;
+	}
+
+	if (entry.detail && entry.text.endsWith(`${SPACE}${entry.detail}`)) {
+		return entry.text.slice(0, -(entry.detail.length + SPACE.length));
+	}
+
+	const firstSpace = entry.text.indexOf(SPACE);
+
+	return firstSpace > 0 ? entry.text.slice(0, firstSpace) : entry.text;
 }
 
 function shellLineStyled(command: string, budget: number, wordPart: string, status: ToolStatus): StyledText {

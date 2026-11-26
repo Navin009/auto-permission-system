@@ -40,6 +40,7 @@ export function mergeNestedSubLines(
 			text: nestedCallText(call),
 			status: STATUS_BY_NESTED_CALL[call.status],
 			kind: "call" as const,
+			toolName: call.name,
 			detail: call.detail || undefined,
 		})),
 	];

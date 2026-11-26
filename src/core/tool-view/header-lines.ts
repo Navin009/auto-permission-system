@@ -3,6 +3,7 @@ import { RowKind, rowLabelOf } from "./row-kind.ts";
 import {
 	activeIssueSummary,
 	BLANK,
+	codemodeCallEntries,
 	FOLDED_NOTE_BADGE,
 	hasAnyNote,
 	HINT_SEPARATOR,
@@ -38,6 +39,9 @@ const OVERFLOW_TRAILING_PATTERN = /(, \+\d+ more)\)$/;
 const ACTION_NOUN = "action";
 const COMMAND_NOUN = "command";
 const FILE_NOUN = "file";
+const SCRIPT_NOUN = "script";
+const CALL_NOUN = "call";
+const COUNT_SEPARATOR = " · ";
 
 export function headerStatus(summary: RowGroupSummary): ToolStatus {
 	const hasRunning = summary.rows.some((row) => row.status === ToolStatus.Running);
@@ -258,7 +262,24 @@ function fitFoldedTarget(summary: RowGroupSummary, target: string, budget: numbe
 		return fitPathTarget(normalized, budget);
 	}
 
+	if (summary.kind === RowKind.Codemode) {
+		return fitCodemodeFoldedTarget(summary, target, budget);
+	}
+
 	return fitTarget(toSingleLine(target), budget);
+}
+
+function fitCodemodeFoldedTarget(summary: RowGroupSummary, target: string, budget: number): string | undefined {
+	const totalCalls = summary.rows.reduce((sum, row) => sum + codemodeCallEntries(row.subLines).length, 0);
+
+	if (totalCalls === 0) {
+		return fitTarget(toSingleLine(target), budget);
+	}
+
+	const scriptsPart = `${summary.rows.length} ${pluralize(SCRIPT_NOUN, summary.rows.length)}`;
+	const callsPart = `${totalCalls} ${pluralize(CALL_NOUN, totalCalls)}`;
+
+	return fitTarget(`${scriptsPart}${COUNT_SEPARATOR}${callsPart}`, budget);
 }
 
 function showsCommandNames(summary: RowGroupSummary): boolean {
@@ -287,20 +308,37 @@ export function fittedNamesList(
 	limits: readonly number[] = NAME_LIMITS,
 ): string {
 	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
+	const fitted = fitCommaList(names, budget, limits);
 
+	return fitted ? `${SPACE}(${fitted})` : BLANK;
+}
+
+export function fitCommaList(
+	names: readonly string[],
+	budget: number,
+	limits: readonly number[] = NAME_LIMITS,
+): string | undefined {
 	if (budget < MINIMUM_TARGET_WIDTH || names.length === 0) {
-		return BLANK;
+		return undefined;
 	}
 
 	for (const limit of limits) {
 		const candidate = namesListCandidate(names, limit);
 
 		if (candidate && candidate.length <= budget) {
-			return `${SPACE}(${candidate})`;
+			return candidate;
 		}
 	}
 
-	return overflowOnlyText(names.length, budget);
+	const fullOverflow = `${OVERFLOW_PREFIX}${names.length}${MORE_SUFFIX}`;
+
+	if (fullOverflow.length <= budget) {
+		return fullOverflow;
+	}
+
+	const compactOverflow = `${OVERFLOW_PREFIX}${names.length}`;
+
+	return compactOverflow.length <= budget ? compactOverflow : undefined;
 }
 
 function overflowOnlyText(totalCount: number, budget: number): string {

@@ -15,6 +15,7 @@ export interface SubLineSummary {
 	text: string;
 	status: ToolStatus | undefined;
 	kind?: "script" | "call";
+	toolName?: string;
 	detail?: string;
 }
 
@@ -169,4 +170,8 @@ export function isMixedBatch(summary: RowGroupSummary): boolean {
 	const firstKind = firstRow ? rowEffectiveKind(summary, firstRow) : summary.kind;
 
 	return summary.rows.some((row) => rowEffectiveKind(summary, row) !== firstKind);
+}
+
+export function codemodeCallEntries(subLines: readonly SubLineSummary[] | undefined): readonly SubLineSummary[] {
+	return subLines?.filter((entry) => entry.kind !== "script") ?? [];
 }
