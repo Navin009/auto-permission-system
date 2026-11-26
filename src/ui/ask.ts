@@ -13,6 +13,7 @@ import {
 	askRememberFile,
 	askRememberHost,
 	askSelect,
+	formatTimeoutNote,
 	ICON,
 	MainChoice,
 	parentDomainWildcard,
@@ -28,6 +29,7 @@ export type { OverrideKind };
 export const Decision = {
 	Yes: "yes",
 	No: "no",
+	TimedOut: "timed-out",
 	Session: "session",
 	SessionFolder: "session-folder",
 	AlwaysCwd: "always-cwd",
@@ -181,6 +183,20 @@ export function denyMessage(overrideKind: OverrideKind, denialReason: string): s
 	}
 
 	return `Read blocked by policy: ${displayWhy(denialReason)}. Nothing was read — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
+}
+
+export function timeoutDenyMessage(overrideKind: OverrideKind, timeoutMs?: number): string {
+	const reason = formatTimeoutNote(timeoutMs).toLowerCase();
+
+	if (overrideKind === "allowDomains") {
+		return `Network blocked by policy: ${reason}. Nothing was fetched — ask the user before retrying. Do not attempt workarounds or inspect plugin files.`;
+	}
+
+	if (overrideKind === "allowWrite") {
+		return `Write blocked by policy: ${reason}. Nothing was written — ask the user before retrying. Do not attempt workarounds or inspect plugin files.`;
+	}
+
+	return `Read blocked by policy: ${reason}. Nothing was read — ask the user before retrying. Do not attempt workarounds or inspect plugin files.`;
 }
 
 export function buildFilePromptFields(options: {
@@ -409,14 +425,12 @@ async function askCredentialSelect(
 	headerText: string,
 	body: PromptBody,
 	options: Array<{ value: string; label: string; key: string }>,
-): Promise<string | undefined> {
-	const { picked } = await askSelect(context, `${ICON.cred}  ${headerText}`, options, undefined, {
+): Promise<{ picked: string | undefined; expired: boolean }> {
+	return askSelect(context, `${ICON.cred}  ${headerText}`, options, undefined, {
 		footer: "Default: No",
 		fields: body.fields,
 		findings: body.findings,
 	});
-
-	return picked;
 }
 
 export async function askDecision(
@@ -441,7 +455,11 @@ export async function askDecision(
 			{ value: "Yes, allow this one read", label: "Yes, allow this one read", key: "y" },
 		];
 
-		const picked = await askCredentialSelect(context, promptHeader, promptBody, promptOptions);
+		const { picked, expired } = await askCredentialSelect(context, promptHeader, promptBody, promptOptions);
+		if (expired) {
+			return Decision.TimedOut;
+		}
+
 		return picked === promptOptions[1].value ? Decision.Yes : Decision.No;
 	}
 
@@ -512,6 +530,7 @@ export async function askDecision(
 }
 
 function mapNetworkOutcome(choice: MainChoice, grant: { scope: GrantScope; pattern: string } | null): Decision {
+	if (choice === MainChoice.TimedOut) return Decision.TimedOut;
 	if (choice === MainChoice.Block) return Decision.No;
 	if (choice === MainChoice.Once) return Decision.Yes;
 	if (choice === MainChoice.Session) return Decision.Session;
@@ -521,6 +540,7 @@ function mapNetworkOutcome(choice: MainChoice, grant: { scope: GrantScope; patte
 }
 
 function mapFileOutcome(choice: MainChoice, grant: { scope: GrantScope; folder: boolean } | null): Decision {
+	if (choice === MainChoice.TimedOut) return Decision.TimedOut;
 	if (choice === MainChoice.Block) return Decision.No;
 	if (choice === MainChoice.Once) return Decision.Yes;
 	if (choice === MainChoice.Session) return Decision.Session;

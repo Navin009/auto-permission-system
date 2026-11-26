@@ -54,7 +54,7 @@ check('askMain o3 → remember', (await pickAllowFirst((o) => o[3])) === 'rememb
 check('askMain allowFirst undefined (Esc) → block', (await pickAllowFirst(undefined)) === 'block');
 
 const expires = { hasUI: true, ui: { select: async () => { await new Promise((r) => setTimeout(r, 30)); return undefined; } } };
-check('askMain countdown expiry blocks a network ask', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'block');
+check('askMain countdown expiry returns timed-out', (await askMain(expires, 'H', 'b', { timeoutMs: 10 })) === 'timed-out');
 
 
 // Navigation cancels the countdown in the select fallback too, and the timer
@@ -96,23 +96,23 @@ check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 &&
 
 {
 	const order = [];
-	let active = 0;
-	let maxActive = 0;
+	let currentActive = 0;
+	let peakActive = 0;
 	const ui = {
 		select: async (t, o) => {
-			active++;
-			maxActive = Math.max(maxActive, active);
+			currentActive++;
+			peakActive = Math.max(peakActive, currentActive);
 			order.push(t.startsWith('A screen 1') ? 'A1' : t.startsWith('B screen 1') ? 'B1' : 'A2');
 			if (t.startsWith('A screen 1')) {
-				active--;
+				currentActive--;
 				return 'Yes, always\u2026';
 			}
 			if (t.startsWith('B screen 1')) {
-				active--;
+				currentActive--;
 				return 'No';
 			}
 			await new Promise((r) => setTimeout(r, 15));
-			active--;
+			currentActive--;
 			return o[0];
 		},
 	};
@@ -123,21 +123,21 @@ check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 &&
 	const next = askMain(ctx, 'B screen 1', 'b', { session: true });
 	const [a, b] = await Promise.all([withRemember, next]);
 	check('askMainWithRemember: screen 2 runs before the next queued ask', order.join('|') === 'A1|A2|B1');
-	check('askMainWithRemember: only one prompt is ever active', maxActive === 1);
+	check('askMainWithRemember: only one prompt is ever active', peakActive === 1);
 	check('askMainWithRemember: returns the screen-2 grant', JSON.stringify(a) === '{"choice":"remember","grant":{"scope":"cwd","folder":true}}');
 	check('askMainWithRemember: the next ask still gets its own slot', b === 'block');
 }
 {
 	const order = [];
-	let active = 0;
-	let maxActive = 0;
+	let currentActive = 0;
+	let peakActive = 0;
 	const ui = {
 		select: async (t, o) => {
-			active++;
-			maxActive = Math.max(maxActive, active);
+			currentActive++;
+			peakActive = Math.max(peakActive, currentActive);
 			order.push(t.startsWith('Help M') ? 'M' : 'R');
 			await new Promise((r) => setTimeout(r, 15));
-			active--;
+			currentActive--;
 			return o[0];
 		},
 	};
@@ -146,7 +146,7 @@ check('askMain serializes overlapping prompts in FIFO order', maxActive === 1 &&
 		askMain(ctx, 'Help M', 'b', { session: true }),
 		askRememberFile(ctx, 'Remember R', 'b', '/f/x', '/f'),
 	]);
-	check('a standalone screen-2 helper does not bypass the queue', maxActive === 1 && order.join('|') === 'M|R');
+	check('a standalone screen-2 helper does not bypass the queue', peakActive === 1 && order.join('|') === 'M|R');
 }
 
 const pickMain = async (pick) => askMain({ hasUI: true, ui: { select: async (_t, o) => (typeof pick === 'function' ? pick(o) : pick) } }, 'H', 'b', { session: true });

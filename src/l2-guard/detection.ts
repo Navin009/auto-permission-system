@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { evaluateMcpCall, type JsonSchemaLike, type McpPolicy, type McpToolAnnotations } from "#detect/index.ts";
-import { askMain, type PromptField } from "#ui/ask-flow.ts";
+import { askMain, formatTimeoutNote, MainChoice, notifyPromptTimeout, type PromptField } from "#ui/ask-flow.ts";
 import { promptField } from "#ui/prompt-spec.ts";
 import { audit } from "#shared/audit.ts";
 import { rememberNativeNote } from "#shared/gate-notes.ts";
@@ -99,6 +99,22 @@ export async function askDetectionConfirmation(
 			context.ui.notify(`Allowed for this conversation: ${subject}`, "info");
 		}
 		return null;
+	}
+
+	if (choice === MainChoice.TimedOut) {
+		audit({
+			layer: 2,
+			tool: kind,
+			subject,
+			reason,
+			decision: "no",
+			note: "advanced-secure-timeout",
+			cwd: context.cwd,
+		});
+
+		notifyPromptTimeout(context, details?.toolCallId);
+
+		return { block: true, reason: createDetectionBlockMessage(kind, formatTimeoutNote().toLowerCase()) };
 	}
 
 	audit({

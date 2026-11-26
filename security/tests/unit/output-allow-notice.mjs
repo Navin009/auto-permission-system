@@ -21,6 +21,7 @@ process.env.PI_CODING_AGENT_DIR = scratchAgentDir;
 const { clearAllowNotices, clearProgramIds, gateSensitiveToolOutput } = await import(
 	'#l2-guard/output-gates.ts'
 );
+const { ASK_TIMEOUT_MS } = await import('#ui/ask-flow.ts');
 const { clearGateNotes, gateNoteFor, rememberGateNote, setGateNoteRepaint } = await import(
 	'#shared/gate-notes.ts'
 );
@@ -110,6 +111,34 @@ clearAllowNotices();
 const afterReset = [];
 await gateSensitiveToolOutput(event('codemode', undefined), contextFor(afterReset), policy);
 check('a new conversation confirms fallback again', afterReset.length === 1 && afterReset[0] === CODEMODE_NOTICE);
+
+const realNow = Date.now;
+let clock = realNow();
+Date.now = () => clock;
+const timeoutNotices = [];
+const timeoutResult = await gateSensitiveToolOutput(
+	event('codemode', 'call-timeout'),
+	{
+		cwd: '/work/project',
+		hasUI: true,
+		ui: {
+			notify: (message) => timeoutNotices.push(message),
+			select: async () => {
+				clock += ASK_TIMEOUT_MS + 1;
+				return undefined;
+			},
+		},
+	},
+	policy,
+);
+Date.now = realNow;
+check('timed-out output gate attaches gate note without chat notify', timeoutNotices.length === 0);
+check('timed-out output gate withholds output', timeoutResult?.content?.[0]?.text.includes('was hidden') === true);
+check(
+	'timed-out output gate note explains timeout',
+	gateNoteFor('call-timeout') === 'Sensitive data protected: codemode output was hidden from the AI (timed out after 15s — blocked by default).',
+);
+clearGateNotes();
 
 rmSync(scratchAgentDir, { recursive: true, force: true });
 

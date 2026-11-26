@@ -21,7 +21,9 @@ import {
 	askMain,
 	askMainWithRemember,
 	askRememberFile,
+	formatTimeoutNote,
 	MainChoice,
+	notifyPromptTimeout,
 	type AskCtx,
 	type PromptBody,
 } from "#ui/ask-flow.ts";
@@ -112,7 +114,7 @@ function blockAutomated(
 	return { exitCode: 1 };
 }
 
-async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promise<string | undefined> {
+async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promise<MainChoice> {
 	const promptBody = buildFilePromptFields({
 		file: absolutePath,
 		why: "this file usually holds passwords and API keys",
@@ -231,6 +233,23 @@ export async function preflightSensitiveCommands(
 		return undefined;
 	}
 
+	if (userChoice === MainChoice.TimedOut) {
+		auditLayer1Bash({
+			subject: targetSubject,
+			decision: "no",
+			note: "sensitive-command-timeout",
+			cwd: workingDirectory,
+		});
+		notifyPromptTimeout(askContext, options?.toolCallId);
+		onData(
+			Buffer.from(
+				`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: command execution ${formatTimeoutNote().toLowerCase()}: ${targetSubject}. Command was not executed.\n`,
+			),
+		);
+
+		return { exitCode: 1 };
+	}
+
 	auditLayer1Bash({ subject: targetSubject, decision: "no", note: "sensitive-command", cwd: workingDirectory });
 	onData(
 		Buffer.from(
@@ -307,6 +326,18 @@ export async function preflightWriteAccess(
 
 			auditLayer1Bash({ subject: absolutePath, decision: userChoice, note: "ask-write", cwd: workingDirectory });
 			continue;
+		}
+
+		if (userChoice === MainChoice.TimedOut) {
+			auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write-timeout", cwd: workingDirectory });
+			notifyPromptTimeout(askContext, options?.toolCallId);
+			onData(
+				Buffer.from(
+					`\n${formatBlockedLine("Write", `write access to ${absolutePath} ${formatTimeoutNote().toLowerCase()}`, "written")}\n`,
+				),
+			);
+
+			return { exitCode: 1 };
 		}
 
 		auditLayer1Bash({ subject: absolutePath, decision: "no", note: "ask-write", cwd: workingDirectory });
@@ -398,6 +429,18 @@ export async function preflightAskReads(
 
 			auditLayer1Bash({ subject: finding.path, decision: userChoice, note: "ask-read", cwd: workingDirectory });
 			continue;
+		}
+
+		if (userChoice === MainChoice.TimedOut) {
+			auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read-timeout", cwd: workingDirectory });
+			notifyPromptTimeout(askContext, options?.toolCallId);
+			onData(
+				Buffer.from(
+					`\n${BLOCK_NOTICE} ${SANDBOX_NAME}: read access to ${finding.path} ${formatTimeoutNote().toLowerCase()}. Command was not executed.\n`,
+				),
+			);
+
+			return { exitCode: 1 };
 		}
 
 		auditLayer1Bash({ subject: finding.path, decision: "no", note: "ask-read", cwd: workingDirectory });
@@ -512,6 +555,19 @@ export async function preflightOutsideReads(
 				options.ctx.ui?.notify?.(`sandbox: allowed read of ${absolutePath} for this conversation (not saved)`, "info");
 			}
 			continue;
+		}
+
+		if (choice === MainChoice.TimedOut) {
+			auditLayer1Bash({
+				subject: absolutePath,
+				decision: "no",
+				reason: "outside-project-read",
+				note: "preflight-timeout",
+				cwd: workingDirectory,
+			});
+			notifyPromptTimeout(askContext, options.toolCallId);
+			onData(Buffer.from(`\n${formatBlockedLine("Read", formatTimeoutNote().toLowerCase(), "run")}\n`));
+			return { blocked: { exitCode: 1 } };
 		}
 
 		if (choice !== MainChoice.Remember || !grant) {

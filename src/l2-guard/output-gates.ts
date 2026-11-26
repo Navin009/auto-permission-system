@@ -4,7 +4,7 @@ import type { ExtensionContext, ToolResultEvent, ToolResultEventResult } from "@
 import { filterGrepOutput } from "#core/index.ts";
 import { redactText } from "#detect/index.ts";
 import { collectExposure } from "./exposure.ts";
-import { askExposure, withheldNotice } from "#ui/ask-flow.ts";
+import { askExposure, ExposureChoice, formatTimeoutNote, withheldNotice } from "#ui/ask-flow.ts";
 import { audit } from "#shared/audit.ts";
 import { rememberGateNote } from "#shared/gate-notes.ts";
 import { canonicalize, isAskRead, isDeniedRead } from "./matching.ts";
@@ -215,18 +215,26 @@ export async function gateSensitiveToolOutput(
 		return undefined;
 	}
 
+	const isTimedOut = userChoice === ExposureChoice.TimedOut;
+
 	audit({
 		layer: 2,
 		tool: event.toolName,
 		decision: "no",
-		note: "advanced-secure-output",
+		note: isTimedOut ? "advanced-secure-output-timeout" : "advanced-secure-output",
 		findings,
 		cwd: context.cwd,
 	});
 
-	const protectedNotice = `Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`;
+	const protectedNotice = isTimedOut
+		? `Sensitive data protected: ${event.toolName} output was hidden from the AI (${formatTimeoutNote().toLowerCase()}).`
+		: `Sensitive data protected: ${event.toolName} output was hidden from the AI (potential secrets detected).`;
 
 	rememberGateNote(noteCallId, protectedNotice);
+
+	if (isTimedOut && !noteCallId) {
+		context.ui.notify(protectedNotice, "warning");
+	}
 
 	return { content: [{ type: "text" as const, text: withheldNotice(subject) }] };
 }

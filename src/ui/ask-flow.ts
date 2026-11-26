@@ -1,4 +1,5 @@
 import { GrantScope } from "#core/index.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { POLICY_NOTICE } from "#shared/messages.ts";
 import {
 	formatPromptBodyLines,
@@ -58,6 +59,7 @@ export type AskCtx = {
 
 export const MainChoice = {
 	Block: "block",
+	TimedOut: "timed-out",
 	Once: "once",
 	Session: "session",
 	Remember: "remember",
@@ -65,6 +67,29 @@ export const MainChoice = {
 export type MainChoice = (typeof MainChoice)[keyof typeof MainChoice];
 
 export const ASK_TIMEOUT_MS = 15_000;
+
+let lastSelectExpired = false;
+
+export function formatTimeoutNote(timeoutMs: number = ASK_TIMEOUT_MS): string {
+	const seconds = Math.max(1, Math.round(timeoutMs / 1000));
+
+	return `Timed out after ${seconds}s — blocked by default`;
+}
+
+export function notifyPromptTimeout(
+	ctx: AskCtx,
+	toolCallId: string | undefined,
+	timeoutMs: number = ASK_TIMEOUT_MS,
+): void {
+	const note = formatTimeoutNote(timeoutMs);
+
+	if (toolCallId) {
+		rememberNativeNote(toolCallId, note);
+		return;
+	}
+
+	ctx.ui.notify?.(`${note}.`, "warning");
+}
 
 export const ICON = {
 	ask: "❓",
@@ -134,6 +159,8 @@ export async function askSelect(
 	const normalizedOptions = options.map(normalizeAskOption);
 
 	return enqueue(async () => {
+		lastSelectExpired = false;
+
 		const outcome =
 			ctx.mode === "tui" && typeof ctx.ui.custom === "function"
 				? await askWithCustom(ctx, title, normalizedOptions, timeoutMs, {
@@ -151,11 +178,7 @@ export async function askSelect(
 						findings: opts.findings,
 					});
 
-		if (outcome.expired) {
-			const seconds = Math.max(1, Math.round(timeoutMs / 1000));
-
-			ctx.ui.notify?.(`⏱️ Security prompt timed out after ${seconds}s — blocked by default.`, "warning");
-		}
+		lastSelectExpired = outcome.expired;
 
 		return outcome;
 	});
@@ -388,11 +411,15 @@ export async function askMain(
 
 	const footer = opts.footer ?? "Default: No";
 	const content = splitPromptContent(header, body, opts.icon);
-	const { picked } = await askSelect(ctx, content.title, choices, opts.timeoutMs, {
+	const { picked, expired } = await askSelect(ctx, content.title, choices, opts.timeoutMs, {
 		footer,
 		fields: content.fields,
 		findings: content.findings,
 	});
+
+	if (expired) {
+		return MainChoice.TimedOut;
+	}
 
 	return choices.find((c) => c.value === picked)?.choiceValue ?? MainChoice.Block;
 }
@@ -407,7 +434,12 @@ export async function askMainWithRemember<T>(
 	return enqueue(async () => {
 		const choice = await askMain(ctx, header, body, opts);
 		if (choice !== MainChoice.Remember) return { choice, grant: null };
+
 		const grant = await onRemember();
+		if (grant === null && lastSelectExpired) {
+			return { choice: MainChoice.TimedOut, grant: null };
+		}
+
 		return { choice, grant };
 	});
 }
@@ -542,6 +574,7 @@ export async function askRememberHost(
 
 export const ExposureChoice = {
 	Block: "block",
+	TimedOut: "timed-out",
 	Allow: "allow",
 	ProgramSession: "program-session",
 } as const;
@@ -573,11 +606,15 @@ export async function askExposure(ctx: AskCtx, hits: string[], programId?: strin
 	}
 
 	const titleParts = [`${ICON.warn}  Sensitive information detected`, hits.join("\n\n")];
-	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices, undefined, {
+	const { picked, expired } = await askSelect(ctx, titleParts.join("\n"), choices, undefined, {
 		footer: "Default: No",
 		question: "Question Should the AI be allowed to see it?",
 		note: "Note     you'll be asked again each time a secret shows up",
 	});
+
+	if (expired) {
+		return ExposureChoice.TimedOut;
+	}
 
 	return choices.find((c) => c.value === picked)?.choiceValue ?? ExposureChoice.Block;
 }

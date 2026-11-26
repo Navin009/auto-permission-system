@@ -10,7 +10,7 @@ import {
 } from "./policy.ts";
 import { forgetProjectTrust, recordProjectDeclined, recordProjectTrust } from "#core/index.ts";
 import { sessionGrantSummary } from "./prompts.ts";
-import { askSelect } from "#ui/ask-flow.ts";
+import { askSelect, formatTimeoutNote } from "#ui/ask-flow.ts";
 import type { AskCtx } from "#ui/ask.ts";
 import { audit, AUDIT_PATH } from "#shared/audit.ts";
 
@@ -63,7 +63,7 @@ export async function handleProjectTrustCommand(
 	const dialogOptions = ["No — ignore these changes (default)", "Yes — I wrote this file. Apply it."];
 	const dialogTitle = `Do you trust this project's .pi/sandbox.json?\nFile     ${projectPolicy}\n\n${bullets(changes)}\n\nNote     If the file changes, auto-permission-system asks again.`;
 
-	const { picked: selectedOption } = await askSelect(
+	const { picked: selectedOption, expired } = await askSelect(
 		/* SAFETY: pi's runtime ctx carries the selector; AskCtx names the member used. */
 		context as unknown as AskCtx,
 		dialogTitle,
@@ -74,6 +74,10 @@ export async function handleProjectTrustCommand(
 			question: "Apply these project settings?",
 		},
 	);
+
+	if (expired) {
+		context.ui.notify(`${formatTimeoutNote(TRUST_CONFIRMATION_TIMEOUT_MILLISECONDS)}.`, "warning");
+	}
 
 	if (selectedOption !== dialogOptions[1]) {
 		recordProjectDeclined(projectPolicy, TRUST_STORE);

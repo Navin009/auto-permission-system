@@ -33,6 +33,7 @@ import {
 	askRememberHost,
 	ASK_TIMEOUT_MS,
 	MainChoice,
+	notifyPromptTimeout,
 	parentDomainWildcard,
 	type AskCtx,
 	type HostGrant,
@@ -170,6 +171,11 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	}
 
 	const mainChoice = outcome.choice;
+	if (mainChoice === MainChoice.TimedOut) {
+		deps.audit({ ...base, decision: "no", note: "network-ask-timeout" });
+		notifyPromptTimeout(ctx, toolCallId);
+		return false;
+	}
 	if (mainChoice === MainChoice.Block) {
 		deps.audit({ ...base, decision: "no" });
 		return false;

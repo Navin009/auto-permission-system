@@ -2,7 +2,7 @@
 
 > **Auto-generated** by `security/render.mjs` from `security/manifest.json`. Do not edit by hand. Run `./security/check.sh` after changing the manifest or any source file.
 
-Generated: 2026-11-26T13:36:27.736Z
+Generated: 2026-11-26T16:59:12.452Z
 
 ## At a glance
 
@@ -50,7 +50,7 @@ Sandbox the bash tool's child processes via macOS sandbox-exec. Blocks writes ou
 - `L1-ask-read-preflight` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-ask-read-preflight.mjs` → expects PASS=26, FAIL=0
 - `L1-session-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/l1-session-grants.mjs` → expects PASS=43, FAIL=0
 - `L1-ghost-dotfiles` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ghost-dotfiles.mjs` → expects PASS=24, FAIL=0 (16 on a host without a sandbox runtime: the wrap block skips)
-- `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=49, FAIL=0
+- `L1-network-ask` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-ask.mjs` → expects PASS=52, FAIL=0
 - `L1-L2-network-grants` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/network-grants.mjs` → expects PASS=6, FAIL=0
 - `L1-grant-channel` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/grant-channel.mjs` → expects PASS=9, FAIL=0
 - `L1-e2e` — `APS_E2E=1 node --import ./security/tests/ts-loader.mjs security/tests/e2e/sandbox-fs.mjs` → expects manual — run with APS_E2E=1 (needs bwrap/socat; initialize can be slow)
@@ -103,7 +103,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-policy-write` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-write.mjs` → expects PASS=9, FAIL=0
 - `L1-L2-policy-cache` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/policy-cache.mjs` → expects PASS=8, FAIL=0
 - `L1-L2-override-store` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/override-store.mjs` → expects PASS=18, FAIL=0
-- `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=31, FAIL=0
+- `L2-ask-contract` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask.mjs` → expects PASS=34, FAIL=0
 - `L1-L2-ask-flow` — `node --import ./security/tests/ts-loader.mjs security/tests/contract/ask-flow.mjs` → expects PASS=60, FAIL=0
 - `L1-L2-ask-queue` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-queue.mjs` → expects PASS=3, FAIL=0
 - `L1-L2-ask-selector` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs` → expects PASS=70, FAIL=0
@@ -117,7 +117,7 @@ Catch what sandbox-exec can't: the in-process read/grep/find/ls/write/edit/fetch
 - `L1-L2-yolo-gate` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/yolo-gate.mjs` → expects PASS=5, FAIL=0
 - `L2-exposure` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/exposure.mjs` → expects PASS=23, FAIL=0
 - `L2-output-blocks` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-blocks.mjs` → expects PASS=9, FAIL=0
-- `L2-output-allow-notice` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs` → expects PASS=15, FAIL=0
+- `L2-output-allow-notice` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs` → expects PASS=18, FAIL=0
 - `L2-program-id` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/program-id.mjs` → expects PASS=20, FAIL=0
 - `L2-ask-read` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-read.mjs` → expects PASS=17, FAIL=0
 - `L1-L2-read-write-posture` — `node --import ./security/tests/ts-loader.mjs security/tests/unit/read-write-posture.mjs` → expects PASS=29, FAIL=0

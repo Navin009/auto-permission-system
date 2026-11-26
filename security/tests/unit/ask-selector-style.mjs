@@ -66,13 +66,14 @@ check(
 	painted.some((entry) => entry.color === 'warning' && entry.text.startsWith('Default: No (')),
 );
 
-const { askSelect } = await import('#ui/ask-flow.ts');
+const { askSelect, notifyPromptTimeout } = await import('#ui/ask-flow.ts');
+const { clearGateNotes, nativeBottomNoteFor } = await import('#shared/gate-notes.ts');
 const { formatSecurityGuardReport } = await import('#l2-guard/report.ts');
 const { sandboxStatusChip } = await import('#shared/sandbox-status.ts');
 
 const notifications = [];
 const selectPrompts = [];
-await askSelect(
+const timeoutResult = await askSelect(
 	{
 		hasUI: true,
 		mode: 'rpc',
@@ -97,9 +98,46 @@ await askSelect(
 	10,
 );
 check(
-	'timed-out askSelect notifies with warning',
-	selectPrompts.length === 1 && notifications.some((entry) => entry.level === 'warning' && entry.message.includes('timed out')),
+	'timed-out askSelect returns expired without notifying globally',
+	selectPrompts.length === 1 && timeoutResult.expired === true && notifications.length === 0,
 );
+
+clearGateNotes();
+const timeoutNotes = [];
+notifyPromptTimeout(
+	{
+		hasUI: true,
+		ui: {
+			select: async () => undefined,
+			notify: (message, level) => timeoutNotes.push({ message, level }),
+		},
+	},
+	'call-timeout-1',
+	15_000,
+);
+check(
+	'notifyPromptTimeout attaches native note when toolCallId is present',
+	nativeBottomNoteFor('call-timeout-1') === 'Timed out after 15s — blocked by default' && timeoutNotes.length === 0,
+);
+
+notifyPromptTimeout(
+	{
+		hasUI: true,
+		ui: {
+			select: async () => undefined,
+			notify: (message, level) => timeoutNotes.push({ message, level }),
+		},
+	},
+	undefined,
+	15_000,
+);
+check(
+	'notifyPromptTimeout falls back to plain warning notification without toolCallId',
+	timeoutNotes.length === 1 &&
+		timeoutNotes[0].level === 'warning' &&
+		timeoutNotes[0].message === 'Timed out after 15s — blocked by default.',
+);
+clearGateNotes();
 
 const report = formatSecurityGuardReport(
 	{

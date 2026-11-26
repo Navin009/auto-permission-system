@@ -13,7 +13,14 @@ import {
 } from "#core/index.ts";
 import { canonicalize } from "#shared/canonicalize.ts";
 import { rememberNativeNote } from "#shared/gate-notes.ts";
-import { askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "#ui/ask-flow.ts";
+import {
+	askMainWithRemember,
+	askRememberFile,
+	formatTimeoutNote,
+	MainChoice,
+	notifyPromptTimeout,
+	type AskCtx,
+} from "#ui/ask-flow.ts";
 import { buildFilePromptFields, buildRememberFileFields } from "#ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 import {
@@ -218,6 +225,7 @@ export async function handleBlockedBashExecution(
 	) {
 		const targetAbsolutePath = offendingPath;
 		let askError: unknown;
+		let timedOut = false;
 
 		try {
 			const askContext = options.ctx as AskCtx;
@@ -254,6 +262,10 @@ export async function handleBlockedBashExecution(
 						{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
 					),
 			);
+
+			if (choice === MainChoice.TimedOut) {
+				timedOut = true;
+			}
 
 			if (choice === MainChoice.Once || choice === MainChoice.Session) {
 				if (choice === MainChoice.Once) {
@@ -334,20 +346,31 @@ export async function handleBlockedBashExecution(
 		}
 
 		if (!decisionNotice) {
-			const auditEntry: Record<string, unknown> = {
-				subject: targetAbsolutePath,
-				decision: "no",
-				note: askError ? "ask-error" : "outside-project-read-denied",
-				cwd: options.ctx.cwd,
-			};
+			if (timedOut) {
+				auditLayer1Bash({
+					subject: targetAbsolutePath,
+					decision: "no",
+					note: "outside-project-read-timeout",
+					cwd: options.ctx.cwd,
+				});
+				notifyPromptTimeout(options.ctx as AskCtx, options.toolCallId);
+				decisionNotice = `\n${formatBlockedLine("Read", formatTimeoutNote().toLowerCase(), "read")}\n`;
+			} else {
+				const auditEntry: Record<string, unknown> = {
+					subject: targetAbsolutePath,
+					decision: "no",
+					note: askError ? "ask-error" : "outside-project-read-denied",
+					cwd: options.ctx.cwd,
+				};
 
-			if (askError) {
-				auditEntry.error = String(askError);
+				if (askError) {
+					auditEntry.error = String(askError);
+				}
+
+				auditLayer1Bash(auditEntry);
+
+				decisionNotice = `\n${formatBlockedLine("Read", "outside the project", "read")}\n`;
 			}
-
-			auditLayer1Bash(auditEntry);
-
-			decisionNotice = `\n${formatBlockedLine("Read", "outside the project", "read")}\n`;
 		}
 
 		onData(Buffer.from(decisionNotice));
@@ -405,6 +428,7 @@ export async function handleBlockedBashExecution(
 		const parentDirectory = dirname(targetAbsolutePath);
 		const isAlreadyGranted = writeOnce.includes(parentDirectory) || sessionWriteGrants.includes(parentDirectory);
 		let askError: unknown;
+		let timedOut = false;
 
 		try {
 			const askContext = options.ctx as AskCtx;
@@ -441,6 +465,10 @@ export async function handleBlockedBashExecution(
 						{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
 					),
 			);
+
+			if (choice === MainChoice.TimedOut) {
+				timedOut = true;
+			}
 
 			if (choice === MainChoice.Once) {
 				grantedWriteFolders.add(parentDirectory);
@@ -547,20 +575,31 @@ export async function handleBlockedBashExecution(
 		}
 
 		if (!decisionNotice) {
-			const auditEntry: Record<string, unknown> = {
-				subject: targetAbsolutePath,
-				decision: "no",
-				note: askError ? "ask-error" : "user-denied",
-				cwd: options.ctx.cwd,
-			};
+			if (timedOut) {
+				auditLayer1Bash({
+					subject: targetAbsolutePath,
+					decision: "no",
+					note: "timeout",
+					cwd: options.ctx.cwd,
+				});
+				notifyPromptTimeout(options.ctx as AskCtx, options.toolCallId);
+				decisionNotice = `\n${formatBlockedLine("Write", formatTimeoutNote().toLowerCase(), "written")}\n`;
+			} else {
+				const auditEntry: Record<string, unknown> = {
+					subject: targetAbsolutePath,
+					decision: "no",
+					note: askError ? "ask-error" : "user-denied",
+					cwd: options.ctx.cwd,
+				};
 
-			if (askError) {
-				auditEntry.error = String(askError);
+				if (askError) {
+					auditEntry.error = String(askError);
+				}
+
+				auditLayer1Bash(auditEntry);
+
+				decisionNotice = `\n${formatBlockedLine("Write", askError ? "the permission prompt failed" : "user denied", "written")}\n`;
 			}
-
-			auditLayer1Bash(auditEntry);
-
-			decisionNotice = `\n${formatBlockedLine("Write", askError ? "the permission prompt failed" : "user denied", "written")}\n`;
 		}
 
 		onData(Buffer.from(decisionNotice));

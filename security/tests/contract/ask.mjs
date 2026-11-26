@@ -1,7 +1,7 @@
 // Layer 2 ask-tier decision contract (ADR-009 / ADR-010 / ADR-030).
 // Drives `askDecision` with a scripted `ctx.ui.select` — no pi, no fs, no audit.
 import { ASK_TIMEOUT_MS } from '#ui/ask-flow.ts';
-import { askDecision, denyMessage, displayWhy } from '#ui/ask.ts';
+import { askDecision, denyMessage, displayWhy, timeoutDenyMessage } from '#ui/ask.ts';
 
 let pass = 0, fail = 0;
 const check = (name, cond) => { if (cond) pass++; else { fail++; console.log('FAIL:', name, '→', JSON.stringify(cond)); } };
@@ -69,11 +69,13 @@ check('domain screen1 Yes, all in group for this conversation → session', (awa
 	let clock = realNow();
 	Date.now = () => clock;
 	const expire = () => {
-		clock = realNow() + ASK_TIMEOUT_MS + 1;
+		clock += ASK_TIMEOUT_MS + 1;
 		return undefined;
 	};
-	check('domain screen1 countdown expiry → no', (await askDecision(mkCtx([expire]).ctx, domainKind, null)) === 'no');
-	check('file screen1 countdown expiry → no', (await askDecision(mkCtx([expire]).ctx, fileKind, null)) === 'no');
+	check('domain screen1 countdown expiry → timed-out', (await askDecision(mkCtx([expire]).ctx, domainKind, null)) === 'timed-out');
+	check('file screen1 countdown expiry → timed-out', (await askDecision(mkCtx([expire]).ctx, fileKind, null)) === 'timed-out');
+	check('absolute-deny countdown expiry → timed-out', (await askDecision(mkCtx([expire]).ctx, fileKind, '~/.ssh')) === 'timed-out');
+	check('screen2 countdown expiry → timed-out', (await askDecision(mkCtx([(o) => o[3], expire]).ctx, fileKind, null)) === 'timed-out');
 	Date.now = realNow;
 }
 
@@ -91,6 +93,10 @@ check('denyMessage: write', denyMessage('allowWrite', 'not under any allowWrite 
 check(
 	'denyMessage: network',
 	denyMessage('allowDomains', 'domain not in allowlist: x.com') === 'Network blocked by policy: this site isn\'t on your allowed list yet. Nothing was fetched \u2014 ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.',
+);
+check(
+	'timeoutDenyMessage: read',
+	timeoutDenyMessage('allowRead', 15_000) === 'Read blocked by policy: timed out after 15s \u2014 blocked by default. Nothing was read \u2014 ask the user before retrying. Do not attempt workarounds or inspect plugin files.',
 );
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

@@ -23,7 +23,8 @@ import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { canonicalize, matchPattern } from "./matching.ts";
 import { projectTrusted, TRUST_STORE } from "./policy.ts";
 import { domainMatches } from "./url.ts";
-import { askDecision, denyMessage, Decision, type AskCtx, type AskKind } from "#ui/ask.ts";
+import { notifyPromptTimeout } from "#ui/ask-flow.ts";
+import { askDecision, denyMessage, timeoutDenyMessage, Decision, type AskCtx, type AskKind } from "#ui/ask.ts";
 
 export type { AskKind, Decision, OverrideKind } from "#ui/ask.ts";
 
@@ -142,6 +143,19 @@ export async function askOrBlock(
 		}
 	}
 	const decision = await askDecision(ctx, { ...ask, projectTrusted: projectTrusted(ctx.cwd) }, absoluteDenyPattern);
+	if (decision === Decision.TimedOut) {
+		audit({
+			layer: 2,
+			tool: ask.tool,
+			subject: ask.subject,
+			reason: ask.reason,
+			decision: "no",
+			note: "timeout",
+			cwd: ctx.cwd,
+		});
+		notifyPromptTimeout(ctx, ask.toolCallId);
+		return { block: true, reason: timeoutDenyMessage(ask.overrideKind) };
+	}
 	if (decision === Decision.No) {
 		audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "no", cwd: ctx.cwd });
 		return { block: true, reason: denyMessage(ask.overrideKind, ask.reason) };

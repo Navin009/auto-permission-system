@@ -3,6 +3,7 @@
 // single-flights overlapping connections, and scopes "once" to one command.
 // Pure: drives createNetworkAsk with a scripted ctx.ui.select and stub deps.
 import { beginNetworkCommand, clearNetworkSessionGrants, createNetworkAsk, endNetworkCommand, runInNetworkCommand } from '#l1-sandbox/network-ask.ts';
+import { clearGateNotes, nativeBottomNoteFor } from '#shared/gate-notes.ts';
 import { ASK_TIMEOUT_MS } from '#ui/ask-flow.ts';
 
 let pass = 0, fail = 0;
@@ -268,6 +269,22 @@ function reset() { endNetworkCommand(); clearNetworkSessionGrants(); }
 	check('a failed command still propagates', threw);
 	await ask({ host: 'example.com', port: 443 });
 	check('a failed command closes the window', c.seen.length === 2);
+}
+
+{
+	reset();
+	clearGateNotes();
+	const realNow = Date.now;
+	let clock = realNow();
+	Date.now = () => clock;
+	const c = mkCtx([() => { clock += ASK_TIMEOUT_MS + 1; return undefined; }]);
+	const { deps, audits } = mkDeps(c.ctx);
+	deps.getToolCallId = () => 'call-net-timeout';
+	check('countdown expiry with toolCallId denies and attaches native note without notify', (await createNetworkAsk(deps)({ host: 'example.com', port: 443 })) === false && c.notified.length === 0);
+	check('countdown expiry native note matches gate note format', nativeBottomNoteFor('call-net-timeout') === 'Timed out after 15s — blocked by default');
+	check('countdown expiry audited with timeout note', audits.some((e) => e.decision === 'no' && e.note === 'network-ask-timeout'));
+	clearGateNotes();
+	Date.now = realNow;
 }
 
 console.log(`PASS=${pass}, FAIL=${fail}`);

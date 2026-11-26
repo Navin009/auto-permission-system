@@ -31,6 +31,17 @@ check(
 	) === '.env files usually hold passwords and API keys',
 );
 check(
+	'timeout block maps to Blocked with timed-out short reason',
+	statusFromResult(
+		true,
+		'Read blocked by policy: timed out after 15s — blocked by default. Nothing was read — ask the user before retrying.',
+	) === ToolStatus.Blocked &&
+		shortBlockReason(
+			ToolStatus.Blocked,
+			'Read blocked by policy: timed out after 15s — blocked by default. Nothing was read — ask the user before retrying.',
+		) === 'timed out after 15s — blocked by default',
+);
+check(
 	'shortBlockReason ignores ok/failed rows',
 	shortBlockReason(ToolStatus.Failed, 'boom') === undefined && shortBlockReason(ToolStatus.Ok, 'ok') === undefined,
 );
