@@ -28,12 +28,6 @@ export interface RowSummary {
 	note?: string;
 }
 
-export interface SubGroup {
-	kind: RowKind;
-	rows: readonly RowSummary[];
-	startMemberIndex: number;
-}
-
 export interface RowGroupSummary {
 	kind: RowKind;
 	rows: readonly RowSummary[];
@@ -168,24 +162,6 @@ export function toSingleLine(text: string): string {
 
 export function rowEffectiveKind(summary: RowGroupSummary, row: RowSummary): RowKind {
 	return row.kind ?? summary.kind;
-}
-
-export function splitSubGroups(summary: RowGroupSummary): SubGroup[] {
-	const groups: SubGroup[] = [];
-
-	summary.rows.forEach((row, index) => {
-		const kind = rowEffectiveKind(summary, row);
-		const last = groups.at(-1);
-
-		if (last && last.kind === kind) {
-			(last.rows as RowSummary[]).push(row);
-			return;
-		}
-
-		groups.push({ kind, rows: [row], startMemberIndex: index });
-	});
-
-	return groups;
 }
 
 export function isMixedBatch(summary: RowGroupSummary): boolean {

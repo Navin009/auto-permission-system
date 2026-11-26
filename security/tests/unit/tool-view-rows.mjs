@@ -326,12 +326,13 @@ const mixedRows = [
 ];
 const openMixed = group(mixedRows, {}, 120);
 check(
-	'an open mixed batch summarizes total actions and sub-groups',
+	'an open mixed batch keeps commands expanded and compacts consecutive reads',
 	[header(openMixed), ...body(openMixed)].join('\n') ===
 		[
 			'✓ ▾ 4 actions (2 commands, 2 files) · 5s',
-			'  ├ ✓ Running 2 commands (npm version, rg src/)',
-			'  └ ✓ Reading 2 files (extensions/sandbox.ts:330-369)',
+			'  ├ ✓ $ npm version',
+			'  ├ ✓ $ rg src/',
+			'  └ ✓ read 2 files (a.ts, sandbox.ts:330-369)',
 		].join('\n'),
 );
 
@@ -349,38 +350,54 @@ check(
 	header(foldedMixed) === '✓ ▸ Ran 2 commands, read 2 files (1 blocked) [notice] ctrl+o to expand · 5s',
 );
 
-const activeMixed = group(
+const runningMixed = group(
 	[
-		row({ kind: RowKind.Shell, target: 'npm version', hint: 'npm version', status: ToolStatus.Ok }),
-		row({ kind: RowKind.Shell, target: 'rg src/', hint: 'rg src/', status: ToolStatus.Ok }),
-		row({ kind: RowKind.Read, target: 'extensions/sandbox.ts:330-369', status: ToolStatus.Ok }),
-		row({ kind: RowKind.Read, target: 'src/core/tool-view/row-group.ts', status: ToolStatus.Running }),
+		row({ kind: RowKind.Read, target: 'src/ui/ask-flow.ts', status: ToolStatus.Ok }),
+		row({ kind: RowKind.Read, target: 'src/ui/ask.ts', status: ToolStatus.Ok }),
+		row({ kind: RowKind.Read, target: 'src/ui/ask-selector.ts', status: ToolStatus.Ok }),
+		row({ kind: RowKind.Read, target: 'src/ui/network-prompt.ts', status: ToolStatus.Ok }),
+		row({ kind: RowKind.Shell, target: LONG_CHAINED_RUNNING, status: ToolStatus.Running }),
 	],
 	{},
 	120,
 );
 check(
-	'a running mixed batch expands the active sub-group underneath its sub-group header',
-	[header(activeMixed), ...body(activeMixed)].join('\n') ===
+	'a mixed batch with a running chained command compacts prior reads and keeps the 3-line running view',
+	[header(runningMixed), ...body(runningMixed)].join('\n') ===
 		[
-			'⠋ ▾ 4 actions (2 commands, 2 files) · 5s',
-			'  ├ ✓ Running 2 commands (npm version, rg src/)',
-			'  └ ⠋ Reading 2 files',
-			'      ├ ✓ extensions/sandbox.ts:330-369',
-			'      └ ⠋ src/core/tool-view/row-group.ts',
+			'⠋ ▾ 5 actions (4 files, 1 command) · 5s',
+			'  ├ ✓ read 4 files (ask-flow.ts, ask.ts, ask-selector.ts, +1 more)',
+			'  └ ⠋ $ npm run format:check',
+			'      ├ && npm run check && ! grep -rnE \'from "\\.\\.?/[^"]*"\' src extensions | grep -vE \'\\.ts";?$\'',
+			'      └ && echo "ALL CHECKS PASSED"',
 		].join('\n'),
 );
 
-const tenSubGroups = Array.from({ length: 10 }, (_, index) =>
+const singleMixedRead = body(
+	group(
+		[
+			row({ kind: RowKind.Shell, target: 'ls -la', status: ToolStatus.Ok }),
+			row({ kind: RowKind.Read, target: 'src/detect/mcp-gate/evaluate.ts', status: ToolStatus.Ok }),
+		],
+		{},
+		120,
+	),
+);
+check(
+	'a single-file read inside a mixed batch keeps its full relative path',
+	singleMixedRead[1] === '  └ ✓ read src/detect/mcp-gate/evaluate.ts',
+);
+
+const tenAlternating = Array.from({ length: 10 }, (_, index) =>
 	row({
 		kind: index % 2 === 0 ? RowKind.Shell : RowKind.Read,
 		target: index % 2 === 0 ? `cmd-${index}` : `file-${index}.ts`,
 		status: ToolStatus.Ok,
 	}),
 );
-const cappedMixed = body(group(tenSubGroups, {}, 120));
-check('a long mixed batch keeps the newest eight sub-groups', cappedMixed.length === 9);
-check('a long mixed batch reports hidden sub-groups', cappedMixed[0] === '  ├ ... (2 earlier groups)');
+const cappedMixed = body(group(tenAlternating, {}, 120));
+check('a long mixed batch keeps the newest eight entries', cappedMixed.length === 9);
+check('a long mixed batch reports hidden earlier actions', cappedMixed[0] === '  ├ ... (2 earlier actions)');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

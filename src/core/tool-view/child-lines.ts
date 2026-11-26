@@ -1,5 +1,5 @@
-import { appendSummaryTailSpans, subGroupTargetText } from "./header-lines.ts";
-import { RowKind, rowLabelOf } from "./row-kind.ts";
+import { appendSummaryTailSpans, fittedNamesList } from "./header-lines.ts";
+import { RowKind } from "./row-kind.ts";
 import {
 	activeIssueSummary,
 	BLANK,
@@ -15,7 +15,6 @@ import {
 	rowEffectiveKind,
 	SINGLE_ROW_COUNT,
 	SPACE,
-	splitSubGroups,
 	summarizeIssues,
 	toSingleLine,
 	wordText,
@@ -25,7 +24,6 @@ import {
 	type RowSpan,
 	type RowSummary,
 	type StyledText,
-	type SubGroup,
 	type SubLineSummary,
 } from "./row-group-types.ts";
 import { splitShellOperatorSegments } from "./shell-segments.ts";
@@ -54,20 +52,18 @@ interface ChildCommandLineInput {
 	asProgramLine: boolean;
 }
 
-interface SubGroupLineInput {
-	summary: RowGroupSummary;
-	subGroup: SubGroup;
-	status: ToolStatus;
-	isLastSubGroup: boolean;
-	isActive: boolean;
-	width: number;
-}
+type MixedEntry =
+	| { kind: "command"; row: RowSummary; memberIndex: number }
+	| { kind: "read-run"; rows: readonly RowSummary[]; startMemberIndex: number };
 
 const NEWEST_ROW_LIMIT = 8;
 const SUB_LINE_LIMIT = 8;
 const EARLIER_CALL_NOUN = "call";
-const EARLIER_GROUP_NOUN = "group";
+const EARLIER_ACTION_NOUN = "action";
 const EARLIER_INNER_CALL_NOUN = "inner call";
+const READ_PREFIX = "read ";
+const READ_FILE_NOUN = "file";
+const READ_BATCH_NAME_LIMITS: readonly number[] = [3, 2, 1];
 const MIDDLE_LINE_INDENT = "  ├ ";
 const LAST_LINE_INDENT = "  └ ";
 const MIDDLE_ROW_SPACER = "  │ ";
@@ -119,44 +115,154 @@ export function buildChildLines(summary: RowGroupSummary, width: number, showsCh
 }
 
 function buildMixedChildLines(summary: RowGroupSummary, width: number): RowLine[] {
-	const allSubGroups = splitSubGroups(summary);
-	const visibleSubGroups = newestItems(allSubGroups);
-	const hiddenSubGroups = allSubGroups.slice(0, allSubGroups.length - visibleSubGroups.length);
+	const entries = buildMixedEntries(summary);
+	const visibleEntries = newestItems(entries);
+	const hiddenEntries = entries.slice(0, entries.length - visibleEntries.length);
+	const hiddenRows = hiddenEntries.flatMap((entry) => (entry.kind === "command" ? [entry.row] : entry.rows));
 	const lines: RowLine[] =
-		hiddenSubGroups.length > 0
-			? [
-					overflowLine(
-						hiddenSubGroups.flatMap((group) => group.rows),
-						EARLIER_GROUP_NOUN,
-						hiddenSubGroups.length,
-					),
-				]
-			: [];
+		hiddenRows.length > 0 ? [overflowLine(hiddenRows, EARLIER_ACTION_NOUN, hiddenRows.length)] : [];
 	const childColumn = childColumnWidth(width);
 
-	visibleSubGroups.forEach((subGroup, subIndex) => {
-		const isLastSubGroup = subIndex === visibleSubGroups.length - 1;
-		const subStatus = subGroupStatus(subGroup);
-		const isActive = subStatus === ToolStatus.Running;
+	visibleEntries.forEach((entry, index) => {
+		const isLastLine = index === visibleEntries.length - 1;
 
-		lines.push(subGroupSummaryLine({ summary, subGroup, status: subStatus, isLastSubGroup, isActive, width }));
+		if (entry.kind === "command") {
+			const placement: ChildLinePlacement = {
+				isSingle: false,
+				isLastLine,
+				childColumn,
+				memberIndex: entry.memberIndex,
+				segmentIndex: entry.row.segmentIndex,
+				branchPrefix: BLANK,
+			};
 
-		if (!isActive) {
+			for (const line of memberChildLines({ summary, row: entry.row, placement, width, expandSubLines: true })) {
+				lines.push(line);
+			}
+
 			return;
 		}
 
-		appendGroupRows({
-			lines,
-			summary,
-			rows: subGroup.rows,
-			startMemberIndex: subGroup.startMemberIndex,
-			branchPrefix: isLastSubGroup ? LAST_ROW_SPACER : MIDDLE_ROW_SPACER,
-			childColumn,
-			width,
-		});
+		for (const line of readRunLines(summary, entry, { isLastLine, childColumn, width })) {
+			lines.push(line);
+		}
 	});
 
 	return lines;
+}
+
+function buildMixedEntries(summary: RowGroupSummary): MixedEntry[] {
+	const entries: MixedEntry[] = [];
+
+	summary.rows.forEach((row, index) => {
+		if (rowEffectiveKind(summary, row) === RowKind.Shell) {
+			entries.push({ kind: "command", row, memberIndex: index });
+			return;
+		}
+
+		const previous = entries.at(-1);
+
+		if (previous && previous.kind === "read-run") {
+			(previous.rows as RowSummary[]).push(row);
+			return;
+		}
+
+		entries.push({ kind: "read-run", rows: [row], startMemberIndex: index });
+	});
+
+	return entries;
+}
+
+function readRunLines(
+	summary: RowGroupSummary,
+	entry: Extract<MixedEntry, { kind: "read-run" }>,
+	layout: { isLastLine: boolean; childColumn: number; width: number },
+): RowLine[] {
+	if (entry.rows.length === SINGLE_ROW_COUNT) {
+		const row = entry.rows[0];
+		const placement: ChildLinePlacement = {
+			isSingle: false,
+			isLastLine: layout.isLastLine,
+			childColumn: layout.childColumn,
+			memberIndex: entry.startMemberIndex,
+			segmentIndex: row.segmentIndex,
+			branchPrefix: BLANK,
+		};
+
+		return [singleMixedReadLine(summary, row, placement), ...noteLines(row, placement, layout.width)];
+	}
+
+	return [multiMixedReadLine(summary, entry, layout)];
+}
+
+function singleMixedReadLine(summary: RowGroupSummary, row: RowSummary, placement: ChildLinePlacement): RowLine {
+	const indent = rowLineIndent(placement);
+	const mark = { glyph: statusMark(row.status, summary.spinnerFrame), status: row.status };
+	const wordPart = wordText(row.status, true);
+	const budget = placement.childColumn - indent.length - markColumnWidth(mark) - READ_PREFIX.length - wordPart.length;
+	const styledPath = readLineStyled(summary, row, Math.max(1, budget), wordPart);
+	const spans: RowSpan[] = [{ text: READ_PREFIX, tone: "dim" }, ...styledPath.spans];
+
+	return {
+		indent,
+		mark,
+		text: `${READ_PREFIX}${styledPath.text}`,
+		spans,
+		duration: undefined,
+		hint: undefined,
+		isDim: true,
+		memberIndex: placement.memberIndex,
+		segmentIndex: placement.segmentIndex,
+	};
+}
+
+function multiMixedReadLine(
+	summary: RowGroupSummary,
+	entry: Extract<MixedEntry, { kind: "read-run" }>,
+	layout: { isLastLine: boolean; childColumn: number; width: number },
+): RowLine {
+	const indent = layout.isLastLine ? LAST_LINE_INDENT : MIDDLE_LINE_INDENT;
+	const status = readRunStatus(entry.rows);
+	const mark = { glyph: statusMark(status, summary.spinnerFrame), status };
+	const titlePart = `${READ_PREFIX}${entry.rows.length} ${pluralize(READ_FILE_NOUN, entry.rows.length)}`;
+	const issues = activeIssueSummary(entry.rows, status);
+	const issuePart = issues ? `${SPACE}(${issues.label})` : BLANK;
+	const wordPart = wordText(status, true);
+	const noticePart = hasAnyNote(entry.rows) ? `${SPACE}${FOLDED_NOTE_BADGE}` : BLANK;
+	const fixedWidth =
+		indent.length + markColumnWidth(mark) + titlePart.length + issuePart.length + wordPart.length + noticePart.length;
+	const names = entry.rows.map((row) => shortReadFileName(summary, row.target));
+	const targetPart = fittedNamesList(names, layout.width - fixedWidth, READ_BATCH_NAME_LIMITS);
+	const spans: RowSpan[] = [{ text: titlePart, tone: "title" }];
+
+	appendSummaryTailSpans(spans, { issues, issuePart, targetPart, wordPart, status, noticePart });
+
+	return {
+		indent,
+		mark,
+		text: `${titlePart}${issuePart}${targetPart}${wordPart}${noticePart}`,
+		spans,
+		duration: undefined,
+		hint: undefined,
+		isDim: false,
+		memberIndex: entry.startMemberIndex,
+		segmentIndex: entry.rows[0]?.segmentIndex ?? DRAWING_MEMBER_INDEX,
+	};
+}
+
+function readRunStatus(rows: readonly RowSummary[]): ToolStatus {
+	if (rows.some((row) => row.status === ToolStatus.Running)) {
+		return ToolStatus.Running;
+	}
+
+	return rows.at(-1)?.status ?? ToolStatus.Ok;
+}
+
+function shortReadFileName(summary: RowGroupSummary, target: string): string {
+	const shortened = shortenDisplayPath(toSingleLine(target), summary.cwd, summary.homeDirectory);
+	const lastSlash = shortened.lastIndexOf(PATH_SEPARATOR);
+
+	return lastSlash >= 0 ? shortened.slice(lastSlash + 1) : shortened;
 }
 
 function appendGroupRows(input: {
@@ -222,65 +328,6 @@ function newestItems<T>(items: readonly T[]): readonly T[] {
 	}
 
 	return items.slice(items.length - NEWEST_ROW_LIMIT);
-}
-
-function subGroupStatus(subGroup: SubGroup): ToolStatus {
-	if (subGroup.rows.some((row) => row.status === ToolStatus.Running)) {
-		return ToolStatus.Running;
-	}
-
-	return subGroup.rows.at(-1)?.status ?? ToolStatus.Ok;
-}
-
-function subGroupSummaryLine(input: SubGroupLineInput): RowLine {
-	const { summary, subGroup, status, isLastSubGroup, isActive, width } = input;
-	const indent = isLastSubGroup ? LAST_LINE_INDENT : MIDDLE_LINE_INDENT;
-	const mark = { glyph: statusMark(status, summary.spinnerFrame), status };
-	const titlePart = subGroupTitle(subGroup);
-	const issues = activeIssueSummary(subGroup.rows, status);
-	const issuePart = issues ? `${SPACE}(${issues.label})` : BLANK;
-	const wordPart = wordText(status, !isActive || subGroup.rows.length === SINGLE_ROW_COUNT);
-	const noticePart = !isActive && hasAnyNote(subGroup.rows) ? `${SPACE}${FOLDED_NOTE_BADGE}` : BLANK;
-	const fixedWidth =
-		indent.length + markColumnWidth(mark) + titlePart.length + issuePart.length + wordPart.length + noticePart.length;
-	const subSummary: RowGroupSummary = {
-		kind: subGroup.kind,
-		rows: subGroup.rows,
-		durationMilliseconds: undefined,
-		folded: true,
-		hint: undefined,
-		thinking: undefined,
-		spinnerFrame: summary.spinnerFrame,
-		cwd: summary.cwd,
-		homeDirectory: summary.homeDirectory,
-	};
-	const targetPart = isActive ? BLANK : subGroupTargetText(subSummary, width - fixedWidth);
-	const spans: RowSpan[] = [{ text: titlePart, tone: "title" }];
-
-	appendSummaryTailSpans(spans, { issues, issuePart, targetPart, wordPart, status, noticePart });
-
-	return {
-		indent,
-		mark,
-		text: `${titlePart}${issuePart}${targetPart}${wordPart}${noticePart}`,
-		spans,
-		duration: undefined,
-		hint: undefined,
-		isDim: false,
-		memberIndex: subGroup.startMemberIndex,
-		segmentIndex: subGroup.rows[0]?.segmentIndex ?? DRAWING_MEMBER_INDEX,
-	};
-}
-
-function subGroupTitle(subGroup: SubGroup): string {
-	const label = rowLabelOf(subGroup.kind);
-	const count = subGroup.rows.length;
-
-	if (label.fixedTitle) {
-		return label.fixedTitle;
-	}
-
-	return `${label.verb} ${count} ${pluralize(label.noun, count)}`;
 }
 
 function memberChildLines(input: {

@@ -131,9 +131,10 @@ readRenderers.renderCall(readArgs, theme, readContext(readAtRow));
 readRenderers.renderResult(result, options, theme, readContext(readAtRow));
 
 const batchLines = bashBlock.render(WIDTH).filter((line) => line.trim());
+const batchNoteText = batchLines.map((line) => line.replace(/^\s*│\s*/, '').trim()).join(' ');
 
-check('a read joins the command batch and summarizes both', batchLines.length === 3 && batchLines[0].includes('2 actions (1 command, 1 file)'));
-check('the settled command sub-group drops its warning and keeps the notice badge', !batchLines.join(' ').includes(BASH_HIDDEN_NOTE) && batchLines[1].includes('[notice]'));
+check('a read joins the command batch and summarizes both', batchLines[0].includes('2 actions (1 command, 1 file)'));
+check('the open command row in a mixed batch keeps its command and warning visible', batchLines[1].includes('$ git status') && batchNoteText.includes(BASH_HIDDEN_NOTE));
 
 closeRowGroup();
 const foldedLines = bashBlock.render(WIDTH).filter((line) => line.trim());
@@ -160,12 +161,19 @@ check(
 check('full mode keeps Pi own result above the bottom line', fullResultLines[0] === 'pi result');
 
 const nonRowRenderers = nativeGateNoteRenderers(fallback);
+check('non-row native tool without self shell preserves default shell', nonRowRenderers.renderShell === 'default');
 const quietEditResult = nonRowRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'edit-quiet' }));
 check('non-row native tool without note returns Pi result directly', quietEditResult.render(WIDTH).join(' ').trim() === 'pi result');
 rememberNativeNote('edit-noted', 'Allowed write once');
 const notedEditResult = nonRowRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'edit-noted' }));
 const notedEditLines = notedEditResult.render(WIDTH).map((line) => line.trim()).filter(Boolean);
 check('non-row native tool with note puts text line at the bottom', notedEditLines.at(-1) === 'Allowed write once');
+
+const selfShellRenderers = nativeGateNoteRenderers({ ...fallback, renderShell: 'self' });
+check('self-shell native tool like edit preserves renderShell self', selfShellRenderers.renderShell === 'self');
+rememberNativeNote('self-noted', 'Allowed edit once');
+const selfNotedResult = selfShellRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'self-noted', outputPad: 1 }));
+check('self-shell native tool pads its bottom note to align with outputPad', selfNotedResult.render(WIDTH).at(-1).startsWith(' Allowed edit once'));
 
 setActiveViewMode('compact');
 resetRowGroups();

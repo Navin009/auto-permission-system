@@ -54,6 +54,7 @@ const PENDING_BACKGROUND: BackgroundColor = "toolPendingBg";
 const ERROR_BACKGROUND: BackgroundColor = "toolErrorBg";
 const SUCCESS_BACKGROUND: BackgroundColor = "toolSuccessBg";
 const CODEMODE_TOOL_NAME = "codemode";
+const SELF_RENDER_SHELL = "self";
 
 const MAX_FALLBACK_PREVIEW_LINES = 10;
 
@@ -61,7 +62,7 @@ export function toolViewRenderers(toolName: string, fallback: RendererFallback):
 	const isRowTool = rowKindOf(toolName) !== undefined;
 
 	return {
-		renderShell: isRowTool && getActiveViewMode() === ViewMode.Compact ? "self" : undefined,
+		renderShell: isRowTool && getActiveViewMode() === ViewMode.Compact ? SELF_RENDER_SHELL : undefined,
 		renderCall: (...parameters) => renderRowCall(toolName, fallback, parameters),
 		renderResult: (...parameters) => renderRowResult(toolName, fallback, parameters),
 	};
@@ -69,7 +70,7 @@ export function toolViewRenderers(toolName: string, fallback: RendererFallback):
 
 export function nativeGateNoteRenderers(fallback: RendererFallback): ToolRenderers {
 	return {
-		renderShell: undefined,
+		renderShell: fallback?.renderShell,
 		renderCall: fallback?.renderCall ? (...parameters) => fallbackCall(fallback, parameters) : undefined,
 		renderResult: (...parameters) => renderNativeWithNote(fallback, parameters),
 	};
@@ -279,9 +280,10 @@ function renderNativeWithNote(fallback: RendererFallback, parameters: ResultPara
 	}
 
 	const container = new Container();
+	const paddingX = fallback?.renderShell === SELF_RENDER_SHELL ? context.outputPad : NO_PADDING;
 
 	container.addChild(resultComponent);
-	container.addChild(new Text(theme.fg("warning", note), NO_PADDING, NO_PADDING));
+	container.addChild(new Text(theme.fg("warning", note), paddingX, NO_PADDING));
 
 	return container;
 }

@@ -209,10 +209,6 @@ function capitalizeFirst(text: string): string {
 	return text ? `${text[0].toUpperCase()}${text.slice(1)}` : text;
 }
 
-export function subGroupTargetText(summary: RowGroupSummary, availableWidth: number): string {
-	return targetText(summary, true, availableWidth);
-}
-
 function targetText(summary: RowGroupSummary, folded: boolean, availableWidth: number): string {
 	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
 
@@ -271,8 +267,10 @@ function showsCommandNames(summary: RowGroupSummary): boolean {
 
 function namesText(summary: RowGroupSummary, budget: number): string {
 	for (const withHints of [true, false]) {
+		const names = summary.rows.map((row) => (withHints ? (row.hint ?? row.target) : row.target));
+
 		for (const limit of NAME_LIMITS) {
-			const candidate = namesCandidate(summary, withHints, limit);
+			const candidate = namesListCandidate(names, limit);
 
 			if (candidate && candidate.length <= budget) {
 				return `${SPACE}(${candidate})`;
@@ -280,28 +278,52 @@ function namesText(summary: RowGroupSummary, budget: number): string {
 		}
 	}
 
-	const fullOverflow = `${OVERFLOW_PREFIX}${summary.rows.length}${MORE_SUFFIX}`;
+	return overflowOnlyText(summary.rows.length, budget);
+}
+
+export function fittedNamesList(
+	names: readonly string[],
+	availableWidth: number,
+	limits: readonly number[] = NAME_LIMITS,
+): string {
+	const budget = availableWidth - TARGET_PARENTHESES_WIDTH;
+
+	if (budget < MINIMUM_TARGET_WIDTH || names.length === 0) {
+		return BLANK;
+	}
+
+	for (const limit of limits) {
+		const candidate = namesListCandidate(names, limit);
+
+		if (candidate && candidate.length <= budget) {
+			return `${SPACE}(${candidate})`;
+		}
+	}
+
+	return overflowOnlyText(names.length, budget);
+}
+
+function overflowOnlyText(totalCount: number, budget: number): string {
+	const fullOverflow = `${OVERFLOW_PREFIX}${totalCount}${MORE_SUFFIX}`;
 
 	if (fullOverflow.length <= budget) {
 		return `${SPACE}(${fullOverflow})`;
 	}
 
-	const compactOverflow = `${OVERFLOW_PREFIX}${summary.rows.length}`;
+	const compactOverflow = `${OVERFLOW_PREFIX}${totalCount}`;
 
 	return compactOverflow.length <= budget ? `${SPACE}(${compactOverflow})` : BLANK;
 }
 
-function namesCandidate(summary: RowGroupSummary, withHints: boolean, limit: number): string | undefined {
-	const shown = Math.min(limit, summary.rows.length);
+function namesListCandidate(names: readonly string[], limit: number): string | undefined {
+	const shown = Math.min(limit, names.length);
 
 	if (shown === 0) {
 		return undefined;
 	}
 
-	const names = summary.rows.slice(0, shown).map((row) => (withHints ? (row.hint ?? row.target) : row.target));
-
-	const namesPart = names.join(NAME_SEPARATOR);
-	const overflowCount = summary.rows.length - shown;
+	const namesPart = names.slice(0, shown).join(NAME_SEPARATOR);
+	const overflowCount = names.length - shown;
 
 	if (overflowCount === 0) {
 		return namesPart;
