@@ -24,9 +24,9 @@ import {
 	NETWORK_ALLOWLIST_WHY,
 	NETWORK_REMEMBER_TITLE,
 	NETWORK_SESSION_LABEL,
-	networkPromptBody,
+	networkPromptFields,
 	networkPromptHeader,
-	networkRememberBody,
+	networkRememberFields,
 } from "#ui/network-prompt.ts";
 import {
 	askMainWithRemember,
@@ -37,6 +37,7 @@ import {
 	type AskCtx,
 	type HostGrant,
 } from "#ui/ask-flow.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 
 /** In-memory conversation grants ("Yes, for this conversation"). Cleared at session_start. */
 const sessionGrants: string[] = [];
@@ -92,6 +93,8 @@ export interface NetworkAskDeps {
 	projectTrusted?: boolean;
 	/** The bash command that triggered the proxy ask (shown in the body as `Command`). */
 	command?: string;
+	/** Active tool call ID for attaching inline native notes instead of extra chat rows. */
+	getToolCallId?: () => string | undefined;
 }
 
 function granted(host: string): "session" | "command" | null {
@@ -127,12 +130,13 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	const wildcard = parentDomainWildcard(host);
 	const verb = commandNameOf(deps.command) ?? "this command";
 	const header = networkPromptHeader(verb, host);
-	const body = networkPromptBody({
+	const body = networkPromptFields({
 		host,
 		wildcard,
 		command: deps.command,
 		why: NETWORK_ALLOWLIST_WHY,
 	});
+	const toolCallId = deps.getToolCallId?.();
 
 	let outcome: { choice: MainChoice; grant: HostGrant | null };
 	try {
@@ -147,7 +151,7 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 				timeoutMs: ASK_TIMEOUT_MS,
 			},
 			() => {
-				const rememberBody = networkRememberBody({
+				const rememberBody = networkRememberFields({
 					host,
 					wildcard,
 					commandName: verb,
@@ -173,12 +177,17 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 	if (mainChoice === MainChoice.Once) {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes" });
+		rememberNativeNote(toolCallId, `Allowed network once: ${host}`);
 		return true;
 	}
 	if (mainChoice === MainChoice.Session) {
 		sessionGrants.push(wildcard);
 		deps.audit({ ...base, decision: "session", grant: wildcard, requested: host });
-		ctx.ui.notify?.(`Allowed for this conversation: ${wildcard}`, "info");
+		if (toolCallId) {
+			rememberNativeNote(toolCallId, `Allowed for this conversation: ${wildcard}`);
+		} else {
+			ctx.ui.notify?.(`Allowed for this conversation: ${wildcard}`, "info");
+		}
 		return true;
 	}
 
@@ -204,7 +213,11 @@ async function decide(deps: NetworkAskDeps, host: string, port: number | undefin
 			scope === GrantScope.Cwd
 				? "this project (stored in project settings)"
 				: "all projects (stored in global settings)";
-		ctx.ui.notify?.(`Rule saved for ${scopeLabel}.`, "info");
+		if (toolCallId) {
+			rememberNativeNote(toolCallId, `Rule saved for ${scopeLabel}`);
+		} else {
+			ctx.ui.notify?.(`Rule saved for ${scopeLabel}.`, "info");
+		}
 	} catch (error) {
 		commandGrants?.add(host);
 		deps.audit({ ...base, decision: "yes", note: `always-persist-failed: ${error}`, scope });

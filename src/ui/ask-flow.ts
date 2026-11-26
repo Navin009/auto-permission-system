@@ -1,5 +1,16 @@
 import { GrantScope } from "#core/index.ts";
 import { POLICY_NOTICE } from "#shared/messages.ts";
+import {
+	formatPromptBodyLines,
+	normalizeAskOption,
+	type AskOptionItem,
+	type PromptBody,
+	type PromptField,
+	type PromptFinding,
+	type PromptOption,
+} from "./prompt-spec.ts";
+
+export type { AskOptionItem, PromptBody, PromptField, PromptFinding, PromptOption };
 
 export type AskComponent = {
 	render(width: number): string[];
@@ -102,22 +113,43 @@ export async function askQueued(
 	return enqueue(() => ctx.ui.select(title, options, timeoutMs === undefined ? undefined : { timeout: timeoutMs }));
 }
 
+export interface AskSelectOptions {
+	footer?: string | null;
+	question?: string | null;
+	note?: string | null;
+	fields?: readonly PromptField[];
+	findings?: readonly PromptFinding[];
+}
+
 export async function askSelect(
 	ctx: AskCtx,
 	title: string,
-	options: string[],
+	options: readonly PromptOption[],
 	timeoutMs: number = ASK_TIMEOUT_MS,
-	opts: { footer?: string | null; question?: string | null; note?: string | null } = {},
+	opts: AskSelectOptions = {},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const footer = opts.footer ?? null;
 	const question = opts.question ?? null;
 	const note = opts.note ?? null;
+	const normalizedOptions = options.map(normalizeAskOption);
 
 	return enqueue(async () => {
 		const outcome =
 			ctx.mode === "tui" && typeof ctx.ui.custom === "function"
-				? await askWithCustom(ctx, title, options, timeoutMs, footer, question, note)
-				: await askWithSelect(ctx, title, options, timeoutMs, footer, question, note);
+				? await askWithCustom(ctx, title, normalizedOptions, timeoutMs, {
+						footer,
+						question,
+						note,
+						fields: opts.fields,
+						findings: opts.findings,
+					})
+				: await askWithSelect(ctx, title, normalizedOptions, timeoutMs, {
+						footer,
+						question,
+						note,
+						fields: opts.fields,
+						findings: opts.findings,
+					});
 
 		if (outcome.expired) {
 			const seconds = Math.max(1, Math.round(timeoutMs / 1000));
@@ -132,11 +164,15 @@ export async function askSelect(
 async function askWithCustom(
 	ctx: AskCtx,
 	title: string,
-	options: string[],
+	options: readonly AskOptionItem[],
 	timeoutMs: number,
-	footer: string | null,
-	question: string | null,
-	note: string | null,
+	opts: {
+		footer: string | null;
+		question: string | null;
+		note: string | null;
+		fields?: readonly PromptField[];
+		findings?: readonly PromptFinding[];
+	},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
 	const { AskSelector } = await import("./ask-selector.ts");
 	let expired = false;
@@ -144,9 +180,11 @@ async function askWithCustom(
 		(tui, theme, keybindings, done) =>
 			new AskSelector({
 				title,
-				footer,
-				question,
-				note,
+				fields: opts.fields,
+				findings: opts.findings,
+				footer: opts.footer,
+				question: opts.question,
+				note: opts.note,
 				options,
 				timeoutMs,
 				tui,
@@ -161,33 +199,69 @@ async function askWithCustom(
 	return { picked, expired };
 }
 
+function buildFallbackTitle(
+	title: string,
+	fields: readonly PromptField[] | undefined,
+	findings: readonly PromptFinding[] | undefined,
+): string {
+	if (!fields?.length && !findings?.length) {
+		return title;
+	}
+
+	const bodyLines = formatPromptBodyLines({ fields: fields ?? [], findings });
+
+	return bodyLines.length > 0 ? `${title}\n${bodyLines.join("\n")}` : title;
+}
+
 async function askWithSelect(
 	ctx: AskCtx,
 	title: string,
-	options: string[],
+	options: readonly AskOptionItem[],
 	timeoutMs: number,
-	footer: string | null,
-	question: string | null,
-	note: string | null,
+	opts: {
+		footer: string | null;
+		question: string | null;
+		note: string | null;
+		fields?: readonly PromptField[];
+		findings?: readonly PromptFinding[];
+	},
 ): Promise<{ picked: string | undefined; expired: boolean }> {
-	let boundedTitle = question ? `${title}\n\n${question}` : title;
+	let boundedTitle = buildFallbackTitle(title, opts.fields, opts.findings);
 
-	if (note) boundedTitle = `${boundedTitle}\n\n${note}`;
+	if (opts.question) {
+		boundedTitle = `${boundedTitle}\n\n${opts.question}`;
+	}
+
+	if (opts.note) {
+		boundedTitle = `${boundedTitle}\n\n${opts.note}`;
+	}
 
 	const lines = boundedTitle.split("\n");
 	const MAX_FALLBACK_LINES = 16;
+
 	if (lines.length > MAX_FALLBACK_LINES) {
 		const header = lines[0];
 		const preview = lines.slice(1, MAX_FALLBACK_LINES).join("\n");
 		boundedTitle = `${header}\n${preview}\n\n[... ${lines.length - MAX_FALLBACK_LINES} more lines truncated]`;
 	}
 
-	const selectTitle = footer ? `${boundedTitle}\n\n${footer}` : boundedTitle;
+	const selectTitle = opts.footer ? `${boundedTitle}\n\n${opts.footer}` : boundedTitle;
+	const optionLabels = options.map((option) => option.fallbackLabel ?? option.value);
+
+	const mapPick = (pickedLabel: string | undefined): string | undefined => {
+		if (pickedLabel === undefined) return undefined;
+		const index = optionLabels.indexOf(pickedLabel);
+		return index >= 0 ? options[index].value : pickedLabel;
+	};
+
 	if (timeoutMs === 0) {
-		const picked = await ctx.ui.select(selectTitle, options);
-		return { picked, expired: false };
+		const picked = await ctx.ui.select(selectTitle, optionLabels);
+		return { picked: mapPick(picked), expired: false };
 	}
-	return askSelectWithActivity(ctx, selectTitle, options, timeoutMs);
+
+	const outcome = await askSelectWithActivity(ctx, selectTitle, optionLabels, timeoutMs);
+
+	return { picked: mapPick(outcome.picked), expired: outcome.expired };
 }
 
 async function askSelectWithActivity(
@@ -248,6 +322,24 @@ function withIcon(icon: string | undefined, header: string): string {
 	return icon ? `${icon}  ${header}` : header;
 }
 
+function splitPromptContent(header: string, body: string | PromptBody, icon?: IconKey) {
+	const prefixedHeader = withIcon(icon ? ICON[icon] : undefined, header);
+
+	if (typeof body === "string") {
+		return {
+			title: body ? `${prefixedHeader}\n${body}` : prefixedHeader,
+			fields: undefined,
+			findings: undefined,
+		};
+	}
+
+	return {
+		title: prefixedHeader,
+		fields: body.fields,
+		findings: body.findings,
+	};
+}
+
 export type MainOpts = {
 	once?: boolean;
 
@@ -264,30 +356,51 @@ export type MainOpts = {
 	timeoutMs?: number;
 };
 
-export async function askMain(ctx: AskCtx, header: string, body: string, opts: MainOpts = {}): Promise<MainChoice> {
+export async function askMain(
+	ctx: AskCtx,
+	header: string,
+	body: string | PromptBody,
+	opts: MainOpts = {},
+): Promise<MainChoice> {
 	const sessionLabel = opts.sessionLabel ?? "Yes, for this conversation";
-	const choices: Array<{ label: string; value: MainChoice }> = [];
-	choices.push({ label: "No", value: MainChoice.Block });
-	if (opts.once !== false) choices.push({ label: "Yes, just this once", value: MainChoice.Once });
-	if (opts.session) choices.push({ label: sessionLabel, value: MainChoice.Session });
-	if (opts.remember !== false) choices.push({ label: "Yes, always\u2026", value: MainChoice.Remember });
-	const footer = opts.footer ?? "Default: No";
-	const title = [withIcon(opts.icon ? ICON[opts.icon] : undefined, header), body].join("\n");
-	const { picked } = await askSelect(
-		ctx,
-		title,
-		choices.map((c) => c.label),
-		opts.timeoutMs,
-		{ footer },
-	);
+	const choices: Array<AskOptionItem & { choiceValue: MainChoice }> = [];
 
-	return choices.find((c) => c.label === picked)?.value ?? MainChoice.Block;
+	choices.push({ value: "No", label: "No", key: "n", choiceValue: MainChoice.Block });
+	if (opts.once !== false) {
+		choices.push({
+			value: "Yes, just this once",
+			label: "Yes, just this once",
+			key: "y",
+			choiceValue: MainChoice.Once,
+		});
+	}
+	if (opts.session) {
+		choices.push({ value: sessionLabel, label: sessionLabel, key: "s", choiceValue: MainChoice.Session });
+	}
+	if (opts.remember !== false) {
+		choices.push({
+			value: "Yes, always\u2026",
+			label: "Yes, always\u2026",
+			key: "a",
+			choiceValue: MainChoice.Remember,
+		});
+	}
+
+	const footer = opts.footer ?? "Default: No";
+	const content = splitPromptContent(header, body, opts.icon);
+	const { picked } = await askSelect(ctx, content.title, choices, opts.timeoutMs, {
+		footer,
+		fields: content.fields,
+		findings: content.findings,
+	});
+
+	return choices.find((c) => c.value === picked)?.choiceValue ?? MainChoice.Block;
 }
 
 export async function askMainWithRemember<T>(
 	ctx: AskCtx,
 	header: string,
-	body: string,
+	body: string | PromptBody,
 	opts: MainOpts,
 	onRemember: () => Promise<T | null>,
 ): Promise<{ choice: MainChoice; grant: T | null }> {
@@ -304,33 +417,60 @@ export type ScopeChoice = { scope: GrantScope; folder: boolean };
 export async function askRememberFile(
 	ctx: AskCtx,
 	title: string,
-	body: string,
+	body: string | PromptBody,
 	filePath: string,
 	folderPath: string | null,
 	opts: { icon?: IconKey; untrusted?: boolean; footer?: string | null } = {},
 ): Promise<ScopeChoice | null> {
 	const basename = filePath.slice(filePath.lastIndexOf("/") + 1);
-	const folderLabel = folderPath ? `All in folder   in this project   (recommended)` : null;
-	const choices: Array<{ label: string; value: ScopeChoice }> = [];
+	const choices: Array<AskOptionItem & { choiceValue: ScopeChoice }> = [];
 	const showCwd = !opts.untrusted;
-	if (showCwd && folderLabel) choices.push({ label: folderLabel, value: { scope: GrantScope.Cwd, folder: true } });
-	if (showCwd)
-		choices.push({ label: `Only ${basename}   in this project`, value: { scope: GrantScope.Cwd, folder: false } });
-	if (folderLabel)
-		choices.push({ label: `All in folder   in all projects`, value: { scope: GrantScope.Global, folder: true } });
-	choices.push({ label: `Only ${basename}   in all projects`, value: { scope: GrantScope.Global, folder: false } });
+
+	if (showCwd && folderPath) {
+		choices.push({
+			value: "All in folder   in this project   (recommended)",
+			label: "All in folder (recommended)",
+			description: "in this project",
+			choiceValue: { scope: GrantScope.Cwd, folder: true },
+		});
+	}
+
+	if (showCwd) {
+		choices.push({
+			value: `Only ${basename}   in this project`,
+			label: `Only ${basename}`,
+			description: "in this project",
+			choiceValue: { scope: GrantScope.Cwd, folder: false },
+		});
+	}
+
+	if (folderPath) {
+		choices.push({
+			value: "All in folder   in all projects",
+			label: "All in folder",
+			description: "in all projects",
+			choiceValue: { scope: GrantScope.Global, folder: true },
+		});
+	}
+
+	choices.push({
+		value: `Only ${basename}   in all projects`,
+		label: `Only ${basename}`,
+		description: "in all projects",
+		choiceValue: { scope: GrantScope.Global, folder: false },
+	});
+
 	const footer =
 		opts.footer ??
-		`Default: ${folderLabel ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
-	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(
-		ctx,
-		prompt,
-		choices.map((c) => c.label),
-		undefined,
-		{ footer },
-	);
-	return choices.find((c) => c.label === picked)?.value ?? null;
+		`Default: ${folderPath ? "All in folder \u00b7 in this project" : `Only ${basename} \u00b7 in this project`}`;
+	const content = splitPromptContent(title, body, opts.icon);
+	const { picked } = await askSelect(ctx, content.title, choices, undefined, {
+		footer,
+		fields: content.fields,
+		findings: content.findings,
+	});
+
+	return choices.find((c) => c.value === picked)?.choiceValue ?? null;
 }
 
 export type HostGrant = { scope: GrantScope; pattern: string };
@@ -344,37 +484,60 @@ export function parentDomainWildcard(host: string): string {
 export async function askRememberHost(
 	ctx: AskCtx,
 	title: string,
-	body: string,
+	body: string | PromptBody,
 	host: string,
 	opts: { icon?: IconKey; untrusted?: boolean; footer?: string | null } = {},
 ): Promise<HostGrant | null> {
 	const wildcard = parentDomainWildcard(host);
 	const hasWildcard = wildcard !== host.toLowerCase();
-	const choices: Array<{ label: string; value: HostGrant }> = [];
+	const choices: Array<AskOptionItem & { choiceValue: HostGrant }> = [];
 	const showCwd = !opts.untrusted;
-	const groupLabel = `All in group   ${hasWildcard ? `(${wildcard})   ` : ""}in this project   (recommended)`;
-	const exactLabel = `Only ${host}   in this project`;
-	if (showCwd && hasWildcard) choices.push({ label: groupLabel, value: { scope: GrantScope.Cwd, pattern: wildcard } });
-	if (showCwd) choices.push({ label: exactLabel, value: { scope: GrantScope.Cwd, pattern: host } });
-	if (hasWildcard)
+
+	if (showCwd && hasWildcard) {
 		choices.push({
-			label: `All in group   (${wildcard})   in all projects`,
-			value: { scope: GrantScope.Global, pattern: wildcard },
+			value: `All in group   (${wildcard})   in this project   (recommended)`,
+			label: `All in group (${wildcard}) (recommended)`,
+			description: "in this project",
+			choiceValue: { scope: GrantScope.Cwd, pattern: wildcard },
 		});
-	choices.push({ label: `Only ${host}   in all projects`, value: { scope: GrantScope.Global, pattern: host } });
+	}
+
+	if (showCwd) {
+		choices.push({
+			value: `Only ${host}   in this project`,
+			label: `Only ${host}`,
+			description: "in this project",
+			choiceValue: { scope: GrantScope.Cwd, pattern: host },
+		});
+	}
+
+	if (hasWildcard) {
+		choices.push({
+			value: `All in group   (${wildcard})   in all projects`,
+			label: `All in group (${wildcard})`,
+			description: "in all projects",
+			choiceValue: { scope: GrantScope.Global, pattern: wildcard },
+		});
+	}
+
+	choices.push({
+		value: `Only ${host}   in all projects`,
+		label: `Only ${host}`,
+		description: "in all projects",
+		choiceValue: { scope: GrantScope.Global, pattern: host },
+	});
+
 	const footer =
 		opts.footer ??
 		`Default: ${hasWildcard ? `All in group (${wildcard}) \u00b7 in this project` : `Only ${host} \u00b7 in this project`}`;
-	const prompt = [withIcon(opts.icon ? ICON[opts.icon] : undefined, title), body].join("\n");
-	const { picked } = await askSelect(
-		ctx,
-		prompt,
-		choices.map((c) => c.label),
-		undefined,
-		{ footer },
-	);
-	const found = choices.find((c) => c.label === picked);
-	return found?.value ?? null;
+	const content = splitPromptContent(title, body, opts.icon);
+	const { picked } = await askSelect(ctx, content.title, choices, undefined, {
+		footer,
+		fields: content.fields,
+		findings: content.findings,
+	});
+
+	return choices.find((c) => c.value === picked)?.choiceValue ?? null;
 }
 
 export const ExposureChoice = {
@@ -385,25 +548,38 @@ export const ExposureChoice = {
 export type ExposureChoice = (typeof ExposureChoice)[keyof typeof ExposureChoice];
 
 export async function askExposure(ctx: AskCtx, hits: string[], programId?: string): Promise<ExposureChoice> {
-	const choices: Array<{ label: string; value: ExposureChoice }> = [
-		{ label: "No, keep it hidden   (recommended)", value: ExposureChoice.Block },
-		{ label: "Yes, show it this once", value: ExposureChoice.Allow },
-	];
-	if (programId)
-		choices.push({ label: `Yes, all ${programId} output for this conversation`, value: ExposureChoice.ProgramSession });
-	const titleParts = [`${ICON.warn}  Sensitive information detected`, hits.join("\n\n")];
-	const { picked } = await askSelect(
-		ctx,
-		titleParts.join("\n"),
-		choices.map((c) => c.label),
-		undefined,
+	const choices: Array<AskOptionItem & { choiceValue: ExposureChoice }> = [
 		{
-			footer: "Default: No",
-			question: "Question Should the AI be allowed to see it?",
-			note: "Note     you'll be asked again each time a secret shows up",
+			value: "No, keep it hidden   (recommended)",
+			label: "No, keep it hidden (recommended)",
+			key: "n",
+			choiceValue: ExposureChoice.Block,
 		},
-	);
-	return choices.find((c) => c.label === picked)?.value ?? ExposureChoice.Block;
+		{
+			value: "Yes, show it this once",
+			label: "Yes, show it this once",
+			key: "y",
+			choiceValue: ExposureChoice.Allow,
+		},
+	];
+
+	if (programId) {
+		choices.push({
+			value: `Yes, all ${programId} output for this conversation`,
+			label: `Yes, all ${programId} output for this conversation`,
+			key: "s",
+			choiceValue: ExposureChoice.ProgramSession,
+		});
+	}
+
+	const titleParts = [`${ICON.warn}  Sensitive information detected`, hits.join("\n\n")];
+	const { picked } = await askSelect(ctx, titleParts.join("\n"), choices, undefined, {
+		footer: "Default: No",
+		question: "Question Should the AI be allowed to see it?",
+		note: "Note     you'll be asked again each time a secret shows up",
+	});
+
+	return choices.find((c) => c.value === picked)?.choiceValue ?? ExposureChoice.Block;
 }
 
 export function withheldNotice(subject: string): string {

@@ -164,7 +164,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (isToolCallEventType("read", event)) {
-			const result = await checkReadAccess(event.input.path, "read", context, policy);
+			const result = await checkReadAccess(event.input.path, "read", context, policy, undefined, event.toolCallId);
 
 			if (result) {
 				return result;
@@ -181,6 +181,7 @@ export default function (pi: ExtensionAPI) {
 						"read",
 						canonicalPath,
 						classification.reasons[0] ?? "sensitive filename",
+						{ toolCallId: event.toolCallId },
 					);
 
 					if (verdict) {
@@ -202,6 +203,7 @@ export default function (pi: ExtensionAPI) {
 				context,
 				policy,
 				searchExposure(event.toolName, searchRoot, context.cwd),
+				event.toolCallId,
 			);
 
 			if (result) {
@@ -210,7 +212,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (isToolCallEventType("write", event) || isToolCallEventType("edit", event)) {
-			const result = await checkWriteAccess(event.input.path, event.toolName, context, policy);
+			const result = await checkWriteAccess(event.input.path, event.toolName, context, policy, event.toolCallId);
 
 			if (result) {
 				return result;
@@ -237,8 +239,13 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			const networkResult = await checkNetworkAccess(targetUrls, event.toolName, context, policy, (domain) =>
-				emitDomainGrant(pi.events, domain),
+			const networkResult = await checkNetworkAccess(
+				targetUrls,
+				event.toolName,
+				context,
+				policy,
+				(domain) => emitDomainGrant(pi.events, domain),
+				event.toolCallId,
 			);
 
 			if (networkResult) {
@@ -262,6 +269,7 @@ export default function (pi: ExtensionAPI) {
 				/* SAFETY: pi's ctx carries cwd/UI at runtime. */
 				context as unknown as UICtx,
 				policy.mcp,
+				event.toolCallId,
 			);
 
 			if (verdict) {

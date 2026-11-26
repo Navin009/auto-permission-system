@@ -1,9 +1,7 @@
-const PAIR_SEPARATORS: readonly string[] = ["&&", "||"];
-const SINGLE_SEPARATORS: readonly string[] = [";", "|"];
-const SEPARATOR_TOKENS: readonly string[] = [...PAIR_SEPARATORS, ...SINGLE_SEPARATORS];
+import { lastShellSegment, SEPARATOR_TOKENS, tokenizeShellCommand } from "./shell-segments.ts";
+
 const CD_COMMAND = "cd";
 const QUOTE_CHARACTERS: readonly string[] = ["'", '"'];
-const ESCAPE_CHARACTER = "\\";
 const SPACE = " ";
 const WHITESPACE_PATTERN = /\s+/g;
 const PATH_SEPARATOR = "/";
@@ -33,13 +31,13 @@ const STDIN_LABEL = "(stdin)";
 
 export function summarizeShellCommand(command: string): string {
 	const oneLine = collapseWhitespace(command);
-	const segment = collapseWhitespace(lastSegment(command));
+	const segment = collapseWhitespace(lastShellSegment(command));
 
-	return hoistProgram(tokenize(segment || oneLine), inlineScriptLine(command)).join(SPACE);
+	return hoistProgram(tokenizeShellCommand(segment || oneLine), inlineScriptLine(command)).join(SPACE);
 }
 
 export function displayShellCommand(command: string): string {
-	const tokens = tokenize(collapseWhitespace(command));
+	const tokens = tokenizeShellCommand(collapseWhitespace(command));
 
 	return hoistProgram(withoutLeadingCd(tokens), inlineScriptLine(command)).join(SPACE);
 }
@@ -49,7 +47,7 @@ export function fitCommand(command: string, budget: number): string {
 		return command;
 	}
 
-	const tokens = tokenize(command);
+	const tokens = tokenizeShellCommand(command);
 
 	if (tokens.length <= SINGLE_TOKEN) {
 		return fitTarget(command, budget) ?? ELLIPSIS;
@@ -160,112 +158,6 @@ function withoutLeadingCd(tokens: readonly string[]): string[] {
 	const separatorIndex = tokens.findIndex((token) => SEPARATOR_TOKENS.includes(token));
 
 	return separatorIndex >= 0 ? tokens.slice(separatorIndex + 1) : [...tokens];
-}
-
-function lastSegment(command: string): string {
-	let segmentStart = 0;
-	let openQuote = "";
-	let index = 0;
-
-	while (index < command.length) {
-		const character = command[index];
-
-		if (openQuote) {
-			if (character === ESCAPE_CHARACTER) {
-				index += 2;
-				continue;
-			}
-
-			if (character === openQuote) {
-				openQuote = "";
-			}
-
-			index += 1;
-			continue;
-		}
-
-		if (QUOTE_CHARACTERS.includes(character)) {
-			openQuote = character;
-			index += 1;
-			continue;
-		}
-
-		const separatorLength = separatorLengthAt(command, index);
-
-		if (separatorLength === 0) {
-			index += 1;
-			continue;
-		}
-
-		index += separatorLength;
-		segmentStart = index;
-	}
-
-	return command.slice(segmentStart);
-}
-
-function separatorLengthAt(command: string, index: number): number {
-	const pair = command.slice(index, index + 2);
-
-	if (PAIR_SEPARATORS.includes(pair)) {
-		return pair.length;
-	}
-
-	return SINGLE_SEPARATORS.includes(command[index]) ? 1 : 0;
-}
-
-function tokenize(text: string): string[] {
-	const tokens: string[] = [];
-	let current = "";
-	let openQuote = "";
-	let index = 0;
-
-	while (index < text.length) {
-		const character = text[index];
-
-		if (openQuote) {
-			current += character;
-
-			if (character === ESCAPE_CHARACTER) {
-				current += text[index + 1] ?? "";
-				index += 2;
-				continue;
-			}
-
-			if (character === openQuote) {
-				openQuote = "";
-			}
-
-			index += 1;
-			continue;
-		}
-
-		if (QUOTE_CHARACTERS.includes(character)) {
-			openQuote = character;
-			current += character;
-			index += 1;
-			continue;
-		}
-
-		if (character === SPACE) {
-			if (current) {
-				tokens.push(current);
-				current = "";
-			}
-
-			index += 1;
-			continue;
-		}
-
-		current += character;
-		index += 1;
-	}
-
-	if (current) {
-		tokens.push(current);
-	}
-
-	return tokens;
 }
 
 function hoistProgram(tokens: readonly string[], scriptLine: string | undefined): string[] {
@@ -396,7 +288,7 @@ const FLAG_PREFIX = "-";
 const NAME_SEPARATOR = " ";
 
 export function programHint(command: string): string {
-	const tokens = tokenize(displayShellCommand(command));
+	const tokens = tokenizeShellCommand(displayShellCommand(command));
 	const segments = splitSegments(tokens);
 	const program = pathName(segments[0]?.[0] ?? "");
 

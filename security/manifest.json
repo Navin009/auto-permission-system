@@ -232,7 +232,7 @@
         {
           "id": "L1-L2-ask-selector",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/ask-selector.mjs",
-          "expected": "PASS=65, FAIL=0"
+          "expected": "PASS=70, FAIL=0"
         },
         {
           "id": "L1-L2-defaults",
@@ -287,7 +287,7 @@
         {
           "id": "L2-output-allow-notice",
           "command": "node --import ./security/tests/ts-loader.mjs security/tests/unit/output-allow-notice.mjs",
-          "expected": "PASS=14, FAIL=0"
+          "expected": "PASS=15, FAIL=0"
         },
         {
           "id": "L2-program-id",

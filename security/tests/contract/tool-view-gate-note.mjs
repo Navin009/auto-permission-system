@@ -1,6 +1,6 @@
 import { Text } from '@earendil-works/pi-tui';
-import { clearGateNotes, rememberGateNote } from '#shared/gate-notes.ts';
-import { toolViewRenderers } from '#tool-view/renderers.ts';
+import { clearGateNotes, rememberGateNote, rememberNativeNote } from '#shared/gate-notes.ts';
+import { nativeGateNoteRenderers, toolViewRenderers } from '#tool-view/renderers.ts';
 import { resetRowGroups } from '#tool-view/row-groups.ts';
 import { setActiveViewMode } from '#tool-view/session.ts';
 import { resetThinking } from '#tool-view/thinking-clock.ts';
@@ -139,8 +139,45 @@ check('the folded row keeps a compact notice badge', foldedLines[0].includes('[n
 resetRowGroups();
 clearGateNotes();
 
+setActiveViewMode('full');
+rememberNativeNote('native-1', 'Allowed for this conversation: ~/.env');
+rememberNativeNote('native-1', 'Rule saved for this project');
+const fullReadRenderers = toolViewRenderers('read', fallback);
+const fullCall = fullReadRenderers.renderCall({ path: '~/.env' }, theme, contextOf({})({ toolCallId: 'native-1' }));
+const fullResult = fullReadRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'native-1' }));
+const fullResultLines = fullResult.render(WIDTH).map((line) => line.trim()).filter(Boolean);
+check('full mode keeps Pi call header unchanged', fullCall.render(WIDTH).some((line) => line.trim() === 'pi call'));
+check(
+	'full mode merges native notes into one bottom text line',
+	fullResultLines.at(-1) === 'Allowed for this conversation: ~/.env · Rule saved for this project',
+);
+check('full mode keeps Pi own result above the bottom line', fullResultLines[0] === 'pi result');
+
+const nonRowRenderers = nativeGateNoteRenderers(fallback);
+const quietEditResult = nonRowRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'edit-quiet' }));
+check('non-row native tool without note returns Pi result directly', quietEditResult.render(WIDTH).join(' ').trim() === 'pi result');
+rememberNativeNote('edit-noted', 'Allowed write once');
+const notedEditResult = nonRowRenderers.renderResult(result, options, theme, contextOf({})({ toolCallId: 'edit-noted' }));
+const notedEditLines = notedEditResult.render(WIDTH).map((line) => line.trim()).filter(Boolean);
+check('non-row native tool with note puts text line at the bottom', notedEditLines.at(-1) === 'Allowed write once');
+
+setActiveViewMode('compact');
 resetRowGroups();
+rememberNativeNote('compact-bash-1', 'Allowed for this conversation: ~/.env');
+bashRenderers.renderCall(bashArgs, theme, contextOf({})({ toolCallId: 'compact-bash-1', args: bashArgs, expanded: false }));
+const compactBashRow = bashRenderers.renderResult(
+	result,
+	options,
+	theme,
+	contextOf({})({ toolCallId: 'compact-bash-1', args: bashArgs, expanded: false }),
+);
+const compactBashText = compactBashRow.render(WIDTH).join('\n');
+check('compact grouped command does not show sub-nested allow note', !compactBashText.includes('Allowed for this conversation'));
+
+resetRowGroups();
+clearGateNotes();
 resetThinking();
+setActiveViewMode('full');
 
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

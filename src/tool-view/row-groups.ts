@@ -10,6 +10,7 @@ import { gateNoteFor } from "#shared/gate-notes.ts";
 
 const TICK_INTERVAL_MILLISECONDS = 150;
 const GROUP_OPEN_HINT = "click for output";
+const HOME_DIRECTORY = homedir();
 
 export interface RowMember {
 	toolCallId: string;
@@ -212,7 +213,7 @@ export function groupSummary(group: RowGroup, hint: string | undefined): RowGrou
 		thinking,
 		spinnerFrame: group.spinnerFrame,
 		cwd: group.cwd,
-		homeDirectory: homedir(),
+		homeDirectory: HOME_DIRECTORY,
 		groupOpenHint: isClosedGroupView ? GROUP_OPEN_HINT : undefined,
 	};
 }

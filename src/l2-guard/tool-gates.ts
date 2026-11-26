@@ -34,6 +34,7 @@ export async function checkReadAccess(
 	context: ExtensionContext,
 	policy: Policy,
 	exposure: ReadExposure = ReadExposure.Content,
+	toolCallId?: string,
 ): Promise<{ block: true; reason: string } | undefined> {
 	const canonicalPath = canonicalize(rawPath, context.cwd);
 
@@ -99,6 +100,7 @@ export async function checkReadAccess(
 		{
 			layer: 2,
 			tool: toolName,
+			toolCallId,
 			subject: canonicalPath,
 			reason: denialReason,
 			overrideKind: "allowRead",
@@ -118,6 +120,7 @@ export async function checkWriteAccess(
 	toolName: string,
 	context: ExtensionContext,
 	policy: Policy,
+	toolCallId?: string,
 ): Promise<{ block: true; reason: string } | undefined> {
 	const denialReason = isDeniedWrite(rawPath, context.cwd, policy);
 
@@ -148,6 +151,7 @@ export async function checkWriteAccess(
 		{
 			layer: 2,
 			tool: toolName,
+			toolCallId,
 			subject: canonicalPath,
 			reason: denialReason,
 			overrideKind: "allowWrite",
@@ -187,6 +191,7 @@ export async function checkNetworkAccess(
 	context: ExtensionContext,
 	policy: Policy,
 	onDomainGrant: (domain: string) => void,
+	toolCallId?: string,
 ): Promise<{ block: true; reason: string } | undefined> {
 	for (const targetUrl of urls) {
 		const deniedReason = deniedUrlReason(targetUrl, policy);
@@ -219,6 +224,7 @@ export async function checkNetworkAccess(
 			{
 				layer: 2,
 				tool: toolName,
+				toolCallId,
 				subject: targetUrl,
 				reason: allowedReason,
 				overrideKind: "allowDomains",

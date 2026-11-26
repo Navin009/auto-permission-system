@@ -122,5 +122,30 @@ check(
 	}).text === 'Sandbox: 🧠  all domains, 1 path · 2 session grants',
 );
 
+const { askDetectionConfirmation } = await import('#l2-guard/detection.ts');
+let detectionTitle = '';
+await askDetectionConfirmation(
+	{
+		cwd: process.cwd(),
+		hasUI: true,
+		ui: {
+			select: async (title) => {
+				detectionTitle = title;
+				return 'No';
+			},
+			notify: () => {},
+		},
+	},
+	'read',
+	'/repo/.env.production',
+	'sensitive filename',
+);
+check(
+	'detection prompt uses unified File/Why/Note metadata labels',
+	detectionTitle.includes('File     /repo/.env.production') &&
+		detectionTitle.includes('Why      sensitive filename') &&
+		detectionTitle.includes('Note     '),
+);
+
 console.log(`PASS=${pass}, FAIL=${fail}`);
 process.exit(fail ? 1 : 0);

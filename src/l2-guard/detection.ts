@@ -1,7 +1,9 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { evaluateMcpCall, type JsonSchemaLike, type McpPolicy, type McpToolAnnotations } from "#detect/index.ts";
-import { askMain } from "#ui/ask-flow.ts";
+import { askMain, type PromptField } from "#ui/ask-flow.ts";
+import { promptField } from "#ui/prompt-spec.ts";
 import { audit } from "#shared/audit.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { type UICtx } from "./prompts.ts";
 
 const detectionGrants = new Set<string>();
@@ -22,10 +24,12 @@ export async function askDetectionConfirmation(
 	kind: "read" | "tool",
 	subject: string,
 	reason: string,
+	details?: { toolCallId?: string; extraBlock?: string },
 ): Promise<{ block: true; reason: string } | null> {
 	const grantKey = `${kind}:${subject}`;
 
 	if (detectionGrants.has(grantKey)) {
+		rememberNativeNote(details?.toolCallId, `Allowed for this conversation (${subject})`);
 		return null;
 	}
 
@@ -43,10 +47,23 @@ export async function askDetectionConfirmation(
 		return { block: true, reason: createDetectionBlockMessage(kind, reason) };
 	}
 
-	const dialogHeader = kind === "read" ? "Read blocked — sensitive file" : "Tool call blocked — risky";
-	const dialogBody = `  ${kind === "read" ? "file" : "tool"}:  ${subject}\n  why:   ${reason}`;
+	const dialogHeader = kind === "read" ? `Let read open ${subject}?` : `Let ${subject} run?`;
+	const fields: PromptField[] = [
+		promptField(kind === "read" ? "File" : "Tool", subject),
+		promptField("Why", reason),
+		promptField("Note", "can only be allowed for this conversation or once"),
+	];
 
-	const choice = await askMain(context, dialogHeader, dialogBody, { session: true, remember: false });
+	if (details?.extraBlock) {
+		fields.push(promptField("Args", details.extraBlock, "dim"));
+	}
+
+	const choice = await askMain(
+		context,
+		dialogHeader,
+		{ fields },
+		{ session: true, remember: false, icon: kind === "read" ? "cred" : "warn" },
+	);
 
 	if (choice === "once") {
 		audit({
@@ -59,6 +76,7 @@ export async function askDetectionConfirmation(
 			cwd: context.cwd,
 		});
 
+		rememberNativeNote(details?.toolCallId, "Allowed once");
 		return null;
 	}
 
@@ -75,7 +93,11 @@ export async function askDetectionConfirmation(
 			cwd: context.cwd,
 		});
 
-		context.ui.notify(`Allowed for this conversation: ${subject}`, "info");
+		if (details?.toolCallId) {
+			rememberNativeNote(details.toolCallId, `Allowed for this conversation: ${subject}`);
+		} else {
+			context.ui.notify(`Allowed for this conversation: ${subject}`, "info");
+		}
 		return null;
 	}
 
@@ -98,6 +120,7 @@ export async function detectMcpAsk(
 	input: Record<string, unknown>,
 	context: UICtx,
 	mcpPolicy?: McpPolicy,
+	toolCallId?: string,
 ): Promise<{ block: true; reason: string } | null> {
 	const toolInfo = pi.getAllTools().find((registeredTool) => registeredTool.name === toolName);
 
@@ -120,21 +143,21 @@ export async function detectMcpAsk(
 		return null;
 	}
 
-	let summary = evaluation.summary;
+	let extraBlock: string | undefined;
 
 	if (input && Object.keys(input).length > 0) {
 		const rawScript = input.code ?? input.script ?? input.command ?? input.query;
 
 		if (typeof rawScript === "string" && rawScript.includes("\n")) {
-			summary += `\n\n${rawScript}`;
+			extraBlock = rawScript;
 		} else {
 			const formattedArguments = JSON.stringify(input, null, 2);
 
 			if (formattedArguments.includes("\n")) {
-				summary += `\n\nArguments:\n${formattedArguments}`;
+				extraBlock = formattedArguments;
 			}
 		}
 	}
 
-	return askDetectionConfirmation(context, "tool", toolName, summary);
+	return askDetectionConfirmation(context, "tool", toolName, evaluation.summary, { toolCallId, extraBlock });
 }

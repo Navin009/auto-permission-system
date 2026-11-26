@@ -322,5 +322,37 @@ const wrappedTitle = [
 	check('no terminal height: still scrollable', lines.some((l) => /\[1–\d+\/\d+\]/.test(l)));
 }
 
+{
+	const s = mk({
+		title: '🔑  Let read open ~/.env?',
+		fields: [
+			{ label: 'File', value: '~/.env' },
+			{ label: 'Why', value: 'sensitive filename' },
+		],
+		options: [
+			{ value: 'No', label: 'No', key: 'n', description: 'keep blocked' },
+			{ value: 'Yes, just this once', label: 'Yes, just this once', key: 'y', description: 'this call only' },
+		],
+	});
+	const rendered = s.comp.render(80).join('\n');
+	check('structured fields render aligned labels', rendered.includes('File     ~/.env') && rendered.includes('Why      sensitive filename'));
+	check('option descriptions render in SelectList', rendered.includes('keep blocked') && rendered.includes('this call only'));
+	check('shortcut hint renders in help line', rendered.includes('↑↓/1-9 navigate'));
+	s.comp.handleInput('y');
+	check('single-key shortcut picks option value', s.result === 'Yes, just this once');
+}
+
+{
+	const s = mk({
+		title: '🔑  Let read open ~/.env?',
+		options: [
+			{ value: 'No', label: 'No', key: 'n' },
+			{ value: 'Yes, just this once', label: 'Yes, just this once', key: 'y' },
+		],
+	});
+	s.comp.handleInput('2');
+	check('numeric shortcut picks second option', s.result === 'Yes, just this once');
+}
+
 console.log(`PASS=${pass} FAIL=${fail}`);
 if (fail) process.exit(1);

@@ -92,12 +92,16 @@ export function filterGrepToolResult(
 	});
 
 	const redactionNotice = `${GUARD_NAME}: removed ${removedLineCount} line(s) from ${removedFileNames.size} file(s) that match the read-deny policy`;
+	const noteCallId = event.parentToolCallId ?? event.toolCallId;
 
-	rememberGateNote(event.parentToolCallId ?? event.toolCallId, redactionNotice);
-	(context.ui as { notify?: (message: string, level?: string) => void } | undefined)?.notify?.(
-		redactionNotice,
-		"warning",
-	);
+	rememberGateNote(noteCallId, redactionNotice);
+
+	if (!noteCallId) {
+		(context.ui as { notify?: (message: string, level?: string) => void } | undefined)?.notify?.(
+			redactionNotice,
+			"warning",
+		);
+	}
 
 	contentBlocks.push({
 		type: "text" as const,
@@ -184,7 +188,10 @@ export async function gateSensitiveToolOutput(
 			const grantNotice = `Output permitted: allowed all ${programId} output for this conversation.`;
 
 			rememberGateNote(noteCallId, grantNotice);
-			context.ui.notify(grantNotice, "info");
+
+			if (!noteCallId) {
+				context.ui.notify(grantNotice, "info");
+			}
 		} else {
 			audit({
 				layer: 2,
@@ -199,7 +206,7 @@ export async function gateSensitiveToolOutput(
 
 			rememberGateNote(noteCallId, allowNotice);
 
-			if (!shownAllowNotices.has(allowNotice)) {
+			if (!noteCallId && !shownAllowNotices.has(allowNotice)) {
 				shownAllowNotices.add(allowNotice);
 				context.ui.notify(allowNotice, "info");
 			}

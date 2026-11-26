@@ -71,6 +71,7 @@ export default function (pi: ExtensionAPI) {
 	let sandboxStartingPromise: Promise<void> | null = null;
 	let latestExtensionContext: ExtensionContext | undefined;
 	let latestBashCommand: string | undefined;
+	let latestBashToolCallId: string | undefined;
 
 	let activeUiContext:
 		| {
@@ -97,6 +98,7 @@ export default function (pi: ExtensionAPI) {
 		get command() {
 			return latestBashCommand;
 		},
+		getToolCallId: () => latestBashToolCallId,
 	});
 
 	const persistAndReloadWrite = (absolutePath: string, scope: "cwd" | "global") =>
@@ -231,6 +233,7 @@ export default function (pi: ExtensionAPI) {
 
 			const sandboxedBash = createBashTool(currentWorkingDirectory, {
 				operations: createSandboxedBashOps({
+					toolCallId: id,
 					ctx: activeUiContext,
 					onAlways: persistAndReloadWrite,
 					onAlwaysRead: persistAndReloadRead,
@@ -273,6 +276,8 @@ export default function (pi: ExtensionAPI) {
 
 		const input = event.input as { command?: string };
 
+		latestBashToolCallId = event.toolCallId;
+
 		if (typeof input.command === "string") {
 			latestBashCommand = input.command;
 		}
@@ -281,6 +286,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_result", (event) => {
 		if (event.toolName === "bash") {
 			latestBashCommand = undefined;
+			latestBashToolCallId = undefined;
 		}
 	});
 

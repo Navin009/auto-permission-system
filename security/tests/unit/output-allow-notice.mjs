@@ -61,18 +61,22 @@ clearGateNotes();
 
 const first = [];
 const firstResult = await gateSensitiveToolOutput(event('codemode', 'call-1'), contextFor(first), policy);
-check('the answer is confirmed to the user', first.length === 1 && first[0] === CODEMODE_NOTICE);
+check('an allowed call with toolCallId attaches a gate note instead of a chat notify row', first.length === 0);
 check('an allowed call is not rewritten', firstResult === undefined);
-check('an allowed call keeps its warning for the expanded row', gateNoteFor('call-1') === CODEMODE_NOTICE);
+check('an allowed call keeps its warning for the tool component', gateNoteFor('call-1') === CODEMODE_NOTICE);
+
+const fallbackNotices = [];
+await gateSensitiveToolOutput(event('codemode', undefined), contextFor(fallbackNotices), policy);
+check('an allowed call without toolCallId notifies once as fallback', fallbackNotices.length === 1 && fallbackNotices[0] === CODEMODE_NOTICE);
 
 const second = [];
-await gateSensitiveToolOutput(event('codemode', 'call-2'), contextFor(second), policy);
-check('a second allow of the same tool says nothing', second.length === 0);
-check('the silent allow is still audited', auditDecisions().filter((entry) => entry.decision === 'yes').length === 2);
+await gateSensitiveToolOutput(event('codemode', undefined), contextFor(second), policy);
+check('a second fallback allow of the same tool says nothing', second.length === 0);
+check('every allow is still audited', auditDecisions().filter((entry) => entry.decision === 'yes').length === 3);
 
 const other = [];
-await gateSensitiveToolOutput(event('bash', 'call-3'), contextFor(other), policy);
-check('a different tool is confirmed again', other.length === 1 && other[0] === BASH_NOTICE);
+await gateSensitiveToolOutput(event('bash', undefined), contextFor(other), policy);
+check('a different tool fallback notifies once', other.length === 1 && other[0] === BASH_NOTICE);
 
 const hidden = [];
 const hiddenResult = await gateSensitiveToolOutput(
@@ -104,8 +108,8 @@ check('a session reset forgets the warnings', gateNoteFor('call-1') === undefine
 
 clearAllowNotices();
 const afterReset = [];
-await gateSensitiveToolOutput(event('codemode', 'call-5'), contextFor(afterReset), policy);
-check('a new conversation confirms again', afterReset.length === 1 && afterReset[0] === CODEMODE_NOTICE);
+await gateSensitiveToolOutput(event('codemode', undefined), contextFor(afterReset), policy);
+check('a new conversation confirms fallback again', afterReset.length === 1 && afterReset[0] === CODEMODE_NOTICE);
 
 rmSync(scratchAgentDir, { recursive: true, force: true });
 

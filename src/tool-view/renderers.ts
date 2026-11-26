@@ -20,7 +20,7 @@ import {
 } from "./row-groups.ts";
 import { getActiveViewMode } from "./session.ts";
 import { codemodeSubLines } from "./codemode-lines.ts";
-import { gateNoteFor } from "#shared/gate-notes.ts";
+import { gateNoteFor, nativeBottomNoteFor } from "#shared/gate-notes.ts";
 
 type CallRenderer = NonNullable<ToolRenderers["renderCall"]>;
 type ResultRenderer = NonNullable<ToolRenderers["renderResult"]>;
@@ -55,6 +55,8 @@ const ERROR_BACKGROUND: BackgroundColor = "toolErrorBg";
 const SUCCESS_BACKGROUND: BackgroundColor = "toolSuccessBg";
 const CODEMODE_TOOL_NAME = "codemode";
 
+const MAX_FALLBACK_PREVIEW_LINES = 10;
+
 export function toolViewRenderers(toolName: string, fallback: RendererFallback): ToolRenderers {
 	const isRowTool = rowKindOf(toolName) !== undefined;
 
@@ -62,6 +64,14 @@ export function toolViewRenderers(toolName: string, fallback: RendererFallback):
 		renderShell: isRowTool && getActiveViewMode() === ViewMode.Compact ? "self" : undefined,
 		renderCall: (...parameters) => renderRowCall(toolName, fallback, parameters),
 		renderResult: (...parameters) => renderRowResult(toolName, fallback, parameters),
+	};
+}
+
+export function nativeGateNoteRenderers(fallback: RendererFallback): ToolRenderers {
+	return {
+		renderShell: undefined,
+		renderCall: fallback?.renderCall ? (...parameters) => fallbackCall(fallback, parameters) : undefined,
+		renderResult: (...parameters) => renderNativeWithNote(fallback, parameters),
 	};
 }
 
@@ -109,7 +119,7 @@ function renderRowResult(toolName: string, fallback: RendererFallback, parameter
 	const kind = rowKindOf(toolName);
 
 	if (getActiveViewMode() !== ViewMode.Compact || !kind) {
-		return fallbackResult(fallback, parameters);
+		return renderNativeWithNote(fallback, parameters);
 	}
 
 	const group = rowGroupOfCall(context.toolCallId);
@@ -218,7 +228,7 @@ function nativeResultBlock(fallback: RendererFallback, parameters: ResultParamet
 	const block = context.state[NATIVE_BLOCK_STATE_KEY] as Box | undefined;
 
 	if (!renderPiResult || !block) {
-		return fallbackResult(fallback, parameters);
+		return renderNativeWithNote(fallback, parameters);
 	}
 
 	const isFull = level === ExpansionLevel.Full;
@@ -237,13 +247,59 @@ function nativeResultBlock(fallback: RendererFallback, parameters: ResultParamet
 }
 
 function addGateNote(block: Box, theme: RenderTheme, context: RenderContext): void {
-	const note = gateNoteFor(context.toolCallId);
+	const note = nativeBottomNoteFor(context.toolCallId) ?? gateNoteFor(context.toolCallId);
 
 	if (!note) {
 		return;
 	}
 
 	block.addChild(new Text(theme.fg("warning", note), NO_PADDING, NO_PADDING));
+}
+
+function renderNativeWithNote(fallback: RendererFallback, parameters: ResultParameters): Component {
+	const [result, options, theme, context] = parameters;
+	const note = nativeBottomNoteFor(context.toolCallId) ?? gateNoteFor(context.toolCallId);
+	const renderPiResult = fallback?.renderResult;
+
+	let resultComponent: Component;
+
+	if (renderPiResult) {
+		const lastComponent = context.state[PI_RESULT_STATE_KEY] as Component | undefined;
+		resultComponent = renderPiResult(result, options, theme, {
+			...context,
+			lastComponent,
+		});
+		context.state[PI_RESULT_STATE_KEY] = resultComponent;
+	} else {
+		resultComponent = fallbackPlainResult(result, options.expanded, theme);
+	}
+
+	if (!note) {
+		return resultComponent;
+	}
+
+	const container = new Container();
+
+	container.addChild(resultComponent);
+	container.addChild(new Text(theme.fg("warning", note), NO_PADDING, NO_PADDING));
+
+	return container;
+}
+
+function fallbackPlainResult(result: ResultParameters[0], expanded: boolean, theme: RenderTheme): Component {
+	const text = resultText(result).trim();
+
+	if (!text) {
+		return emptyComponent();
+	}
+
+	const lines = text.split("\n");
+	const shown = expanded ? lines : lines.slice(0, MAX_FALLBACK_PREVIEW_LINES);
+	const remaining = lines.length - shown.length;
+	const preview = shown.map((line) => theme.fg("toolOutput", line)).join("\n");
+	const suffix = remaining > 0 ? theme.fg("muted", `\n... (${remaining} more lines)`) : EMPTY_LINE;
+
+	return new Text(`${preview}${suffix}`, NO_PADDING, NO_PADDING);
 }
 
 function nativeBackground(theme: RenderTheme, context: RenderContext): (line: string) => string {
@@ -285,10 +341,6 @@ function emptyComponent(): Text {
 
 function fallbackCall(fallback: RendererFallback, parameters: CallParameters) {
 	return fallback?.renderCall?.(...parameters) ?? emptyComponent();
-}
-
-function fallbackResult(fallback: RendererFallback, parameters: ResultParameters) {
-	return fallback?.renderResult?.(...parameters) ?? emptyComponent();
 }
 
 function subLinesFor(toolName: string, toolCallId: string, args: ToolCallArguments): SubLineSummary[] | undefined {

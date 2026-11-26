@@ -4,17 +4,23 @@ import { isSafeFolderGrant, SYSTEM_FOLDERS, GrantScope, type OverrideKind } from
 import {
 	NETWORK_ALLOWLIST_WHY,
 	NETWORK_REMEMBER_TITLE,
-	networkGroupRow,
-	networkRememberBody,
+	UNTRUSTED_PROJECT_NOTE,
+	networkPromptFields,
+	networkRememberFields,
 } from "./network-prompt.ts";
 import {
 	askMainWithRemember,
 	askRememberFile,
 	askRememberHost,
+	askSelect,
+	ICON,
 	MainChoice,
 	parentDomainWildcard,
 	type AskCtx,
+	type PromptBody,
+	type PromptField,
 } from "./ask-flow.ts";
+import { promptField } from "./prompt-spec.ts";
 
 export type { AskCtx };
 export type { OverrideKind };
@@ -43,6 +49,7 @@ export type AskAction = (typeof AskAction)[keyof typeof AskAction];
 export type AskKind = {
 	layer: 1 | 2;
 	tool: string;
+	toolCallId?: string;
 	subject: string;
 	reason: string;
 	overrideKind: OverrideKind;
@@ -176,37 +183,88 @@ export function denyMessage(overrideKind: OverrideKind, denialReason: string): s
 	return `Read blocked by policy: ${displayWhy(denialReason)}. Nothing was read — ask the user to adjust the permission mode (/permission-mode) if needed. Do not attempt workarounds or inspect plugin files.`;
 }
 
-function buildDetailLines(askDetails: AskKind, action: AskAction, noteText?: string): string {
-	const detailLines: string[] = [];
+export function buildFilePromptFields(options: {
+	file: string;
+	folder?: string | null;
+	link?: string;
+	command?: string;
+	why?: string;
+	risk?: string;
+	note?: string;
+}): PromptBody {
+	const fields: PromptField[] = [promptField("File", options.file)];
 
+	if (options.folder && options.folder !== options.file) {
+		fields.push(promptField("Folder", `${options.folder}/`));
+	}
+
+	if (options.link && options.link !== options.file) {
+		fields.push(promptField("Link", options.link));
+	}
+
+	if (options.command) {
+		fields.push(promptField("Command", options.command));
+	}
+
+	if (options.why) {
+		fields.push(promptField("Why", options.why));
+	}
+
+	if (options.risk) {
+		fields.push(promptField("Risk", options.risk));
+	}
+
+	if (options.note) {
+		fields.push(promptField("Note", options.note));
+	}
+
+	return { fields };
+}
+
+export function buildRememberFileFields(options: {
+	file: string;
+	folder?: string | null;
+	link?: string;
+	commandName: string;
+	untrusted?: boolean;
+}): PromptBody {
+	const fields: PromptField[] = [promptField("File", options.file)];
+
+	if (options.folder && options.folder !== options.file) {
+		fields.push(promptField("Folder", `${options.folder}/`));
+	}
+
+	if (options.link && options.link !== options.file) {
+		fields.push(promptField("Link", options.link));
+	}
+
+	fields.push(promptField("Note", `the rule works for any command, not just ${options.commandName}`));
+
+	if (options.untrusted) {
+		fields.push(promptField("Note", UNTRUSTED_PROJECT_NOTE));
+	}
+
+	return { fields };
+}
+
+function buildDetailBody(askDetails: AskKind, action: AskAction, noteText?: string): PromptBody {
 	if (action === AskAction.Network) {
-		const wildcardDomain = parentDomainWildcard(askDetails.overrideValue);
-		const groupRow = networkGroupRow(askDetails.overrideValue, wildcardDomain);
-
-		detailLines.push(`Site     ${askDetails.overrideValue}`);
-		if (groupRow) detailLines.push(groupRow);
-	} else {
-		const parentFolder = dirname(askDetails.subject);
-		detailLines.push(`File     ${askDetails.subject}`);
-
-		if (parentFolder !== askDetails.subject) {
-			detailLines.push(`Folder   ${parentFolder}/`);
-		}
+		return networkPromptFields({
+			host: askDetails.overrideValue,
+			wildcard: parentDomainWildcard(askDetails.overrideValue),
+			command: askDetails.command,
+			why: networkWhy(askDetails.reason),
+			note: noteText,
+		});
 	}
 
-	if (askDetails.command) {
-		detailLines.push(`Command  ${askDetails.command}`);
-	}
-
-	const reasonExplanation =
-		action === AskAction.Network ? networkWhy(askDetails.reason) : displayWhy(askDetails.reason);
-	detailLines.push(`Why      ${reasonExplanation}`);
-
-	if (noteText) {
-		detailLines.push(`Note     ${noteText}`);
-	}
-
-	return detailLines.join("\n");
+	return buildFilePromptFields({
+		file: askDetails.subject,
+		folder: dirname(askDetails.subject),
+		command: askDetails.command,
+		why: displayWhy(askDetails.reason),
+		note: noteText,
+	});
 }
 
 function extractBinaryOrSubject(command: string): string {
@@ -259,31 +317,25 @@ function selectPromptIcon(action: AskAction, askDetails: AskKind): "net" | "warn
 	return "ask";
 }
 
-function formatCredentialBody(
+function formatCredentialFields(
 	askDetails: AskKind,
 	action: AskAction,
 	riskDescription: string,
 	noteDescription: string,
-): string {
-	const bodyLines: string[] = [];
-
-	if (action !== AskAction.Network) {
-		const parentFolder = action === AskAction.Write ? dirname(askDetails.subject) : null;
-		bodyLines.push(`File     ${askDetails.subject}`);
-
-		if (parentFolder && parentFolder !== askDetails.subject) {
-			bodyLines.push(`Folder   ${parentFolder}/`);
-		}
-
-		if (askDetails.command) {
-			bodyLines.push(`Command  ${askDetails.command}`);
-		}
+): PromptBody {
+	if (action === AskAction.Network) {
+		return {
+			fields: [promptField("Risk", riskDescription), promptField("Note", noteDescription)],
+		};
 	}
 
-	bodyLines.push(`Risk     ${riskDescription}`);
-	bodyLines.push(`Note     ${noteDescription}`);
-
-	return bodyLines.join("\n");
+	return buildFilePromptFields({
+		file: askDetails.subject,
+		folder: action === AskAction.Write ? dirname(askDetails.subject) : null,
+		command: askDetails.command,
+		risk: riskDescription,
+		note: noteDescription,
+	});
 }
 
 export function getCredentialLabel(subjectPath: string): string {
@@ -352,19 +404,19 @@ function getCredentialRisk(subjectPath: string, action: AskAction): string {
 		: "reading here exposes credential material";
 }
 
-async function askSelectSafe(
+async function askCredentialSelect(
 	context: AskCtx,
 	headerText: string,
-	bodyText: string,
-	choiceLabels: string[],
-	options: { icon?: "ask" | "warn" | "cred" | "net" | "save" },
-): Promise<{ picked: string | undefined; expired: boolean }> {
-	const { askSelect, ICON } = await import("./ask-flow.ts");
-	const iconSymbol = options.icon ? ICON[options.icon] : undefined;
-	const iconPrefix = iconSymbol ? `${iconSymbol}  ` : "";
-	const combinedTitle = [iconPrefix + headerText, bodyText].filter(Boolean).join("\n");
+	body: PromptBody,
+	options: Array<{ value: string; label: string; key: string }>,
+): Promise<string | undefined> {
+	const { picked } = await askSelect(context, `${ICON.cred}  ${headerText}`, options, undefined, {
+		footer: "Default: No",
+		fields: body.fields,
+		findings: body.findings,
+	});
 
-	return askSelect(context, combinedTitle, choiceLabels, undefined, { footer: "Default: No" });
+	return picked;
 }
 
 export async function askDecision(
@@ -383,11 +435,14 @@ export async function askDecision(
 		const riskDescription = getCredentialRisk(askDetails.subject, action);
 		const noteDescription = "can only be allowed for one read at a time";
 		const promptHeader = `Let this ${action} read your ${subjectName}?`;
-		const promptBody = formatCredentialBody(askDetails, action, riskDescription, noteDescription);
-		const promptOptions = ["No   (recommended)", "Yes, allow this one read"];
+		const promptBody = formatCredentialFields(askDetails, action, riskDescription, noteDescription);
+		const promptOptions = [
+			{ value: "No   (recommended)", label: "No (recommended)", key: "n" },
+			{ value: "Yes, allow this one read", label: "Yes, allow this one read", key: "y" },
+		];
 
-		const { picked } = await askSelectSafe(context, promptHeader, promptBody, promptOptions, { icon: "cred" });
-		return picked === promptOptions[1] ? Decision.Yes : Decision.No;
+		const picked = await askCredentialSelect(context, promptHeader, promptBody, promptOptions);
+		return picked === promptOptions[1].value ? Decision.Yes : Decision.No;
 	}
 
 	const promptHeader = formatPromptHeader(action, askDetails.subject, askDetails);
@@ -409,10 +464,10 @@ export async function askDecision(
 		const { choice, grant } = await askMainWithRemember(
 			context,
 			promptHeader,
-			buildDetailLines(askDetails, action, untrustedNote),
+			buildDetailBody(askDetails, action, untrustedNote),
 			mainDialogOptions,
 			() => {
-				const rememberBody = networkRememberBody({
+				const rememberBody = networkRememberFields({
 					host: targetHostname,
 					wildcard: wildcardDomain,
 					commandName: extractBinaryOrSubject(askDetails.command ?? "this one"),
@@ -426,23 +481,7 @@ export async function askDecision(
 			},
 		);
 
-		if (choice === MainChoice.Block) {
-			return Decision.No;
-		}
-
-		if (choice === MainChoice.Once) {
-			return Decision.Yes;
-		}
-
-		if (choice === MainChoice.Session) {
-			return Decision.Session;
-		}
-
-		if (!grant) {
-			return Decision.No;
-		}
-
-		return grant.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
+		return mapNetworkOutcome(choice, grant);
 	}
 
 	const parentFolder = dirname(askDetails.subject);
@@ -450,48 +489,42 @@ export async function askDecision(
 	const { choice, grant } = await askMainWithRemember(
 		context,
 		promptHeader,
-		buildDetailLines(askDetails, action, untrustedNote),
+		buildDetailBody(askDetails, action, untrustedNote),
 		mainDialogOptions,
 		() => {
-			const rememberLines: string[] = [];
-			rememberLines.push(`File     ${askDetails.subject}`);
-
-			if (parentFolder !== askDetails.subject) {
-				rememberLines.push(`Folder   ${parentFolder}/`);
-			}
-
-			const commandName = extractBinaryOrSubject(askDetails.command ?? "this one");
-			rememberLines.push(`Note     the rule works for any command, not just ${commandName}`);
-
-			if (isUntrustedProject) {
-				rememberLines.push("Note     this project isn't trusted — run /security trust to save rules here");
-			}
-
+			const rememberBody = buildRememberFileFields({
+				file: askDetails.subject,
+				folder: parentFolder,
+				commandName: extractBinaryOrSubject(askDetails.command ?? "this one"),
+				untrusted: isUntrustedProject,
+			});
 			const actionVerb = action === AskAction.Write ? "saving" : "reading";
 			const titleText = `Always allow ${actionVerb} — what, and where?`;
 
-			return askRememberFile(context, titleText, rememberLines.join("\n"), askDetails.subject, parentFolder, {
+			return askRememberFile(context, titleText, rememberBody, askDetails.subject, parentFolder, {
 				icon: "save",
 				untrusted: isUntrustedProject,
 			});
 		},
 	);
 
-	if (choice === MainChoice.Block) {
-		return Decision.No;
-	}
+	return mapFileOutcome(choice, grant);
+}
 
-	if (choice === MainChoice.Once) {
-		return Decision.Yes;
-	}
+function mapNetworkOutcome(choice: MainChoice, grant: { scope: GrantScope; pattern: string } | null): Decision {
+	if (choice === MainChoice.Block) return Decision.No;
+	if (choice === MainChoice.Once) return Decision.Yes;
+	if (choice === MainChoice.Session) return Decision.Session;
+	if (!grant) return Decision.No;
 
-	if (choice === MainChoice.Session) {
-		return Decision.Session;
-	}
+	return grant.scope === GrantScope.Cwd ? Decision.AlwaysCwd : Decision.AlwaysGlobal;
+}
 
-	if (!grant) {
-		return Decision.No;
-	}
+function mapFileOutcome(choice: MainChoice, grant: { scope: GrantScope; folder: boolean } | null): Decision {
+	if (choice === MainChoice.Block) return Decision.No;
+	if (choice === MainChoice.Once) return Decision.Yes;
+	if (choice === MainChoice.Session) return Decision.Session;
+	if (!grant) return Decision.No;
 
 	if (grant.scope === GrantScope.Cwd) {
 		return grant.folder ? Decision.AlwaysCwdFolder : Decision.AlwaysCwd;

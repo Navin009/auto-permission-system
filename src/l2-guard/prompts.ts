@@ -19,6 +19,7 @@ import {
 	OverrideKind,
 } from "#core/index.ts";
 import { audit } from "#shared/audit.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { canonicalize, matchPattern } from "./matching.ts";
 import { projectTrusted, TRUST_STORE } from "./policy.ts";
 import { domainMatches } from "./url.ts";
@@ -88,6 +89,15 @@ export type UICtx = {
  * grants are persisted and announced to the other layer via `onPersist`.
  * Headless asks deny. A `null` return means the call may proceed.
  */
+function notifyDecision(ctx: UICtx, toolCallId: string | undefined, note: string, notifyText = note): void {
+	if (toolCallId) {
+		rememberNativeNote(toolCallId, note);
+		return;
+	}
+
+	ctx.ui.notify(notifyText, "info");
+}
+
 export async function askOrBlock(
 	ctx: UICtx,
 	ask: AskKind,
@@ -106,6 +116,7 @@ export async function askOrBlock(
 				grant: granted,
 				cwd: ctx.cwd,
 			});
+			rememberNativeNote(ask.toolCallId, `Allowed for this conversation: ${granted}`);
 			return null;
 		}
 		if (ask.outside && ctx.hasUI !== false) {
@@ -120,7 +131,12 @@ export async function askOrBlock(
 					named,
 					cwd: ctx.cwd,
 				});
-				ctx.ui.notify(`Allowed reading ${ask.subject} once (mentioned in your prompt).`, "info");
+				notifyDecision(
+					ctx,
+					ask.toolCallId,
+					"Allowed once (mentioned in your prompt)",
+					`Allowed reading ${ask.subject} once (mentioned in your prompt).`,
+				);
 				return null;
 			}
 		}
@@ -138,7 +154,7 @@ export async function askOrBlock(
 				: ask.overrideValue;
 		sessionGrants.push({ kind: ask.overrideKind, value });
 		audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision, grant: value, cwd: ctx.cwd });
-		ctx.ui.notify(`Allowed for this conversation: ${value}`, "info");
+		notifyDecision(ctx, ask.toolCallId, `Allowed for this conversation: ${value}`);
 		return null;
 	}
 	if (
@@ -182,7 +198,7 @@ export async function askOrBlock(
 				scope === GrantScope.Cwd
 					? "this project (stored in project settings)"
 					: "all projects (stored in global settings)";
-			ctx.ui.notify(`Rule saved for ${scopeLabel}.`, "info");
+			notifyDecision(ctx, ask.toolCallId, `Rule saved for ${scopeLabel}`, `Rule saved for ${scopeLabel}.`);
 		} catch (error) {
 			audit({
 				layer: 2,
@@ -202,6 +218,7 @@ export async function askOrBlock(
 		return null;
 	}
 	audit({ layer: 2, tool: ask.tool, subject: ask.subject, reason: ask.reason, decision: "yes", cwd: ctx.cwd });
+	rememberNativeNote(ask.toolCallId, "Allowed once");
 	return null;
 }
 

@@ -17,8 +17,17 @@ import {
 import { audit } from "#shared/audit.ts";
 import { canonicalize } from "#shared/canonicalize.ts";
 import { isEnvTemplateFile, scanTextContent } from "#detect/index.ts";
-import { askMain, askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "#ui/ask-flow.ts";
-import { displayWhy, getCredentialLabel } from "#ui/ask.ts";
+import {
+	askMain,
+	askMainWithRemember,
+	askRememberFile,
+	MainChoice,
+	type AskCtx,
+	type PromptBody,
+} from "#ui/ask-flow.ts";
+import { buildFilePromptFields, buildRememberFileFields, displayWhy, getCredentialLabel } from "#ui/ask.ts";
+import { promptField } from "#ui/prompt-spec.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 import { BLOCK_NOTICE, POLICY_NOTICE, SANDBOX_NAME } from "#shared/messages.ts";
 
@@ -28,6 +37,7 @@ const CREDENTIAL_NOTE = "this file holds secrets, so a saved rule is never offer
 const MAXIMUM_TEMPLATE_BYTES = 64 * 1024;
 
 export interface SandboxedBashOptions {
+	toolCallId?: string;
 	ctx?: {
 		cwd: string;
 		hasUI?: boolean;
@@ -103,14 +113,14 @@ function blockAutomated(
 }
 
 async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promise<string | undefined> {
-	const promptLines = [
-		`File     ${absolutePath}`,
-		`Why      this file usually holds passwords and API keys`,
-		`Risk     the AI can change what the app reads, or wipe a key`,
-		`Note     ${CREDENTIAL_NOTE}`,
-	];
+	const promptBody = buildFilePromptFields({
+		file: absolutePath,
+		why: "this file usually holds passwords and API keys",
+		risk: "the AI can change what the app reads, or wipe a key",
+		note: CREDENTIAL_NOTE,
+	});
 
-	return askMain(askContext, `Let this command write ${basename(absolutePath)}?`, promptLines.join("\n"), {
+	return askMain(askContext, `Let this command write ${basename(absolutePath)}?`, promptBody, {
 		session: true,
 		remember: false,
 		icon: "cred",
@@ -118,20 +128,20 @@ async function confirmWritePath(askContext: AskCtx, absolutePath: string): Promi
 }
 
 /** Only a content read reaches this prompt: a name-only finding never asks (ADR-049). */
-function describeAskRead(finding: AskReadFinding, command: string): { title: string; body: string } {
+function describeAskRead(finding: AskReadFinding, command: string): { title: string; body: PromptBody } {
 	const credentialLabel = getCredentialLabel(finding.path);
 
 	const title = `Let this command read your ${credentialLabel}?`;
 
-	const bodyLines = [
-		`File     ${finding.path}`,
-		`Command  ${command.trim()}`,
-		`Risk     the AI will see any keys in it`,
-		`Why      ${displayWhy(`askRead matched "${finding.pattern}"`)}`,
-		`Note     ${CREDENTIAL_NOTE}`,
-	];
+	const body = buildFilePromptFields({
+		file: finding.path,
+		command: command.trim(),
+		risk: "the AI will see any keys in it",
+		why: displayWhy(`askRead matched "${finding.pattern}"`),
+		note: CREDENTIAL_NOTE,
+	});
 
-	return { title, body: bodyLines.join("\n") };
+	return { title, body };
 }
 
 export const sessionReadGrants: string[] = [];
@@ -197,21 +207,20 @@ export async function preflightSensitiveCommands(
 
 	const askContext = options.ctx as AskCtx;
 
-	const bodyLines: string[] = [
-		`Command  ${matchedCommands.join(", ")}`,
-		`Risk     environment variables often hold API keys and tokens`,
-		`Note     can only be allowed one run at a time`,
+	const bodyFields = [
+		promptField("Command", matchedCommands.join(", ")),
+		promptField("Risk", "environment variables often hold API keys and tokens"),
+		promptField("Note", "can only be allowed one run at a time"),
 	];
 
 	if (command.includes("\n")) {
-		bodyLines.push(`\nScript:\n${command}`);
+		bodyFields.push(promptField("Script", command, "dim"));
 	}
 
-	const promptBody = bodyLines.join("\n");
 	const userChoice = await askMain(
 		askContext,
 		`Let ${matchedCommands[0]} print your environment variables?`,
-		promptBody,
+		{ fields: bodyFields },
 		{ once: true, remember: false, icon: "cred" },
 	);
 
@@ -445,28 +454,29 @@ export async function preflightOutsideReads(
 		const parentDirectory = dirname(absolutePath);
 		const folderGrant = isSafeFolderGrant(parentDirectory, homedir()) ? parentDirectory : null;
 
-		const mainPromptLines = [
-			`File     ${absolutePath}`,
-			`Command  ${command}`,
-			`Why      files outside your project need your OK`,
-		];
+		const mainPromptBody = buildFilePromptFields({
+			file: absolutePath,
+			command,
+			why: "files outside your project need your OK",
+		});
 
-		const rememberPromptLines = [
-			`File     ${absolutePath}`,
-			`Folder   ${parentDirectory}/`,
-			`Note     the rule works for any command, not just ${extractBinaryName(command)}`,
-		];
+		const rememberPromptBody = buildRememberFileFields({
+			file: absolutePath,
+			folder: parentDirectory,
+			commandName: extractBinaryName(command),
+			untrusted: !projectTrusted(workingDirectory),
+		});
 
 		const { choice, grant } = await askMainWithRemember(
 			askContext,
 			"Let this command read a file outside your project?",
-			mainPromptLines.join("\n"),
+			mainPromptBody,
 			{ session: true },
 			() =>
 				askRememberFile(
 					askContext,
 					"Always allow reading — what, and where?",
-					rememberPromptLines.join("\n"),
+					rememberPromptBody,
 					absolutePath,
 					folderGrant,
 					{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
@@ -481,6 +491,7 @@ export async function preflightOutsideReads(
 				note: "preflight",
 				cwd: workingDirectory,
 			});
+			rememberNativeNote(options.toolCallId, `Allowed read once: ${absolutePath}`);
 			allowedOncePaths.push(absolutePath);
 			continue;
 		}
@@ -495,7 +506,11 @@ export async function preflightOutsideReads(
 				note: "preflight",
 				cwd: workingDirectory,
 			});
-			options.ctx.ui?.notify?.(`sandbox: allowed read of ${absolutePath} for this conversation (not saved)`, "info");
+			if (options.toolCallId) {
+				rememberNativeNote(options.toolCallId, `Allowed read for this conversation: ${absolutePath}`);
+			} else {
+				options.ctx.ui?.notify?.(`sandbox: allowed read of ${absolutePath} for this conversation (not saved)`, "info");
+			}
 			continue;
 		}
 
@@ -524,7 +539,11 @@ export async function preflightOutsideReads(
 				persisted_to: persistedPath,
 				note: "preflight",
 			});
-			options.ctx.ui?.notify?.(`sandbox: allowed read of ${targetSubject} (${targetScope})`, "warning");
+			if (options.toolCallId) {
+				rememberNativeNote(options.toolCallId, `Rule saved for ${targetScope}: ${targetSubject}`);
+			} else {
+				options.ctx.ui?.notify?.(`sandbox: allowed read of ${targetSubject} (${targetScope})`, "warning");
+			}
 		} catch (error) {
 			auditLayer1Bash({
 				subject: targetSubject,

@@ -1,4 +1,14 @@
 import { Container, SelectList, Spacer, Text, type Component, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import {
+	FIELD_COLUMN_WIDTH,
+	fieldToneOf,
+	normalizeAskOption,
+	type AskOptionItem,
+	type FieldTone,
+	type PromptField,
+	type PromptFinding,
+	type PromptOption,
+} from "./prompt-spec.ts";
 
 export type AskTheme = {
 	fg(color: string, text: string): string;
@@ -19,12 +29,19 @@ const HEADROOM_ROWS = 1;
 const BODY_RESERVED_ROWS = SCROLL_INDICATOR_ROWS + HEADROOM_ROWS;
 
 const HELP_KEYS = "↑↓ navigate   Enter select   Esc cancel";
-const HELP_KEYS_WITH_SCROLL = "↑↓ navigate   Enter select   Esc cancel   PgUp/PgDn scroll";
+const HELP_KEYS_WITH_SHORTCUTS = "↑↓/1-9 navigate   Enter select   Esc cancel";
+const HELP_KEYS_SCROLL_SUFFIX = "   PgUp/PgDn scroll";
 const FINDING_LINE_PATTERN = /^(Finding(?:\s+\d+)?:\s*)(.*)$/;
 const METADATA_LINE_PATTERN = /^([A-Za-z][A-Za-z ]{1,12}\s{2,})(.+)$/;
-const WARNING_VALUE_LABELS = new Set(["Why", "Risk"]);
-const DIM_VALUE_LABELS = new Set(["Folder"]);
-const MUTED_VALUE_LABELS = new Set(["Note"]);
+
+const SCROLL_UP_KEYS = new Set(["\x1b[5~", "[", "\x1b[1;2A"]);
+const SCROLL_DOWN_KEYS = new Set(["\x1b[6~", "]", "\x1b[1;2B"]);
+const MAX_NUMERIC_SHORTCUTS = 9;
+
+type BodyEntry =
+	| { kind: "field"; labelColumn: string; value: string; tone: FieldTone }
+	| { kind: "finding"; prefix: string; text: string }
+	| { kind: "raw"; text: string };
 
 function trimBlankEdges(lines: string[]): string[] {
 	let start = 0;
@@ -38,9 +55,11 @@ function trimBlankEdges(lines: string[]): string[] {
 
 export type AskSelectorOptions = {
 	title: string;
+	fields?: readonly PromptField[];
+	findings?: readonly PromptFinding[];
 
 	footer: string | null;
-	options: string[];
+	options: readonly PromptOption[];
 
 	question?: string | null;
 
@@ -71,9 +90,6 @@ class Border implements Component {
 	}
 }
 
-const SCROLL_UP_KEYS = new Set(["\x1b[5~", "[", "\x1b[1;2A"]);
-const SCROLL_DOWN_KEYS = new Set(["\x1b[6~", "]", "\x1b[1;2B"]);
-
 export class AskSelector extends Container {
 	private readonly theme: AskTheme;
 	private readonly tui: { requestRender(): void; terminal?: { rows: number; columns: number } };
@@ -85,7 +101,8 @@ export class AskSelector extends Container {
 	private readonly footerBase: string | null;
 	private readonly footerText: Text | null = null;
 	private readonly list: SelectList;
-	private readonly labels: string[];
+	private readonly items: AskOptionItem[];
+	private readonly hasShortcuts: boolean;
 	private selected = 0;
 	private footerVisible: boolean;
 	private remaining: number;
@@ -95,7 +112,7 @@ export class AskSelector extends Container {
 
 	private readonly isMultiLine: boolean;
 	private readonly headerText: string;
-	private readonly bodyLines: string[];
+	private readonly bodyEntries: BodyEntry[];
 	private readonly maxBodyLines: number;
 	private readonly bodyComponent: Text | null = null;
 	private readonly indicatorComponent: Text | null = null;
@@ -118,35 +135,32 @@ export class AskSelector extends Container {
 		this.timeoutMs = o.timeoutMs;
 		this.tickMs = o.tickMs ?? 1000;
 		this.footerBase = o.footer;
-		this.labels = o.options;
+		this.items = o.options.map(normalizeAskOption);
+		this.hasShortcuts = this.items.some((item) => Boolean(item.key));
 		this.footerVisible = o.footer !== null && o.footer !== "";
 		this.remaining = Math.ceil(o.timeoutMs / 1000);
 		this.maxBodyLines = o.maxBodyLines ?? 12;
 		this.extraChromeRows = (o.question ? QUESTION_ROWS : 0) + (o.note ? NOTE_ROWS : 0);
 
 		const allLines = o.title.split("\n");
-		this.isMultiLine = allLines.length > 1;
+		const hasStructuredBody = Boolean(o.fields?.length || o.findings?.length);
 
-		if (this.isMultiLine) {
-			this.headerText = allLines[0] ?? "";
-			this.bodyLines = trimBlankEdges(allLines.slice(1));
-		} else {
-			this.headerText = o.title;
-			this.bodyLines = [];
-		}
+		this.headerText = hasStructuredBody ? (allLines[0] ?? o.title) : (allLines[0] ?? "");
+		this.bodyEntries = hasStructuredBody
+			? this.entriesFromSpec(o.fields ?? [], o.findings ?? [])
+			: this.entriesFromLines(trimBlankEdges(allLines.slice(1)));
+		this.isMultiLine = this.bodyEntries.length > 0;
 
 		this.addChild(new Border((t) => this.theme.fg("border", t)));
 		this.addChild(new Spacer(1));
+		this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
 
 		if (this.isMultiLine) {
-			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(this.headerText)), 0, 0));
 			this.addChild(new Spacer(1));
 			this.bodyComponent = new Text("", 0, 0);
 			this.addChild(this.bodyComponent);
 			this.indicatorComponent = new Text("", 0, 0);
 			this.addChild(this.indicatorComponent);
-		} else {
-			this.addChild(new Text(this.theme.fg("accent", this.theme.bold(o.title)), 0, 0));
 		}
 
 		this.addChild(new Spacer(1));
@@ -160,27 +174,7 @@ export class AskSelector extends Container {
 		}
 
 		this.addChild(new Spacer(1));
-
-		this.list = new SelectList(
-			o.options.map((label) => ({ value: label, label })),
-			Math.max(1, o.options.length),
-			{
-				selectedPrefix: (t) => this.theme.fg("accent", t),
-				selectedText: (t) => this.theme.fg("accent", t),
-				description: (t) => this.theme.fg("muted", t),
-				scrollInfo: (t) => this.theme.fg("muted", t),
-				noMatch: (t) => this.theme.fg("muted", t),
-			},
-		);
-		this.list.onSelectionChange = (item) => {
-			const index = this.labels.indexOf(item.value);
-			if (index !== -1 && index !== this.selected) {
-				this.selected = index;
-				this.onActivity();
-			}
-		};
-		this.list.onSelect = (item) => this.finish(item.value);
-		this.list.onCancel = () => this.finish(undefined);
+		this.list = this.createSelectList();
 		this.addChild(this.list);
 
 		this.addChild(new Spacer(1));
@@ -192,6 +186,35 @@ export class AskSelector extends Container {
 		if (this.timeoutMs > 0) this.startCountdown();
 
 		this.layoutBody(this.tui.terminal?.columns ?? 80);
+	}
+
+	private createSelectList(): SelectList {
+		const list = new SelectList(
+			this.items.map((item) => ({
+				value: item.value,
+				label: item.key ? `[${item.key}] ${item.label}` : item.label,
+				description: item.description,
+			})),
+			Math.max(1, this.items.length),
+			{
+				selectedPrefix: (t) => this.theme.fg("accent", t),
+				selectedText: (t) => this.theme.fg("accent", t),
+				description: (t) => this.theme.fg("muted", t),
+				scrollInfo: (t) => this.theme.fg("muted", t),
+				noMatch: (t) => this.theme.fg("muted", t),
+			},
+		);
+		list.onSelectionChange = (item) => {
+			const index = this.items.findIndex((candidate) => candidate.value === item.value);
+			if (index !== -1 && index !== this.selected) {
+				this.selected = index;
+				this.onActivity();
+			}
+		};
+		list.onSelect = (item) => this.finish(item.value);
+		list.onCancel = () => this.finish(undefined);
+
+		return list;
 	}
 
 	render(width: number): string[] {
@@ -219,7 +242,62 @@ export class AskSelector extends Container {
 			this.move(1);
 			return;
 		}
+		const shortcutMatch = this.matchShortcut(data);
+		if (shortcutMatch !== undefined) {
+			this.finish(shortcutMatch);
+			return;
+		}
 		this.list.handleInput(data);
+	}
+
+	private matchShortcut(data: string): string | undefined {
+		if (data.length !== 1) return undefined;
+
+		if (this.hasShortcuts) {
+			const lower = data.toLowerCase();
+			const keyed = this.items.find((item) => item.key?.toLowerCase() === lower);
+			if (keyed) return keyed.value;
+
+			const digit = Number(data);
+			if (Number.isInteger(digit) && digit >= 1 && digit <= Math.min(MAX_NUMERIC_SHORTCUTS, this.items.length)) {
+				return this.items[digit - 1]?.value;
+			}
+		}
+
+		return undefined;
+	}
+
+	private entriesFromSpec(fields: readonly PromptField[], findings: readonly PromptFinding[]): BodyEntry[] {
+		const columnWidth = fields.reduce((max, field) => Math.max(max, field.label.length + 2), FIELD_COLUMN_WIDTH);
+		const entries: BodyEntry[] = fields.map((field) => ({
+			kind: "field",
+			labelColumn: field.label.padEnd(columnWidth),
+			value: field.value,
+			tone: field.tone ?? fieldToneOf(field.label),
+		}));
+
+		for (const finding of findings) {
+			entries.push({ kind: "finding", prefix: finding.prefix, text: finding.text });
+		}
+
+		return entries;
+	}
+
+	private entriesFromLines(lines: readonly string[]): BodyEntry[] {
+		return lines.map((line) => {
+			const findingMatch = FINDING_LINE_PATTERN.exec(line);
+			if (findingMatch) {
+				return { kind: "finding", prefix: findingMatch[1], text: findingMatch[2] };
+			}
+
+			const metadataMatch = METADATA_LINE_PATTERN.exec(line);
+			if (metadataMatch) {
+				const [, labelColumn, value] = metadataMatch;
+				return { kind: "field", labelColumn, value, tone: fieldToneOf(labelColumn.trim()) };
+			}
+
+			return { kind: "raw", text: line };
+		});
 	}
 
 	private layoutBody(width: number): void {
@@ -240,9 +318,8 @@ export class AskSelector extends Container {
 
 		const rows: string[] = [];
 
-		for (const line of this.bodyLines) {
-			const normalizedLine = line.replaceAll("\t", "   ");
-			const styled = this.formatBodyLine(normalizedLine);
+		for (const entry of this.bodyEntries) {
+			const styled = this.formatEntry(entry).replaceAll("\t", "   ");
 
 			for (const row of wrapTextWithAnsi(styled, contentWidth)) rows.push(row);
 		}
@@ -251,39 +328,22 @@ export class AskSelector extends Container {
 		this.wrappedRowsWidth = width;
 	}
 
-	private formatBodyLine(line: string): string {
-		const findingMatch = FINDING_LINE_PATTERN.exec(line);
-
-		if (findingMatch) {
-			const [, prefix, rest] = findingMatch;
-
-			return `${this.theme.fg("warning", this.theme.bold(prefix))}${rest}`;
+	private formatEntry(entry: BodyEntry): string {
+		if (entry.kind === "finding") {
+			return `${this.theme.fg("warning", this.theme.bold(entry.prefix))}${entry.text}`;
 		}
 
-		const metadataMatch = METADATA_LINE_PATTERN.exec(line);
-
-		if (metadataMatch) {
-			const [, label, value] = metadataMatch;
-
-			return `${this.theme.fg("muted", label)}${this.formatMetadataValue(label.trim(), value)}`;
+		if (entry.kind === "field") {
+			return `${this.theme.fg("muted", entry.labelColumn)}${this.formatFieldValue(entry.tone, entry.value)}`;
 		}
 
-		return line;
+		return entry.text;
 	}
 
-	private formatMetadataValue(label: string, value: string): string {
-		if (WARNING_VALUE_LABELS.has(label)) {
-			return this.theme.fg("warning", value);
-		}
-
-		if (DIM_VALUE_LABELS.has(label)) {
-			return this.theme.fg("dim", value);
-		}
-
-		if (MUTED_VALUE_LABELS.has(label)) {
-			return this.theme.fg("muted", value);
-		}
-
+	private formatFieldValue(tone: FieldTone, value: string): string {
+		if (tone === "warning") return this.theme.fg("warning", value);
+		if (tone === "dim") return this.theme.fg("dim", value);
+		if (tone === "muted") return this.theme.fg("muted", value);
 		return value;
 	}
 
@@ -292,7 +352,7 @@ export class AskSelector extends Container {
 		if (!rows || rows <= 0) return this.maxBodyLines;
 
 		const fixedRows = this.footerVisible ? FOOTER_ROWS : 0;
-		const chrome = CHROME_ROWS + fixedRows + this.extraChromeRows + this.labels.length;
+		const chrome = CHROME_ROWS + fixedRows + this.extraChromeRows + this.items.length;
 		const available = rows - chrome - BODY_RESERVED_ROWS;
 
 		return Math.max(1, Math.min(this.maxBodyLines, available));
@@ -309,7 +369,8 @@ export class AskSelector extends Container {
 	}
 
 	private helpText(): string {
-		const keys = this.scrollable ? HELP_KEYS_WITH_SCROLL : HELP_KEYS;
+		const base = this.hasShortcuts ? HELP_KEYS_WITH_SHORTCUTS : HELP_KEYS;
+		const keys = this.scrollable ? `${base}${HELP_KEYS_SCROLL_SUFFIX}` : base;
 
 		return this.theme.fg("muted", keys);
 	}
@@ -344,7 +405,7 @@ export class AskSelector extends Container {
 	}
 
 	private move(delta: number): void {
-		const next = Math.max(0, Math.min(this.labels.length - 1, this.selected + delta));
+		const next = Math.max(0, Math.min(this.items.length - 1, this.selected + delta));
 		if (next === this.selected) return;
 		this.selected = next;
 		this.list.setSelectedIndex(next);

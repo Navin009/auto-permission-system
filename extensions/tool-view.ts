@@ -5,7 +5,7 @@ import { rowKindOf } from "#core/tool-view/row-kind.ts";
 import { readToolViewSettings, TOOL_VIEW_SETTINGS_FILE_NAME } from "#core/tool-view/settings.ts";
 import { runToolViewCommand, TOOL_VIEW_COMMAND_NAME } from "#tool-view/commands.ts";
 import { setGateNoteRepaint } from "#shared/gate-notes.ts";
-import { toolViewRenderers } from "#tool-view/renderers.ts";
+import { nativeGateNoteRenderers, toolViewRenderers } from "#tool-view/renderers.ts";
 import { closeRowGroup, repaintCurrentGroup, repaintCurrentRow, resetRowGroups } from "#tool-view/row-groups.ts";
 import { getActiveViewMode, setActiveViewMode, setThoughtsVisibleLookup } from "#tool-view/session.ts";
 import { applyThinkingVisibility, resetThinkingVisibility } from "#tool-view/thinking-visibility.ts";
@@ -129,7 +129,9 @@ export default function (pi: ExtensionAPI) {
 
 		closeRowGroup();
 
-		return next();
+		const fallback = next();
+
+		return fallback && typeof fallback === "object" ? nativeGateNoteRenderers(fallback) : fallback;
 	});
 
 	pi.registerCommand?.(TOOL_VIEW_COMMAND_NAME, {

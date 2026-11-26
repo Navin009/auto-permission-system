@@ -12,7 +12,9 @@ import {
 	outsideProjectReadDenied,
 } from "#core/index.ts";
 import { canonicalize } from "#shared/canonicalize.ts";
+import { rememberNativeNote } from "#shared/gate-notes.ts";
 import { askMainWithRemember, askRememberFile, MainChoice, type AskCtx } from "#ui/ask-flow.ts";
+import { buildFilePromptFields, buildRememberFileFields } from "#ui/ask.ts";
 import { loadConfig, projectTrusted } from "./config.ts";
 import {
 	auditLayer1Bash,
@@ -24,12 +26,13 @@ import {
 } from "./bash-preflight.ts";
 import { POLICY_NOTICE } from "#shared/messages.ts";
 
-function formatLinkRow(absolutePath: string, spelledPath: string | undefined): string[] {
-	if (spelledPath && spelledPath !== absolutePath) {
-		return [`Link     ${spelledPath}`];
+function notifyRecoveryNote(options: SandboxedBashOptions | undefined, note: string, notifyFallback: string): void {
+	if (options?.toolCallId) {
+		rememberNativeNote(options.toolCallId, note);
+		return;
 	}
 
-	return [];
+	options?.ctx?.ui?.notify?.(notifyFallback, "info");
 }
 
 export interface BlockedBashExecutionContext {
@@ -221,30 +224,31 @@ export async function handleBlockedBashExecution(
 			const parentDirectory = dirname(targetAbsolutePath);
 			const folderGrant = isSafeFolderGrant(parentDirectory, homedir()) ? parentDirectory : null;
 
-			const promptLines = [
-				`File     ${targetAbsolutePath}`,
-				...formatLinkRow(targetAbsolutePath, spelledOffendingPath),
-				`Command  ${command}`,
-				`Why      outside your project, not on your allowed list`,
-			];
+			const promptBody = buildFilePromptFields({
+				file: targetAbsolutePath,
+				link: spelledOffendingPath,
+				command,
+				why: "outside your project, not on your allowed list",
+			});
 
-			const rememberPromptLines = [
-				`File     ${targetAbsolutePath}`,
-				...formatLinkRow(targetAbsolutePath, spelledOffendingPath),
-				`Folder   ${parentDirectory}/`,
-				`Note     the rule works for any command, not just ${extractBinaryName(command)}`,
-			];
+			const rememberPromptBody = buildRememberFileFields({
+				file: targetAbsolutePath,
+				link: spelledOffendingPath,
+				folder: parentDirectory,
+				commandName: extractBinaryName(command),
+				untrusted: !projectTrusted(workingDirectory),
+			});
 
 			const { choice, grant } = await askMainWithRemember(
 				askContext,
 				"Let this command read a file outside your project?",
-				promptLines.join("\n"),
+				promptBody,
 				{ session: true, remember: isNamedInCommand },
 				() =>
 					askRememberFile(
 						askContext,
 						"Always allow reading — what, and where?",
-						rememberPromptLines.join("\n"),
+						rememberPromptBody,
 						targetAbsolutePath,
 						folderGrant,
 						{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
@@ -267,7 +271,11 @@ export async function handleBlockedBashExecution(
 				});
 
 				const scopeNotice = choice === MainChoice.Once ? "once" : "for this conversation";
-				options.ctx.ui?.notify?.(`sandbox: allowed read of ${targetAbsolutePath} ${scopeNotice}`, "info");
+				notifyRecoveryNote(
+					options,
+					`Allowed read ${scopeNotice}: ${targetAbsolutePath}`,
+					`sandbox: allowed read of ${targetAbsolutePath} ${scopeNotice}`,
+				);
 
 				onData(
 					Buffer.from(
@@ -296,7 +304,11 @@ export async function handleBlockedBashExecution(
 					});
 
 					const folderLabel = grant.folder ? ", folder" : "";
-					options.ctx.ui?.notify?.(`sandbox: allowed read of ${subject} (${grant.scope}${folderLabel})`, "info");
+					notifyRecoveryNote(
+						options,
+						`Rule saved for ${grant.scope}: ${subject}`,
+						`sandbox: allowed read of ${subject} (${grant.scope}${folderLabel})`,
+					);
 
 					onData(
 						Buffer.from(
@@ -399,30 +411,31 @@ export async function handleBlockedBashExecution(
 			const folderGrant = isSafeFolderGrant(parentDirectory, homedir()) ? parentDirectory : null;
 			const deniedWhy = isWriteDenied ? "not under an allowWrite root" : "blocked by the sandbox filesystem policy";
 
-			const promptLines = [
-				`File     ${targetAbsolutePath}`,
-				...formatLinkRow(targetAbsolutePath, spelledOffendingPath),
-				`Command  ${command}`,
-				`Why      ${deniedWhy}`,
-			];
+			const promptBody = buildFilePromptFields({
+				file: targetAbsolutePath,
+				link: spelledOffendingPath,
+				command,
+				why: deniedWhy,
+			});
 
-			const rememberPromptLines = [
-				`File     ${targetAbsolutePath}`,
-				...formatLinkRow(targetAbsolutePath, spelledOffendingPath),
-				`Folder   ${parentDirectory}/`,
-				`Note     the rule works for any command, not just ${extractBinaryName(command)}`,
-			];
+			const rememberPromptBody = buildRememberFileFields({
+				file: targetAbsolutePath,
+				link: spelledOffendingPath,
+				folder: parentDirectory,
+				commandName: extractBinaryName(command),
+				untrusted: !projectTrusted(workingDirectory),
+			});
 
 			const { choice, grant } = await askMainWithRemember(
 				askContext,
 				`Let ${extractBinaryName(command)} save files in ${parentDirectory}/?`,
-				promptLines.join("\n"),
+				promptBody,
 				{ session: true, once: !isAlreadyGranted, remember: isNamedInCommand },
 				() =>
 					askRememberFile(
 						askContext,
 						"Always allow saving — what, and where?",
-						rememberPromptLines.join("\n"),
+						rememberPromptBody,
 						targetAbsolutePath,
 						folderGrant,
 						{ icon: "save", untrusted: !projectTrusted(workingDirectory) },
@@ -442,7 +455,11 @@ export async function handleBlockedBashExecution(
 					note: "write-once",
 				});
 
-				options.ctx.ui?.notify?.(`sandbox: allowed write to ${targetAbsolutePath} once`, "info");
+				notifyRecoveryNote(
+					options,
+					`Allowed write once: ${targetAbsolutePath}`,
+					`sandbox: allowed write to ${targetAbsolutePath} once`,
+				);
 				onData(
 					Buffer.from(
 						`\n[Permission Granted] sandbox: write to ${targetAbsolutePath} allowed once. Command output with the new permission follows.\n`,
@@ -467,7 +484,11 @@ export async function handleBlockedBashExecution(
 					note: "write-session",
 				});
 
-				options.ctx.ui?.notify?.(`sandbox: allowed write to ${value} for this conversation`, "info");
+				notifyRecoveryNote(
+					options,
+					`Allowed write for this conversation: ${value}`,
+					`sandbox: allowed write to ${value} for this conversation`,
+				);
 				onData(
 					Buffer.from(
 						`\n[Permission Granted] sandbox: write to ${value} allowed for this conversation. Command output with the new permission follows.\n`,
@@ -495,7 +516,11 @@ export async function handleBlockedBashExecution(
 					});
 
 					const folderLabel = grant.folder ? ", folder" : "";
-					options.ctx.ui?.notify?.(`sandbox: allowed write to ${subject} (${grant.scope}${folderLabel})`, "info");
+					notifyRecoveryNote(
+						options,
+						`Rule saved for ${grant.scope}: ${subject}`,
+						`sandbox: allowed write to ${subject} (${grant.scope}${folderLabel})`,
+					);
 					onData(
 						Buffer.from(
 							`\n[Permission Granted] sandbox: write to ${subject} allowed (${grant.scope}${folderLabel}). Command output with the new permission follows.\n`,
